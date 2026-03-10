@@ -12,6 +12,7 @@
     { key: '3months', label: '3M' },
     { key: '6months', label: '6M' },
     { key: 'year', label: '1Y' },
+    { key: 'thisYear', label: 'YTD' },
     { key: 'all', label: 'All' },
   ];
 </script>

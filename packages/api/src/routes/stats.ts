@@ -11,6 +11,7 @@ const stats = new Hono();
 function getRangeStart(range: TimeRange): string | null {
   const days = TIME_RANGES[range];
   if (days === 0) return null; // "all"
+  if (days === -1) return new Date(Date.UTC(new Date().getFullYear(), 0, 1)).toISOString(); // "thisYear"
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString();
