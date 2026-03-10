@@ -2,12 +2,13 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, upsertTrack } from './ingestion.js';
+import { insertPlay, upsertTrack, enrichArtistMetadata } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   RECENTLY_PLAYED_INTERVAL_MS,
   RECENTLY_PLAYED_LIMIT,
+  METADATA_REFRESH_INTERVAL_MS,
 } from '../constants.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
@@ -16,6 +17,7 @@ import type {
 
 let currentlyPlayingTimer: ReturnType<typeof setInterval> | null = null;
 let recentlyPlayedTimer: ReturnType<typeof setInterval> | null = null;
+let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 function getPollingState() {
   const db = getDb();
@@ -113,9 +115,14 @@ export function startPolling() {
   // ejecutar inmediatamente, luego repetir
   pollCurrentlyPlaying();
   pollRecentlyPlayed();
+  enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err));
 
   currentlyPlayingTimer = setInterval(pollCurrentlyPlaying, CURRENTLY_PLAYING_INTERVAL_MS);
   recentlyPlayedTimer = setInterval(pollRecentlyPlayed, RECENTLY_PLAYED_INTERVAL_MS);
+  metadataRefreshTimer = setInterval(
+    () => enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err)),
+    METADATA_REFRESH_INTERVAL_MS,
+  );
 
   console.log(`[poll] currently playing cada ${CURRENTLY_PLAYING_INTERVAL_MS / 1000}s`);
   console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
@@ -124,8 +131,10 @@ export function startPolling() {
 export function stopPolling() {
   if (currentlyPlayingTimer) clearInterval(currentlyPlayingTimer);
   if (recentlyPlayedTimer) clearInterval(recentlyPlayedTimer);
+  if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
   currentlyPlayingTimer = null;
   recentlyPlayedTimer = null;
+  metadataRefreshTimer = null;
   console.log('[poll] polling detenido');
 }
 

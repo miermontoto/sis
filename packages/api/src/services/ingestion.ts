@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
-import type { SpotifyTrack, SpotifyPlayHistoryItem } from '../types/spotify.js';
+import { spotifyFetch } from './spotify-client.js';
+import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse } from '../types/spotify.js';
 
 const now = () => new Date().toISOString();
 
@@ -77,6 +79,42 @@ export function upsertTrack(track: SpotifyTrack) {
       .onConflictDoNothing()
       .run();
   });
+}
+
+// enriquecer artistas sin imagen consultando la API de spotify en lotes de 50
+export async function enrichArtistMetadata() {
+  const db = getDb();
+  const missing = db.all(sql`SELECT spotify_id FROM artists WHERE image_url IS NULL`) as { spotify_id: string }[];
+
+  if (missing.length === 0) return;
+  console.log(`[metadata] ${missing.length} artistas sin imagen, enriqueciendo...`);
+
+  const BATCH_SIZE = 50;
+  let updated = 0;
+
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    const batch = missing.slice(i, i + BATCH_SIZE);
+    const ids = batch.map(a => a.spotify_id).join(',');
+    const data = await spotifyFetch<SpotifyArtistsBatchResponse>('/artists', { params: { ids } });
+
+    if (!data?.artists) continue;
+
+    for (const artist of data.artists) {
+      if (!artist) continue;
+      db.update(artists)
+        .set({
+          imageUrl: artist.images[0]?.url ?? null,
+          genres: artist.genres,
+          popularity: artist.popularity,
+          updatedAt: now(),
+        })
+        .where(sql`spotify_id = ${artist.id}`)
+        .run();
+      if (artist.images[0]?.url) updated++;
+    }
+  }
+
+  console.log(`[metadata] ${updated} artistas actualizados con imagen`);
 }
 
 // insertar entrada en el historial, retorna true si se insertó (no duplicado)

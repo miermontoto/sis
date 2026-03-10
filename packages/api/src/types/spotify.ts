@@ -64,6 +64,10 @@ export interface SpotifyCurrentlyPlayingResponse {
   timestamp: number;
 }
 
+export interface SpotifyArtistsBatchResponse {
+  artists: SpotifyArtistFull[];
+}
+
 export interface SpotifyTokenResponse {
   access_token: string;
   token_type: string;
