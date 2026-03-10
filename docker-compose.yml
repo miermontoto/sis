@@ -1,0 +1,14 @@
+services:
+  sis:
+    build: .
+    ports:
+      - "3004:3000"
+    volumes:
+      - sis-data:/app/data
+    env_file: .env
+    environment:
+      - DATABASE_PATH=/app/data/sis.db
+    restart: unless-stopped
+
+volumes:
+  sis-data:

@@ -1,0 +1,19 @@
+{
+  "name": "sis",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @sis/api dev",
+    "build": "pnpm --filter @sis/web build && pnpm run copy-static && pnpm --filter @sis/api build",
+    "copy-static": "cp -r packages/web/build/* packages/api/static/",
+    "start": "pnpm --filter @sis/api start",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "pnpm": {
+    "neverBuiltDependencies": []
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.9"
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.db
+*.db-wal
+*.db-shm
+packages/api/static/*
+!packages/api/static/.gitkeep
+packages/web/build/
+packages/web/.svelte-kit/
+.DS_Store
