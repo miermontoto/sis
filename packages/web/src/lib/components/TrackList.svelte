@@ -1,18 +1,24 @@
 <script lang="ts">
-  import type { TopTrackItem, HistoryItem } from '$lib/api';
+  import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, timeAgo } from '$lib/utils/format';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
     showRank?: boolean;
     showTime?: boolean;
+    metric?: RankingMetric;
   }
 
-  let { items, showRank = false, showTime = false }: Props = $props();
+  let { items, showRank = false, showTime = false, metric = 'time' }: Props = $props();
 
   // type guard
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
     return 'playCount' in item;
+  }
+
+  function formatMetric(item: TopTrackItem): string {
+    if (metric === 'plays') return `${item.playCount} plays`;
+    return formatDuration(item.totalMs);
   }
 </script>
 
@@ -35,7 +41,7 @@
         </div>
         <div class="track-meta">
           {#if isTopTrack(item)}
-            <div class="track-plays">{item.playCount} plays</div>
+            <div class="track-plays">{formatMetric(item)}</div>
           {/if}
           {#if showTime && 'playedAt' in item}
             <div class="track-time">{timeAgo(item.playedAt)}</div>

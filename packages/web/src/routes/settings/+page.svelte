@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type HealthData, type StreaksData, type ImportResult } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, type HealthData, type StreaksData, type ImportResult, type RankingMetric } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
 
   let health = $state<HealthData | null>(null);
   let streaks = $state<StreaksData | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+
+  // preferencia de ranking
+  let rankingMetric = $state<RankingMetric>('time');
 
   // estado del import
   let importFiles = $state<FileList | null>(null);
@@ -30,7 +33,13 @@
     }
   }
 
+  function handleMetricChange(m: RankingMetric) {
+    rankingMetric = m;
+    setRankingMetric(m);
+  }
+
   onMount(async () => {
+    rankingMetric = getRankingMetric();
     try {
       [health, streaks] = await Promise.all([
         api.health(),
@@ -78,6 +87,21 @@
     <div class="card stat-card">
       <div class="stat-value">{streaks?.totalDays ?? 0}</div>
       <div class="stat-label">Active days</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h3 style="margin-bottom: 1rem;">Preferences</h3>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span style="color: var(--text-muted); font-size: 0.9rem;">Ranking metric</span>
+      <div class="time-range-selector">
+        <button class="range-btn" class:active={rankingMetric === 'time'} onclick={() => handleMetricChange('time')}>
+          Minutes
+        </button>
+        <button class="range-btn" class:active={rankingMetric === 'plays'} onclick={() => handleMetricChange('plays')}>
+          Plays
+        </button>
+      </div>
     </div>
   </div>
 

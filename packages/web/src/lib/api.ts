@@ -23,19 +23,34 @@ export interface TrackInfo {
 export interface TopTrackItem {
   trackId: string;
   playCount: number;
+  totalMs: number;
   track: TrackInfo | null;
 }
 
 export interface TopArtistItem {
   artistId: string;
   playCount: number;
+  totalMs: number;
   artist: { name: string; imageUrl: string | null; genres: string[] } | null;
 }
 
 export interface TopAlbumItem {
   albumId: string;
   playCount: number;
+  totalMs: number;
   album: { name: string; imageUrl: string | null; releaseDate: string | null } | null;
+}
+
+export type RankingMetric = 'time' | 'plays';
+
+const RANKING_METRIC_KEY = 'sis:rankingMetric';
+
+export function getRankingMetric(): RankingMetric {
+  return (localStorage.getItem(RANKING_METRIC_KEY) as RankingMetric) || 'time';
+}
+
+export function setRankingMetric(metric: RankingMetric) {
+  localStorage.setItem(RANKING_METRIC_KEY, metric);
 }
 
 export interface HistoryItem {
@@ -100,14 +115,14 @@ export interface ImportResult {
 export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
 
-  topTracks: (range = 'month', limit = 50) =>
-    apiFetch<TopTrackItem[]>('/stats/top-tracks', { range, limit: String(limit) }),
+  topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time') =>
+    apiFetch<TopTrackItem[]>('/stats/top-tracks', { range, limit: String(limit), sort }),
 
-  topArtists: (range = 'month', limit = 50) =>
-    apiFetch<TopArtistItem[]>('/stats/top-artists', { range, limit: String(limit) }),
+  topArtists: (range = 'month', limit = 50, sort: RankingMetric = 'time') =>
+    apiFetch<TopArtistItem[]>('/stats/top-artists', { range, limit: String(limit), sort }),
 
-  topAlbums: (range = 'month', limit = 50) =>
-    apiFetch<TopAlbumItem[]>('/stats/top-albums', { range, limit: String(limit) }),
+  topAlbums: (range = 'month', limit = 50, sort: RankingMetric = 'time') =>
+    apiFetch<TopAlbumItem[]>('/stats/top-albums', { range, limit: String(limit), sort }),
 
   topGenres: (range = 'month', limit = 20) =>
     apiFetch<GenreItem[]>('/stats/top-genres', { range, limit: String(limit) }),

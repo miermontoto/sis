@@ -22,38 +22,39 @@ function parseParams(c: any) {
   const range = (c.req.query('range') || 'month') as TimeRange;
   const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 200);
   const rangeStart = getRangeStart(range);
-  return { range, limit, rangeStart };
+  const sort = c.req.query('sort') === 'plays' ? 'plays' : 'time';
+  return { range, limit, rangeStart, sort };
 }
 
 stats.get('/top-tracks', (c) => {
-  const { limit, rangeStart } = parseParams(c);
+  const { limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
 
-  const conditions = rangeStart
-    ? and(gte(listeningHistory.playedAt, rangeStart))
-    : undefined;
+  const whereClause = rangeStart
+    ? sql`WHERE lh.played_at >= ${rangeStart}`
+    : sql``;
 
-  const rows = db
-    .select({
-      trackId: listeningHistory.trackId,
-      playCount: sql<number>`count(*)`.as('play_count'),
-    })
-    .from(listeningHistory)
-    .where(conditions)
-    .groupBy(listeningHistory.trackId)
-    .orderBy(desc(sql`play_count`))
-    .limit(limit)
-    .all();
+  const orderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
+
+  const rows = db.all(sql`
+    SELECT lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${whereClause}
+    GROUP BY lh.track_id
+    ORDER BY ${orderBy} DESC
+    LIMIT ${limit}
+  `) as { track_id: string; play_count: number; total_ms: number }[];
 
   const result = rows.map(row => {
-    const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.trackId)).get();
+    const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
     const album = track?.albumId
       ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
       : null;
     const artRows = db
       .select()
       .from(trackArtists)
-      .where(eq(trackArtists.trackId, row.trackId))
+      .where(eq(trackArtists.trackId, row.track_id))
       .all();
     const arts = artRows
       .sort((a, b) => a.position - b.position)
@@ -61,8 +62,9 @@ stats.get('/top-tracks', (c) => {
       .filter(Boolean);
 
     return {
-      trackId: row.trackId,
-      playCount: row.playCount,
+      trackId: row.track_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
       track: track ? {
         name: track.name,
         durationMs: track.durationMs,
@@ -76,28 +78,32 @@ stats.get('/top-tracks', (c) => {
 });
 
 stats.get('/top-artists', (c) => {
-  const { limit, rangeStart } = parseParams(c);
+  const { limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
 
   const whereClause = rangeStart
     ? sql`WHERE lh.played_at >= ${rangeStart}`
     : sql``;
 
+  const orderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
+
   const rows = db.all(sql`
-    SELECT ta.artist_id, count(*) as play_count
+    SELECT ta.artist_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN track_artists ta ON ta.track_id = lh.track_id
+    JOIN tracks t ON t.spotify_id = lh.track_id
     ${whereClause}
     GROUP BY ta.artist_id
-    ORDER BY play_count DESC
+    ORDER BY ${orderBy} DESC
     LIMIT ${limit}
-  `) as { artist_id: string; play_count: number }[];
+  `) as { artist_id: string; play_count: number; total_ms: number }[];
 
   const result = rows.map(row => {
     const artist = db.select().from(artists).where(eq(artists.spotifyId, row.artist_id)).get();
     return {
       artistId: row.artist_id,
       playCount: row.play_count,
+      totalMs: row.total_ms,
       artist: artist ? { name: artist.name, imageUrl: artist.imageUrl, genres: artist.genres } : null,
     };
   });
@@ -106,28 +112,31 @@ stats.get('/top-artists', (c) => {
 });
 
 stats.get('/top-albums', (c) => {
-  const { limit, rangeStart } = parseParams(c);
+  const { limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
 
   const whereClause = rangeStart
     ? sql`WHERE lh.played_at >= ${rangeStart}`
     : sql``;
 
+  const orderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
+
   const rows = db.all(sql`
-    SELECT t.album_id, count(*) as play_count
+    SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${whereClause}
     GROUP BY t.album_id
-    ORDER BY play_count DESC
+    ORDER BY ${orderBy} DESC
     LIMIT ${limit}
-  `) as { album_id: string; play_count: number }[];
+  `) as { album_id: string; play_count: number; total_ms: number }[];
 
   const result = rows.map(row => {
     const album = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
     return {
       albumId: row.album_id,
       playCount: row.play_count,
+      totalMs: row.total_ms,
       album: album ? { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate } : null,
     };
   });

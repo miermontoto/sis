@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type TopTrackItem, type TopArtistItem, type TopAlbumItem } from '$lib/api';
+  import { api, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
+  import { formatDuration } from '$lib/utils/format';
   import TrackList from '$lib/components/TrackList.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -8,6 +9,7 @@
 
   let activeTab = $state<'tracks' | 'artists' | 'albums'>('tracks');
   let range = $state('month');
+  let metric = $state<RankingMetric>('time');
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
   let topAlbums = $state<TopAlbumItem[]>([]);
@@ -17,51 +19,77 @@
     loading = true;
     try {
       if (activeTab === 'tracks') {
-        topTracks = await api.topTracks(range, 50);
+        topTracks = await api.topTracks(range, 50, metric);
       } else if (activeTab === 'artists') {
-        topArtists = await api.topArtists(range, 50);
+        topArtists = await api.topArtists(range, 50, metric);
       } else {
-        topAlbums = await api.topAlbums(range, 50);
+        topAlbums = await api.topAlbums(range, 50, metric);
       }
     } finally {
       loading = false;
     }
   }
 
-  onMount(loadData);
+  onMount(() => {
+    metric = getRankingMetric();
+    loadData();
+  });
 
   $effect(() => {
     void activeTab;
     void range;
+    void metric;
     loadData();
   });
+
+  function metricValue(item: { playCount: number; totalMs: number }): number {
+    return metric === 'plays' ? item.playCount : item.totalMs / 60_000;
+  }
+
+  function formatChartValue(ms: number): string {
+    if (metric === 'plays') return String(ms);
+    // ms es realmente minutos aquí (ya dividido)
+    const h = Math.floor(ms / 60);
+    const m = Math.round(ms % 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
 
   // bar chart horizontal de top 10
   let chartOption = $derived.by<EChartsOption>(() => {
     let names: string[] = [];
-    let counts: number[] = [];
+    let values: number[] = [];
 
     if (activeTab === 'tracks') {
       const top10 = topTracks.slice(0, 10).reverse();
       names = top10.map(t => t.track?.name ?? 'Unknown');
-      counts = top10.map(t => t.playCount);
+      values = top10.map(t => metricValue(t));
     } else if (activeTab === 'artists') {
       const top10 = topArtists.slice(0, 10).reverse();
       names = top10.map(a => a.artist?.name ?? 'Unknown');
-      counts = top10.map(a => a.playCount);
+      values = top10.map(a => metricValue(a));
     } else {
       const top10 = topAlbums.slice(0, 10).reverse();
       names = top10.map(a => a.album?.name ?? 'Unknown');
-      counts = top10.map(a => a.playCount);
+      values = top10.map(a => metricValue(a));
     }
 
     return {
       grid: { left: 140, right: 30, top: 10, bottom: 20 },
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          return `${p.name}<br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
+        },
+      },
       xAxis: {
         type: 'value',
         splitLine: { lineStyle: { color: '#2a2a2a' } },
-        axisLabel: { color: '#888' },
+        axisLabel: {
+          color: '#888',
+          formatter: (v: number) => metric === 'plays' ? String(v) : formatChartValue(v),
+        },
       },
       yAxis: {
         type: 'category',
@@ -76,7 +104,7 @@
       },
       series: [{
         type: 'bar',
-        data: counts,
+        data: values,
         itemStyle: {
           color: '#1db954',
           borderRadius: [0, 4, 4, 0],
@@ -117,7 +145,7 @@
   {/if}
 
   {#if activeTab === 'tracks'}
-    <TrackList items={topTracks} showRank />
+    <TrackList items={topTracks} showRank {metric} />
   {:else if activeTab === 'artists'}
     <div class="track-list">
       {#each topArtists as item, i}
@@ -134,7 +162,7 @@
               <div class="track-artist">{item.artist.genres?.slice(0, 3).join(', ') ?? ''}</div>
             </div>
             <div class="track-meta">
-              <div class="track-plays">{item.playCount} plays</div>
+              <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
             </div>
           </div>
         {/if}
@@ -156,7 +184,7 @@
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
             <div class="track-meta">
-              <div class="track-plays">{item.playCount} plays</div>
+              <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
             </div>
           </div>
         {/if}

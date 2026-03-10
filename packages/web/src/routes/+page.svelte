@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type TopTrackItem, type HistoryItem, type HealthData } from '$lib/api';
+  import { api, getRankingMetric, type TopTrackItem, type HistoryItem, type HealthData, type RankingMetric } from '$lib/api';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import { formatNumber, formatHours } from '$lib/utils/format';
@@ -10,12 +10,14 @@
   let health = $state<HealthData | null>(null);
   let todayPlays = $state(0);
   let todayMs = $state(0);
+  let metric = $state<RankingMetric>('time');
   let loading = $state(true);
 
   onMount(async () => {
+    metric = getRankingMetric();
     try {
       const [top, history, h, today] = await Promise.all([
-        api.topTracks('week', 5),
+        api.topTracks('week', 5, metric),
         api.history(1, 10),
         api.health(),
         api.listeningTime('week', 'day'),
@@ -73,7 +75,7 @@
   {#if topTracks.length > 0}
     <div class="card" style="margin-bottom: 1.5rem;">
       <h3 style="margin-bottom: 0.75rem;">Top tracks this week</h3>
-      <TrackList items={topTracks} showRank />
+      <TrackList items={topTracks} showRank {metric} />
     </div>
   {/if}
 
