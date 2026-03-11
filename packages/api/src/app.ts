@@ -3,6 +3,8 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { getCookie } from 'hono/cookie';
 import { serveStatic } from '@hono/node-server/serve-static';
+import fs from 'fs';
+import path from 'path';
 import auth from './routes/auth.js';
 import stats from './routes/stats.js';
 import nowPlaying from './routes/now-playing.js';
@@ -36,6 +38,22 @@ app.route('/api/stats', stats);
 app.route('/api/now-playing', nowPlaying);
 app.route('/api/export', exportRoute);
 app.route('/api/import', importRoute);
+
+// servir portadas descargadas desde data/covers/
+const coversDir = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
+app.get('/api/covers/:filename', (c) => {
+  const filename = c.req.param('filename');
+  // solo permitir nombres seguros
+  if (!/^[\w:.%-]+\.(jpg|png)$/.test(filename)) return c.notFound();
+  const filePath = path.join(coversDir, filename);
+  if (!fs.existsSync(filePath)) return c.notFound();
+  const ext = path.extname(filename).slice(1);
+  const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+  return c.body(fs.readFileSync(filePath), 200, {
+    'Content-Type': mime,
+    'Cache-Control': 'public, max-age=604800, immutable',
+  });
+});
 
 // health check
 app.get('/api/health', (c) => {

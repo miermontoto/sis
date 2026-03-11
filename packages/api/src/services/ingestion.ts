@@ -1,4 +1,6 @@
 import { sql } from 'drizzle-orm';
+import fs from 'fs';
+import path from 'path';
 import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
@@ -6,6 +8,10 @@ import { syntheticId } from './ids.js';
 import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse } from '../types/spotify.js';
 
 const now = () => new Date().toISOString();
+
+// directorio para portadas descargadas
+const COVERS_DIR = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
+fs.mkdirSync(COVERS_DIR, { recursive: true });
 const LOCAL_PREFIX = 'local:';
 
 // resuelve IDs para archivos locales, mutando el track in-place
@@ -157,7 +163,28 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchMusicBrainzCover(artistName: string, albumName: string): Promise<string | null> {
+// descargar imagen y guardarla localmente, retorna la ruta servible /api/covers/<file>
+async function downloadCover(imageUrl: string, albumId: string): Promise<string | null> {
+  try {
+    const res = await fetch(imageUrl);
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+    // sanitizar ID para nombre de archivo seguro
+    const safeId = albumId.replace(/[^a-zA-Z0-9_:-]/g, '_');
+    const filename = `${safeId}.${ext}`;
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    fs.writeFileSync(path.join(COVERS_DIR, filename), buffer);
+
+    return `/api/covers/${filename}`;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchMusicBrainzCover(artistName: string, albumName: string, albumId: string): Promise<string | null> {
   // buscar release en MusicBrainz
   const query = `release:${albumName} AND artist:${artistName}`;
   const url = `${MB_BASE}/release?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
@@ -172,18 +199,20 @@ async function fetchMusicBrainzCover(artistName: string, albumName: string): Pro
   const release = data.releases?.[0];
   if (!release || release.score < 80) return null;
 
-  // verificar si existe portada en Cover Art Archive (HEAD para evitar descargar la imagen)
-  const caaRes = await fetch(`${CAA_BASE}/release/${release.id}/front`, {
-    method: 'HEAD',
-    redirect: 'manual',
-  });
+  // descargar portada desde Cover Art Archive
+  const caaUrl = `${CAA_BASE}/release/${release.id}/front`;
+  const caaRes = await fetch(caaUrl, { redirect: 'follow' });
+  if (!caaRes.ok) return null;
 
-  // 307 = redirect a la imagen, significa que existe
-  if (caaRes.status === 307) {
-    return caaRes.headers.get('location');
-  }
+  const contentType = caaRes.headers.get('content-type') ?? 'image/jpeg';
+  const ext = contentType.includes('png') ? 'png' : 'jpg';
+  const safeId = albumId.replace(/[^a-zA-Z0-9_:-]/g, '_');
+  const filename = `${safeId}.${ext}`;
 
-  return null;
+  const buffer = Buffer.from(await caaRes.arrayBuffer());
+  fs.writeFileSync(path.join(COVERS_DIR, filename), buffer);
+
+  return `/api/covers/${filename}`;
 }
 
 export async function enrichLocalAlbumCovers() {
@@ -211,7 +240,7 @@ export async function enrichLocalAlbumCovers() {
     if (!artist) continue;
 
     try {
-      const coverUrl = await fetchMusicBrainzCover(artist.name, album.name);
+      const coverUrl = await fetchMusicBrainzCover(artist.name, album.name, album.spotify_id);
       // guardar resultado (URL o '' para marcar como buscado sin resultado)
       db.update(albums)
         .set({ imageUrl: coverUrl ?? '', updatedAt: now() })
