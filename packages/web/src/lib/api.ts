@@ -112,6 +112,34 @@ export interface ImportResult {
   skipped: number;
 }
 
+// --- detail types ---
+
+export interface ArtistDetail {
+  artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
+  stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+  topTracks: TopTrackItem[];
+  topAlbums: TopAlbumItem[];
+  recentPlays: HistoryItem[];
+}
+
+export interface AlbumDetail {
+  album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
+  artists: { id: string; name: string; imageUrl: string | null }[];
+  stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+  tracks: TopTrackItem[];
+  recentPlays: HistoryItem[];
+}
+
+export interface TrackDetail {
+  track: {
+    id: string; name: string; durationMs: number; trackNumber: number | null; explicit: boolean;
+    album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } | null;
+    artists: { id: string; name: string; imageUrl: string | null }[];
+  };
+  stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+  dailySeries: { day: string; play_count: number; total_ms: number }[];
+}
+
 export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
 
@@ -137,6 +165,15 @@ export const api = {
     apiFetch<HeatmapItem[]>('/stats/heatmap', { range }),
 
   streaks: () => apiFetch<StreaksData>('/stats/streaks'),
+
+  artistDetail: (id: string, range = 'all') =>
+    apiFetch<ArtistDetail>(`/stats/artist/${encodeURIComponent(id)}`, { range }),
+
+  albumDetail: (id: string, range = 'all') =>
+    apiFetch<AlbumDetail>(`/stats/album/${encodeURIComponent(id)}`, { range }),
+
+  trackDetail: (id: string, range = 'all') =>
+    apiFetch<TrackDetail>(`/stats/track/${encodeURIComponent(id)}`, { range }),
 
   health: () => apiFetch<HealthData>('/health'),
 

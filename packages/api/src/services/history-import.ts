@@ -1,14 +1,15 @@
-import { createHash } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
+import { syntheticId } from './ids.js';
 
 // umbral mínimo de reproducción (30s = Spotify Wrapped threshold)
 const MIN_PLAYED_MS = 30_000;
 const BATCH_SIZE = 500;
+// ventana de dedup: si ya existe un play del mismo track dentro de este rango, se considera duplicado
+const DEDUP_WINDOW_SECONDS = 180;
 
-// prefijo para IDs sintéticos generados desde el formato básico
-const SYNTHETIC_ID_PREFIX = 'import:';
+const IMPORT_PREFIX = 'import:';
 
 interface ExtendedEntry {
   ts: string;
@@ -34,12 +35,8 @@ export interface ImportResult {
 }
 
 // genera un ID determinístico para entradas sin URI de spotify
-function syntheticId(artistName: string, trackName: string): string {
-  const hash = createHash('sha256')
-    .update(`${artistName}|${trackName}`)
-    .digest('hex')
-    .slice(0, 16);
-  return `${SYNTHETIC_ID_PREFIX}${hash}`;
+function importId(a: string, b: string): string {
+  return syntheticId(IMPORT_PREFIX, a, b);
 }
 
 // detecta formato y normaliza las entradas a un formato común
@@ -72,7 +69,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
         // extraer ID de spotify del URI (spotify:track:abc123 → abc123)
         const trackId = entry.spotify_track_uri
           ? entry.spotify_track_uri.split(':').pop()!
-          : syntheticId(artistName, trackName);
+          : importId(artistName, trackName);
 
         const albumName = entry.master_metadata_album_album_name;
 
@@ -82,8 +79,8 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
           artistName,
           albumName,
           trackId,
-          artistId: syntheticId(artistName, artistName),
-          albumId: albumName ? syntheticId(artistName, albumName) : null,
+          artistId: importId(artistName, artistName),
+          albumId: albumName ? importId(artistName, albumName) : null,
           msPlayed: entry.ms_played,
         };
       } else {
@@ -99,8 +96,8 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
           trackName: entry.trackName,
           artistName: entry.artistName,
           albumName: null,
-          trackId: syntheticId(entry.artistName, entry.trackName),
-          artistId: syntheticId(entry.artistName, entry.artistName),
+          trackId: importId(entry.artistName, entry.trackName),
+          artistId: importId(entry.artistName, entry.artistName),
           albumId: null,
           msPlayed: entry.msPlayed,
         };
@@ -152,17 +149,32 @@ export function importHistory(data: unknown[]): ImportResult {
           ON CONFLICT (track_id, artist_id) DO NOTHING
         `);
 
-        // insertar reproducción, dedup por played_at
-        const insertResult = tx.run(sql`
-          INSERT INTO listening_history (track_id, played_at, duration_played_ms)
-          VALUES (${entry.trackId}, ${entry.playedAt}, ${entry.msPlayed})
-          ON CONFLICT (played_at) DO NOTHING
+        // dedup: buscar un play del mismo track (o track con mismo nombre) en ventana de ±3 min
+        const windowStart = new Date(new Date(entry.playedAt).getTime() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
+        const windowEnd = new Date(new Date(entry.playedAt).getTime() + DEDUP_WINDOW_SECONDS * 1000).toISOString();
+        const existing = tx.get(sql`
+          SELECT lh.id FROM listening_history lh
+          JOIN tracks t ON t.spotify_id = lh.track_id
+          WHERE (lh.track_id = ${entry.trackId} OR t.name = ${entry.trackName})
+            AND lh.played_at >= ${windowStart}
+            AND lh.played_at <= ${windowEnd}
+          LIMIT 1
         `);
 
-        if (insertResult.changes > 0) {
-          result.imported++;
-        } else {
+        if (existing) {
           result.duplicates++;
+        } else {
+          const insertResult = tx.run(sql`
+            INSERT INTO listening_history (track_id, played_at, duration_played_ms)
+            VALUES (${entry.trackId}, ${entry.playedAt}, ${entry.msPlayed})
+            ON CONFLICT (played_at) DO NOTHING
+          `);
+
+          if (insertResult.changes > 0) {
+            result.imported++;
+          } else {
+            result.duplicates++;
+          }
         }
       }
     });

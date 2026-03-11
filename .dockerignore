@@ -1,0 +1,8 @@
+node_modules
+packages/*/node_modules
+packages/web/build
+packages/web/.svelte-kit
+packages/api/dist
+packages/api/static
+data
+.env

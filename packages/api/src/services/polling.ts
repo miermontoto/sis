@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, upsertTrack, enrichArtistMetadata } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
@@ -18,6 +18,9 @@ import type {
 let currentlyPlayingTimer: ReturnType<typeof setInterval> | null = null;
 let recentlyPlayedTimer: ReturnType<typeof setInterval> | null = null;
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+// estado del archivo local en reproducción (para registrar plays desde currently-playing)
+let lastLocalTrack: { id: string; startedAt: string; durationMs: number; lastProgressMs: number } | null = null;
 
 function getPollingState() {
   const db = getDb();
@@ -39,6 +42,12 @@ async function pollCurrentlyPlaying() {
     const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing');
 
     if (!data || !data.item || data.currently_playing_type !== 'track') {
+      // si el track anterior era local, registrar la reproducción
+      if (lastLocalTrack) {
+        insertLocalPlay(lastLocalTrack.id, lastLocalTrack.startedAt, lastLocalTrack.durationMs);
+        console.log(`[poll] registrada reproducción local: ${lastLocalTrack.id}`);
+        lastLocalTrack = null;
+      }
       updatePollingState({
         lastCurrentlyPlayingTrackId: null,
         lastCurrentlyPlayingAt: null,
@@ -46,12 +55,38 @@ async function pollCurrentlyPlaying() {
       return;
     }
 
+    // resolver IDs sintéticos para archivos locales antes de comparar
+    resolveLocalFileIds(data.item);
+
     const state = getPollingState();
     const trackChanged = state?.lastCurrentlyPlayingTrackId !== data.item.id;
 
-    if (trackChanged) {
-      upsertTrack(data.item);
-      console.log(`[poll] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name}`);
+    // detectar loop: mismo track local pero el progreso retrocedió (reinició)
+    const progressMs = data.progress_ms ?? 0;
+    const loopDetected = !trackChanged
+      && lastLocalTrack
+      && lastLocalTrack.id === data.item.id
+      && progressMs < lastLocalTrack.lastProgressMs;
+
+    if (trackChanged || loopDetected) {
+      // si el track anterior era local, registrar la reproducción
+      if (lastLocalTrack) {
+        insertLocalPlay(lastLocalTrack.id, lastLocalTrack.startedAt, lastLocalTrack.durationMs);
+        console.log(`[poll] registrada reproducción local: ${lastLocalTrack.id}`);
+      }
+
+      if (trackChanged) {
+        upsertTrack(data.item);
+        console.log(`[poll] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name}`);
+      }
+
+      // trackear si el track actual es local
+      lastLocalTrack = data.item.is_local
+        ? { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs }
+        : null;
+    } else if (lastLocalTrack) {
+      // actualizar progreso para detección de loop
+      lastLocalTrack.lastProgressMs = progressMs;
     }
 
     updatePollingState({
@@ -116,11 +151,15 @@ export function startPolling() {
   pollCurrentlyPlaying();
   pollRecentlyPlayed();
   enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err));
+  enrichLocalAlbumCovers().catch(err => console.error('[metadata] error en portadas locales:', err));
 
   currentlyPlayingTimer = setInterval(pollCurrentlyPlaying, CURRENTLY_PLAYING_INTERVAL_MS);
   recentlyPlayedTimer = setInterval(pollRecentlyPlayed, RECENTLY_PLAYED_INTERVAL_MS);
   metadataRefreshTimer = setInterval(
-    () => enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err)),
+    () => {
+      enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err));
+      enrichLocalAlbumCovers().catch(err => console.error('[metadata] error en portadas locales:', err));
+    },
     METADATA_REFRESH_INTERVAL_MS,
   );
 

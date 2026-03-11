@@ -36,19 +36,52 @@
           <div class="track-art"></div>
         {/if}
         <div class="track-info">
-          <div class="track-name">{track.name}</div>
-          <div class="track-artist">{track.artists.map(a => a.name).join(', ')}</div>
+          <div class="track-name">
+            {#if isTopTrack(item)}
+              <a href="/track/{item.trackId}" class="track-link">{track.name}</a>
+            {:else if 'track' in item && item.track}
+              <a href="/track/{item.track.id}" class="track-link">{track.name}</a>
+            {:else}
+              {track.name}
+            {/if}
+          </div>
+          <div class="track-artist">
+            {#each track.artists as artist, i}
+              <a href="/artist/{artist.id}" class="artist-link">{artist.name}</a>{#if i < track.artists.length - 1}, {/if}
+            {/each}
+          </div>
         </div>
         <div class="track-meta">
           {#if isTopTrack(item)}
             <div class="track-plays">{formatMetric(item)}</div>
+            {#if metric === 'time'}
+              <div class="track-time">{item.playCount} plays</div>
+            {:else}
+              <div class="track-time">{formatDuration(item.totalMs)}</div>
+            {/if}
           {/if}
           {#if showTime && 'playedAt' in item}
             <div class="track-time">{timeAgo(item.playedAt)}</div>
           {/if}
-          <div class="track-time">{formatDuration(track.durationMs)}</div>
         </div>
       </div>
     {/if}
   {/each}
 </div>
+
+<style>
+  .track-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .track-link:hover {
+    color: var(--accent);
+  }
+  .artist-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .artist-link:hover {
+    color: var(--accent);
+  }
+</style>

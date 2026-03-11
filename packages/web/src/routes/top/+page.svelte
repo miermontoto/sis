@@ -150,7 +150,7 @@
     <div class="track-list">
       {#each topArtists as item, i}
         {#if item.artist}
-          <div class="track-item">
+          <a href="/artist/{item.artistId}" class="track-item">
             <span class="track-rank">{i + 1}</span>
             {#if item.artist.imageUrl}
               <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
@@ -159,12 +159,13 @@
             {/if}
             <div class="track-info">
               <div class="track-name">{item.artist.name}</div>
-              <div class="track-artist">{item.artist.genres?.slice(0, 3).join(', ') ?? ''}</div>
+              <div class="track-artist">{item.artist.genres?.join(', ') ?? ''}</div>
             </div>
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
             </div>
-          </div>
+          </a>
         {/if}
       {/each}
     </div>
@@ -172,7 +173,7 @@
     <div class="track-list">
       {#each topAlbums as item, i}
         {#if item.album}
-          <div class="track-item">
+          <a href="/album/{item.albumId}" class="track-item">
             <span class="track-rank">{i + 1}</span>
             {#if item.album.imageUrl}
               <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
@@ -185,8 +186,9 @@
             </div>
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
             </div>
-          </div>
+          </a>
         {/if}
       {/each}
     </div>

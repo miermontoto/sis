@@ -36,6 +36,7 @@ export interface SpotifyTrack {
   track_number: number;
   explicit: boolean;
   popularity: number;
+  is_local?: boolean;
 }
 
 export interface SpotifyPlayHistoryItem {

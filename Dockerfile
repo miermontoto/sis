@@ -16,6 +16,7 @@ COPY . .
 
 # build frontend → static → API
 RUN pnpm --filter @sis/web build \
+    && mkdir -p packages/api/static \
     && cp -r packages/web/build/* packages/api/static/ \
     && pnpm --filter @sis/api build
 
