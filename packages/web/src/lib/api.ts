@@ -8,6 +8,10 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
   }
 
   const res = await fetch(url.toString());
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('No autorizado');
+  }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }

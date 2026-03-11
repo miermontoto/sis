@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { getCookie } from 'hono/cookie';
 import { serveStatic } from '@hono/node-server/serve-static';
 import auth from './routes/auth.js';
 import stats from './routes/stats.js';
@@ -9,12 +10,25 @@ import exportRoute from './routes/export.js';
 import importRoute from './routes/import.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens } from './services/token-manager.js';
+import { validateSession } from './services/session.js';
 import { sql } from 'drizzle-orm';
 
 const app = new Hono();
 
 app.use('*', logger());
 app.use('/api/*', cors());
+
+// auth gate: proteger rutas si ALLOWED_SPOTIFY_USERS está configurado
+app.use('/api/*', async (c, next) => {
+  const allowed = process.env.ALLOWED_SPOTIFY_USERS;
+  if (!allowed || allowed.trim() === '') return next();
+
+  const token = getCookie(c, 'sis_session');
+  if (!token || !validateSession(token)) {
+    return c.json({ error: 'no autorizado' }, 401);
+  }
+  return next();
+});
 
 // rutas
 app.route('/auth', auth);
