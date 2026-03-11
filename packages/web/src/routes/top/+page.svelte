@@ -159,7 +159,6 @@
             {/if}
             <div class="track-info">
               <div class="track-name">{item.artist.name}</div>
-              <div class="track-artist">{item.artist.genres?.join(', ') ?? ''}</div>
             </div>
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>

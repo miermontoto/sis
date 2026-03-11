@@ -1,11 +1,7 @@
-// formatear duración en ms a "Xh Ym" o "Xm Ys"
+// formatear duración en ms a minutos con separador de miles
 export function formatDuration(ms: number): string {
-  const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
-
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  const seconds = Math.floor((ms % 60_000) / 1000);
-  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  const minutes = Math.round(ms / 60_000);
+  return `${formatNumber(minutes)} min`;
 }
 
 // formatear duración total en horas con decimal
