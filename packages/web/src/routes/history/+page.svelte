@@ -21,12 +21,30 @@
     page = p;
   }
 
+  // polling: buscar nuevas reproducciones cada 15s
+  async function pollNewItems() {
+    try {
+      const res = await api.history(1, 50);
+      if (res.items.length === 0 || items.length === 0) return;
+      // insertar items más recientes que el primero actual
+      const latestId = items[0].id;
+      const newItems = res.items.filter((i) => i.id > latestId);
+      if (newItems.length > 0) {
+        items = [...newItems, ...items];
+      }
+    } catch {
+      // silenciar errores de polling
+    }
+  }
+
   onMount(async () => {
     try {
       await loadPage(1);
     } finally {
       loading = false;
     }
+
+    const pollInterval = setInterval(pollNewItems, 15_000);
 
     // infinite scroll con IntersectionObserver
     const observer = new IntersectionObserver(
@@ -44,7 +62,10 @@
     );
 
     if (sentinel) observer.observe(sentinel);
-    return () => observer.disconnect();
+    return () => {
+      clearInterval(pollInterval);
+      observer.disconnect();
+    };
   });
 </script>
 

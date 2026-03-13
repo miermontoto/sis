@@ -13,6 +13,20 @@
   let metric = $state<RankingMetric>('time');
   let loading = $state(true);
 
+  async function pollRecent() {
+    try {
+      const res = await api.history(1, 10);
+      if (res.items.length === 0 || recentPlays.length === 0) return;
+      const latestId = recentPlays[0].id;
+      const newItems = res.items.filter((i) => i.id > latestId);
+      if (newItems.length > 0) {
+        recentPlays = [...newItems, ...recentPlays].slice(0, 10);
+      }
+    } catch {
+      // silenciar errores de polling
+    }
+  }
+
   onMount(async () => {
     metric = getRankingMetric();
     try {
@@ -38,6 +52,9 @@
     } finally {
       loading = false;
     }
+
+    const pollInterval = setInterval(pollRecent, 15_000);
+    return () => clearInterval(pollInterval);
   });
 </script>
 
@@ -74,14 +91,14 @@
 
   {#if topTracks.length > 0}
     <div class="card" style="margin-bottom: 1.5rem;">
-      <h3 style="margin-bottom: 0.75rem;">Top tracks this week</h3>
+      <h3 style="margin-bottom: 0.75rem;"><a href="/top" class="section-link">Top tracks this week</a></h3>
       <TrackList items={topTracks} showRank {metric} />
     </div>
   {/if}
 
   {#if recentPlays.length > 0}
     <div class="card">
-      <h3 style="margin-bottom: 0.75rem;">Recent plays</h3>
+      <h3 style="margin-bottom: 0.75rem;"><a href="/history" class="section-link">Recent plays</a></h3>
       <TrackList items={recentPlays} showTime />
     </div>
   {:else}
@@ -90,3 +107,13 @@
     </div>
   {/if}
 {/if}
+
+<style>
+  .section-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .section-link:hover {
+    color: var(--accent);
+  }
+</style>
