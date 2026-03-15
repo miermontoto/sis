@@ -28,8 +28,29 @@
     {/if}
     <div class="now-playing-info">
       <div class="now-playing-label">Now Playing</div>
-      <div class="now-playing-track">{data.track.name}</div>
-      <div class="now-playing-artist">{data.track.artists.map(a => a.name).join(', ')}</div>
+      <a href="/track/{data.track.id}" class="now-playing-track">{data.track.name}</a>
+      <div class="now-playing-artist">
+        {#each data.track.artists as artist, i}
+          <a href="/artist/{artist.id}" class="now-playing-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}, {/if}
+        {/each}
+      </div>
     </div>
   </div>
 {/if}
+
+<style>
+  .now-playing-track {
+    color: inherit;
+    text-decoration: none;
+  }
+  .now-playing-track:hover {
+    color: var(--accent);
+  }
+  .now-playing-artist-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .now-playing-artist-link:hover {
+    color: var(--accent);
+  }
+</style>

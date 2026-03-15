@@ -2,13 +2,14 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   RECENTLY_PLAYED_INTERVAL_MS,
   RECENTLY_PLAYED_LIMIT,
   METADATA_REFRESH_INTERVAL_MS,
+  RESOLVE_INTERVAL_MS,
 } from '../constants.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
@@ -18,6 +19,7 @@ import type {
 let currentlyPlayingTimer: ReturnType<typeof setInterval> | null = null;
 let recentlyPlayedTimer: ReturnType<typeof setInterval> | null = null;
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let resolveTimer: ReturnType<typeof setInterval> | null = null;
 
 // estado del archivo local en reproducción (para registrar plays desde currently-playing)
 let lastLocalTrack: { id: string; startedAt: string; durationMs: number; lastProgressMs: number } | null = null;
@@ -152,6 +154,10 @@ export function startPolling() {
   pollRecentlyPlayed();
   enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err));
   enrichLocalAlbumCovers().catch(err => console.error('[metadata] error en portadas locales:', err));
+  resolveImportArtists().catch(err => console.error('[resolve] error resolviendo artistas:', err));
+  resolveImportAlbums().catch(err => console.error('[resolve] error resolviendo álbumes:', err));
+  // verificar álbumes de tracks nuevos (los existentes ya están verificados)
+  fixTrackAlbumAssignments().catch(err => console.error('[resolve] error verificando álbumes:', err));
 
   currentlyPlayingTimer = setInterval(pollCurrentlyPlaying, CURRENTLY_PLAYING_INTERVAL_MS);
   recentlyPlayedTimer = setInterval(pollRecentlyPlayed, RECENTLY_PLAYED_INTERVAL_MS);
@@ -162,18 +168,28 @@ export function startPolling() {
     },
     METADATA_REFRESH_INTERVAL_MS,
   );
+  resolveTimer = setInterval(
+    () => {
+      resolveImportArtists().catch(err => console.error('[resolve] error resolviendo artistas:', err));
+      resolveImportAlbums().catch(err => console.error('[resolve] error resolviendo álbumes:', err));
+    },
+    RESOLVE_INTERVAL_MS,
+  );
 
   console.log(`[poll] currently playing cada ${CURRENTLY_PLAYING_INTERVAL_MS / 1000}s`);
   console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
+  console.log(`[poll] resolve import cada ${RESOLVE_INTERVAL_MS / 1000}s`);
 }
 
 export function stopPolling() {
   if (currentlyPlayingTimer) clearInterval(currentlyPlayingTimer);
   if (recentlyPlayedTimer) clearInterval(recentlyPlayedTimer);
   if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
+  if (resolveTimer) clearInterval(resolveTimer);
   currentlyPlayingTimer = null;
   recentlyPlayedTimer = null;
   metadataRefreshTimer = null;
+  resolveTimer = null;
   console.log('[poll] polling detenido');
 }
 

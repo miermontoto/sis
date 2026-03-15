@@ -3,11 +3,62 @@ import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
 import { syntheticId } from './ids.js';
 
+// cache de resolución nombre → ID existente en DB
+const artistIdCache = new Map<string, string>();
+const albumIdCache = new Map<string, string>();
+const trackIdCache = new Map<string, string>();
+
+// buscar entidad existente por nombre (case-insensitive), con cache
+function resolveArtistId(name: string): string {
+  const key = name.toLowerCase();
+  if (artistIdCache.has(key)) return artistIdCache.get(key)!;
+
+  const db = getDb();
+  const existing = db.get(
+    sql`SELECT spotify_id FROM artists WHERE LOWER(name) = ${key}`
+  ) as { spotify_id: string } | undefined;
+
+  const id = existing?.spotify_id ?? importId(name, name);
+  artistIdCache.set(key, id);
+  return id;
+}
+
+function resolveAlbumId(artistName: string, albumName: string): string {
+  const key = `${artistName.toLowerCase()}|${albumName.toLowerCase()}`;
+  if (albumIdCache.has(key)) return albumIdCache.get(key)!;
+
+  const db = getDb();
+  const existing = db.get(
+    sql`SELECT spotify_id FROM albums WHERE LOWER(name) = ${albumName.toLowerCase()}`
+  ) as { spotify_id: string } | undefined;
+
+  const id = existing?.spotify_id ?? importId(artistName, albumName);
+  albumIdCache.set(key, id);
+  return id;
+}
+
+function resolveTrackId(artistName: string, trackName: string): string {
+  const key = `${artistName.toLowerCase()}|${trackName.toLowerCase()}`;
+  if (trackIdCache.has(key)) return trackIdCache.get(key)!;
+
+  const db = getDb();
+  const existing = db.get(
+    sql`SELECT t.spotify_id FROM tracks t
+        JOIN track_artists ta ON ta.track_id = t.spotify_id
+        JOIN artists a ON a.spotify_id = ta.artist_id
+        WHERE LOWER(t.name) = ${trackName.toLowerCase()}
+          AND LOWER(a.name) = ${artistName.toLowerCase()}
+        LIMIT 1`
+  ) as { spotify_id: string } | undefined;
+
+  const id = existing?.spotify_id ?? importId(artistName, trackName);
+  trackIdCache.set(key, id);
+  return id;
+}
+
 // umbral mínimo de reproducción (30s = Spotify Wrapped threshold)
 const MIN_PLAYED_MS = 30_000;
 const BATCH_SIZE = 500;
-// ventana de dedup: si ya existe un play del mismo track dentro de este rango, se considera duplicado
-const DEDUP_WINDOW_SECONDS = 180;
 
 const IMPORT_PREFIX = 'import:';
 
@@ -69,7 +120,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
         // extraer ID de spotify del URI (spotify:track:abc123 → abc123)
         const trackId = entry.spotify_track_uri
           ? entry.spotify_track_uri.split(':').pop()!
-          : importId(artistName, trackName);
+          : resolveTrackId(artistName, trackName);
 
         const albumName = entry.master_metadata_album_album_name;
 
@@ -79,8 +130,8 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
           artistName,
           albumName,
           trackId,
-          artistId: importId(artistName, artistName),
-          albumId: albumName ? importId(artistName, albumName) : null,
+          artistId: resolveArtistId(artistName),
+          albumId: albumName ? resolveAlbumId(artistName, albumName) : null,
           msPlayed: entry.ms_played,
         };
       } else {
@@ -96,8 +147,8 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
           trackName: entry.trackName,
           artistName: entry.artistName,
           albumName: null,
-          trackId: importId(entry.artistName, entry.trackName),
-          artistId: importId(entry.artistName, entry.artistName),
+          trackId: resolveTrackId(entry.artistName, entry.trackName),
+          artistId: resolveArtistId(entry.artistName),
           albumId: null,
           msPlayed: entry.msPlayed,
         };
@@ -149,32 +200,16 @@ export function importHistory(data: unknown[]): ImportResult {
           ON CONFLICT (track_id, artist_id) DO NOTHING
         `);
 
-        // dedup: buscar un play del mismo track (o track con mismo nombre) en ventana de ±3 min
-        const windowStart = new Date(new Date(entry.playedAt).getTime() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
-        const windowEnd = new Date(new Date(entry.playedAt).getTime() + DEDUP_WINDOW_SECONDS * 1000).toISOString();
-        const existing = tx.get(sql`
-          SELECT lh.id FROM listening_history lh
-          JOIN tracks t ON t.spotify_id = lh.track_id
-          WHERE (lh.track_id = ${entry.trackId} OR t.name = ${entry.trackName})
-            AND lh.played_at >= ${windowStart}
-            AND lh.played_at <= ${windowEnd}
-          LIMIT 1
+        const insertResult = tx.run(sql`
+          INSERT INTO listening_history (track_id, played_at, duration_played_ms)
+          VALUES (${entry.trackId}, ${entry.playedAt}, ${entry.msPlayed})
+          ON CONFLICT (played_at) DO NOTHING
         `);
 
-        if (existing) {
-          result.duplicates++;
+        if (insertResult.changes > 0) {
+          result.imported++;
         } else {
-          const insertResult = tx.run(sql`
-            INSERT INTO listening_history (track_id, played_at, duration_played_ms)
-            VALUES (${entry.trackId}, ${entry.playedAt}, ${entry.msPlayed})
-            ON CONFLICT (played_at) DO NOTHING
-          `);
-
-          if (insertResult.changes > 0) {
-            result.imported++;
-          } else {
-            result.duplicates++;
-          }
+          result.duplicates++;
         }
       }
     });

@@ -70,22 +70,20 @@
     Loading...
   </div>
 {:else}
-  <div class="stats-grid">
-    <div class="card stat-card">
-      <div class="stat-value">{formatNumber(todayPlays)}</div>
-      <div class="stat-label">Plays today</div>
+  <div class="card stats-bar">
+    <div class="stats-bar-item">
+      <span class="stats-bar-value">{formatNumber(todayPlays)}</span>
+      <span class="stats-bar-label">plays today</span>
     </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatHours(todayMs)}</div>
-      <div class="stat-label">Listening today</div>
+    <div class="stats-bar-sep"></div>
+    <div class="stats-bar-item">
+      <span class="stats-bar-value">{formatHours(todayMs)}</span>
+      <span class="stats-bar-label">listened today</span>
     </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatNumber(health?.totalPlays ?? 0)}</div>
-      <div class="stat-label">Total plays</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value">{health?.authenticated ? 'Active' : 'Inactive'}</div>
-      <div class="stat-label">Polling</div>
+    <div class="stats-bar-sep"></div>
+    <div class="stats-bar-item">
+      <span class="stats-bar-value">{formatNumber(health?.totalPlays ?? 0)}</span>
+      <span class="stats-bar-label">total plays</span>
     </div>
   </div>
 
@@ -109,11 +107,55 @@
 {/if}
 
 <style>
+  .stats-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .stats-bar-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+  .stats-bar-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stats-bar-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .stats-bar-sep {
+    width: 1px;
+    height: 1.25rem;
+    background: var(--border);
+  }
   .section-link {
     color: inherit;
     text-decoration: none;
   }
   .section-link:hover {
     color: var(--accent);
+  }
+
+  @media (max-width: 600px) {
+    .stats-bar {
+      gap: 0.75rem;
+    }
+    .stats-bar-item {
+      flex-direction: column;
+      align-items: center;
+      gap: 0.1rem;
+    }
+    .stats-bar-value {
+      font-size: 1.1rem;
+    }
+    .stats-bar-label {
+      font-size: 0.7rem;
+    }
   }
 </style>

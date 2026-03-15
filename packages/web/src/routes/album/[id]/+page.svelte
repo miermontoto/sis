@@ -14,7 +14,7 @@
   async function loadData() {
     loading = true;
     try {
-      data = await api.albumDetail($page.params.id, range);
+      data = await api.albumDetail($page.params.id, range, metric === 'plays' ? 'plays' : 'time');
     } finally {
       loading = false;
     }
@@ -27,6 +27,7 @@
 
   $effect(() => {
     void range;
+    void metric;
     loadData();
   });
 </script>

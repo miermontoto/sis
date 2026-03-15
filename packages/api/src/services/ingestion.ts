@@ -5,7 +5,15 @@ import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
 import { syntheticId } from './ids.js';
-import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse } from '../types/spotify.js';
+import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse, SpotifyArtistFull, SpotifyImage } from '../types/spotify.js';
+
+interface SpotifySearchArtistResult {
+  artists: { items: SpotifyArtistFull[] };
+}
+
+interface SpotifySearchAlbumResult {
+  albums: { items: { id: string; name: string; images: SpotifyImage[]; artists: { id: string; name: string }[]; release_date: string; total_tracks: number; album_type: string }[] };
+}
 
 const now = () => new Date().toISOString();
 
@@ -151,6 +159,259 @@ export async function enrichArtistMetadata() {
   }
 
   console.log(`[metadata] ${updated} artistas actualizados con imagen`);
+}
+
+// resolver artistas con ID import: buscándolos en la API de Spotify
+// actualiza el ID, imagen, géneros y popularidad; re-apunta track_artists
+const RESOLVE_BATCH_LIMIT = 500; // máximo por ejecución
+const SEARCH_DELAY_MS = 100; // pausa entre búsquedas para respetar rate limits
+
+export async function resolveImportArtists() {
+  const db = getDb();
+  const pending = db.all(
+    sql`SELECT spotify_id, name FROM artists WHERE spotify_id LIKE 'import:%' ORDER BY
+      (SELECT count(*) FROM track_artists WHERE artist_id = artists.spotify_id) DESC
+    LIMIT ${RESOLVE_BATCH_LIMIT}`
+  ) as { spotify_id: string; name: string }[];
+
+  if (pending.length === 0) return;
+  console.log(`[resolve] ${pending.length} artistas import: por resolver...`);
+
+  let resolved = 0;
+
+  for (const row of pending) {
+    const data = await spotifyFetch<SpotifySearchArtistResult>('/search', {
+      params: { q: row.name, type: 'artist', limit: '1' },
+    });
+
+    if (!data?.artists?.items?.length) {
+      // marcar como no resoluble cambiando prefijo
+      db.update(artists)
+        .set({ updatedAt: now() })
+        .where(sql`spotify_id = ${row.spotify_id}`)
+        .run();
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    const found = data.artists.items[0];
+    // verificar que el nombre coincida razonablemente
+    if (found.name.toLowerCase() !== row.name.toLowerCase()) {
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    // check si el artista real ya existe en DB
+    const existing = db.get(
+      sql`SELECT spotify_id FROM artists WHERE spotify_id = ${found.id}`
+    ) as { spotify_id: string } | undefined;
+
+    try {
+      if (existing) {
+        // el artista real ya existe: re-apuntar track_artists y eliminar el import:
+        db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
+          AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
+        db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+        db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
+        // actualizar imagen si el real no la tiene
+        if (found.images[0]?.url) {
+          db.run(sql`UPDATE artists SET image_url = ${found.images[0].url}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
+        }
+      } else {
+        // crear artista con ID real, migrar track_artists, eliminar import:
+        db.insert(artists)
+          .values({
+            spotifyId: found.id,
+            name: found.name,
+            imageUrl: found.images[0]?.url ?? null,
+            genres: JSON.stringify(found.genres),
+            popularity: found.popularity,
+            updatedAt: now(),
+          })
+          .onConflictDoNothing()
+          .run();
+        db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
+          AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
+        db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+        db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
+      }
+    } catch (err) {
+      console.error(`[resolve] error resolviendo artista "${row.name}":`, err);
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    resolved++;
+    await sleep(SEARCH_DELAY_MS);
+  }
+
+  console.log(`[resolve] ${resolved}/${pending.length} artistas resueltos`);
+}
+
+// resolver álbumes con ID import: buscándolos en la API de Spotify
+export async function resolveImportAlbums() {
+  const db = getDb();
+  const pending = db.all(
+    sql`SELECT a.spotify_id, a.name,
+      (SELECT ar.name FROM artists ar JOIN track_artists ta ON ta.artist_id = ar.spotify_id
+       JOIN tracks t ON t.spotify_id = ta.track_id WHERE t.album_id = a.spotify_id LIMIT 1) as artist_name
+    FROM albums a WHERE a.spotify_id LIKE 'import:%' AND a.image_url IS NULL
+    ORDER BY (SELECT count(*) FROM tracks WHERE album_id = a.spotify_id) DESC
+    LIMIT ${RESOLVE_BATCH_LIMIT}`
+  ) as { spotify_id: string; name: string; artist_name: string | null }[];
+
+  if (pending.length === 0) return;
+  console.log(`[resolve] ${pending.length} álbumes import: por resolver...`);
+
+  let resolved = 0;
+
+  for (const row of pending) {
+    if (!row.artist_name) {
+      // sin artista asociado, marcar como buscado
+      db.update(albums)
+        .set({ imageUrl: '', updatedAt: now() })
+        .where(sql`spotify_id = ${row.spotify_id}`)
+        .run();
+      continue;
+    }
+
+    const query = `album:${row.name} artist:${row.artist_name}`;
+    const data = await spotifyFetch<SpotifySearchAlbumResult>('/search', {
+      params: { q: query, type: 'album', limit: '1' },
+    });
+
+    if (!data?.albums?.items?.length) {
+      // marcar como buscado sin resultado
+      db.update(albums)
+        .set({ imageUrl: '', updatedAt: now() })
+        .where(sql`spotify_id = ${row.spotify_id}`)
+        .run();
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    const found = data.albums.items[0];
+    // verificar nombre
+    if (found.name.toLowerCase() !== row.name.toLowerCase()) {
+      db.update(albums)
+        .set({ imageUrl: '', updatedAt: now() })
+        .where(sql`spotify_id = ${row.spotify_id}`)
+        .run();
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    const imageUrl = found.images[0]?.url ?? null;
+
+    // check si el álbum real ya existe
+    const existing = db.get(
+      sql`SELECT spotify_id FROM albums WHERE spotify_id = ${found.id}`
+    ) as { spotify_id: string } | undefined;
+
+    try {
+      if (existing) {
+        // re-apuntar tracks al álbum real y eliminar import:
+        db.run(sql`UPDATE tracks SET album_id = ${found.id} WHERE album_id = ${row.spotify_id}`);
+        db.run(sql`DELETE FROM albums WHERE spotify_id = ${row.spotify_id}`);
+        // actualizar imagen si el real no la tiene
+        if (imageUrl) {
+          db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
+        }
+      } else {
+        // crear álbum con ID real, migrar tracks, eliminar import:
+        db.insert(albums)
+          .values({
+            spotifyId: found.id,
+            name: found.name,
+            imageUrl,
+            releaseDate: found.release_date,
+            totalTracks: found.total_tracks,
+            albumType: found.album_type,
+            updatedAt: now(),
+          })
+          .onConflictDoNothing()
+          .run();
+        db.run(sql`UPDATE tracks SET album_id = ${found.id} WHERE album_id = ${row.spotify_id}`);
+        db.run(sql`DELETE FROM albums WHERE spotify_id = ${row.spotify_id}`);
+      }
+    } catch (err) {
+      console.error(`[resolve] error resolviendo álbum "${row.name}":`, err);
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    resolved++;
+    await sleep(SEARCH_DELAY_MS);
+  }
+
+  console.log(`[resolve] ${resolved}/${pending.length} álbumes resueltos`);
+}
+
+// corregir tracks con Spotify ID real que están asignados al álbum incorrecto
+// (ocurre cuando el import agrupa versiones distintas bajo el mismo álbum)
+export async function fixTrackAlbumAssignments() {
+  const db = getDb();
+
+  // buscar tracks con ID real de Spotify cuyo álbum podría ser incorrecto
+  // nos centramos en tracks que están en un álbum real pero podrían pertenecer a otro
+  const candidates = db.all(sql`
+    SELECT t.spotify_id
+    FROM tracks t
+    WHERE t.spotify_id NOT LIKE 'import:%'
+      AND t.spotify_id NOT LIKE 'local:%'
+      AND t.album_id IS NOT NULL
+      AND t.verified_album IS NULL
+    LIMIT 500
+  `) as { spotify_id: string }[];
+
+  if (candidates.length === 0) return;
+
+  // batch fetch en grupos de 50 (límite de la API de Spotify)
+  let fixed = 0;
+  for (let i = 0; i < candidates.length; i += 50) {
+    const batch = candidates.slice(i, i + 50);
+    const ids = batch.map(c => c.spotify_id).join(',');
+
+    const data = await spotifyFetch<{ tracks: SpotifyTrack[] }>('/tracks', {
+      params: { ids },
+    });
+
+    if (!data?.tracks) continue;
+
+    for (const apiTrack of data.tracks) {
+      if (!apiTrack?.album?.id) continue;
+
+      const current = db.get(sql`SELECT album_id FROM tracks WHERE spotify_id = ${apiTrack.id}`) as { album_id: string } | undefined;
+      if (!current) continue;
+
+      if (current.album_id !== apiTrack.album.id) {
+        // álbum incorrecto → corregir
+        // asegurarse de que el álbum correcto existe
+        db.insert(albums)
+          .values({
+            spotifyId: apiTrack.album.id,
+            name: apiTrack.album.name,
+            imageUrl: apiTrack.album.images?.[0]?.url ?? null,
+            releaseDate: apiTrack.album.release_date,
+            totalTracks: apiTrack.album.total_tracks,
+            albumType: apiTrack.album.album_type,
+            updatedAt: now(),
+          })
+          .onConflictDoNothing()
+          .run();
+
+        db.run(sql`UPDATE tracks SET album_id = ${apiTrack.album.id}, verified_album = 1 WHERE spotify_id = ${apiTrack.id}`);
+        fixed++;
+      } else {
+        // álbum correcto → marcar como verificado
+        db.run(sql`UPDATE tracks SET verified_album = 1 WHERE spotify_id = ${apiTrack.id}`);
+      }
+    }
+
+    await sleep(SEARCH_DELAY_MS);
+  }
+
+  if (fixed > 0) console.log(`[resolve] ${fixed} tracks reasignados al álbum correcto`);
 }
 
 // buscar portadas de álbumes locales en MusicBrainz + Cover Art Archive

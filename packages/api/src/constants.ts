@@ -40,3 +40,6 @@ export const DEFAULT_PAGE_LIMIT = 50;
 
 // intervalo de refresco de metadata de entidades (24h)
 export const METADATA_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
+
+// intervalo de resolución de entidades import: (5 min)
+export const RESOLVE_INTERVAL_MS = 5 * 60_000;

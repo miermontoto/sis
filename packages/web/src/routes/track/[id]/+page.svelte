@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type TrackDetail } from '$lib/api';
+  import { api, type TrackDetail, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -10,6 +10,7 @@
   let data = $state<TrackDetail | null>(null);
   let loading = $state(true);
   let range = $state('all');
+  let metric = $state<RankingMetric>('time');
 
   async function loadData() {
     loading = true;
@@ -20,7 +21,10 @@
     }
   }
 
-  onMount(loadData);
+  onMount(() => {
+    metric = getRankingMetric();
+    loadData();
+  });
 
   $effect(() => {
     void range;
@@ -109,6 +113,30 @@
       </div>
     {/if}
   </div>
+
+  {#if data.albumBreakdown.length > 1}
+    <h2 class="section-title">Played in</h2>
+    <div class="track-list">
+      {#each data.albumBreakdown as item, i}
+        <a href="/album/{item.album.id}" class="track-item">
+          <span class="track-rank">{i + 1}</span>
+          {#if item.album.imageUrl}
+            <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+          {:else}
+            <div class="track-art"></div>
+          {/if}
+          <div class="track-info">
+            <div class="track-name">{item.album.name}</div>
+            <div class="track-artist">{item.album.releaseDate ?? ''}</div>
+          </div>
+          <div class="track-meta">
+            <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+            <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+          </div>
+        </a>
+      {/each}
+    </div>
+  {/if}
 
   {#if data.dailySeries.length > 1}
     <h2 class="section-title">Listening history</h2>

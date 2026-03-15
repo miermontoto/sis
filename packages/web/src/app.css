@@ -396,6 +396,32 @@ a.track-item {
   margin: 1.5rem 0 0.75rem;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.section-header .section-title {
+  margin: 1.5rem 0 0.75rem;
+}
+
+.show-all-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.show-all-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
 /* responsive */
 @media (max-width: 768px) {
   .sidebar {

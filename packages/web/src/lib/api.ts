@@ -142,6 +142,7 @@ export interface TrackDetail {
   };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
   dailySeries: { day: string; play_count: number; total_ms: number }[];
+  albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } }[];
 }
 
 export const api = {
@@ -170,11 +171,16 @@ export const api = {
 
   streaks: () => apiFetch<StreaksData>('/stats/streaks'),
 
-  artistDetail: (id: string, range = 'all') =>
-    apiFetch<ArtistDetail>(`/stats/artist/${encodeURIComponent(id)}`, { range }),
+  artistDetail: (id: string, range = 'all', opts?: { sort?: string; trackLimit?: number; albumLimit?: number }) =>
+    apiFetch<ArtistDetail>(`/stats/artist/${encodeURIComponent(id)}`, {
+      range,
+      ...(opts?.sort && { sort: opts.sort }),
+      ...(opts?.trackLimit && { trackLimit: String(opts.trackLimit) }),
+      ...(opts?.albumLimit && { albumLimit: String(opts.albumLimit) }),
+    }),
 
-  albumDetail: (id: string, range = 'all') =>
-    apiFetch<AlbumDetail>(`/stats/album/${encodeURIComponent(id)}`, { range }),
+  albumDetail: (id: string, range = 'all', sort?: string) =>
+    apiFetch<AlbumDetail>(`/stats/album/${encodeURIComponent(id)}`, { range, ...(sort && { sort }) }),
 
   trackDetail: (id: string, range = 'all') =>
     apiFetch<TrackDetail>(`/stats/track/${encodeURIComponent(id)}`, { range }),

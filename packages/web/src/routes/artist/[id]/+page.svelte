@@ -10,11 +10,18 @@
   let loading = $state(true);
   let range = $state('all');
   let metric = $state<RankingMetric>('time');
+  let showAllTracks = $state(false);
+  let showAllAlbums = $state(false);
 
   async function loadData() {
     loading = true;
     try {
-      data = await api.artistDetail($page.params.id, range);
+      const sort = metric === 'plays' ? 'plays' : 'time';
+      data = await api.artistDetail($page.params.id, range, {
+        sort,
+        trackLimit: showAllTracks ? 200 : 10,
+        albumLimit: showAllAlbums ? 200 : 5,
+      });
     } finally {
       loading = false;
     }
@@ -27,6 +34,9 @@
 
   $effect(() => {
     void range;
+    void metric;
+    void showAllTracks;
+    void showAllAlbums;
     loadData();
   });
 </script>
@@ -68,12 +78,22 @@
   </div>
 
   {#if data.topTracks.length > 0}
-    <h2 class="section-title">Top tracks</h2>
+    <div class="section-header">
+      <h2 class="section-title">Top tracks</h2>
+      <button class="show-all-btn" onclick={() => showAllTracks = !showAllTracks}>
+        {showAllTracks ? 'Show less' : 'Show all'}
+      </button>
+    </div>
     <TrackList items={data.topTracks} showRank {metric} />
   {/if}
 
   {#if data.topAlbums.length > 0}
-    <h2 class="section-title">Top albums</h2>
+    <div class="section-header">
+      <h2 class="section-title">Top albums</h2>
+      <button class="show-all-btn" onclick={() => showAllAlbums = !showAllAlbums}>
+        {showAllAlbums ? 'Show less' : 'Show all'}
+      </button>
+    </div>
     <div class="track-list">
       {#each data.topAlbums as item, i}
         {#if item.album}
