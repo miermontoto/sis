@@ -27,9 +27,13 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
     });
   }
 
-  // respetar rate limit
+  // respetar rate limit (máximo 30s de espera, si no devolver null)
   if (res.status === 429) {
     const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
+    if (retryAfter > 30) {
+      console.log(`[spotify] rate limited ${retryAfter}s, saltando`);
+      return null;
+    }
     console.log(`[spotify] rate limited, esperando ${retryAfter}s`);
     await new Promise(r => setTimeout(r, retryAfter * 1000));
     return spotifyFetch(endpoint, options);
