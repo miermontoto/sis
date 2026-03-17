@@ -37,17 +37,10 @@
     }
   }
 
-  onMount(async () => {
-    try {
-      await loadPage(1);
-    } finally {
-      loading = false;
-    }
+  let observer: IntersectionObserver | null = null;
 
-    const pollInterval = setInterval(pollNewItems, 15_000);
-
-    // infinite scroll con IntersectionObserver
-    const observer = new IntersectionObserver(
+  onMount(() => {
+    observer = new IntersectionObserver(
       async (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
           loadingMore = true;
@@ -61,11 +54,20 @@
       { threshold: 0.1 },
     );
 
-    if (sentinel) observer.observe(sentinel);
+    loadPage(1).finally(() => { loading = false; });
+
+    const pollInterval = setInterval(pollNewItems, 15_000);
     return () => {
       clearInterval(pollInterval);
-      observer.disconnect();
+      observer!.disconnect();
     };
+  });
+
+  // observar sentinel cuando aparece en el DOM
+  $effect(() => {
+    if (sentinel && observer) {
+      observer.observe(sentinel);
+    }
   });
 </script>
 
@@ -85,7 +87,7 @@
   <TrackList {items} showTime />
 
   {#if hasMore}
-    <div bind:this={sentinel} class="loading" style="padding: 2rem;">
+    <div bind:this={sentinel} style="min-height: 1px; padding: 2rem; display: flex; justify-content: center;">
       {#if loadingMore}
         <div class="spinner"></div>
       {/if}

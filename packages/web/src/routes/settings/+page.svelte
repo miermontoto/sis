@@ -69,14 +69,14 @@
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
     <div class="card stat-card">
-      <div class="stat-value" style="font-size: 1.25rem; color: {health?.status === 'ok' ? 'var(--accent)' : 'var(--danger)'};">
-        {health?.status === 'ok' ? 'Healthy' : 'Error'}
+      <div class="stat-value" style="color: {health?.status === 'ok' ? 'var(--accent)' : 'var(--danger)'};">
+        {health?.status === 'ok' ? '✓' : '✗'}
       </div>
       <div class="stat-label">Server</div>
     </div>
     <div class="card stat-card">
-      <div class="stat-value" style="font-size: 1.25rem; color: {health?.authenticated ? 'var(--accent)' : 'var(--text-muted)'};">
-        {health?.authenticated ? 'Connected' : 'Not connected'}
+      <div class="stat-value" style="color: {health?.authenticated ? 'var(--accent)' : 'var(--text-muted)'};">
+        {health?.authenticated ? '✓' : '✗'}
       </div>
       <div class="stat-label">Spotify</div>
     </div>
