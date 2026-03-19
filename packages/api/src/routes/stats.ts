@@ -95,12 +95,13 @@ stats.get('/top-tracks', (c) => {
   const orderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
 
   // agrupar por nombre+artista para unificar versiones (single, álbum, compilación)
+  // subquery MIN para elegir un solo artista primario si hay duplicados en position 0
   const rows = db.all(sql`
-    SELECT LOWER(t.name) as track_name, pa.artist_id as primary_artist_id,
+    SELECT LOWER(t.name) as track_name,
+           (SELECT MIN(pa.artist_id) FROM track_artists pa WHERE pa.track_id = t.spotify_id AND pa.position = 0) as primary_artist_id,
            count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    JOIN track_artists pa ON pa.track_id = t.spotify_id AND pa.position = 0
     ${whereClause}
     GROUP BY track_name, primary_artist_id
     ORDER BY ${orderBy} DESC

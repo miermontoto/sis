@@ -27,6 +27,8 @@ export const tracks = sqliteTable('tracks', {
   trackNumber: integer('track_number'),
   explicit: integer('explicit', { mode: 'boolean' }).default(false),
   popularity: integer('popularity'),
+  verifiedAlbum: integer('verified_album'),
+  verifiedArtists: integer('verified_artists'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 

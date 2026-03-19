@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
@@ -18,6 +18,9 @@ import type {
 let currentlyPlayingTimer: ReturnType<typeof setInterval> | null = null;
 let recentlyPlayedTimer: ReturnType<typeof setInterval> | null = null;
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let artistFixTimer: ReturnType<typeof setInterval> | null = null;
+
+const ARTIST_FIX_INTERVAL_MS = 5 * 60_000; // cada 5 minutos
 
 // estado del archivo local en reproducción (para registrar plays desde currently-playing)
 let lastLocalTrack: { id: string; startedAt: string; durationMs: number; lastProgressMs: number } | null = null;
@@ -167,6 +170,13 @@ export function startPolling() {
     METADATA_REFRESH_INTERVAL_MS,
   );
 
+  // verificar artistas de tracks cada 5 min (200 tracks por ciclo hasta completar)
+  fixTrackArtistAssociations().catch(err => console.error('[resolve] error verificando artistas:', err));
+  artistFixTimer = setInterval(
+    () => fixTrackArtistAssociations().catch(err => console.error('[resolve] error verificando artistas:', err)),
+    ARTIST_FIX_INTERVAL_MS,
+  );
+
   console.log(`[poll] currently playing cada ${CURRENTLY_PLAYING_INTERVAL_MS / 1000}s`);
   console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
 }
@@ -175,9 +185,11 @@ export function stopPolling() {
   if (currentlyPlayingTimer) clearInterval(currentlyPlayingTimer);
   if (recentlyPlayedTimer) clearInterval(recentlyPlayedTimer);
   if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
+  if (artistFixTimer) clearInterval(artistFixTimer);
   currentlyPlayingTimer = null;
   recentlyPlayedTimer = null;
   metadataRefreshTimer = null;
+  artistFixTimer = null;
   console.log('[poll] polling detenido');
 }
 

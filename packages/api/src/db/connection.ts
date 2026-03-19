@@ -45,6 +45,7 @@ export function getDb() {
 
   // columnas adicionales no gestionadas por drizzle
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_album INTEGER'); } catch {}
+  try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_artists INTEGER'); } catch {}
 
   console.log(`[db] conectado a ${dbPath} (WAL mode)`);
   return db;

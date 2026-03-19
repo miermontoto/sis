@@ -224,7 +224,7 @@ export async function resolveImportArtists() {
             spotifyId: found.id,
             name: found.name,
             imageUrl: found.images[0]?.url ?? null,
-            genres: JSON.stringify(found.genres),
+            genres: found.genres,
             popularity: found.popularity,
             updatedAt: now(),
           })
@@ -412,6 +412,85 @@ export async function fixTrackAlbumAssignments() {
   }
 
   if (fixed > 0) console.log(`[resolve] ${fixed} tracks reasignados al álbum correcto`);
+}
+
+// corregir track_artists para tracks con Spotify ID real que solo tienen 1 artista
+// (ocurre cuando el import solo almacena el artista principal del álbum)
+export async function fixTrackArtistAssociations() {
+  const db = getDb();
+
+  const candidates = db.all(sql`
+    SELECT t.spotify_id
+    FROM tracks t
+    WHERE t.spotify_id NOT LIKE 'import:%'
+      AND t.spotify_id NOT LIKE 'local:%'
+      AND t.verified_artists IS NULL
+    LIMIT 200
+  `) as { spotify_id: string }[];
+
+  if (candidates.length === 0) return;
+  console.log(`[resolve] verificando artistas de ${candidates.length} tracks...`);
+
+  let fixed = 0;
+  for (let i = 0; i < candidates.length; i += 50) {
+    const batch = candidates.slice(i, i + 50);
+    const ids = batch.map(c => c.spotify_id).join(',');
+
+    const data = await spotifyFetch<{ tracks: SpotifyTrack[] }>('/tracks', {
+      params: { ids },
+    });
+
+    if (!data?.tracks) continue;
+
+    for (const apiTrack of data.tracks) {
+      if (!apiTrack) continue;
+      if (!apiTrack.artists?.length) {
+        db.run(sql`UPDATE tracks SET verified_artists = 1 WHERE spotify_id = ${apiTrack.id}`);
+        continue;
+      }
+
+      // limpiar artistas import: obsoletos antes de insertar los reales
+      db.run(sql`DELETE FROM track_artists
+        WHERE track_id = ${apiTrack.id}
+          AND artist_id LIKE 'import:%'`);
+
+      // upsert todos los artistas y relaciones
+      let added = false;
+      for (let pos = 0; pos < apiTrack.artists.length; pos++) {
+        const artist = apiTrack.artists[pos];
+
+        db.insert(artists)
+          .values({
+            spotifyId: artist.id,
+            name: artist.name,
+            updatedAt: now(),
+          })
+          .onConflictDoUpdate({
+            target: artists.spotifyId,
+            set: { name: artist.name, updatedAt: now() },
+          })
+          .run();
+
+        const result = db.insert(trackArtists)
+          .values({
+            trackId: apiTrack.id,
+            artistId: artist.id,
+            position: pos,
+          })
+          .onConflictDoNothing()
+          .run();
+
+        if (result.changes > 0) added = true;
+      }
+
+      db.run(sql`UPDATE tracks SET verified_artists = 1 WHERE spotify_id = ${apiTrack.id}`);
+      if (added) fixed++;
+    }
+
+    await sleep(SEARCH_DELAY_MS);
+  }
+
+  if (fixed > 0) console.log(`[resolve] ${fixed} tracks con artistas actualizados`);
 }
 
 // buscar portadas de álbumes locales en MusicBrainz + Cover Art Archive
