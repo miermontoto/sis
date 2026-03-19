@@ -26,6 +26,11 @@ export function getDb() {
   sqlite.pragma('busy_timeout = 5000');
   sqlite.pragma('foreign_keys = ON');
 
+  // función personalizada para búsquedas sin acentos
+  sqlite.function('unaccent', (s: unknown) =>
+    typeof s === 'string' ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : s
+  );
+
   db = drizzle(sqlite, { schema });
 
   // buscar migraciones en dev (src/db/migrations) o prod (dist/db/migrations)

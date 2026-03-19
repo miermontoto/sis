@@ -46,6 +46,10 @@
     { href: '/insights', label: 'Insights', icon: '!' },
     { href: '/settings', label: 'Settings', icon: '@' },
   ];
+
+  let pageTitle = $derived(
+    nav.find(n => n.href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(n.href))?.label ?? null
+  );
 </script>
 
 {#if page.url.pathname === '/login'}
@@ -72,6 +76,12 @@
       </nav>
     </aside>
     <main class="main-content">
+      <div class="mobile-header">
+        <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle} <span class="mobile-header-sep">|</span> {pageTitle}{/if}</span>
+        <button class="mobile-search-bar" onclick={() => showSearch = true}>
+          Search...
+        </button>
+      </div>
       {@render children()}
     </main>
   </div>

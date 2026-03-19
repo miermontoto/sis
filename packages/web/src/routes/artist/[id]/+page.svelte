@@ -71,7 +71,7 @@
     </div>
     {#if data.stats.first_played}
       <div class="card stat-card">
-        <div class="stat-value" style="font-size:1.25rem">{formatDate(data.stats.first_played)}</div>
+        <div class="stat-value">{new Date(data.stats.first_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
         <div class="stat-label">First played</div>
       </div>
     {/if}

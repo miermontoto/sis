@@ -114,6 +114,10 @@ a:hover {
   transition: all 0.15s;
 }
 
+.mobile-header {
+  display: none;
+}
+
 .sidebar nav a:hover,
 .sidebar nav a.active {
   background: var(--bg-hover);
@@ -149,12 +153,18 @@ a:hover {
 
 .stat-card {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .stat-value {
-  font-size: 2rem;
+  font-size: clamp(1.1rem, 4vw, 2rem);
   font-weight: 700;
   color: var(--accent);
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .stat-label {
@@ -490,6 +500,44 @@ a.track-item {
     font-size: 0.7rem;
   }
 
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .mobile-header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .mobile-header-logo {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .mobile-header-sep {
+    color: var(--border);
+    margin: 0 0.15rem 0 0.3rem;
+  }
+
+  .mobile-search-bar {
+    flex: 1;
+    margin-left: 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font);
+  }
+
   .main-content {
     margin-left: 0;
     padding: 1rem;
@@ -508,5 +556,9 @@ a.track-item {
   .detail-hero .detail-image {
     width: 96px;
     height: 96px;
+  }
+
+  .page-header {
+    display: none;
   }
 }

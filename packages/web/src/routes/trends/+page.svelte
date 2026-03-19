@@ -11,11 +11,20 @@
   let genres = $state<GenreItem[]>([]);
   let loading = $state(true);
 
+  // granularidad según rango: día para cortos, semana/mes para largos
+  function granularityForRange(r: string): string {
+    if (r === 'week') return 'day';
+    if (r === 'month') return 'day';
+    if (r === '3months') return 'week';
+    if (r === '6months') return 'week';
+    return 'month'; // year, thisYear, all
+  }
+
   async function loadData() {
     loading = true;
     try {
       [data, genres] = await Promise.all([
-        api.listeningTime(range, 'day'),
+        api.listeningTime(range, granularityForRange(range)),
         api.topGenres(range, 8),
       ]);
     } finally {

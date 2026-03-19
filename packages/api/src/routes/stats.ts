@@ -7,64 +7,6 @@ import type { TimeRange } from '../constants.js';
 
 const stats = new Hono();
 
-// cache: para cada track, el álbum canónico (preferir álbum completo sobre single)
-let bestAlbumMap: Map<string, string> = new Map();
-let bestAlbumCacheTime = 0;
-const BEST_ALBUM_CACHE_TTL = 60 * 60_000; // 1h
-
-function getBestAlbumMap(): Map<string, string> {
-  if (Date.now() - bestAlbumCacheTime < BEST_ALBUM_CACHE_TTL) return bestAlbumMap;
-  try {
-    const db = getDb();
-    // para cada grupo de tracks (mismo nombre + artista principal), encontrar el mejor álbum
-    const groups = db.all(sql`
-      SELECT t.spotify_id as track_id, t.album_id, LOWER(t.name) as track_name,
-             pa.artist_id, a.album_type
-      FROM tracks t
-      JOIN track_artists pa ON pa.track_id = t.spotify_id AND pa.position = 0
-      LEFT JOIN albums a ON a.spotify_id = t.album_id
-      WHERE t.album_id IS NOT NULL
-    `) as { track_id: string; album_id: string; track_name: string; artist_id: string; album_type: string | null }[];
-
-    // agrupar por nombre+artista
-    const canonical = new Map<string, { album_id: string; album_type: string | null; tracks: string[] }[]>();
-    for (const row of groups) {
-      const key = `${row.track_name}|${row.artist_id}`;
-      if (!canonical.has(key)) canonical.set(key, []);
-      canonical.get(key)!.push({ album_id: row.album_id, album_type: row.album_type, tracks: [row.track_id] });
-    }
-
-    const newMap = new Map<string, string>();
-    for (const [, entries] of canonical) {
-      if (entries.length <= 1) continue; // sin duplicados
-      // encontrar el mejor álbum: album > null > compilation > single
-      const best = entries.reduce((a, b) => {
-        const scoreA = a.album_type === 'album' ? 0 : a.album_type === 'single' ? 3 : a.album_type === 'compilation' ? 2 : 1;
-        const scoreB = b.album_type === 'album' ? 0 : b.album_type === 'single' ? 3 : b.album_type === 'compilation' ? 2 : 1;
-        return scoreA <= scoreB ? a : b;
-      });
-      // mapear todos los tracks de este grupo al mejor álbum
-      for (const entry of entries) {
-        if (entry.album_id !== best.album_id) {
-          for (const tid of entry.tracks) {
-            newMap.set(tid, best.album_id);
-          }
-        }
-      }
-    }
-
-    bestAlbumMap = newMap;
-    bestAlbumCacheTime = Date.now();
-    console.log(`[stats] cache best-album: ${bestAlbumMap.size} tracks remapeados`);
-  } catch (err) {
-    console.error('[stats] error calculando best-album:', err);
-  }
-  return bestAlbumMap;
-}
-
-// precalcular en background al arrancar
-setTimeout(() => getBestAlbumMap(), 5000);
-
 // helper: calcular fecha de inicio según rango
 function getRangeStart(range: TimeRange): string | null {
   const days = TIME_RANGES[range];
@@ -94,42 +36,25 @@ stats.get('/top-tracks', (c) => {
 
   const orderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
 
-  // agrupar por nombre+artista para unificar versiones (single, álbum, compilación)
-  // subquery MIN para elegir un solo artista primario si hay duplicados en position 0
   const rows = db.all(sql`
-    SELECT LOWER(t.name) as track_name,
-           (SELECT MIN(pa.artist_id) FROM track_artists pa WHERE pa.track_id = t.spotify_id AND pa.position = 0) as primary_artist_id,
-           count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${whereClause}
-    GROUP BY track_name, primary_artist_id
+    GROUP BY lh.track_id
     ORDER BY ${orderBy} DESC
     LIMIT ${limit}
-  `) as { track_name: string; primary_artist_id: string; play_count: number; total_ms: number }[];
+  `) as { track_id: string; play_count: number; total_ms: number }[];
 
   const result = rows.map(row => {
-    // representante: preferir ID real de Spotify y álbum completo sobre single
-    const rep = db.get(sql`
-      SELECT t.spotify_id FROM tracks t
-      JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
-      LEFT JOIN albums a ON a.spotify_id = t.album_id
-      WHERE LOWER(t.name) = ${row.track_name} AND ta.artist_id = ${row.primary_artist_id}
-      ORDER BY
-        CASE WHEN t.spotify_id NOT LIKE 'import:%' AND t.spotify_id NOT LIKE 'local:%' THEN 0 ELSE 1 END,
-        CASE WHEN a.album_type = 'album' THEN 0 WHEN a.album_type = 'single' THEN 1 ELSE 2 END
-      LIMIT 1
-    `) as { spotify_id: string } | undefined;
-    if (!rep) return null;
-
-    const track = db.select().from(tracks).where(eq(tracks.spotifyId, rep.spotify_id)).get();
+    const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
     const album = track?.albumId
       ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
       : null;
     const artRows = db
       .select()
       .from(trackArtists)
-      .where(eq(trackArtists.trackId, rep.spotify_id))
+      .where(eq(trackArtists.trackId, row.track_id))
       .all();
     const arts = artRows
       .sort((a, b) => a.position - b.position)
@@ -137,7 +62,7 @@ stats.get('/top-tracks', (c) => {
       .filter(Boolean);
 
     return {
-      trackId: rep.spotify_id,
+      trackId: row.track_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
       track: track ? {
@@ -195,38 +120,24 @@ stats.get('/top-albums', (c) => {
     : sql``;
 
   const orderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
-  const bestAlbum = getBestAlbumMap();
 
   const rows = db.all(sql`
-    SELECT t.album_id, lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${whereClause}
-    GROUP BY lh.track_id
-  `) as { album_id: string; track_id: string; play_count: number; total_ms: number }[];
+    GROUP BY t.album_id
+    HAVING t.album_id IS NOT NULL
+    ORDER BY ${orderBy} DESC
+    LIMIT ${limit}
+  `) as { album_id: string; play_count: number; total_ms: number }[];
 
-  // agrupar por álbum canónico (redirigir singles al álbum completo)
-  const albumMap = new Map<string, { play_count: number; total_ms: number }>();
-  for (const row of rows) {
-    const albumId = bestAlbum.get(row.track_id) ?? row.album_id;
-    if (!albumId) continue;
-    const existing = albumMap.get(albumId) || { play_count: 0, total_ms: 0 };
-    existing.play_count += row.play_count;
-    existing.total_ms += row.total_ms;
-    albumMap.set(albumId, existing);
-  }
-
-  // ordenar y limitar
-  const sorted = [...albumMap.entries()]
-    .sort((a, b) => sort === 'plays' ? b[1].play_count - a[1].play_count : b[1].total_ms - a[1].total_ms)
-    .slice(0, limit);
-
-  const result = sorted.map(([albumId, stats]) => {
-    const album = db.select().from(albums).where(eq(albums.spotifyId, albumId)).get();
+  const result = rows.map(row => {
+    const album = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
     return {
-      albumId,
-      playCount: stats.play_count,
-      totalMs: stats.total_ms,
+      albumId: row.album_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
       album: album ? { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate } : null,
     };
   });
@@ -444,39 +355,25 @@ stats.get('/artist/:id', (c) => {
     WHERE ta.artist_id = ${id} ${whereRange}
   `)[0] as { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
 
-  // top tracks (agrupados por nombre para unificar versiones)
   const trackOrderBy = sort === 'plays' ? sql`play_count` : sql`total_ms`;
   const topTracks = db.all(sql`
-    SELECT LOWER(t.name) as track_name, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN track_artists ta ON ta.track_id = lh.track_id
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE ta.artist_id = ${id} ${whereRange}
-    GROUP BY track_name
+    GROUP BY lh.track_id
     ORDER BY ${trackOrderBy} DESC
     LIMIT ${trackLimit}
-  `) as { track_name: string; play_count: number; total_ms: number }[];
+  `) as { track_id: string; play_count: number; total_ms: number }[];
 
   const topTracksResult = topTracks.map(row => {
-    // representante: preferir ID real y álbum completo
-    const rep = db.get(sql`
-      SELECT t.spotify_id FROM tracks t
-      JOIN track_artists ta ON ta.track_id = t.spotify_id
-      LEFT JOIN albums a ON a.spotify_id = t.album_id
-      WHERE LOWER(t.name) = ${row.track_name} AND ta.artist_id = ${id}
-      ORDER BY
-        CASE WHEN t.spotify_id NOT LIKE 'import:%' AND t.spotify_id NOT LIKE 'local:%' THEN 0 ELSE 1 END,
-        CASE WHEN a.album_type = 'album' THEN 0 WHEN a.album_type = 'single' THEN 1 ELSE 2 END
-      LIMIT 1
-    `) as { spotify_id: string } | undefined;
-    if (!rep) return null;
-
-    const track = db.select().from(tracks).where(eq(tracks.spotifyId, rep.spotify_id)).get();
+    const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
     const album = track?.albumId
       ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
       : null;
     return {
-      trackId: rep.spotify_id,
+      trackId: row.track_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
       track: track ? {
@@ -486,40 +383,28 @@ stats.get('/artist/:id', (c) => {
         artists: [{ id: artist.spotifyId, name: artist.name }],
       } : null,
     };
-  }).filter(Boolean);
+  });
 
-  const bestAlbum = getBestAlbumMap();
-  const artistAlbumRows = db.all(sql`
-    SELECT t.album_id, lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+  const topAlbumsRows = db.all(sql`
+    SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN track_artists ta ON ta.track_id = lh.track_id
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE ta.artist_id = ${id} AND t.album_id IS NOT NULL ${whereRange}
-    GROUP BY lh.track_id
-  `) as { album_id: string; track_id: string; play_count: number; total_ms: number }[];
+    GROUP BY t.album_id
+    ORDER BY ${trackOrderBy} DESC
+    LIMIT ${albumLimit}
+  `) as { album_id: string; play_count: number; total_ms: number }[];
 
-  // agrupar por álbum canónico
-  const artistAlbumMap = new Map<string, { play_count: number; total_ms: number }>();
-  for (const row of artistAlbumRows) {
-    const albumId = bestAlbum.get(row.track_id) ?? row.album_id;
-    const existing = artistAlbumMap.get(albumId) || { play_count: 0, total_ms: 0 };
-    existing.play_count += row.play_count;
-    existing.total_ms += row.total_ms;
-    artistAlbumMap.set(albumId, existing);
-  }
-
-  const topAlbumsResult = [...artistAlbumMap.entries()]
-    .sort((a, b) => sort === 'plays' ? b[1].play_count - a[1].play_count : b[1].total_ms - a[1].total_ms)
-    .slice(0, albumLimit)
-    .map(([albumId, stats]) => {
-      const album = db.select().from(albums).where(eq(albums.spotifyId, albumId)).get();
-      return {
-        albumId,
-        playCount: stats.play_count,
-        totalMs: stats.total_ms,
-        album: album ? { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate } : null,
-      };
-    });
+  const topAlbumsResult = topAlbumsRows.map(row => {
+    const album = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
+    return {
+      albumId: row.album_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      album: album ? { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate } : null,
+    };
+  });
 
   // 10 reproducciones recientes
   const recentPlays = db.all(sql`
@@ -673,15 +558,7 @@ stats.get('/track/:id', (c) => {
     .map(ta => db.select().from(artists).where(eq(artists.spotifyId, ta.artistId)).get())
     .filter(Boolean);
 
-  // encontrar todos los track_ids hermanos (mismo nombre + mismo artista principal)
-  const primaryArtist = artRows.find(a => a.position === 0);
-  const siblingFilter = primaryArtist
-    ? sql`lh.track_id IN (
-        SELECT t2.spotify_id FROM tracks t2
-        JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-        WHERE LOWER(t2.name) = LOWER(${track.name}) AND ta2.artist_id = ${primaryArtist.artistId}
-      )`
-    : sql`lh.track_id = ${id}`;
+  const trackFilter = sql`lh.track_id = ${id}`;
 
   const whereRange = rangeStart
     ? sql`AND lh.played_at >= ${rangeStart}`
@@ -693,7 +570,7 @@ stats.get('/track/:id', (c) => {
            min(lh.played_at) as first_played, max(lh.played_at) as last_played
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    WHERE ${siblingFilter} ${whereRange}
+    WHERE ${trackFilter} ${whereRange}
   `)[0] as { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
 
   // serie temporal diaria (todas las versiones)
@@ -701,7 +578,7 @@ stats.get('/track/:id', (c) => {
     SELECT date(lh.played_at) as day, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    WHERE ${siblingFilter} ${whereRange}
+    WHERE ${trackFilter} ${whereRange}
     GROUP BY day
     ORDER BY day ASC
   `) as { day: string; play_count: number; total_ms: number }[];
@@ -711,33 +588,21 @@ stats.get('/track/:id', (c) => {
     SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    WHERE ${siblingFilter} ${whereRange}
+    WHERE ${trackFilter} ${whereRange}
       AND t.album_id IS NOT NULL
     GROUP BY t.album_id
     ORDER BY play_count DESC
   `) as { album_id: string; play_count: number; total_ms: number }[];
 
-  // agrupar por nombre de álbum para unificar singles duplicados
-  const albumByName = new Map<string, { albumId: string; playCount: number; totalMs: number; album: any }>();
-  for (const row of albumBreakdown) {
+  const albumBreakdownResult = albumBreakdown.map(row => {
     const ab = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
-    if (!ab) continue;
-    const key = ab.name.toLowerCase();
-    const existing = albumByName.get(key);
-    if (existing) {
-      existing.playCount += row.play_count;
-      existing.totalMs += row.total_ms;
-    } else {
-      albumByName.set(key, {
-        albumId: row.album_id,
-        playCount: row.play_count,
-        totalMs: row.total_ms,
-        album: { id: ab.spotifyId, name: ab.name, imageUrl: ab.imageUrl, releaseDate: ab.releaseDate },
-      });
-    }
-  }
-  const albumBreakdownResult = [...albumByName.values()]
-    .sort((a, b) => b.playCount - a.playCount);
+    return {
+      albumId: row.album_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      album: ab ? { id: ab.spotifyId, name: ab.name, imageUrl: ab.imageUrl, releaseDate: ab.releaseDate } : null,
+    };
+  }).filter(r => r.album);
 
   return c.json({
     track: {
@@ -759,7 +624,8 @@ stats.get('/search', (c) => {
   if (!q || q.length < 2) return c.json({ error: 'query too short' }, 400);
 
   const limit = Math.min(parseInt(c.req.query('limit') || '5'), 20);
-  const term = q.toLowerCase();
+  // normalizar: quitar acentos y minúsculas (coincide con la función unaccent() de SQLite)
+  const term = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const db = getDb();
 
   const artistRows = db.all(sql`
@@ -772,7 +638,7 @@ stats.get('/search', (c) => {
       JOIN track_artists ta ON ta.track_id = lh.track_id
       GROUP BY ta.artist_id
     ) s ON s.artist_id = a.spotify_id
-    WHERE LOWER(a.name) LIKE ${'%' + term + '%'}
+    WHERE unaccent(a.name) LIKE ${'%' + term + '%'}
       AND a.spotify_id NOT LIKE 'import:%'
     ORDER BY playCount DESC
     LIMIT ${limit}
@@ -793,7 +659,7 @@ stats.get('/search', (c) => {
       WHERE t.album_id IS NOT NULL
       GROUP BY t.album_id
     ) s ON s.album_id = al.spotify_id
-    WHERE LOWER(al.name) LIKE ${'%' + term + '%'}
+    WHERE unaccent(al.name) LIKE ${'%' + term + '%'}
       AND al.spotify_id NOT LIKE 'import:%'
       AND al.spotify_id NOT LIKE 'local:%'
     ORDER BY playCount DESC
@@ -816,42 +682,18 @@ stats.get('/search', (c) => {
       SELECT track_id, COUNT(*) as play_count
       FROM listening_history GROUP BY track_id
     ) s ON s.track_id = t.spotify_id
-    WHERE (LOWER(t.name) LIKE ${'%' + term + '%'}
-           OR LOWER(ar.name) LIKE ${'%' + term + '%'})
+    WHERE (unaccent(t.name) LIKE ${'%' + term + '%'}
+           OR unaccent(ar.name) LIKE ${'%' + term + '%'})
       AND t.spotify_id NOT LIKE 'import:%'
       AND t.spotify_id NOT LIKE 'local:%'
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];
 
-  // deduplicar albums por nombre+artista (unificar singles duplicados)
-  const albumDeduped = new Map<string, any>();
-  for (const row of albumRows) {
-    const key = `${(row.name as string).toLowerCase()}|${(row.artistName || '').toLowerCase()}`;
-    const existing = albumDeduped.get(key);
-    if (existing) {
-      existing.playCount += row.playCount;
-    } else {
-      albumDeduped.set(key, { ...row });
-    }
-  }
-
-  // deduplicar tracks por nombre+artista (versiones en distintos álbumes)
-  const trackDeduped = new Map<string, any>();
-  for (const row of trackRows) {
-    const key = `${(row.name as string).toLowerCase()}|${(row.artistName || '').toLowerCase()}`;
-    const existing = trackDeduped.get(key);
-    if (existing) {
-      existing.playCount += row.playCount;
-    } else {
-      trackDeduped.set(key, { ...row });
-    }
-  }
-
   return c.json({
     artists: artistRows,
-    albums: [...albumDeduped.values()].sort((a, b) => b.playCount - a.playCount).slice(0, limit),
-    tracks: [...trackDeduped.values()].sort((a, b) => b.playCount - a.playCount).slice(0, limit),
+    albums: albumRows,
+    tracks: trackRows,
   });
 });
 

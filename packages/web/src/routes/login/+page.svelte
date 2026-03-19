@@ -1,7 +1,6 @@
 <div class="login-page">
   <div class="login-card">
     <h1>SIS</h1>
-    <p>Spotify Intelligence Suite</p>
     <a href="/auth/login" class="login-btn">Sign in with Spotify</a>
   </div>
 </div>
@@ -29,11 +28,6 @@
     font-size: 2.5rem;
     font-weight: 700;
     color: var(--accent);
-    margin-bottom: 0.25rem;
-  }
-
-  p {
-    color: var(--text-muted);
     margin-bottom: 2rem;
   }
 

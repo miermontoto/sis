@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
@@ -170,10 +170,14 @@ export function startPolling() {
     METADATA_REFRESH_INTERVAL_MS,
   );
 
-  // verificar artistas de tracks cada 5 min (200 tracks por ciclo hasta completar)
-  fixTrackArtistAssociations().catch(err => console.error('[resolve] error verificando artistas:', err));
+  // verificar artistas de tracks + deduplicar, cada 5 min hasta completar
+  fixTrackArtistAssociations()
+    .then(() => { deduplicateTracks(); deduplicateAlbums(); })
+    .catch(err => console.error('[resolve] error verificando artistas:', err));
   artistFixTimer = setInterval(
-    () => fixTrackArtistAssociations().catch(err => console.error('[resolve] error verificando artistas:', err)),
+    () => fixTrackArtistAssociations()
+      .then(() => { deduplicateTracks(); deduplicateAlbums(); })
+      .catch(err => console.error('[resolve] error verificando artistas:', err)),
     ARTIST_FIX_INTERVAL_MS,
   );
 
