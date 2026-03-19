@@ -3,10 +3,12 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import type { Snippet } from 'svelte';
+  import SearchModal from '$lib/components/SearchModal.svelte';
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);
   let authCheckDone = false;
+  let showSearch = $state(false);
 
   $effect(() => {
     if (page.url.pathname === '/login') {
@@ -25,6 +27,17 @@
       });
   });
 
+  $effect(() => {
+    function handleKeydown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        showSearch = true;
+      }
+    }
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  });
+
   const nav = [
     { href: '/', label: 'Dashboard', icon: '~' },
     { href: '/history', label: 'History', icon: '#' },
@@ -41,6 +54,11 @@
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-logo">SIS</div>
+      <button class="sidebar-search" onclick={() => showSearch = true}>
+        <span>?</span>
+        <span>Search</span>
+        <kbd>⌘K</kbd>
+      </button>
       <nav>
         {#each nav as item}
           <a
@@ -57,4 +75,5 @@
       {@render children()}
     </main>
   </div>
+  <SearchModal bind:show={showSearch} />
 {/if}

@@ -717,15 +717,27 @@ stats.get('/track/:id', (c) => {
     ORDER BY play_count DESC
   `) as { album_id: string; play_count: number; total_ms: number }[];
 
-  const albumBreakdownResult = albumBreakdown.map(row => {
+  // agrupar por nombre de álbum para unificar singles duplicados
+  const albumByName = new Map<string, { albumId: string; playCount: number; totalMs: number; album: any }>();
+  for (const row of albumBreakdown) {
     const ab = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
-    return {
-      albumId: row.album_id,
-      playCount: row.play_count,
-      totalMs: row.total_ms,
-      album: ab ? { id: ab.spotifyId, name: ab.name, imageUrl: ab.imageUrl, releaseDate: ab.releaseDate } : null,
-    };
-  }).filter(r => r.album);
+    if (!ab) continue;
+    const key = ab.name.toLowerCase();
+    const existing = albumByName.get(key);
+    if (existing) {
+      existing.playCount += row.play_count;
+      existing.totalMs += row.total_ms;
+    } else {
+      albumByName.set(key, {
+        albumId: row.album_id,
+        playCount: row.play_count,
+        totalMs: row.total_ms,
+        album: { id: ab.spotifyId, name: ab.name, imageUrl: ab.imageUrl, releaseDate: ab.releaseDate },
+      });
+    }
+  }
+  const albumBreakdownResult = [...albumByName.values()]
+    .sort((a, b) => b.playCount - a.playCount);
 
   return c.json({
     track: {
@@ -737,6 +749,109 @@ stats.get('/track/:id', (c) => {
     stats: statsRow,
     dailySeries,
     albumBreakdown: albumBreakdownResult,
+  });
+});
+
+// --- search ---
+
+stats.get('/search', (c) => {
+  const q = c.req.query('q')?.trim();
+  if (!q || q.length < 2) return c.json({ error: 'query too short' }, 400);
+
+  const limit = Math.min(parseInt(c.req.query('limit') || '5'), 20);
+  const term = q.toLowerCase();
+  const db = getDb();
+
+  const artistRows = db.all(sql`
+    SELECT a.spotify_id as id, a.name, a.image_url as imageUrl,
+           COALESCE(s.play_count, 0) as playCount
+    FROM artists a
+    LEFT JOIN (
+      SELECT ta.artist_id, COUNT(*) as play_count
+      FROM listening_history lh
+      JOIN track_artists ta ON ta.track_id = lh.track_id
+      GROUP BY ta.artist_id
+    ) s ON s.artist_id = a.spotify_id
+    WHERE LOWER(a.name) LIKE ${'%' + term + '%'}
+      AND a.spotify_id NOT LIKE 'import:%'
+    ORDER BY playCount DESC
+    LIMIT ${limit}
+  `) as any[];
+
+  const albumRows = db.all(sql`
+    SELECT al.spotify_id as id, al.name, al.image_url as imageUrl,
+           (SELECT ar.name FROM tracks t2
+            JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
+            JOIN artists ar ON ar.spotify_id = ta2.artist_id
+            WHERE t2.album_id = al.spotify_id LIMIT 1) as artistName,
+           COALESCE(s.play_count, 0) as playCount
+    FROM albums al
+    LEFT JOIN (
+      SELECT t.album_id, COUNT(*) as play_count
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE t.album_id IS NOT NULL
+      GROUP BY t.album_id
+    ) s ON s.album_id = al.spotify_id
+    WHERE LOWER(al.name) LIKE ${'%' + term + '%'}
+      AND al.spotify_id NOT LIKE 'import:%'
+      AND al.spotify_id NOT LIKE 'local:%'
+    ORDER BY playCount DESC
+    LIMIT ${limit}
+  `) as any[];
+
+  const trackRows = db.all(sql`
+    SELECT t.spotify_id as id, t.name,
+           al.image_url as albumImageUrl,
+           ar.name as artistName,
+           COALESCE(s.play_count, 0) as playCount
+    FROM tracks t
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    LEFT JOIN (
+      SELECT track_id, MIN(artist_id) as artist_id
+      FROM track_artists WHERE position = 0 GROUP BY track_id
+    ) pa ON pa.track_id = t.spotify_id
+    LEFT JOIN artists ar ON ar.spotify_id = pa.artist_id
+    LEFT JOIN (
+      SELECT track_id, COUNT(*) as play_count
+      FROM listening_history GROUP BY track_id
+    ) s ON s.track_id = t.spotify_id
+    WHERE (LOWER(t.name) LIKE ${'%' + term + '%'}
+           OR LOWER(ar.name) LIKE ${'%' + term + '%'})
+      AND t.spotify_id NOT LIKE 'import:%'
+      AND t.spotify_id NOT LIKE 'local:%'
+    ORDER BY playCount DESC
+    LIMIT ${limit}
+  `) as any[];
+
+  // deduplicar albums por nombre+artista (unificar singles duplicados)
+  const albumDeduped = new Map<string, any>();
+  for (const row of albumRows) {
+    const key = `${(row.name as string).toLowerCase()}|${(row.artistName || '').toLowerCase()}`;
+    const existing = albumDeduped.get(key);
+    if (existing) {
+      existing.playCount += row.playCount;
+    } else {
+      albumDeduped.set(key, { ...row });
+    }
+  }
+
+  // deduplicar tracks por nombre+artista (versiones en distintos álbumes)
+  const trackDeduped = new Map<string, any>();
+  for (const row of trackRows) {
+    const key = `${(row.name as string).toLowerCase()}|${(row.artistName || '').toLowerCase()}`;
+    const existing = trackDeduped.get(key);
+    if (existing) {
+      existing.playCount += row.playCount;
+    } else {
+      trackDeduped.set(key, { ...row });
+    }
+  }
+
+  return c.json({
+    artists: artistRows,
+    albums: [...albumDeduped.values()].sort((a, b) => b.playCount - a.playCount).slice(0, limit),
+    tracks: [...trackDeduped.values()].sort((a, b) => b.playCount - a.playCount).slice(0, limit),
   });
 });
 

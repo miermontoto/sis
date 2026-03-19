@@ -116,6 +116,14 @@ export interface ImportResult {
   skipped: number;
 }
 
+// --- search types ---
+
+export interface SearchResults {
+  artists: { id: string; name: string; imageUrl: string | null; playCount: number }[];
+  albums: { id: string; name: string; imageUrl: string | null; artistName: string | null; playCount: number }[];
+  tracks: { id: string; name: string; albumImageUrl: string | null; artistName: string | null; playCount: number }[];
+}
+
 // --- detail types ---
 
 export interface ArtistDetail {
@@ -184,6 +192,9 @@ export const api = {
 
   trackDetail: (id: string, range = 'all') =>
     apiFetch<TrackDetail>(`/stats/track/${encodeURIComponent(id)}`, { range }),
+
+  search: (q: string, limit = 5) =>
+    apiFetch<SearchResults>('/stats/search', { q, limit: String(limit) }),
 
   health: () => apiFetch<HealthData>('/health'),
 
