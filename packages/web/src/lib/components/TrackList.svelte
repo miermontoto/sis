@@ -1,15 +1,17 @@
 <script lang="ts">
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, timeAgo } from '$lib/utils/format';
+  import RankChange from './RankChange.svelte';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
     showRank?: boolean;
     showTime?: boolean;
     metric?: RankingMetric;
+    showRankChanges?: boolean;
   }
 
-  let { items, showRank = false, showTime = false, metric = 'time' }: Props = $props();
+  let { items, showRank = false, showTime = false, metric = 'time', showRankChanges = false }: Props = $props();
 
   // type guard
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
@@ -28,10 +30,19 @@
     {#if track}
       <div class="track-item">
         {#if showRank}
-          <span class="track-rank">{i + 1}</span>
+          {#if showRankChanges && isTopTrack(item)}
+            <div class="rank-cell">
+              <span class="track-rank">{i + 1}</span>
+              <RankChange rankChange={item.rankChange} isNew={item.isNew} />
+            </div>
+          {:else}
+            <span class="track-rank">{i + 1}</span>
+          {/if}
         {/if}
         {#if track.album?.imageUrl}
-          <img class="track-art" src={track.album.imageUrl} alt={track.album?.name ?? ''} />
+          <a href="/album/{track.album.id}" class="track-art-link">
+            <img class="track-art" src={track.album.imageUrl} alt={track.album?.name ?? ''} />
+          </a>
         {:else}
           <div class="track-art"></div>
         {/if}

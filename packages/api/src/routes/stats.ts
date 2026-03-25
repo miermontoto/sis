@@ -17,6 +17,29 @@ function getRangeStart(range: TimeRange): string | null {
   return d.toISOString();
 }
 
+// helper: calcular rango del periodo anterior (para comparar posiciones)
+function getPreviousPeriodRange(range: TimeRange): { prevStart: string; prevEnd: string } | null {
+  const days = TIME_RANGES[range];
+  if (days === 0) return null; // "all" — sin periodo anterior
+
+  if (days === -1) {
+    // "thisYear" — comparar con el mismo rango del año anterior
+    const now = new Date();
+    const year = now.getFullYear();
+    const prevStart = new Date(Date.UTC(year - 1, 0, 1)).toISOString();
+    const prevEnd = new Date(Date.UTC(year - 1, now.getMonth(), now.getDate())).toISOString();
+    return { prevStart, prevEnd };
+  }
+
+  // periodo anterior de la misma duración
+  const now = new Date();
+  const prevEnd = new Date(now);
+  prevEnd.setDate(prevEnd.getDate() - days);
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - days);
+  return { prevStart: prevStart.toISOString(), prevEnd: prevEnd.toISOString() };
+}
+
 // helper: extraer parámetros comunes
 function parseParams(c: any) {
   const range = (c.req.query('range') || 'month') as TimeRange;
@@ -27,7 +50,7 @@ function parseParams(c: any) {
 }
 
 stats.get('/top-tracks', (c) => {
-  const { limit, rangeStart, sort } = parseParams(c);
+  const { range, limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
 
   const whereClause = rangeStart
@@ -46,7 +69,23 @@ stats.get('/top-tracks', (c) => {
     LIMIT ${limit}
   `) as { track_id: string; play_count: number; total_ms: number }[];
 
-  const result = rows.map(row => {
+  // ranking del periodo anterior para detectar cambios de posición
+  const prev = getPreviousPeriodRange(range);
+  const prevRankMap = new Map<string, number>();
+  if (prev) {
+    const prevRows = db.all(sql`
+      SELECT lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.played_at >= ${prev.prevStart} AND lh.played_at < ${prev.prevEnd}
+      GROUP BY lh.track_id
+      ORDER BY ${orderBy} DESC
+      LIMIT 200
+    `) as { track_id: string }[];
+    prevRows.forEach((r, i) => prevRankMap.set(r.track_id, i + 1));
+  }
+
+  const result = rows.map((row, i) => {
     const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
     const album = track?.albumId
       ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
@@ -61,14 +100,21 @@ stats.get('/top-tracks', (c) => {
       .map(ta => db.select().from(artists).where(eq(artists.spotifyId, ta.artistId)).get())
       .filter(Boolean);
 
+    const currentRank = i + 1;
+    const previousRank = prevRankMap.get(row.track_id) ?? null;
+    const rankChange = prev === null ? null : previousRank === null ? null : previousRank - currentRank;
+
     return {
       trackId: row.track_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
+      rankChange,
+      previousRank,
+      isNew: prev !== null && previousRank === null,
       track: track ? {
         name: track.name,
         durationMs: track.durationMs,
-        album: album ? { name: album.name, imageUrl: album.imageUrl } : null,
+        album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
         artists: arts.map(a => ({ id: a!.spotifyId, name: a!.name })),
       } : null,
     };
@@ -78,7 +124,7 @@ stats.get('/top-tracks', (c) => {
 });
 
 stats.get('/top-artists', (c) => {
-  const { limit, rangeStart, sort } = parseParams(c);
+  const { range, limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
 
   const whereClause = rangeStart
@@ -98,12 +144,36 @@ stats.get('/top-artists', (c) => {
     LIMIT ${limit}
   `) as { artist_id: string; play_count: number; total_ms: number }[];
 
-  const result = rows.map(row => {
+  // ranking del periodo anterior
+  const prev = getPreviousPeriodRange(range);
+  const prevRankMap = new Map<string, number>();
+  if (prev) {
+    const prevRows = db.all(sql`
+      SELECT ta.artist_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      FROM listening_history lh
+      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.played_at >= ${prev.prevStart} AND lh.played_at < ${prev.prevEnd}
+      GROUP BY ta.artist_id
+      ORDER BY ${orderBy} DESC
+      LIMIT 200
+    `) as { artist_id: string }[];
+    prevRows.forEach((r, i) => prevRankMap.set(r.artist_id, i + 1));
+  }
+
+  const result = rows.map((row, i) => {
     const artist = db.select().from(artists).where(eq(artists.spotifyId, row.artist_id)).get();
+    const currentRank = i + 1;
+    const previousRank = prevRankMap.get(row.artist_id) ?? null;
+    const rankChange = prev === null ? null : previousRank === null ? null : previousRank - currentRank;
+
     return {
       artistId: row.artist_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
+      rankChange,
+      previousRank,
+      isNew: prev !== null && previousRank === null,
       artist: artist ? { name: artist.name, imageUrl: artist.imageUrl, genres: artist.genres } : null,
     };
   });
@@ -112,7 +182,7 @@ stats.get('/top-artists', (c) => {
 });
 
 stats.get('/top-albums', (c) => {
-  const { limit, rangeStart, sort } = parseParams(c);
+  const { range, limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
 
   const whereClause = rangeStart
@@ -132,12 +202,36 @@ stats.get('/top-albums', (c) => {
     LIMIT ${limit}
   `) as { album_id: string; play_count: number; total_ms: number }[];
 
-  const result = rows.map(row => {
+  // ranking del periodo anterior
+  const prev = getPreviousPeriodRange(range);
+  const prevRankMap = new Map<string, number>();
+  if (prev) {
+    const prevRows = db.all(sql`
+      SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.played_at >= ${prev.prevStart} AND lh.played_at < ${prev.prevEnd}
+      GROUP BY t.album_id
+      HAVING t.album_id IS NOT NULL
+      ORDER BY ${orderBy} DESC
+      LIMIT 200
+    `) as { album_id: string }[];
+    prevRows.forEach((r, i) => prevRankMap.set(r.album_id, i + 1));
+  }
+
+  const result = rows.map((row, i) => {
     const album = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
+    const currentRank = i + 1;
+    const previousRank = prevRankMap.get(row.album_id) ?? null;
+    const rankChange = prev === null ? null : previousRank === null ? null : previousRank - currentRank;
+
     return {
       albumId: row.album_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
+      rankChange,
+      previousRank,
+      isNew: prev !== null && previousRank === null,
       album: album ? { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate } : null,
     };
   });
@@ -232,7 +326,7 @@ stats.get('/history', (c) => {
         id: track.spotifyId,
         name: track.name,
         durationMs: track.durationMs,
-        album: album ? { name: album.name, imageUrl: album.imageUrl } : null,
+        album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
         artists: arts.map(a => ({ id: a!.spotifyId, name: a!.name })),
       } : null,
     };
@@ -379,7 +473,7 @@ stats.get('/artist/:id', (c) => {
       track: track ? {
         name: track.name,
         durationMs: track.durationMs,
-        album: album ? { name: album.name, imageUrl: album.imageUrl } : null,
+        album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
         artists: [{ id: artist.spotifyId, name: artist.name }],
       } : null,
     };
@@ -428,7 +522,7 @@ stats.get('/artist/:id', (c) => {
         id: track.spotifyId,
         name: track.name,
         durationMs: track.durationMs,
-        album: album ? { name: album.name, imageUrl: album.imageUrl } : null,
+        album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
         artists: [{ id: artist.spotifyId, name: artist.name }],
       } : null,
     };
@@ -498,7 +592,7 @@ stats.get('/album/:id', (c) => {
       name: row.name,
       durationMs: row.duration_ms,
       trackNumber: row.track_number,
-      album: { name: album.name, imageUrl: album.imageUrl },
+      album: { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl },
       artists: albumArtists.map(a => ({ id: a.artist_id, name: a.name })),
     },
   }));
@@ -522,7 +616,7 @@ stats.get('/album/:id', (c) => {
         id: track.spotifyId,
         name: track.name,
         durationMs: track.durationMs,
-        album: { name: album.name, imageUrl: album.imageUrl },
+        album: { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl },
         artists: albumArtists.map(a => ({ id: a.artist_id, name: a.name })),
       } : null,
     };

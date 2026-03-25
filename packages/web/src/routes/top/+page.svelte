@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
+  import { api, getRankingMetric, getShowRankChanges, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import TrackList from '$lib/components/TrackList.svelte';
+  import RankChange from '$lib/components/RankChange.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
@@ -14,6 +15,7 @@
   let topArtists = $state<TopArtistItem[]>([]);
   let topAlbums = $state<TopAlbumItem[]>([]);
   let loading = $state(true);
+  let showRankChanges = $state(true);
   let barColors = $state<[number, number, number][]>([]);
 
   async function loadData() {
@@ -33,6 +35,7 @@
 
   onMount(() => {
     metric = getRankingMetric();
+    showRankChanges = getShowRankChanges();
     loadData();
   });
 
@@ -295,13 +298,20 @@
   {/if}
 
   {#if activeTab === 'tracks'}
-    <TrackList items={topTracks} showRank {metric} />
+    <TrackList items={topTracks} showRank {metric} {showRankChanges} />
   {:else if activeTab === 'artists'}
     <div class="track-list">
       {#each topArtists as item, i}
         {#if item.artist}
           <a href="/artist/{item.artistId}" class="track-item">
-            <span class="track-rank">{i + 1}</span>
+            {#if showRankChanges}
+              <div class="rank-cell">
+                <span class="track-rank">{i + 1}</span>
+                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
+              </div>
+            {:else}
+              <span class="track-rank">{i + 1}</span>
+            {/if}
             {#if item.artist.imageUrl}
               <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
             {:else}
@@ -323,7 +333,14 @@
       {#each topAlbums as item, i}
         {#if item.album}
           <a href="/album/{item.albumId}" class="track-item">
-            <span class="track-rank">{i + 1}</span>
+            {#if showRankChanges}
+              <div class="rank-cell">
+                <span class="track-rank">{i + 1}</span>
+                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
+              </div>
+            {:else}
+              <span class="track-rank">{i + 1}</span>
+            {/if}
             {#if item.album.imageUrl}
               <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
             {:else}

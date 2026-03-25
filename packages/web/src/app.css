@@ -198,12 +198,19 @@ a.track-item {
   background: var(--bg-hover);
 }
 
+.rank-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 2.2rem;
+  flex-shrink: 0;
+  gap: 1px;
+}
+
 .track-rank {
   font-size: 0.85rem;
   color: var(--text-muted);
-  width: 2rem;
   text-align: center;
-  flex-shrink: 0;
 }
 
 .track-art {

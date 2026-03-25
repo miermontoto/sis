@@ -22,7 +22,9 @@
 {#if data?.playing && data.track}
   <div class="now-playing">
     {#if data.track.album?.imageUrl}
-      <img class="now-playing-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
+      <a href="/album/{data.track.album.id}">
+        <img class="now-playing-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
+      </a>
     {:else}
       <div class="now-playing-art"></div>
     {/if}

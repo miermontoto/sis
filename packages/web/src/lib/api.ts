@@ -20,7 +20,7 @@ export interface TrackInfo {
   id: string;
   name: string;
   durationMs: number;
-  album: { name: string; imageUrl: string | null } | null;
+  album: { id: string; name: string; imageUrl: string | null } | null;
   artists: { id: string; name: string }[];
 }
 
@@ -28,6 +28,9 @@ export interface TopTrackItem {
   trackId: string;
   playCount: number;
   totalMs: number;
+  rankChange: number | null;
+  previousRank: number | null;
+  isNew: boolean;
   track: TrackInfo | null;
 }
 
@@ -35,6 +38,9 @@ export interface TopArtistItem {
   artistId: string;
   playCount: number;
   totalMs: number;
+  rankChange: number | null;
+  previousRank: number | null;
+  isNew: boolean;
   artist: { name: string; imageUrl: string | null; genres: string[] } | null;
 }
 
@@ -42,12 +48,16 @@ export interface TopAlbumItem {
   albumId: string;
   playCount: number;
   totalMs: number;
+  rankChange: number | null;
+  previousRank: number | null;
+  isNew: boolean;
   album: { name: string; imageUrl: string | null; releaseDate: string | null } | null;
 }
 
 export type RankingMetric = 'time' | 'plays';
 
 const RANKING_METRIC_KEY = 'sis:rankingMetric';
+const SHOW_RANK_CHANGES_KEY = 'sis:showRankChanges';
 
 export function getRankingMetric(): RankingMetric {
   return (localStorage.getItem(RANKING_METRIC_KEY) as RankingMetric) || 'time';
@@ -55,6 +65,15 @@ export function getRankingMetric(): RankingMetric {
 
 export function setRankingMetric(metric: RankingMetric) {
   localStorage.setItem(RANKING_METRIC_KEY, metric);
+}
+
+export function getShowRankChanges(): boolean {
+  const val = localStorage.getItem(SHOW_RANK_CHANGES_KEY);
+  return val === null ? true : val === 'true';
+}
+
+export function setShowRankChanges(show: boolean) {
+  localStorage.setItem(SHOW_RANK_CHANGES_KEY, String(show));
 }
 
 export interface HistoryItem {
