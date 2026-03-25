@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type TrackDetail, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, type TrackDetail, type Rankings, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -9,14 +9,17 @@
   import type { EChartsOption } from 'echarts';
 
   let data = $state<TrackDetail | null>(null);
+  let rankings = $state<Rankings | null>(null);
   let loading = $state(true);
   let range = $state('all');
   let metric = $state<RankingMetric>('time');
 
   async function loadData() {
     loading = true;
+    rankings = null;
     try {
       data = await api.trackDetail($page.params.id, range);
+      api.rankings('track', $page.params.id, metric).then(r => rankings = r).catch(() => {});
     } finally {
       loading = false;
     }
@@ -30,11 +33,11 @@
   onMount(() => {
     range = getQueryParam('range', 'all');
     metric = getRankingMetric();
-    loadData();
   });
 
   $effect(() => {
     void range;
+    void $page.params.id;
     loadData();
   });
 
@@ -131,10 +134,10 @@
 
   <div class="rankings-row">
     {#each Object.entries(rankLabels) as [key, label]}
-      {@const rank = data.rankings[key as keyof typeof data.rankings]}
-      <div class="ranking-badge" class:ranking-badge--active={rank != null}>
+      {@const rank = rankings?.[key as keyof Rankings] ?? null}
+      <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value">{rank != null ? `#${rank}` : '—'}</span>
+        <span class="ranking-value">{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
       </div>
     {/each}
   </div>
@@ -192,6 +195,19 @@
   }
   .ranking-badge--active {
     border-color: #1db954;
+  }
+  .ranking-badge--loading .ranking-value {
+    width: 28px;
+    height: 1.1rem;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    display: inline-block;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
   .ranking-label {
     font-size: 0.7rem;

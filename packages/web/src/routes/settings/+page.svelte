@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getShowRankChanges, setShowRankChanges, type HealthData, type StreaksData, type ImportResult, type RankingMetric } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getShowRankChanges, setShowRankChanges, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
 
   let health = $state<HealthData | null>(null);
@@ -11,6 +11,18 @@
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
   let showRankChanges = $state(true);
+
+  // merges
+  let merges = $state<MergeRule[]>([]);
+
+  async function loadMerges() {
+    try { merges = await api.listMerges(); } catch { merges = []; }
+  }
+
+  async function removeMerge(id: number) {
+    await api.deleteMerge(id);
+    await loadMerges();
+  }
 
   // estado del import
   let importFiles = $state<FileList | null>(null);
@@ -52,6 +64,7 @@
         api.health(),
         api.streaks(),
       ]);
+      loadMerges();
     } catch (err: any) {
       error = err.message || 'Failed to load settings';
     } finally {
@@ -295,6 +308,61 @@
       </div>
     </div>
   </div>
+
+  {#if merges.length > 0}
+    {@const mergeTree = (() => {
+      const byArtist = new Map<string, { artistName: string; artistId: string; artistImage: string | null; targets: Map<string, { targetName: string; targetImage: string | null; targetId: string; sources: typeof merges }> }>();
+      for (const m of merges) {
+        const aKey = m.artist_id ?? 'unknown';
+        if (!byArtist.has(aKey)) byArtist.set(aKey, { artistName: m.artist_name ?? 'Unknown', artistId: aKey, artistImage: m.artist_image, targets: new Map() });
+        const artist = byArtist.get(aKey)!;
+        if (!artist.targets.has(m.target_id)) artist.targets.set(m.target_id, { targetName: m.target_name, targetImage: m.target_image, targetId: m.target_id, sources: [] });
+        artist.targets.get(m.target_id)!.sources.push(m);
+      }
+      return [...byArtist.values()];
+    })()}
+    <div class="card section-card">
+      <h3 class="section-card-title">Album merges</h3>
+      <div class="merge-tree">
+        {#each mergeTree as artist}
+          <div class="merge-artist">
+            <a href="/artist/{artist.artistId}" class="merge-artist-header">
+              {#if artist.artistImage}
+                <img class="merge-artist-img" src={artist.artistImage} alt="" />
+              {:else}
+                <div class="merge-artist-img merge-artist-img--empty"></div>
+              {/if}
+              <span class="merge-artist-name">{artist.artistName}</span>
+            </a>
+            {#each [...artist.targets.values()] as target}
+              <div class="merge-target-group">
+                <a href="/album/{target.targetId}" class="merge-target-row">
+                  {#if target.targetImage}
+                    <img class="merge-rule-thumb" src={target.targetImage} alt="" />
+                  {:else}
+                    <div class="merge-rule-thumb merge-rule-thumb--empty"></div>
+                  {/if}
+                  <span class="merge-rule-name">{target.targetName}</span>
+                </a>
+                {#each target.sources as source}
+                  <div class="merge-source-row">
+                    <span class="merge-tree-line">&lfloor;</span>
+                    {#if source.source_image}
+                      <img class="merge-rule-thumb-sm" src={source.source_image} alt="" />
+                    {:else}
+                      <div class="merge-rule-thumb-sm merge-rule-thumb--empty"></div>
+                    {/if}
+                    <span class="merge-source-name">{source.source_name}</span>
+                    <button class="merge-source-unmerge" title="Unmerge" onclick={() => removeMerge(source.id)}>&times;</button>
+                  </div>
+                {/each}
+              </div>
+            {/each}
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -556,6 +624,119 @@
     border-top: 1px solid var(--border);
     padding-top: 0.75rem;
     margin-top: 0.25rem;
+  }
+
+  /* merge tree */
+  .merge-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .merge-artist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .merge-artist-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--text);
+    padding: 0.25rem 0;
+  }
+  .merge-artist-header:hover {
+    color: var(--accent);
+  }
+  .merge-artist-img {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .merge-artist-img--empty {
+    background: var(--border);
+  }
+  .merge-artist-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .merge-target-group {
+    margin-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .merge-target-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--text);
+    padding: 0.2rem 0;
+  }
+  .merge-target-row:hover {
+    color: var(--accent);
+  }
+  .merge-rule-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .merge-rule-thumb-sm {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .merge-rule-thumb--empty {
+    background: var(--border);
+  }
+  .merge-rule-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .merge-source-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 1rem;
+    padding: 0.15rem 0;
+  }
+  .merge-tree-line {
+    color: var(--border);
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .merge-source-name {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .merge-source-unmerge {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 0.3rem;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .merge-source-row:hover .merge-source-unmerge {
+    opacity: 1;
+  }
+  .merge-source-unmerge:hover {
+    color: #ff4444;
   }
 
   @media (max-width: 768px) {

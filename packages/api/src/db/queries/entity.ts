@@ -3,10 +3,18 @@ import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPla
 import { entityJoins, entityGroupCol, entityWhereCol, rangeWhere, rangeWhereClause, orderByCol, getDateTrunc } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 
-/** Stats agregados (play_count, total_ms, first/last_played) para cualquier entidad */
-export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null): StatsRow {
+// helper: construir IN (...) con IDs literales
+function inList(ids: string[], tableAlias = 't') {
+  const col = sql.raw(`${tableAlias}.album_id`);
+  if (ids.length === 1) return sql`${col} = ${ids[0]}`;
+  const placeholders = sql.join(ids.map(id => sql`${id}`), sql`, `);
+  return sql`${col} IN (${placeholders})`;
+}
+
+/** Stats agregados para cualquier entidad. Para álbumes, pasar albumIds pre-resueltos. */
+export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, albumIds?: string[]): StatsRow {
   const join = entityJoins(entityType);
-  const where = entityWhereCol(entityType, entityId);
+  const where = entityType === 'album' && albumIds ? inList(albumIds) : entityWhereCol(entityType, entityId);
   const wr = rangeWhere(rangeStart);
 
   return db.all(sql`
@@ -25,7 +33,23 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
   const groupCol = entityGroupCol(entityType);
   const wc = rangeWhereClause(rangeStart);
   const ob = orderByCol(sort);
-  const having = entityType === 'album' ? sql`HAVING t.album_id IS NOT NULL` : sql``;
+
+  if (entityType === 'album') {
+    return db.all(sql`
+      SELECT entity_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
+      FROM (
+        SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        ${wc}
+        GROUP BY t.album_id
+        HAVING t.album_id IS NOT NULL
+      )
+      GROUP BY entity_id
+      ORDER BY ${ob} DESC
+      LIMIT ${limit}
+    `) as AggregateRow[];
+  }
 
   return db.all(sql`
     SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
@@ -34,18 +58,33 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${wc}
     GROUP BY entity_id
-    ${having}
     ORDER BY ${ob} DESC
     LIMIT ${limit}
   `) as AggregateRow[];
 }
 
-/** Top entidades del periodo anterior (para calcular rank changes) */
+/** Top entidades del periodo anterior */
 export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart: string, prevEnd: string, sort: Sort): AggregateRow[] {
   const join = entityJoins(entityType);
   const groupCol = entityGroupCol(entityType);
   const ob = orderByCol(sort);
-  const having = entityType === 'album' ? sql`HAVING t.album_id IS NOT NULL` : sql``;
+
+  if (entityType === 'album') {
+    return db.all(sql`
+      SELECT entity_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
+      FROM (
+        SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        WHERE lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd}
+        GROUP BY t.album_id
+        HAVING t.album_id IS NOT NULL
+      )
+      GROUP BY entity_id
+      ORDER BY ${ob} DESC
+      LIMIT 200
+    `) as AggregateRow[];
+  }
 
   return db.all(sql`
     SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
@@ -54,16 +93,15 @@ export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart:
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd}
     GROUP BY entity_id
-    ${having}
     ORDER BY ${ob} DESC
     LIMIT 200
   `) as AggregateRow[];
 }
 
-/** Serie temporal con granularidad automática según rango */
-export function getEntitySeries(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, range: TimeRange): SeriesRow[] {
+/** Serie temporal. Para álbumes, pasar albumIds pre-resueltos. */
+export function getEntitySeries(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, range: TimeRange, albumIds?: string[]): SeriesRow[] {
   const join = entityJoins(entityType);
-  const where = entityWhereCol(entityType, entityId);
+  const where = entityType === 'album' && albumIds ? inList(albumIds) : entityWhereCol(entityType, entityId);
   const wr = rangeWhere(rangeStart);
   const dateTrunc = getDateTrunc(range);
 
@@ -78,7 +116,7 @@ export function getEntitySeries(db: Db, entityType: EntityType, entityId: string
   `) as SeriesRow[];
 }
 
-/** Serie temporal global (sin filtro de entidad, para /listening-time) */
+/** Serie temporal global */
 export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: string): SeriesRow[] {
   const wc = rangeWhereClause(rangeStart);
   const dateTrunc = granularity === 'month'
@@ -97,16 +135,17 @@ export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: 
   `) as SeriesRow[];
 }
 
-/** Reproducciones recientes para una entidad */
-export function getRecentPlays(db: Db, entityType: EntityType, entityId: string, limit: number): RecentPlayRow[] {
+/** Reproducciones recientes. Para álbumes, pasar albumIds pre-resueltos. */
+export function getRecentPlays(db: Db, entityType: EntityType, entityId: string, limit: number, albumIds?: string[]): RecentPlayRow[] {
   const join = entityJoins(entityType);
 
   if (entityType === 'album') {
+    const where = albumIds ? inList(albumIds) : sql`t.album_id = ${entityId}`;
     return db.all(sql`
       SELECT lh.id, lh.played_at, lh.track_id
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE t.album_id = ${entityId}
+      WHERE ${where}
       ORDER BY lh.played_at DESC
       LIMIT ${limit}
     `) as RecentPlayRow[];

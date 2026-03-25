@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
@@ -55,6 +55,8 @@ async function pollCurrentlyPlaying() {
         lastCurrentlyPlayingTrackId: null,
         lastCurrentlyPlayingAt: null,
       });
+      const db = getDb();
+      db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE id = 1`);
       return;
     }
 
@@ -96,6 +98,9 @@ async function pollCurrentlyPlaying() {
       lastCurrentlyPlayingTrackId: data.item.id,
       lastCurrentlyPlayingAt: new Date().toISOString(),
     });
+    // is_playing no está en el schema de drizzle (columna manual)
+    const db = getDb();
+    db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0} WHERE id = 1`);
   } catch (err) {
     console.error('[poll] error en currently playing:', err);
   }

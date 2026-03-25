@@ -10,7 +10,7 @@ import {
   getEntityStats, getEntitySeries, getGlobalSeries,
   getRecentPlays, computeRankings,
   getArtistTopTracks, getArtistTopAlbums,
-  getAlbumArtists, getAlbumTracks,
+  resolveAlbumIds, getAlbumArtists, getAlbumTracks,
   getTrackAlbumBreakdown,
 } from '../db/queries/index.js';
 
@@ -298,7 +298,6 @@ stats.get('/artist/:id', (c) => {
   if (!artist) return c.json({ error: 'Artist not found' }, 404);
 
   const statsRow = getEntityStats(db, 'artist', id, rangeStart);
-  const rankings = computeRankings(db, 'artist', id, sort);
   const series = getEntitySeries(db, 'artist', id, rangeStart, range);
 
   const topTracks = getArtistTopTracks(db, id, rangeStart, sort, trackLimit);
@@ -353,7 +352,6 @@ stats.get('/artist/:id', (c) => {
   return c.json({
     artist: { id: artist.spotifyId, name: artist.name, imageUrl: artist.imageUrl, genres: artist.genres },
     stats: statsRow,
-    rankings,
     series,
     topTracks: topTracksResult,
     topAlbums: topAlbumsResult,
@@ -369,12 +367,14 @@ stats.get('/album/:id', (c) => {
   const album = db.select().from(albums).where(eq(albums.spotifyId, id)).get();
   if (!album) return c.json({ error: 'Album not found' }, 404);
 
-  const albumArtistRows = getAlbumArtists(db, id);
-  const statsRow = getEntityStats(db, 'album', id, rangeStart);
-  const rankings = computeRankings(db, 'album', id, sort);
-  const series = getEntitySeries(db, 'album', id, rangeStart, range);
+  // resolver IDs de álbum una sola vez (target + sources mergeados)
+  const albumIds = resolveAlbumIds(db, id);
 
-  const albumTracks = getAlbumTracks(db, id, rangeStart, sort);
+  const albumArtistRows = getAlbumArtists(db, id, albumIds);
+  const statsRow = getEntityStats(db, 'album', id, rangeStart, albumIds);
+  const series = getEntitySeries(db, 'album', id, rangeStart, range, albumIds);
+
+  const albumTracks = getAlbumTracks(db, id, rangeStart, sort, albumIds);
   const tracksResult = albumTracks.map(row => ({
     trackId: row.track_id,
     playCount: row.play_count,
@@ -388,7 +388,7 @@ stats.get('/album/:id', (c) => {
     },
   }));
 
-  const recentPlays = getRecentPlays(db, 'album', id, 10);
+  const recentPlays = getRecentPlays(db, 'album', id, 10, albumIds);
   const recentResult = recentPlays.map(row => {
     const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
     return {
@@ -404,6 +404,21 @@ stats.get('/album/:id', (c) => {
     };
   });
 
+  // merge info
+  const mergedFromRows = db.all(sql`
+    SELECT mr.id as rule_id, mr.source_id, al.name, al.image_url
+    FROM merge_rules mr
+    JOIN albums al ON al.spotify_id = mr.source_id
+    WHERE mr.entity_type = 'album' AND mr.target_id = ${id}
+  `) as { rule_id: number; source_id: string; name: string; image_url: string | null }[];
+
+  const mergedIntoRow = db.all(sql`
+    SELECT mr.id as rule_id, mr.target_id, al.name, al.image_url
+    FROM merge_rules mr
+    JOIN albums al ON al.spotify_id = mr.target_id
+    WHERE mr.entity_type = 'album' AND mr.source_id = ${id}
+  `)[0] as { rule_id: number; target_id: string; name: string; image_url: string | null } | undefined;
+
   return c.json({
     album: {
       id: album.spotifyId, name: album.name, imageUrl: album.imageUrl,
@@ -411,10 +426,11 @@ stats.get('/album/:id', (c) => {
     },
     artists: albumArtistRows.map(a => ({ id: a.artist_id, name: a.name, imageUrl: a.image_url })),
     stats: statsRow,
-    rankings,
     series,
     tracks: tracksResult,
     recentPlays: recentResult,
+    mergedFrom: mergedFromRows.map(r => ({ id: r.source_id, ruleId: r.rule_id, name: r.name, imageUrl: r.image_url })),
+    mergedInto: mergedIntoRow ? { id: mergedIntoRow.target_id, ruleId: mergedIntoRow.rule_id, name: mergedIntoRow.name, imageUrl: mergedIntoRow.image_url } : null,
   });
 });
 
@@ -437,7 +453,6 @@ stats.get('/track/:id', (c) => {
     .filter(Boolean);
 
   const statsRow = getEntityStats(db, 'track', id, rangeStart);
-  const rankings = computeRankings(db, 'track', id, 'time');
   const series = getEntitySeries(db, 'track', id, rangeStart, range);
 
   const albumBreakdown = getTrackAlbumBreakdown(db, id, rangeStart);
@@ -459,11 +474,22 @@ stats.get('/track/:id', (c) => {
       artists: arts.map(a => ({ id: a!.spotifyId, name: a!.name, imageUrl: a!.imageUrl })),
     },
     stats: statsRow,
-    rankings,
     series,
     dailySeries: series.map(s => ({ day: s.period, play_count: s.play_count, total_ms: s.total_ms })),
     albumBreakdown: albumBreakdownResult,
   });
+});
+
+// --- rankings (lazy, loaded async by frontend) ---
+
+stats.get('/rankings/:type/:id', (c) => {
+  const entityType = c.req.param('type') as 'artist' | 'track' | 'album';
+  const id = c.req.param('id');
+  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
+  const db = getDb();
+
+  const rankings = computeRankings(db, entityType, id, sort);
+  return c.json(rankings);
 });
 
 // --- search ---
@@ -498,7 +524,7 @@ stats.get('/search', (c) => {
             JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
             JOIN artists ar ON ar.spotify_id = ta2.artist_id
             WHERE t2.album_id = al.spotify_id LIMIT 1) as artistName,
-           COALESCE(s.play_count, 0) as playCount
+           COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM albums al
     LEFT JOIN (
       SELECT t.album_id, COUNT(*) as play_count
@@ -507,9 +533,23 @@ stats.get('/search', (c) => {
       WHERE t.album_id IS NOT NULL
       GROUP BY t.album_id
     ) s ON s.album_id = al.spotify_id
+    LEFT JOIN (
+      SELECT mr.target_id, SUM(sc.play_count) as merged_count
+      FROM merge_rules mr
+      JOIN (
+        SELECT t.album_id, COUNT(*) as play_count
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        WHERE t.album_id IS NOT NULL
+        GROUP BY t.album_id
+      ) sc ON sc.album_id = mr.source_id
+      WHERE mr.entity_type = 'album'
+      GROUP BY mr.target_id
+    ) ms ON ms.target_id = al.spotify_id
     WHERE unaccent(al.name) LIKE ${'%' + term + '%'}
       AND al.spotify_id NOT LIKE 'import:%'
       AND al.spotify_id NOT LIKE 'local:%'
+      AND al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album')
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];

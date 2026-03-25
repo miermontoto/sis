@@ -88,14 +88,25 @@ export function entityJoins(entityType: EntityType): SqlChunk {
 export function entityGroupCol(entityType: EntityType): SqlChunk {
   if (entityType === 'artist') return sql`ta.artist_id`;
   if (entityType === 'track') return sql`lh.track_id`;
-  return sql`t.album_id`;
+  return resolvedAlbumId;
 }
 
-export function entityWhereCol(entityType: EntityType, id: string): SqlChunk {
+export function entityWhereCol(entityType: EntityType, id: string, albumIds?: string[]): SqlChunk {
   if (entityType === 'artist') return sql`ta.artist_id = ${id}`;
   if (entityType === 'track') return sql`lh.track_id = ${id}`;
+  // para álbumes, usar IDs pre-resueltos si están disponibles
+  if (albumIds && albumIds.length > 1) {
+    const placeholders = sql.join(albumIds.map(aid => sql`${aid}`), sql`, `);
+    return sql`t.album_id IN (${placeholders})`;
+  }
   return sql`t.album_id = ${id}`;
 }
+
+// fragmento SQL que resuelve album_id a través de merge_rules
+export const resolvedAlbumId = sql`COALESCE(
+  (SELECT mr.target_id FROM merge_rules mr WHERE mr.entity_type = 'album' AND mr.source_id = t.album_id),
+  t.album_id
+)`;
 
 export function rangeWhere(rangeStart: string | null): SqlChunk {
   return rangeStart ? sql`AND lh.played_at >= ${rangeStart}` : sql``;

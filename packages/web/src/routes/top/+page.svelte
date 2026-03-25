@@ -49,7 +49,6 @@
     activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
     showRankChanges = getShowRankChanges();
-    loadData();
   });
 
   $effect(() => {

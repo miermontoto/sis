@@ -15,6 +15,7 @@ export const SPOTIFY_SCOPES = [
   'user-top-read',
   'user-library-read',
   'user-read-playback-state',
+  'user-modify-playback-state',
 ].join(' ');
 
 // URLs de la API de spotify

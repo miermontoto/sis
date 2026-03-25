@@ -93,6 +93,7 @@ export interface HistoryResponse {
 
 export interface NowPlayingResponse {
   playing: boolean;
+  isPlaying: boolean;
   track?: TrackInfo;
   updatedAt?: string;
 }
@@ -145,10 +146,16 @@ export interface SearchResults {
 
 // --- detail types ---
 
+export interface Rankings {
+  week: number | null;
+  month: number | null;
+  thisYear: number | null;
+  all: number | null;
+}
+
 export interface ArtistDetail {
   artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
-  rankings: { week: number | null; month: number | null; thisYear: number | null; all: number | null };
   series: { period: string; play_count: number; total_ms: number }[];
   topTracks: TopTrackItem[];
   topAlbums: TopAlbumItem[];
@@ -159,10 +166,11 @@ export interface AlbumDetail {
   album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
   artists: { id: string; name: string; imageUrl: string | null }[];
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
-  rankings: { week: number | null; month: number | null; thisYear: number | null; all: number | null };
   series: { period: string; play_count: number; total_ms: number }[];
   tracks: TopTrackItem[];
   recentPlays: HistoryItem[];
+  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
+  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
 }
 
 export interface TrackDetail {
@@ -172,14 +180,56 @@ export interface TrackDetail {
     artists: { id: string; name: string; imageUrl: string | null }[];
   };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
-  rankings: { week: number | null; month: number | null; thisYear: number | null; all: number | null };
   series: { period: string; play_count: number; total_ms: number }[];
   dailySeries: { day: string; play_count: number; total_ms: number }[];
   albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } }[];
 }
 
+// POST/DELETE helper para mutaciones
+async function apiMutate<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('No autorizado');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `API error: ${res.status}`);
+  }
+  return res.json();
+}
+
+// --- merge types ---
+
+export interface MergeRule {
+  id: number;
+  entity_type: string;
+  source_id: string;
+  target_id: string;
+  source_name: string;
+  source_image: string | null;
+  target_name: string;
+  target_image: string | null;
+  artist_id: string | null;
+  artist_name: string | null;
+  artist_image: string | null;
+  created_at: string;
+}
+
+export interface MergeSuggestionAlbum {
+  id: string;
+  name: string;
+  image_url: string | null;
+  plays: number;
+}
+
 export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
+  nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
 
   topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time') =>
     apiFetch<TopTrackItem[]>('/stats/top-tracks', { range, limit: String(limit), sort }),
@@ -221,7 +271,27 @@ export const api = {
   search: (q: string, limit = 5) =>
     apiFetch<SearchResults>('/stats/search', { q, limit: String(limit) }),
 
+  playbackPlay: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/play'),
+  playbackPause: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/pause'),
+  playbackNext: () => apiMutate<{ success: boolean }>('POST', '/now-playing/next'),
+  playbackPrevious: () => apiMutate<{ success: boolean }>('POST', '/now-playing/previous'),
+
+  rankings: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time') =>
+    apiFetch<Rankings>(`/stats/rankings/${type}/${encodeURIComponent(id)}`, { sort }),
+
   health: () => apiFetch<HealthData>('/health'),
+
+  // merge API
+  createMerge: (entityType: string, sourceId: string, targetId: string) =>
+    apiMutate<MergeRule>('POST', '/admin/merge', { entityType, sourceId, targetId }),
+
+  deleteMerge: (id: number) =>
+    apiMutate<{ success: boolean }>('DELETE', `/admin/merge/${id}`),
+
+  listMerges: () => apiFetch<MergeRule[]>('/admin/merges'),
+
+  mergeSuggestions: (artistId: string) =>
+    apiFetch<MergeSuggestionAlbum[]>(`/admin/merge-suggestions/${encodeURIComponent(artistId)}`),
 
   importHistory: async (files: FileList): Promise<ImportResult> => {
     const formData = new FormData();

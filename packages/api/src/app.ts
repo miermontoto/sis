@@ -10,6 +10,7 @@ import stats from './routes/stats.js';
 import nowPlaying from './routes/now-playing.js';
 import exportRoute from './routes/export.js';
 import importRoute from './routes/import.js';
+import admin from './routes/admin.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens } from './services/token-manager.js';
 import { validateSession } from './services/session.js';
@@ -38,6 +39,7 @@ app.route('/api/stats', stats);
 app.route('/api/now-playing', nowPlaying);
 app.route('/api/export', exportRoute);
 app.route('/api/import', importRoute);
+app.route('/api/admin', admin);
 
 // servir portadas descargadas desde data/covers/
 const coversDir = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');

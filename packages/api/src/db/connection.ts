@@ -48,9 +48,11 @@ export function getDb() {
     }
   }
 
-  // columnas adicionales no gestionadas por drizzle
+  // columnas e índices adicionales no gestionados por drizzle
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_album INTEGER'); } catch {}
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_artists INTEGER'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id)'); } catch {}
+  try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
 
   console.log(`[db] conectado a ${dbPath} (WAL mode)`);
   return db;

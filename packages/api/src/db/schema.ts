@@ -61,6 +61,14 @@ export const authTokens = sqliteTable('auth_tokens', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+export const mergeRules = sqliteTable('merge_rules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  entityType: text('entity_type').notNull(), // 'album' (extensible a 'track' en el futuro)
+  sourceId: text('source_id').notNull(),
+  targetId: text('target_id').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const pollingState = sqliteTable('polling_state', {
   id: integer('id').primaryKey().default(1),
   lastRecentlyPlayedCursor: text('last_recently_played_cursor'),

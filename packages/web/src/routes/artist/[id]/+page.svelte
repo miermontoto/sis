@@ -1,23 +1,28 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type ArtistDetail, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, type ArtistDetail, type Rankings, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import MergeAlbumModal from '$lib/components/MergeAlbumModal.svelte';
   import type { EChartsOption } from 'echarts';
 
   let data = $state<ArtistDetail | null>(null);
+  let rankings = $state<Rankings | null>(null);
   let loading = $state(true);
   let range = $state('all');
   let metric = $state<RankingMetric>('time');
   let showAllTracks = $state(false);
   let showAllAlbums = $state(false);
+  let showMergeModal = $state(false);
+  let mergeTarget = $state<{ id: string; name: string; imageUrl: string | null } | null>(null);
 
   async function loadData() {
     loading = true;
+    rankings = null;
     try {
       const sort = metric === 'plays' ? 'plays' : 'time';
       data = await api.artistDetail($page.params.id, range, {
@@ -25,6 +30,8 @@
         trackLimit: showAllTracks ? 200 : 10,
         albumLimit: showAllAlbums ? 200 : 5,
       });
+      // cargar rankings async (no bloquea renderizado)
+      api.rankings('artist', $page.params.id, metric).then(r => rankings = r).catch(() => {});
     } finally {
       loading = false;
     }
@@ -38,7 +45,6 @@
   onMount(() => {
     range = getQueryParam('range', 'all');
     metric = getRankingMetric();
-    loadData();
   });
 
   $effect(() => {
@@ -46,6 +52,7 @@
     void metric;
     void showAllTracks;
     void showAllAlbums;
+    void $page.params.id;
     loadData();
   });
 
@@ -128,10 +135,10 @@
 
   <div class="rankings-row">
     {#each Object.entries(rankLabels) as [key, label]}
-      {@const rank = data.rankings[key as keyof typeof data.rankings]}
-      <div class="ranking-badge" class:ranking-badge--active={rank != null}>
+      {@const rank = rankings?.[key as keyof Rankings] ?? null}
+      <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value">{rank != null ? `#${rank}` : '—'}</span>
+        <span class="ranking-value">{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
       </div>
     {/each}
   </div>
@@ -173,6 +180,7 @@
               <div class="track-name">{item.album.name}</div>
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
+            <button class="merge-btn" title="Manage merges" onclick={(e) => { e.preventDefault(); e.stopPropagation(); mergeTarget = { id: item.albumId, name: item.album!.name, imageUrl: item.album!.imageUrl }; showMergeModal = true; }}>Merge</button>
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
               <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
@@ -187,6 +195,15 @@
     <h2 class="section-title">Recent plays</h2>
     <TrackList items={data.recentPlays} showTime />
   {/if}
+{/if}
+
+{#if mergeTarget}
+  <MergeAlbumModal
+    bind:show={showMergeModal}
+    targetAlbum={mergeTarget}
+    artistId={$page.params.id}
+    onMerged={loadData}
+  />
 {/if}
 
 <style>
@@ -211,6 +228,19 @@
   .ranking-badge--active {
     border-color: #1db954;
   }
+  .ranking-badge--loading .ranking-value {
+    width: 28px;
+    height: 1.1rem;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    display: inline-block;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
   .ranking-label {
     font-size: 0.7rem;
     color: var(--text-muted);
@@ -228,6 +258,27 @@
   .chart-card {
     margin-bottom: 1.5rem;
     padding: 1rem;
+  }
+  .merge-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-family: var(--font);
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    border-radius: 5px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  :global(.track-item:hover) .merge-btn {
+    opacity: 1;
+  }
+  .merge-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
   }
 </style>
 

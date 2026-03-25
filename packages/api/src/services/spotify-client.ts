@@ -3,6 +3,8 @@ import { getValidAccessToken, refreshAccessToken } from './token-manager.js';
 
 interface SpotifyRequestOptions {
   params?: Record<string, string>;
+  method?: 'GET' | 'PUT' | 'POST' | 'DELETE';
+  body?: unknown;
 }
 
 // cliente HTTP para spotify con auto-refresh y manejo de rate limits
@@ -12,19 +14,25 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
     Object.entries(options.params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
 
+  const method = options.method ?? 'GET';
   let accessToken = await getValidAccessToken();
 
-  let res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  const buildInit = (token: string): RequestInit => ({
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
   });
+
+  let res = await fetch(url.toString(), buildInit(accessToken));
 
   // si 401, refrescar token y reintentar una vez
   if (res.status === 401) {
     console.log('[spotify] token expirado, refrescando...');
     accessToken = await refreshAccessToken();
-    res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    res = await fetch(url.toString(), buildInit(accessToken));
   }
 
   // respetar rate limit (máximo 30s de espera, si no devolver null)
@@ -39,7 +47,7 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
     return spotifyFetch(endpoint, options);
   }
 
-  // 204 = sin contenido (nada reproduciendo)
+  // 204 = sin contenido (éxito sin body, o nada reproduciendo)
   if (res.status === 204) return null;
 
   if (!res.ok) {
@@ -47,5 +55,8 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
     return null;
   }
 
-  return res.json();
+  // algunos endpoints devuelven body vacío con 200
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
 }

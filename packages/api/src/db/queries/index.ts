@@ -10,5 +10,5 @@ export { computeRankings } from './rankings.js';
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
-export { getAlbumArtists, getAlbumTracks } from './album.js';
+export { resolveAlbumIds, getAlbumArtists, getAlbumTracks } from './album.js';
 export { getTrackAlbumBreakdown } from './track.js';
