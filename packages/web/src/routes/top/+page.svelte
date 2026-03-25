@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api, getRankingMetric, getShowRankChanges, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
+  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
   import RankChange from '$lib/components/RankChange.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -33,7 +34,19 @@
     }
   }
 
+  function setRange(r: string) {
+    range = r;
+    setQueryParams({ range: r, tab: activeTab });
+  }
+
+  function setTab(t: 'tracks' | 'artists' | 'albums') {
+    activeTab = t;
+    setQueryParams({ tab: t, range });
+  }
+
   onMount(() => {
+    range = getQueryParam('range', 'month');
+    activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
     showRankChanges = getShowRankChanges();
     loadData();
@@ -273,18 +286,18 @@
 </div>
 
 <div class="tabs">
-  <button class="tab" class:active={activeTab === 'tracks'} onclick={() => activeTab = 'tracks'}>
+  <button class="tab" class:active={activeTab === 'tracks'} onclick={() => setTab('tracks')}>
     Tracks
   </button>
-  <button class="tab" class:active={activeTab === 'artists'} onclick={() => activeTab = 'artists'}>
+  <button class="tab" class:active={activeTab === 'artists'} onclick={() => setTab('artists')}>
     Artists
   </button>
-  <button class="tab" class:active={activeTab === 'albums'} onclick={() => activeTab = 'albums'}>
+  <button class="tab" class:active={activeTab === 'albums'} onclick={() => setTab('albums')}>
     Albums
   </button>
 </div>
 
-<TimeRangeSelector value={range} onchange={(r) => range = r} />
+<TimeRangeSelector value={range} onchange={setRange} />
 
 {#if loading}
   <div class="loading">

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { api, type TrackDetail, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
+  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
@@ -21,7 +22,13 @@
     }
   }
 
+  function setRange(r: string) {
+    range = r;
+    setQueryParams({ range: r });
+  }
+
   onMount(() => {
+    range = getQueryParam('range', 'all');
     metric = getRankingMetric();
     loadData();
   });
@@ -99,7 +106,7 @@
     </div>
   </div>
 
-  <TimeRangeSelector value={range} onchange={(r) => range = r} />
+  <TimeRangeSelector value={range} onchange={setRange} />
 
   <div class="stats-grid">
     <div class="card stat-card">

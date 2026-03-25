@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, type ListeningTimeItem, type GenreItem } from '$lib/api';
+  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatHours } from '$lib/utils/format';
@@ -32,7 +33,15 @@
     }
   }
 
-  onMount(loadData);
+  function setRange(r: string) {
+    range = r;
+    setQueryParams({ range: r });
+  }
+
+  onMount(() => {
+    range = getQueryParam('range', 'month');
+    loadData();
+  });
 
   $effect(() => {
     void range;
@@ -134,7 +143,7 @@
   <p>Your listening patterns over time</p>
 </div>
 
-<TimeRangeSelector value={range} onchange={(r) => range = r} />
+<TimeRangeSelector value={range} onchange={setRange} />
 
 {#if loading}
   <div class="loading">
