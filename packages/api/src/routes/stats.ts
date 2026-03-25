@@ -49,6 +49,76 @@ function parseParams(c: any) {
   return { range, limit, rangeStart, sort };
 }
 
+// helper: granularidad automática según rango
+function getDateTrunc(range: TimeRange) {
+  const days = TIME_RANGES[range];
+  if (days > 0 && days <= 30) return sql`date(lh.played_at)`;
+  if (days > 30 && days <= 180) return sql`strftime('%Y-W%W', lh.played_at)`;
+  return sql`strftime('%Y-%m', lh.played_at)`;
+}
+
+// helper: calcular rankings en rangos fijos
+function computeRankings(
+  db: ReturnType<typeof getDb>,
+  entityType: 'artist' | 'track' | 'album',
+  entityId: string,
+  sort: string,
+) {
+  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const ranges = ['week', 'month', 'thisYear', 'all'] as const;
+  const rankings: Record<string, number | null> = {};
+
+  for (const r of ranges) {
+    const rs = getRangeStart(r);
+    const wr = rs ? sql`AND lh.played_at >= ${rs}` : sql``;
+
+    let groupCol: ReturnType<typeof sql>;
+    let whereEntity: ReturnType<typeof sql>;
+    if (entityType === 'artist') {
+      groupCol = sql`ta.artist_id`;
+      whereEntity = sql`ta.artist_id = ${entityId}`;
+    } else if (entityType === 'track') {
+      groupCol = sql`lh.track_id`;
+      whereEntity = sql`lh.track_id = ${entityId}`;
+    } else {
+      groupCol = sql`t.album_id`;
+      whereEntity = sql`t.album_id = ${entityId}`;
+    }
+
+    const needsTA = entityType === 'artist';
+    const joinTA = needsTA ? sql`JOIN track_artists ta ON ta.track_id = lh.track_id` : sql``;
+
+    const row = db.all(sql`
+      SELECT count(*) + 1 as rank FROM (
+        SELECT ${groupCol} as eid, ${metric} as val
+        FROM listening_history lh
+        ${joinTA}
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        WHERE 1=1 ${wr}
+        GROUP BY eid
+        HAVING val > (
+          SELECT coalesce(${metric}, 0)
+          FROM listening_history lh
+          ${joinTA}
+          JOIN tracks t ON t.spotify_id = lh.track_id
+          WHERE ${whereEntity} ${wr}
+        )
+      )
+    `)[0] as { rank: number } | undefined;
+
+    const hasPlays = db.all(sql`
+      SELECT 1 FROM listening_history lh
+      ${joinTA}
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE ${whereEntity} ${wr}
+      LIMIT 1
+    `).length > 0;
+
+    rankings[r] = hasPlays ? (row?.rank ?? 1) : null;
+  }
+  return rankings;
+}
+
 stats.get('/top-tracks', (c) => {
   const { range, limit, rangeStart, sort } = parseParams(c);
   const db = getDb();
@@ -528,9 +598,24 @@ stats.get('/artist/:id', (c) => {
     };
   });
 
+  // rankings y serie temporal
+  const rankings = computeRankings(db, 'artist', id, sort);
+  const dateTrunc = getDateTrunc((c.req.query('range') || 'month') as TimeRange);
+  const series = db.all(sql`
+    SELECT ${dateTrunc} as period, count(*) as play_count, sum(t.duration_ms) as total_ms
+    FROM listening_history lh
+    JOIN track_artists ta3 ON ta3.track_id = lh.track_id
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE ta3.artist_id = ${id} ${whereRange}
+    GROUP BY period
+    ORDER BY period ASC
+  `) as { period: string; play_count: number; total_ms: number }[];
+
   return c.json({
     artist: { id: artist.spotifyId, name: artist.name, imageUrl: artist.imageUrl, genres: artist.genres },
     stats: statsRow,
+    rankings,
+    series,
     topTracks: topTracksResult,
     topAlbums: topAlbumsResult,
     recentPlays: recentResult,
@@ -622,6 +707,18 @@ stats.get('/album/:id', (c) => {
     };
   });
 
+  // rankings y serie temporal
+  const albumRankings = computeRankings(db, 'album', id, sort);
+  const albumDateTrunc = getDateTrunc((c.req.query('range') || 'month') as TimeRange);
+  const albumSeries = db.all(sql`
+    SELECT ${albumDateTrunc} as period, count(*) as play_count, sum(t.duration_ms) as total_ms
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE t.album_id = ${id} ${whereRange}
+    GROUP BY period
+    ORDER BY period ASC
+  `) as { period: string; play_count: number; total_ms: number }[];
+
   return c.json({
     album: {
       id: album.spotifyId, name: album.name, imageUrl: album.imageUrl,
@@ -629,6 +726,8 @@ stats.get('/album/:id', (c) => {
     },
     artists: albumArtists.map(a => ({ id: a.artist_id, name: a.name, imageUrl: a.image_url })),
     stats: statsRow,
+    rankings: albumRankings,
+    series: albumSeries,
     tracks: tracksResult,
     recentPlays: recentResult,
   });
@@ -667,15 +766,17 @@ stats.get('/track/:id', (c) => {
     WHERE ${trackFilter} ${whereRange}
   `)[0] as { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
 
-  // serie temporal diaria (todas las versiones)
-  const dailySeries = db.all(sql`
-    SELECT date(lh.played_at) as day, count(*) as play_count, sum(t.duration_ms) as total_ms
+  // rankings y serie temporal con granularidad automática
+  const trackRankings = computeRankings(db, 'track', id, 'time');
+  const trackDateTrunc = getDateTrunc((c.req.query('range') || 'month') as TimeRange);
+  const series = db.all(sql`
+    SELECT ${trackDateTrunc} as period, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE ${trackFilter} ${whereRange}
-    GROUP BY day
-    ORDER BY day ASC
-  `) as { day: string; play_count: number; total_ms: number }[];
+    GROUP BY period
+    ORDER BY period ASC
+  `) as { period: string; play_count: number; total_ms: number }[];
 
   // desglose por álbum (en qué álbumes se escuchó este track)
   const albumBreakdown = db.all(sql`
@@ -706,7 +807,9 @@ stats.get('/track/:id', (c) => {
       artists: arts.map(a => ({ id: a!.spotifyId, name: a!.name, imageUrl: a!.imageUrl })),
     },
     stats: statsRow,
-    dailySeries,
+    rankings: trackRankings,
+    series,
+    dailySeries: series.map(s => ({ day: s.period, play_count: s.play_count, total_ms: s.total_ms })),
     albumBreakdown: albumBreakdownResult,
   });
 });

@@ -148,6 +148,8 @@ export interface SearchResults {
 export interface ArtistDetail {
   artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+  rankings: { week: number | null; month: number | null; thisYear: number | null; all: number | null };
+  series: { period: string; play_count: number; total_ms: number }[];
   topTracks: TopTrackItem[];
   topAlbums: TopAlbumItem[];
   recentPlays: HistoryItem[];
@@ -157,6 +159,8 @@ export interface AlbumDetail {
   album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
   artists: { id: string; name: string; imageUrl: string | null }[];
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+  rankings: { week: number | null; month: number | null; thisYear: number | null; all: number | null };
+  series: { period: string; play_count: number; total_ms: number }[];
   tracks: TopTrackItem[];
   recentPlays: HistoryItem[];
 }
@@ -168,6 +172,8 @@ export interface TrackDetail {
     artists: { id: string; name: string; imageUrl: string | null }[];
   };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+  rankings: { week: number | null; month: number | null; thisYear: number | null; all: number | null };
+  series: { period: string; play_count: number; total_ms: number }[];
   dailySeries: { day: string; play_count: number; total_ms: number }[];
   albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } }[];
 }
