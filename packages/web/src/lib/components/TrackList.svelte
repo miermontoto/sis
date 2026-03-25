@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, timeAgo } from '$lib/utils/format';
+  import { medalColor } from '$lib/utils/medals';
   import RankChange from './RankChange.svelte';
 
   interface Props {
@@ -32,11 +33,11 @@
         {#if showRank}
           {#if showRankChanges && isTopTrack(item)}
             <div class="rank-cell">
-              <span class="track-rank">{i + 1}</span>
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
               <RankChange rankChange={item.rankChange} isNew={item.isNew} />
             </div>
           {:else}
-            <span class="track-rank">{i + 1}</span>
+            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
           {/if}
         {/if}
         {#if track.album?.imageUrl}

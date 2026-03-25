@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api, getRankingMetric, getShowRankChanges, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
+  import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
   import RankChange from '$lib/components/RankChange.svelte';
@@ -318,11 +319,11 @@
           <a href="/artist/{item.artistId}" class="track-item">
             {#if showRankChanges}
               <div class="rank-cell">
-                <span class="track-rank">{i + 1}</span>
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
                 <RankChange rankChange={item.rankChange} isNew={item.isNew} />
               </div>
             {:else}
-              <span class="track-rank">{i + 1}</span>
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {/if}
             {#if item.artist.imageUrl}
               <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
@@ -347,11 +348,11 @@
           <a href="/album/{item.albumId}" class="track-item">
             {#if showRankChanges}
               <div class="rank-cell">
-                <span class="track-rank">{i + 1}</span>
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
                 <RankChange rankChange={item.rankChange} isNew={item.isNew} />
               </div>
             {:else}
-              <span class="track-rank">{i + 1}</span>
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {/if}
             {#if item.album.imageUrl}
               <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />

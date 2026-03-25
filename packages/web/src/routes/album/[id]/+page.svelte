@@ -1,12 +1,14 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type AlbumDetail, type Rankings, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, type AlbumDetail, type Rankings, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
+  import { medalColor } from '$lib/utils/medals';
   import TrackList from '$lib/components/TrackList.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import ChartStats from '$lib/components/ChartStats.svelte';
   import MergeAlbumModal from '$lib/components/MergeAlbumModal.svelte';
   import type { EChartsOption } from 'echarts';
 
@@ -16,6 +18,7 @@
   let range = $state('all');
   let metric = $state<RankingMetric>('time');
   let showMergeModal = $state(false);
+  let chartHistoryData = $state<ChartHistoryResponse | null>(null);
 
   async function loadData() {
     loading = true;
@@ -39,10 +42,10 @@
   });
 
   $effect(() => {
+    const id = $page.params.id;
     void range;
     void metric;
-    void $page.params.id;
-    loadData();
+    if (id) loadData();
   });
 
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
@@ -53,35 +56,10 @@
     const isPlays = metric === 'plays';
     return {
       grid: { left: 50, right: 20, top: 20, bottom: 30 },
-      tooltip: {
-        trigger: 'axis',
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          return isPlays
-            ? `${p.name}<br/>${p.value} plays`
-            : `${p.name}<br/>${formatDuration(p.value)}`;
-        },
-      },
-      xAxis: {
-        type: 'category',
-        data: s.map(d => d.period),
-        axisLabel: { color: '#888', fontSize: 11 },
-        axisLine: { lineStyle: { color: '#2a2a2a' } },
-      },
-      yAxis: {
-        type: 'value',
-        splitLine: { lineStyle: { color: '#2a2a2a' } },
-        axisLabel: {
-          color: '#888',
-          formatter: isPlays ? undefined : (v: number) => formatDuration(v),
-        },
-      },
-      series: [{
-        type: 'bar',
-        data: s.map(d => isPlays ? d.play_count : d.total_ms),
-        itemStyle: { color: '#1db954', borderRadius: [4, 4, 0, 0] },
-        barMaxWidth: 20,
-      }],
+      tooltip: { trigger: 'axis', formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
+      xAxis: { type: 'category', data: s.map(d => d.period), axisLabel: { color: '#888', fontSize: 11 }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888', formatter: isPlays ? undefined : (v: number) => formatDuration(v) } },
+      series: [{ type: 'bar', data: s.map(d => isPlays ? d.play_count : d.total_ms), itemStyle: { color: '#1db954', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 20 }],
     };
   });
 </script>
@@ -165,10 +143,12 @@
       {@const rank = rankings?.[key as keyof Rankings] ?? null}
       <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value">{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
+        <span class="ranking-value" style:color={rank ? medalColor(rank) : undefined}>{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
       </div>
     {/each}
   </div>
+
+  <ChartStats entityType="albums" entityId={$page.params.id} bind:chartData={chartHistoryData} />
 
   {#if data.series.length > 1}
     <div class="card chart-card">

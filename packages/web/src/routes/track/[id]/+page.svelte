@@ -1,15 +1,18 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type TrackDetail, type Rankings, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, type TrackDetail, type Rankings, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
+  import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import ChartStats from '$lib/components/ChartStats.svelte';
   import type { EChartsOption } from 'echarts';
 
   let data = $state<TrackDetail | null>(null);
   let rankings = $state<Rankings | null>(null);
+  let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let loading = $state(true);
   let range = $state('all');
   let metric = $state<RankingMetric>('time');
@@ -36,9 +39,9 @@
   });
 
   $effect(() => {
+    const id = $page.params.id;
     void range;
-    void $page.params.id;
-    loadData();
+    if (id) loadData();
   });
 
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
@@ -49,35 +52,10 @@
     const isPlays = metric === 'plays';
     return {
       grid: { left: 50, right: 20, top: 20, bottom: 30 },
-      tooltip: {
-        trigger: 'axis',
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          return isPlays
-            ? `${p.name}<br/>${p.value} plays`
-            : `${p.name}<br/>${formatDuration(p.value)}`;
-        },
-      },
-      xAxis: {
-        type: 'category',
-        data: s.map(d => d.period),
-        axisLabel: { color: '#888', fontSize: 11 },
-        axisLine: { lineStyle: { color: '#2a2a2a' } },
-      },
-      yAxis: {
-        type: 'value',
-        splitLine: { lineStyle: { color: '#2a2a2a' } },
-        axisLabel: {
-          color: '#888',
-          formatter: isPlays ? undefined : (v: number) => formatDuration(v),
-        },
-      },
-      series: [{
-        type: 'bar',
-        data: s.map(d => isPlays ? d.play_count : d.total_ms),
-        itemStyle: { color: '#1db954', borderRadius: [4, 4, 0, 0] },
-        barMaxWidth: 20,
-      }],
+      tooltip: { trigger: 'axis', formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
+      xAxis: { type: 'category', data: s.map(d => d.period), axisLabel: { color: '#888', fontSize: 11 }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888', formatter: isPlays ? undefined : (v: number) => formatDuration(v) } },
+      series: [{ type: 'bar', data: s.map(d => isPlays ? d.play_count : d.total_ms), itemStyle: { color: '#1db954', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 20 }],
     };
   });
 </script>
@@ -137,17 +115,19 @@
       {@const rank = rankings?.[key as keyof Rankings] ?? null}
       <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value">{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
+        <span class="ranking-value" style:color={rank ? medalColor(rank) : undefined}>{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
       </div>
     {/each}
   </div>
+
+  <ChartStats entityType="tracks" entityId={$page.params.id} bind:chartData={chartHistoryData} />
 
   {#if data.albumBreakdown.length > 1}
     <h2 class="section-title">Played in</h2>
     <div class="track-list">
       {#each data.albumBreakdown as item, i}
         <a href="/album/{item.album.id}" class="track-item">
-          <span class="track-rank">{i + 1}</span>
+          <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
           {#if item.album.imageUrl}
             <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
           {:else}

@@ -42,8 +42,9 @@
     { href: '/', label: 'Dashboard', icon: '~' },
     { href: '/history', label: 'History', icon: '#' },
     { href: '/top', label: 'Top', icon: '*' },
-    { href: '/trends', label: 'Trends', icon: '^' },
+    { href: '/charts', label: 'Charts', icon: '%' },
     { href: '/insights', label: 'Insights', icon: '!' },
+    { href: '/records', label: 'Records', icon: '^' },
     { href: '/settings', label: 'Settings', icon: '@' },
   ];
 

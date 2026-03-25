@@ -76,6 +76,17 @@ export function setShowRankChanges(show: boolean) {
   localStorage.setItem(SHOW_RANK_CHANGES_KEY, String(show));
 }
 
+export type WeekStartOption = 'monday' | 'sunday' | 'friday';
+const WEEK_START_KEY = 'sis:weekStart';
+
+export function getWeekStart(): WeekStartOption {
+  return (localStorage.getItem(WEEK_START_KEY) as WeekStartOption) || 'monday';
+}
+
+export function setWeekStart(ws: WeekStartOption) {
+  localStorage.setItem(WEEK_START_KEY, ws);
+}
+
 export interface HistoryItem {
   id: number;
   playedAt: string;
@@ -227,6 +238,81 @@ export interface MergeSuggestionAlbum {
   plays: number;
 }
 
+// --- records types ---
+
+export interface RecordEntry {
+  entityId: string;
+  name: string;
+  imageUrl: string | null;
+  artistName: string | null;
+  value: number;
+  week: string | null;
+}
+
+export interface ArtistRecordEntry {
+  artistId: string;
+  name: string;
+  imageUrl: string | null;
+  count: number;
+}
+
+export interface EntityRecords {
+  peakWeekPlays: RecordEntry[];
+  biggestDebuts: RecordEntry[];
+  mostWeeksAtNo1: RecordEntry[];
+  mostWeeksInTop5: RecordEntry[];
+}
+
+export interface ArtistRecordsData extends EntityRecords {
+  mostNo1Tracks: ArtistRecordEntry[];
+  mostNo1Albums: ArtistRecordEntry[];
+  mostNo1DebutTracks: ArtistRecordEntry[];
+}
+
+export interface RecordsResponse {
+  tracks: EntityRecords;
+  albums: EntityRecords;
+  artists: ArtistRecordsData;
+}
+
+// --- charts types ---
+
+export interface ChartEntry {
+  rank: number;
+  entityId: string;
+  name: string;
+  imageUrl: string | null;
+  artistName: string | null;
+  plays: number;
+  totalMs: number;
+  previousRank: number | null;
+  rankChange: number | null;
+  isNew: boolean;
+  isReentry: boolean;
+  peakRank: number;
+  peakPeriod: string;
+  timesAtPeak: number;
+  weeksOnChart: number;
+  consecutiveWeeks: number;
+}
+
+export interface ChartResponse {
+  period: string;
+  entries: ChartEntry[];
+}
+
+// --- chart history types ---
+
+export interface ChartHistoryResponse {
+  currentRank: number | null;
+  currentPeriod: string;
+  peakRank: number;
+  peakPeriod: string;
+  timesAtPeak: number;
+  weeksOnChart: number;
+  history: { period: string; rank: number | null }[];
+}
+
 export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
   nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
@@ -270,6 +356,18 @@ export const api = {
 
   search: (q: string, limit = 5) =>
     apiFetch<SearchResults>('/stats/search', { q, limit: String(limit) }),
+
+  chartHistory: (type: string, id: string, weekStart: string, sort: RankingMetric = 'time') =>
+    apiFetch<ChartHistoryResponse>(`/stats/chart-history/${type}/${encodeURIComponent(id)}`, { weekStart, sort }),
+
+  chartPeriods: (granularity: string, weekStart: string) =>
+    apiFetch<{ periods: string[] }>('/stats/charts/periods', { granularity, weekStart }),
+
+  chart: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', limit = 25) =>
+    apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }),
+
+  records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists') =>
+    apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, ...(type && { type }) }),
 
   playbackPlay: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/play'),
   playbackPause: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/pause'),

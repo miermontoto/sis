@@ -12,6 +12,8 @@ import {
   getArtistTopTracks, getArtistTopAlbums,
   resolveAlbumIds, getAlbumArtists, getAlbumTracks,
   getTrackAlbumBreakdown,
+  getRecords,
+  getChart, getAvailablePeriods, getEntityChartHistory,
 } from '../db/queries/index.js';
 
 const stats = new Hono();
@@ -478,6 +480,62 @@ stats.get('/track/:id', (c) => {
     dailySeries: series.map(s => ({ day: s.period, play_count: s.play_count, total_ms: s.total_ms })),
     albumBreakdown: albumBreakdownResult,
   });
+});
+
+// --- charts (browsable period charts) ---
+
+stats.get('/charts/periods', (c) => {
+  const db = getDb();
+  const granularity = (c.req.query('granularity') || 'week') as 'week' | 'month' | 'year';
+  const ws = c.req.query('weekStart');
+  const weekStart = (ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday') as 'monday' | 'sunday' | 'friday';
+
+  const periods = getAvailablePeriods(db, granularity, weekStart);
+  return c.json({ periods });
+});
+
+stats.get('/charts', (c) => {
+  const db = getDb();
+  const type = (c.req.query('type') || 'tracks') as 'tracks' | 'albums' | 'artists';
+  const granularity = (c.req.query('granularity') || 'week') as 'week' | 'month' | 'year';
+  const ws = c.req.query('weekStart');
+  const weekStart = (ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday') as 'monday' | 'sunday' | 'friday';
+  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
+  const limit = Math.min(parseInt(c.req.query('limit') || '25'), 25);
+  const period = c.req.query('period');
+
+  if (!period) return c.json({ error: 'period is required' }, 400);
+
+  const chart = getChart(db, type, granularity, weekStart, period, sort, limit);
+  return c.json(chart);
+});
+
+// --- chart history for a single entity ---
+
+stats.get('/chart-history/:type/:id', (c) => {
+  const db = getDb();
+  const entityType = c.req.param('type') as 'tracks' | 'albums' | 'artists';
+  const id = c.req.param('id');
+  const ws = c.req.query('weekStart');
+  const weekStart = (ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday') as 'monday' | 'sunday' | 'friday';
+  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
+
+  const history = getEntityChartHistory(db, entityType, id, weekStart, sort);
+  return c.json(history);
+});
+
+// --- records (chart milestones) ---
+
+stats.get('/records', (c) => {
+  const db = getDb();
+  const ws = c.req.query('weekStart');
+  const weekStart = (ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday') as 'monday' | 'sunday' | 'friday';
+  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
+  const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
+
+  const type = c.req.query('type') as 'tracks' | 'albums' | 'artists' | undefined;
+  const records = getRecords(db, weekStart, sort, limit, type);
+  return c.json(records);
 });
 
 // --- rankings (lazy, loaded async by frontend) ---

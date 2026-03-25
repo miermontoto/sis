@@ -12,3 +12,7 @@ export { computeRankings } from './rankings.js';
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
 export { resolveAlbumIds, getAlbumArtists, getAlbumTracks } from './album.js';
 export { getTrackAlbumBreakdown } from './track.js';
+export { getRecords } from './records.js';
+export type { RecordsResponse } from './records.js';
+export { getChart, getAvailablePeriods, getEntityChartHistory } from './charts.js';
+export type { ChartEntry, ChartResponse, EntityChartHistory } from './charts.js';

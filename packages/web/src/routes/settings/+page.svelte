@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getShowRankChanges, setShowRankChanges, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getShowRankChanges, setShowRankChanges, getWeekStart, setWeekStart, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
 
   let health = $state<HealthData | null>(null);
@@ -11,6 +11,7 @@
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
   let showRankChanges = $state(true);
+  let weekStartPref = $state<WeekStartOption>('monday');
 
   // merges
   let merges = $state<MergeRule[]>([]);
@@ -59,6 +60,7 @@
   onMount(async () => {
     rankingMetric = getRankingMetric();
     showRankChanges = getShowRankChanges();
+    weekStartPref = getWeekStart();
     try {
       [health, streaks] = await Promise.all([
         api.health(),
@@ -148,6 +150,19 @@
           <button class="toggle" class:toggle-on={showRankChanges} onclick={handleRankChangesToggle}>
             <span class="toggle-knob"></span>
           </button>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">Chart week start</div>
+          <div class="pref-desc">Defines how weekly charts are calculated in the Records page</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={weekStartPref === 'monday'} onclick={() => { weekStartPref = 'monday'; setWeekStart('monday'); }}>Mon</button>
+            <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
+            <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
+          </div>
         </div>
       </div>
     </div>

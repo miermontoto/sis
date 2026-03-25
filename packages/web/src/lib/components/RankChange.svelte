@@ -2,13 +2,16 @@
   interface Props {
     rankChange: number | null;
     isNew: boolean;
+    isReentry?: boolean;
   }
 
-  let { rankChange, isNew }: Props = $props();
+  let { rankChange, isNew, isReentry = false }: Props = $props();
 </script>
 
 {#if isNew}
   <span class="rank-change new">NEW</span>
+{:else if isReentry}
+  <span class="rank-change re">RE</span>
 {:else if rankChange !== null && rankChange > 0}
   <span class="rank-change up" title="Subió {rankChange} {rankChange === 1 ? 'posición' : 'posiciones'}">
     <svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1 L9 6 H1 Z" fill="currentColor"/></svg>
@@ -44,6 +47,11 @@
   }
   .rank-change.new {
     color: #f0c040;
+    font-size: 0.6rem;
+    letter-spacing: 0.03em;
+  }
+  .rank-change.re {
+    color: #4a9eff;
     font-size: 0.6rem;
     letter-spacing: 0.03em;
   }
