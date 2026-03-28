@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, getRankingMetric, getWeekStart, type ChartResponse, type RankingMetric, type WeekStartOption } from '$lib/api';
+  import { api, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
   import RankChange from '$lib/components/RankChange.svelte';
+  import PeakSelector from '$lib/components/PeakSelector.svelte';
   import { medalColor } from '$lib/utils/medals';
 
   type EntityType = 'tracks' | 'albums' | 'artists';
@@ -114,6 +115,8 @@
 
   let dateRangeLabel = $derived(selectedPeriod ? periodDateRange(selectedPeriod, granularity, weekStart) : '');
 
+  let initialized = false;
+
   onMount(() => {
     metric = getRankingMetric();
     weekStart = getWeekStart();
@@ -122,13 +125,14 @@
     if (params.get('type')) activeType = params.get('type') as EntityType;
     if (params.get('granularity')) granularity = params.get('granularity') as Granularity;
     if (params.get('period')) selectedPeriod = params.get('period')!;
+    initialized = true;
   });
 
   // cargar periodos cuando cambia granularidad o weekStart
   $effect(() => {
     void granularity;
     void weekStart;
-    loadPeriods();
+    if (initialized) loadPeriods();
   });
 
   // cargar chart cuando cambia el periodo o tipo
@@ -136,7 +140,7 @@
     void selectedPeriod;
     void activeType;
     void metric;
-    if (selectedPeriod) loadChart();
+    if (initialized && selectedPeriod) loadChart();
   });
 </script>
 
@@ -197,17 +201,22 @@
           {/if}
         </div>
         <div class="chart-stats">
-          {#if entry.rank <= entry.peakRank && entry.peakPeriod === selectedPeriod}
+          {#if entry.rank <= entry.peakRank && entry.peakPeriods?.includes(selectedPeriod)}
             <div class="chart-peak-badge">PEAK</div>
+          {:else if entry.timesAtPeak > 1 && entry.peakPeriods?.length > 1}
+            <div class="chart-stat">
+              <PeakSelector peakRank={entry.peakRank} peakPeriods={entry.peakPeriods} onselect={(p) => selectedPeriod = p} />
+              <span class="chart-stat-label">peak</span>
+            </div>
           {:else}
             <button class="chart-stat chart-stat--peak" title="Go to peak chart ({entry.peakPeriod})" onclick={(e) => { e.preventDefault(); e.stopPropagation(); selectedPeriod = entry.peakPeriod; }}>
-              <span class="chart-stat-val" style:color={medalColor(entry.peakRank)}>#{entry.peakRank}{#if entry.timesAtPeak > 1} <span class="chart-stat-times">×{entry.timesAtPeak}</span>{/if}</span>
+              <span class="chart-stat-val" style:color={medalColor(entry.peakRank)}>#{entry.peakRank}</span>
               <span class="chart-stat-label">peak</span>
             </button>
           {/if}
           {#if granularity === 'week'}
-            <div class="chart-stat" title="{entry.consecutiveWeeks} consecutive, {entry.weeksOnChart} total">
-              <span class="chart-stat-val">{entry.consecutiveWeeks}<span class="chart-stat-total">/{entry.weeksOnChart}</span></span>
+            <div class="chart-stat" title="{entry.weeksOnChart} total, {entry.consecutiveWeeks} consecutive">
+              <span class="chart-stat-val">{entry.weeksOnChart}{#if entry.consecutiveWeeks > 0} <span class="chart-stat-total">({entry.consecutiveWeeks})</span>{/if}</span>
               <span class="chart-stat-label">wks</span>
             </div>
           {/if}
@@ -221,6 +230,45 @@
   </div>
 {:else if currentData}
   <div class="card" style="text-align: center; color: var(--text-muted); padding: 2rem;">No data for this period.</div>
+{/if}
+
+{#if currentData && currentData.dropouts.length > 0}
+  <div class="dropouts-section">
+    <div class="dropouts-header">Dropped off</div>
+    <div class="chart-list">
+      {#each currentData.dropouts as d}
+        <a href={entityLink(d.entityId)} class="chart-item chart-item--dropout">
+          <div class="chart-rank-col">
+            <span class="chart-rank" style:color={medalColor(d.previousRank)}>{d.previousRank}</span>
+            <span class="dropout-arrow">OUT</span>
+          </div>
+          {#if d.imageUrl}
+            <img class="chart-art" class:chart-art--round={activeType === 'artists'} src={d.imageUrl} alt="" />
+          {:else}
+            <div class="chart-art" class:chart-art--round={activeType === 'artists'}></div>
+          {/if}
+          <div class="chart-info">
+            <div class="chart-name">{d.name}</div>
+            {#if d.artistName}
+              <div class="chart-artist">{d.artistName}</div>
+            {/if}
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat" title="Peak rank">
+              <span class="chart-stat-val" style:color={medalColor(d.peakRank)}>#{d.peakRank}</span>
+              <span class="chart-stat-label">peak</span>
+            </div>
+            {#if granularity === 'week'}
+              <div class="chart-stat" title="Weeks on chart">
+                <span class="chart-stat-val">{d.weeksOnChart}</span>
+                <span class="chart-stat-label">wks</span>
+              </div>
+            {/if}
+          </div>
+        </a>
+      {/each}
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -416,6 +464,7 @@
     font-size: 0.7rem;
     font-weight: 500;
     color: var(--text-muted);
+    margin-left: 0.15em;
   }
   .chart-stat--peak {
     background: none;
@@ -458,6 +507,29 @@
   .chart-secondary {
     font-size: 0.75rem;
     color: var(--text-muted);
+  }
+  .dropouts-section {
+    margin-top: 1.25rem;
+  }
+  .dropouts-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  .chart-item--dropout {
+    opacity: 0.55;
+  }
+  .chart-item--dropout:hover {
+    opacity: 1;
+  }
+  .dropout-arrow {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #e74c3c;
+    letter-spacing: 0.03em;
   }
   @media (max-width: 640px) {
     .charts-controls {

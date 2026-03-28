@@ -1,7 +1,14 @@
+<script lang="ts">
+  import { page } from '$app/state';
+
+  let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
+  let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
+</script>
+
 <div class="login-page">
   <div class="login-card">
     <h1>SIS</h1>
-    <a href="/auth/login" class="login-btn">Sign in with Spotify</a>
+    <a href={loginHref} class="login-btn">Sign in with Spotify</a>
   </div>
 </div>
 

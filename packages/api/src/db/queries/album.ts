@@ -34,9 +34,9 @@ export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
 }
 
 /** Tracks de un álbum con play counts, incluye mergeados */
-export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | null, sort: Sort, ids?: string[]) {
+export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | null, sort: Sort, ids?: string[], rangeEnd?: string | null) {
   const albumIds = ids ?? resolveAlbumIds(db, albumId);
-  const wr = rangeWhere(rangeStart);
+  const wr = rangeWhere(rangeStart, rangeEnd);
 
   return db.all(sql`
     SELECT t.spotify_id as track_id, t.name, t.duration_ms, t.track_number,

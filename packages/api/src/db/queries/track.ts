@@ -3,8 +3,8 @@ import type { Db } from './helpers.js';
 import { rangeWhere } from './helpers.js';
 
 /** Desglose por álbum (en qué álbumes se escuchó un track) */
-export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: string | null) {
-  const wr = rangeWhere(rangeStart);
+export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: string | null, rangeEnd?: string | null) {
+  const wr = rangeWhere(rangeStart, rangeEnd);
 
   return db.all(sql`
     SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms

@@ -68,10 +68,7 @@ export function getPreviousPeriodRange(range: TimeRange): { prevStart: string; p
 }
 
 export function getDateTrunc(range: TimeRange): SqlChunk {
-  const days = TIME_RANGES[range];
-  if (days > 0 && days <= 30) return sql`date(lh.played_at)`;
-  if (days > 30 && days <= 180) return sql`strftime('%Y-W%W', lh.played_at)`;
-  return sql`strftime('%Y-%m', lh.played_at)`;
+  return getDateTruncForDays(TIME_RANGES[range]);
 }
 
 // --- helpers de SQL dinámico según tipo de entidad ---
@@ -102,16 +99,35 @@ export function entityWhereCol(entityType: EntityType, id: string, albumIds?: st
   return sql`t.album_id = ${id}`;
 }
 
-// fragmento SQL que resuelve album_id a través de merge_rules
-export const resolvedAlbumId = sql`COALESCE(
-  (SELECT mr.target_id FROM merge_rules mr WHERE mr.entity_type = 'album' AND mr.source_id = t.album_id),
-  t.album_id
-)`;
+// fragmento SQL que resuelve album_id a través de merge_rules (via LEFT JOIN, no subquery)
+export const resolvedAlbumId = sql`COALESCE(mr_album.target_id, t.album_id)`;
 
-export function rangeWhere(rangeStart: string | null): SqlChunk {
-  return rangeStart ? sql`AND lh.played_at >= ${rangeStart}` : sql``;
+// JOIN para resolver merge_rules de álbumes — usar junto con resolvedAlbumId
+export const mergeRulesJoin = sql`LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id`;
+
+export function getDateTruncForDays(days: number): SqlChunk {
+  if (days > 0 && days <= 30) return sql`date(lh.played_at)`;
+  if (days > 0 && days <= 180) return sql`strftime('%Y-W%W', lh.played_at)`;
+  return sql`strftime('%Y-%m', lh.played_at)`;
 }
 
-export function rangeWhereClause(rangeStart: string | null): SqlChunk {
-  return rangeStart ? sql`WHERE lh.played_at >= ${rangeStart}` : sql``;
+export function getPreviousPeriodRangeCustom(startDate: string, endDate: string): { prevStart: string; prevEnd: string } {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  const span = end - start;
+  const prevEnd = new Date(start);
+  const prevStart = new Date(start - span);
+  return { prevStart: prevStart.toISOString(), prevEnd: prevEnd.toISOString() };
+}
+
+export function rangeWhere(rangeStart: string | null, rangeEnd?: string | null): SqlChunk {
+  if (!rangeStart) return sql``;
+  if (rangeEnd) return sql`AND lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}`;
+  return sql`AND lh.played_at >= ${rangeStart}`;
+}
+
+export function rangeWhereClause(rangeStart: string | null, rangeEnd?: string | null): SqlChunk {
+  if (!rangeStart) return sql``;
+  if (rangeEnd) return sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}`;
+  return sql`WHERE lh.played_at >= ${rangeStart}`;
 }

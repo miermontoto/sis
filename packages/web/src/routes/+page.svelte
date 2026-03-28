@@ -62,7 +62,9 @@
   <h1>Dashboard</h1>
 </div>
 
-<NowPlaying />
+<div class="mobile-only-np">
+  <NowPlaying />
+</div>
 
 {#if loading}
   <div class="loading">

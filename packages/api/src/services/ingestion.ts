@@ -40,11 +40,18 @@ export function resolveLocalFileIds(track: SpotifyTrack) {
     artist.id = existing?.spotify_id ?? syntheticId(LOCAL_PREFIX, artist.name, artist.name);
   }
 
-  // álbum: siempre synthetic
-  track.album.id = syntheticId(LOCAL_PREFIX, primaryArtist, track.album.name || 'Unknown Album');
+  // álbum: busca por nombre en DB, si existe usa su ID, si no genera local:hash
+  const albumName = track.album.name || 'Unknown Album';
+  const existingAlbum = db.get(
+    sql`SELECT spotify_id FROM albums WHERE LOWER(name) = LOWER(${albumName}) AND spotify_id LIKE 'local:%'`
+  ) as { spotify_id: string } | undefined;
+  track.album.id = existingAlbum?.spotify_id ?? syntheticId(LOCAL_PREFIX, primaryArtist, albumName);
 
-  // track: siempre synthetic
-  track.id = syntheticId(LOCAL_PREFIX, primaryArtist, track.name);
+  // track: busca por nombre+álbum en DB, si existe usa su ID, si no genera local:hash
+  const existingTrack = db.get(
+    sql`SELECT spotify_id FROM tracks WHERE LOWER(name) = LOWER(${track.name}) AND album_id = ${track.album.id} AND spotify_id LIKE 'local:%'`
+  ) as { spotify_id: string } | undefined;
+  track.id = existingTrack?.spotify_id ?? syntheticId(LOCAL_PREFIX, primaryArtist, track.name);
 }
 
 // upsert de artistas, álbum y track, retornando si hubo inserción nueva
@@ -67,7 +74,7 @@ export function upsertTrack(track: SpotifyTrack) {
       target: albums.spotifyId,
       set: {
         name: track.album.name,
-        imageUrl: track.album.images[0]?.url ?? null,
+        imageUrl: sql`COALESCE(${track.album.images[0]?.url ?? null}, albums.image_url)`,
         updatedAt: now(),
       },
     })
@@ -630,6 +637,81 @@ export function deduplicateAlbums() {
   }
 
   if (merged > 0) console.log(`[dedup] ${merged} grupos de álbumes unificados`);
+}
+
+// deduplicar albums y tracks locales entre sí (no mezclar con Spotify)
+export function deduplicateLocalAlbums() {
+  const db = getDb();
+
+  // agrupar álbumes local:% con mismo nombre y artista
+  const groups = db.all(sql`
+    SELECT LOWER(al.name) as album_name,
+           MIN(ta.artist_id) as artist_id,
+           GROUP_CONCAT(DISTINCT al.spotify_id) as ids,
+           count(DISTINCT al.spotify_id) as cnt
+    FROM albums al
+    JOIN tracks t ON t.album_id = al.spotify_id
+    JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+    WHERE al.spotify_id LIKE 'local:%'
+    GROUP BY album_name, ta.artist_id
+    HAVING cnt > 1
+  `) as { album_name: string; artist_id: string | null; ids: string }[];
+
+  if (groups.length === 0) return;
+  console.log(`[dedup] ${groups.length} grupos de álbumes locales duplicados`);
+
+  let merged = 0;
+  for (const group of groups) {
+    const ids = group.ids.split(',');
+    // canónico: el que tenga más tracks
+    let best: { id: string; trackCount: number } | null = null;
+    for (const id of ids) {
+      const row = db.get(sql`
+        SELECT count(*) as cnt FROM tracks WHERE album_id = ${id}
+      `) as { cnt: number };
+      if (!best || row.cnt > best.trackCount) {
+        best = { id, trackCount: row.cnt };
+      }
+    }
+    if (!best) continue;
+    const canonical = best.id;
+    const dupes = ids.filter(id => id !== canonical);
+    if (dupes.length === 0) continue;
+
+    try {
+      for (const dupe of dupes) {
+        // mover tracks al álbum canónico, deduplicando por nombre
+        const dupeTracks = db.all(sql`
+          SELECT spotify_id, LOWER(name) as lname FROM tracks WHERE album_id = ${dupe}
+        `) as { spotify_id: string; lname: string }[];
+
+        for (const dt of dupeTracks) {
+          const existing = db.get(sql`
+            SELECT spotify_id FROM tracks WHERE album_id = ${canonical} AND LOWER(name) = ${dt.lname}
+          `) as { spotify_id: string } | undefined;
+
+          if (existing) {
+            // track duplicado: mover history y eliminar
+            db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${existing.spotify_id} WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`DELETE FROM listening_history WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`INSERT OR IGNORE INTO track_artists (track_id, artist_id, position)
+              SELECT ${existing.spotify_id}, artist_id, position FROM track_artists WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`DELETE FROM track_artists WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`DELETE FROM tracks WHERE spotify_id = ${dt.spotify_id}`);
+          } else {
+            // track único: mover al álbum canónico
+            db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE spotify_id = ${dt.spotify_id}`);
+          }
+        }
+        db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
+      }
+      merged++;
+    } catch (err) {
+      console.error(`[dedup] error deduplicando álbum local "${group.album_name}":`, err);
+    }
+  }
+
+  if (merged > 0) console.log(`[dedup] ${merged} grupos de álbumes locales unificados`);
 }
 
 // buscar portadas de álbumes locales en MusicBrainz + Cover Art Archive

@@ -2,17 +2,15 @@
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, timeAgo } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
-  import RankChange from './RankChange.svelte';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
     showRank?: boolean;
     showTime?: boolean;
     metric?: RankingMetric;
-    showRankChanges?: boolean;
   }
 
-  let { items, showRank = false, showTime = false, metric = 'time', showRankChanges = false }: Props = $props();
+  let { items, showRank = false, showTime = false, metric = 'time' }: Props = $props();
 
   // type guard
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
@@ -31,14 +29,7 @@
     {#if track}
       <div class="track-item">
         {#if showRank}
-          {#if showRankChanges && isTopTrack(item)}
-            <div class="rank-cell">
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-              <RankChange rankChange={item.rankChange} isNew={item.isNew} />
-            </div>
-          {:else}
-            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-          {/if}
+          <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
         {/if}
         {#if track.album?.imageUrl}
           <a href="/album/{track.album.id}" class="track-art-link">
@@ -59,7 +50,7 @@
           </div>
           <div class="track-artist">
             {#each track.artists as artist, i}
-              <a href="/artist/{artist.id}" class="artist-link">{artist.name}</a>{#if i < track.artists.length - 1}, {/if}
+              <a href="/artist/{artist.id}" class="artist-link">{artist.name}</a>{#if i < track.artists.length - 1}{', '}{/if}
             {/each}
           </div>
         </div>

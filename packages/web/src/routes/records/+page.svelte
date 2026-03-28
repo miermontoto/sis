@@ -86,7 +86,7 @@
         <h3 class="record-title">{title}</h3>
         <div class="record-list">
           {#each items as item, i}
-            <a href={entityLink(activeTab, item.entityId)} class="record-item">
+            <a href={item.week ? `/charts?type=${activeTab}&granularity=week&period=${item.week}` : entityLink(activeTab, item.entityId)} class="record-item">
               <span class="record-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
               {#if item.imageUrl}
                 <img class="record-art" class:record-art--round={activeTab === 'artists'} src={item.imageUrl} alt="" />
@@ -115,7 +115,7 @@
   {@render recordList('Peak week', currentData.peakWeekPlays, 'peak')}
   {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut')}
   {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks')}
-  {@render recordList('Most weeks in Top 5', currentData.mostWeeksInTop5, 'weeks')}
+  {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks')}
 
   {#if activeTab === 'artists' && 'mostNo1Tracks' in currentData}
     {@const artistData = currentData as ArtistRecordsData}
@@ -147,7 +147,6 @@
 
     {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks)}
     {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums)}
-    {@render artistRecordList('Most #1 debut tracks', artistData.mostNo1DebutTracks)}
   {/if}
 {/if}
 

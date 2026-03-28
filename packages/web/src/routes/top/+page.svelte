@@ -1,43 +1,82 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, getShowRankChanges, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
+  import { api, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type DateRangeParams } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
-  import RankChange from '$lib/components/RankChange.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import { extractColor } from '$lib/utils/color';
   import type { EChartsOption } from 'echarts';
 
   let activeTab = $state<'tracks' | 'artists' | 'albums'>('tracks');
   let range = $state('month');
+  let startDate = $state('');
+  let endDate = $state('');
   let metric = $state<RankingMetric>('time');
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
   let topAlbums = $state<TopAlbumItem[]>([]);
   let loading = $state(true);
-  let showRankChanges = $state(true);
   let barColors = $state<[number, number, number][]>([]);
+
+  function getCustomDates(): DateRangeParams | undefined {
+    if (range === 'custom' && startDate && endDate) return { startDate, endDate };
+    return undefined;
+  }
+
+  const PAGE_SIZE = 50;
+  let visibleCount = $state(PAGE_SIZE);
+  let sentinel = $state<HTMLElement | null>(null);
+  let observer: IntersectionObserver | null = null;
 
   async function loadData() {
     loading = true;
+    visibleCount = PAGE_SIZE;
     try {
+      const dates = getCustomDates();
       if (activeTab === 'tracks') {
-        topTracks = await api.topTracks(range, 50, metric);
+        topTracks = await api.topTracks(range, 200, metric, dates);
       } else if (activeTab === 'artists') {
-        topArtists = await api.topArtists(range, 50, metric);
+        topArtists = await api.topArtists(range, 200, metric, dates);
       } else {
-        topAlbums = await api.topAlbums(range, 50, metric);
+        topAlbums = await api.topAlbums(range, 200, metric, dates);
       }
     } finally {
       loading = false;
     }
   }
 
+  function totalItems(): number {
+    if (activeTab === 'tracks') return topTracks.length;
+    if (activeTab === 'artists') return topArtists.length;
+    return topAlbums.length;
+  }
+
   function setRange(r: string) {
     range = r;
-    setQueryParams({ range: r, tab: activeTab });
+    if (r !== 'custom') {
+      startDate = '';
+      endDate = '';
+      setQueryParams({ range: r, tab: activeTab, startDate: null, endDate: null });
+    } else {
+      // default a últimos 30 días si no hay fechas
+      if (!startDate || !endDate) {
+        const now = new Date();
+        endDate = now.toISOString().split('T')[0];
+        const start = new Date(now);
+        start.setDate(start.getDate() - 30);
+        startDate = start.toISOString().split('T')[0];
+      }
+      setQueryParams({ range: r, tab: activeTab, startDate, endDate });
+    }
+  }
+
+  function setCustomDates(s: string, e: string) {
+    startDate = s;
+    endDate = e;
+    setQueryParams({ startDate: s, endDate: e });
   }
 
   function setTab(t: 'tracks' | 'artists' | 'albums') {
@@ -45,91 +84,40 @@
     setQueryParams({ tab: t, range });
   }
 
+  let initialized = false;
+
   onMount(() => {
     range = getQueryParam('range', 'month');
+    startDate = getQueryParam('startDate', '');
+    endDate = getQueryParam('endDate', '');
     activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
-    showRankChanges = getShowRankChanges();
+    initialized = true;
+
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < totalItems()) {
+          visibleCount = Math.min(visibleCount + PAGE_SIZE, totalItems());
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    return () => observer?.disconnect();
+  });
+
+  $effect(() => {
+    if (sentinel && observer) observer.observe(sentinel);
   });
 
   $effect(() => {
     void activeTab;
     void range;
     void metric;
-    loadData();
+    void startDate;
+    void endDate;
+    if (initialized) loadData();
   });
-
-  // extraer color dominante como [r,g,b]
-  // busca el pixel más saturado/vibrante de la imagen
-  function extractColor(url: string): Promise<[number, number, number]> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const size = 32;
-          canvas.width = size;
-          canvas.height = size;
-          const ctx = canvas.getContext('2d')!;
-          ctx.drawImage(img, 0, 0, size, size);
-          const data = ctx.getImageData(0, 0, size, size).data;
-
-          // recoger todos los pixeles con su saturación
-          let bestR = 0, bestG = 0, bestB = 0, bestScore = -1;
-          // también acumular promedio como fallback
-          let sumR = 0, sumG = 0, sumB = 0, count = 0;
-
-          for (let i = 0; i < data.length; i += 4) {
-            const pr = data[i], pg = data[i+1], pb = data[i+2];
-            const max = Math.max(pr, pg, pb), min = Math.min(pr, pg, pb);
-            const sat = max === 0 ? 0 : (max - min) / max;
-            const brightness = max / 255;
-            // score: saturación ponderada con brillo (preferir colores vivos y visibles)
-            const score = sat * (0.3 + brightness * 0.7);
-
-            if (brightness > 0.08) { // ignorar negro puro
-              sumR += pr; sumG += pg; sumB += pb; count++;
-            }
-            if (score > bestScore) {
-              bestScore = score;
-              bestR = pr; bestG = pg; bestB = pb;
-            }
-          }
-
-          let r: number, g: number, b: number;
-
-          if (bestScore > 0.15) {
-            // encontramos un pixel con color real
-            r = bestR; g = bestG; b = bestB;
-          } else if (count > 0) {
-            // imagen muy gris/oscura → usar promedio
-            r = Math.round(sumR / count);
-            g = Math.round(sumG / count);
-            b = Math.round(sumB / count);
-          } else {
-            resolve([29, 185, 84]);
-            return;
-          }
-
-          // asegurar brillo mínimo para visibilidad sobre fondo oscuro
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          if (lum < 90) {
-            const factor = 90 / Math.max(lum, 1);
-            r = Math.min(255, Math.round(r * factor));
-            g = Math.min(255, Math.round(g * factor));
-            b = Math.min(255, Math.round(b * factor));
-          }
-
-          resolve([r, g, b]);
-        } catch {
-          resolve([29, 185, 84]);
-        }
-      };
-      img.onerror = () => resolve([29, 185, 84]);
-      img.src = url;
-    });
-  }
 
   // extraer colores del top 10 cuando cambian los datos
   $effect(() => {
@@ -297,7 +285,7 @@
   </button>
 </div>
 
-<TimeRangeSelector value={range} onchange={setRange} />
+<TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 {#if loading}
   <div class="loading">
@@ -311,20 +299,13 @@
   {/if}
 
   {#if activeTab === 'tracks'}
-    <TrackList items={topTracks} showRank {metric} {showRankChanges} />
+    <TrackList items={topTracks.slice(0, visibleCount)} showRank {metric} />
   {:else if activeTab === 'artists'}
     <div class="track-list">
-      {#each topArtists as item, i}
+      {#each topArtists.slice(0, visibleCount) as item, i}
         {#if item.artist}
           <a href="/artist/{item.artistId}" class="track-item">
-            {#if showRankChanges}
-              <div class="rank-cell">
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
-              </div>
-            {:else}
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-            {/if}
+            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {#if item.artist.imageUrl}
               <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
             {:else}
@@ -343,17 +324,10 @@
     </div>
   {:else}
     <div class="track-list">
-      {#each topAlbums as item, i}
+      {#each topAlbums.slice(0, visibleCount) as item, i}
         {#if item.album}
           <a href="/album/{item.albumId}" class="track-item">
-            {#if showRankChanges}
-              <div class="rank-cell">
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
-              </div>
-            {:else}
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-            {/if}
+            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {#if item.album.imageUrl}
               <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
             {:else}
@@ -370,6 +344,12 @@
           </a>
         {/if}
       {/each}
+    </div>
+  {/if}
+
+  {#if visibleCount < totalItems()}
+    <div class="scroll-sentinel" bind:this={sentinel}>
+      <div class="spinner"></div>
     </div>
   {/if}
 {/if}

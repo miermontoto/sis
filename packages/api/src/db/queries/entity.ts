@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
-import { entityJoins, entityGroupCol, entityWhereCol, rangeWhere, rangeWhereClause, orderByCol, getDateTrunc } from './helpers.js';
+import { entityJoins, entityGroupCol, entityWhereCol, rangeWhere, rangeWhereClause, orderByCol, getDateTrunc, getDateTruncForDays, mergeRulesJoin } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 
 // helper: construir IN (...) con IDs literales
@@ -12,10 +12,10 @@ function inList(ids: string[], tableAlias = 't') {
 }
 
 /** Stats agregados para cualquier entidad. Para álbumes, pasar albumIds pre-resueltos. */
-export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, albumIds?: string[]): StatsRow {
+export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, rangeEnd?: string | null, albumIds?: string[]): StatsRow {
   const join = entityJoins(entityType);
   const where = entityType === 'album' && albumIds ? inList(albumIds) : entityWhereCol(entityType, entityId);
-  const wr = rangeWhere(rangeStart);
+  const wr = rangeWhere(rangeStart, rangeEnd);
 
   return db.all(sql`
     SELECT count(*) as play_count, coalesce(sum(t.duration_ms), 0) as total_ms,
@@ -28,10 +28,10 @@ export function getEntityStats(db: Db, entityType: EntityType, entityId: string,
 }
 
 /** Top entidades con agregados de reproducciones */
-export function getTopEntities(db: Db, entityType: EntityType, rangeStart: string | null, sort: Sort, limit: number): AggregateRow[] {
+export function getTopEntities(db: Db, entityType: EntityType, rangeStart: string | null, sort: Sort, limit: number, rangeEnd?: string | null): AggregateRow[] {
   const join = entityJoins(entityType);
   const groupCol = entityGroupCol(entityType);
-  const wc = rangeWhereClause(rangeStart);
+  const wc = rangeWhereClause(rangeStart, rangeEnd);
   const ob = orderByCol(sort);
 
   if (entityType === 'album') {
@@ -41,6 +41,7 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
         SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
+        ${mergeRulesJoin}
         ${wc}
         GROUP BY t.album_id
         HAVING t.album_id IS NOT NULL
@@ -76,6 +77,7 @@ export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart:
         SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
+        ${mergeRulesJoin}
         WHERE lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd}
         GROUP BY t.album_id
         HAVING t.album_id IS NOT NULL
@@ -99,11 +101,11 @@ export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart:
 }
 
 /** Serie temporal. Para álbumes, pasar albumIds pre-resueltos. */
-export function getEntitySeries(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, range: TimeRange, albumIds?: string[]): SeriesRow[] {
+export function getEntitySeries(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, range: TimeRange, albumIds?: string[], rangeEnd?: string | null, customDays?: number): SeriesRow[] {
   const join = entityJoins(entityType);
   const where = entityType === 'album' && albumIds ? inList(albumIds) : entityWhereCol(entityType, entityId);
-  const wr = rangeWhere(rangeStart);
-  const dateTrunc = getDateTrunc(range);
+  const wr = rangeWhere(rangeStart, rangeEnd);
+  const dateTrunc = customDays != null ? getDateTruncForDays(customDays) : getDateTrunc(range);
 
   return db.all(sql`
     SELECT ${dateTrunc} as period, count(*) as play_count, sum(t.duration_ms) as total_ms
@@ -117,8 +119,8 @@ export function getEntitySeries(db: Db, entityType: EntityType, entityId: string
 }
 
 /** Serie temporal global */
-export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: string): SeriesRow[] {
-  const wc = rangeWhereClause(rangeStart);
+export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: string, rangeEnd?: string | null): SeriesRow[] {
+  const wc = rangeWhereClause(rangeStart, rangeEnd);
   const dateTrunc = granularity === 'month'
     ? sql`strftime('%Y-%m', lh.played_at)`
     : granularity === 'week'

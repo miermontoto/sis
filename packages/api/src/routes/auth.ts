@@ -26,6 +26,15 @@ auth.get('/login', (c) => {
     return c.json({ error: 'faltan variables de entorno SPOTIFY_CLIENT_ID o SPOTIFY_REDIRECT_URI' }, 500);
   }
 
+  // guardar returnTo en cookie para recuperar después del callback
+  const returnTo = c.req.query('returnTo') || '/';
+  setCookie(c, 'sis_return_to', returnTo, {
+    httpOnly: true,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 10 * 60, // 10 min, mismo que el state
+  });
+
   const state = crypto.randomBytes(16).toString('hex');
   pendingStates.add(state);
 
@@ -125,8 +134,15 @@ auth.get('/callback', async (c) => {
   // iniciar polling ahora que tenemos tokens
   restartPolling();
 
+  // recuperar returnTo y limpiar cookie
+  const returnTo = getCookie(c, 'sis_return_to') || '/';
+  deleteCookie(c, 'sis_return_to', { path: '/' });
+
+  // solo permitir rutas relativas para evitar open redirect
+  const safePath = returnTo.startsWith('/') ? returnTo : '/';
+
   console.log('[auth] OAuth completado exitosamente');
-  return c.redirect('/');
+  return c.redirect(safePath);
 });
 
 auth.get('/logout', (c) => {

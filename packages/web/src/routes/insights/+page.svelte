@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData } from '$lib/api';
+  import { api, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatHours, DAY_NAMES } from '$lib/utils/format';
   import type { EChartsOption } from 'echarts';
 
-  let range = $state('month');
+  let range = $state('all');
+  let startDate = $state('');
+  let endDate = $state('');
   let listeningData = $state<ListeningTimeItem[]>([]);
   let heatmap = $state<HeatmapItem[]>([]);
   let genres = $state<GenreItem[]>([]);
@@ -15,18 +17,30 @@
   let loading = $state(true);
 
   function granularityForRange(r: string): string {
+    if (r === 'custom' && startDate && endDate) {
+      const days = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+      if (days <= 30) return 'day';
+      if (days <= 180) return 'week';
+      return 'month';
+    }
     if (r === 'week' || r === 'month') return 'day';
     if (r === '3months' || r === '6months') return 'week';
     return 'month';
   }
 
+  function getCustomDates(): DateRangeParams | undefined {
+    if (range === 'custom' && startDate && endDate) return { startDate, endDate };
+    return undefined;
+  }
+
   async function loadData() {
     loading = true;
     try {
+      const dates = getCustomDates();
       [listeningData, heatmap, genres, streaks] = await Promise.all([
-        api.listeningTime(range, granularityForRange(range)),
-        api.heatmap(range),
-        api.topGenres(range, 10),
+        api.listeningTime(range, granularityForRange(range), dates),
+        api.heatmap(range, dates),
+        api.topGenres(range, 10, dates),
         api.streaks(),
       ]);
     } finally {
@@ -36,16 +50,42 @@
 
   function setRange(r: string) {
     range = r;
-    setQueryParams({ range: r });
+    if (r !== 'custom') {
+      startDate = '';
+      endDate = '';
+      setQueryParams({ range: r, startDate: null, endDate: null });
+    } else {
+      if (!startDate || !endDate) {
+        const now = new Date();
+        endDate = now.toISOString().split('T')[0];
+        const start = new Date(now);
+        start.setDate(start.getDate() - 30);
+        startDate = start.toISOString().split('T')[0];
+      }
+      setQueryParams({ range: r, startDate, endDate });
+    }
   }
 
+  function setCustomDates(s: string, e: string) {
+    startDate = s;
+    endDate = e;
+    setQueryParams({ startDate: s, endDate: e });
+  }
+
+  let initialized = false;
+
   onMount(() => {
-    range = getQueryParam('range', 'month');
+    range = getQueryParam('range', 'all');
+    startDate = getQueryParam('startDate', '');
+    endDate = getQueryParam('endDate', '');
+    initialized = true;
   });
 
   $effect(() => {
     void range;
-    loadData();
+    void startDate;
+    void endDate;
+    if (initialized) loadData();
   });
 
   let totalMs = $derived(listeningData.reduce((s, d) => s + d.total_ms, 0));
@@ -115,7 +155,7 @@
   <p>Listening patterns and habits</p>
 </div>
 
-<TimeRangeSelector value={range} onchange={setRange} />
+<TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 {#if loading}
   <div class="loading"><div class="spinner"></div></div>

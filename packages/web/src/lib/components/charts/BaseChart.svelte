@@ -32,9 +32,13 @@
   interface Props {
     option: EChartsOption;
     height?: string;
+    onclick?: (params: any) => void;
+    onmouseover?: (params: any) => void;
+    onmouseout?: (params: any) => void;
+    instance?: echarts.ECharts | null;
   }
 
-  let { option, height = '300px' }: Props = $props();
+  let { option, height = '300px', onclick, onmouseover, onmouseout, instance = $bindable(null) }: Props = $props();
   let container = $state<HTMLElement | null>(null);
   let chart: echarts.ECharts | null = null;
 
@@ -55,7 +59,11 @@
     if (!container) return;
 
     chart = echarts.init(container, darkTheme);
+    instance = chart;
     chart.setOption(option);
+    if (onclick) chart.on('click', onclick);
+    if (onmouseover) chart.on('mouseover', onmouseover);
+    if (onmouseout) chart.on('mouseout', onmouseout);
 
     const resizeObserver = new ResizeObserver(() => chart?.resize());
     resizeObserver.observe(container);
@@ -64,6 +72,7 @@
       resizeObserver.disconnect();
       chart?.dispose();
       chart = null;
+      instance = null;
     };
   });
 

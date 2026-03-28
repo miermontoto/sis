@@ -1,50 +1,67 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type TrackDetail, type Rankings, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
-  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
-  import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
+  import { extractColor } from '$lib/utils/color';
+  import TrackList from '$lib/components/TrackList.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
+  import RankingBadges from '$lib/components/RankingBadges.svelte';
+  import Accolades from '$lib/components/Accolades.svelte';
+
   import type { EChartsOption } from 'echarts';
 
   let data = $state<TrackDetail | null>(null);
-  let rankings = $state<Rankings | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let loading = $state(true);
-  let range = $state('all');
+  let heroColor = $state('');
+  let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
+  const fetchCtrl = createFetchController();
 
-  async function loadData() {
+  async function loadData(id: string) {
+    const signal = fetchCtrl.reset();
     loading = true;
-    rankings = null;
     try {
-      data = await api.trackDetail($page.params.id, range);
-      api.rankings('track', $page.params.id, metric).then(r => rankings = r).catch(() => {});
+      const result = await api.trackDetail(id, 'all', signal);
+      if (signal.aborted) return;
+      data = result;
+      const imgUrl = result.track.album?.imageUrl;
+      if (imgUrl) {
+        extractColor(imgUrl).then(([r, g, b]) => {
+          if (!signal.aborted) heroColor = `${r},${g},${b}`;
+        });
+      } else {
+        heroColor = '';
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      loading = false;
+      if (!signal.aborted) loading = false;
     }
   }
 
-  function setRange(r: string) {
-    range = r;
-    setQueryParams({ range: r });
-  }
+  let initialized = false;
+  let prevId = '';
 
   onMount(() => {
-    range = getQueryParam('range', 'all');
     metric = getRankingMetric();
+    initialized = true;
   });
 
   $effect(() => {
     const id = $page.params.id;
-    void range;
-    if (id) loadData();
+    if (!initialized || !id) return;
+    if (id !== prevId) {
+      data = null;
+      chartHistoryData = null;
+      prevId = id;
+    }
+    loadData(id);
   });
-
-  const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
 
   let chartOption = $derived.by<EChartsOption>(() => {
     if (!data?.series.length) return {};
@@ -63,31 +80,35 @@
 {#if loading && !data}
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
-  <div class="detail-hero">
-    {#if data.track.album?.imageUrl}
-      <img class="detail-image" src={data.track.album.imageUrl} alt={data.track.album?.name ?? ''} />
-    {:else}
-      <div class="detail-image detail-image--placeholder"></div>
-    {/if}
-    <div class="detail-header-info">
-      <h1>{data.track.name}</h1>
-      <p class="detail-subtitle">
-        {#each data.track.artists as artist, i}
-          <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}, {/if}
-        {/each}
-      </p>
-      {#if data.track.album}
-        <p class="detail-album">
-          <a href="/album/{data.track.album.id}">{data.track.album.name}</a>
-          {#if data.track.album.releaseDate}
-            <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
-          {/if}
-        </p>
+  {#if heroColor}
+    <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
+  {/if}
+  <div class="detail-hero-row">
+    <div class="detail-hero">
+      {#if data.track.album?.imageUrl}
+        <img class="detail-image" src={data.track.album.imageUrl} alt={data.track.album?.name ?? ''} />
+      {:else}
+        <div class="detail-image detail-image--placeholder"></div>
       {/if}
+      <div class="detail-header-info">
+        <h1>{data.track.name}</h1>
+        <p class="detail-subtitle">
+          {#each data.track.artists as artist, i}
+            <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
+          {/each}
+        </p>
+        {#if data.track.album}
+          <p class="detail-album">
+            <a href="/album/{data.track.album.id}">{data.track.album.name}</a>
+            {#if data.track.album.releaseDate}
+              <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
+            {/if}
+          </p>
+        {/if}
+      </div>
     </div>
+    <Accolades entityType="track" entityId={$page.params.id} />
   </div>
-
-  <TimeRangeSelector value={range} onchange={setRange} />
 
   <div class="stats-grid">
     <div class="card stat-card">
@@ -108,19 +129,16 @@
         <div class="stat-label">First played</div>
       </div>
     {/if}
-  </div>
-
-  <div class="rankings-row">
-    {#each Object.entries(rankLabels) as [key, label]}
-      {@const rank = rankings?.[key as keyof Rankings] ?? null}
-      <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
-        <span class="ranking-label">{label}</span>
-        <span class="ranking-value" style:color={rank ? medalColor(rank) : undefined}>{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
+    {#if data.stats.last_played}
+      <div class="card stat-card">
+        <div class="stat-value">{new Date(data.stats.last_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+        <div class="stat-label">Last played</div>
       </div>
-    {/each}
+    {/if}
   </div>
 
-  <ChartStats entityType="tracks" entityId={$page.params.id} bind:chartData={chartHistoryData} />
+  <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
+  <ChartStats entityType="tracks" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
 
   {#if data.albumBreakdown.length > 1}
     <h2 class="section-title">Played in</h2>
@@ -151,6 +169,11 @@
     <div class="card chart-card">
       <BaseChart option={chartOption} height="260px" />
     </div>
+  {/if}
+
+  {#if data.recentPlays.length > 0}
+    <h2 class="section-title">Recent plays</h2>
+    <TrackList items={data.recentPlays} showTime />
   {/if}
 {/if}
 

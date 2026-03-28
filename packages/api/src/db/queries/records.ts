@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { resolvedAlbumId } from './helpers.js';
+import { resolvedAlbumId, mergeRulesJoin } from './helpers.js';
+import { CHART_SIZE } from '../../constants.js';
 
 type Sort = 'plays' | 'time';
 type WeekStart = 'monday' | 'sunday' | 'friday';
@@ -41,7 +42,6 @@ interface EntityRecords {
 interface ArtistRecords extends EntityRecords {
   mostNo1Tracks: ArtistRecordEntry[];
   mostNo1Albums: ArtistRecordEntry[];
-  mostNo1DebutTracks: ArtistRecordEntry[];
 }
 
 export interface RecordsResponse {
@@ -91,6 +91,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Enti
              ROW_NUMBER() OVER (PARTITION BY ${week} ORDER BY ${metric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
+      ${mergeRulesJoin}
       WHERE t.album_id IS NOT NULL
       GROUP BY w, eid
     ),
@@ -147,7 +148,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Art
       JOIN tracks t ON t.spotify_id = lh.track_id
       GROUP BY w, lh.track_id
     )
-    SELECT ta.artist_id, a.name, a.image_url, COUNT(DISTINCT wt.tid) as count
+    SELECT ta.artist_id as artistId, a.name, a.image_url as imageUrl, COUNT(DISTINCT wt.tid) as count
     FROM weekly_tracks wt
     JOIN track_artists ta ON ta.track_id = wt.tid AND ta.position = 0
     JOIN artists a ON a.spotify_id = ta.artist_id
@@ -163,10 +164,11 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Art
              ROW_NUMBER() OVER (PARTITION BY ${trackWeek} ORDER BY ${trackMetric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
+      ${mergeRulesJoin}
       WHERE t.album_id IS NOT NULL
       GROUP BY w, aid
     )
-    SELECT ta.artist_id, a.name, a.image_url, COUNT(DISTINCT wa.aid) as count
+    SELECT ta.artist_id as artistId, a.name, a.image_url as imageUrl, COUNT(DISTINCT wa.aid) as count
     FROM weekly_albums wa
     JOIN tracks t2 ON t2.album_id = wa.aid
     JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
@@ -177,34 +179,10 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Art
     LIMIT ${limit}
   `) as ArtistRecordEntry[];
 
-  // artistas con más tracks que debutaron en #1
-  const mostNo1DebutTracks = db.all(sql`
-    WITH weekly_tracks AS (
-      SELECT ${trackWeek} as w, lh.track_id as tid, ${trackMetric} as val,
-             ROW_NUMBER() OVER (PARTITION BY ${trackWeek} ORDER BY ${trackMetric} DESC) as rank
-      FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
-      GROUP BY w, lh.track_id
-    ),
-    first_week AS (
-      SELECT tid, MIN(w) as debut_week FROM weekly_tracks GROUP BY tid
-    )
-    SELECT ta.artist_id, a.name, a.image_url, COUNT(DISTINCT wt.tid) as count
-    FROM weekly_tracks wt
-    JOIN first_week fw ON fw.tid = wt.tid AND fw.debut_week = wt.w
-    JOIN track_artists ta ON ta.track_id = wt.tid AND ta.position = 0
-    JOIN artists a ON a.spotify_id = ta.artist_id
-    WHERE wt.rank = 1
-    GROUP BY ta.artist_id
-    ORDER BY count DESC
-    LIMIT ${limit}
-  `) as ArtistRecordEntry[];
-
   return {
     ...base,
     mostNo1Tracks,
     mostNo1Albums,
-    mostNo1DebutTracks,
   };
 }
 
@@ -248,10 +226,10 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   }
   mostWeeksAtNo1.sort((a, b) => b.value - a.value);
 
-  // 4. Most weeks in Top 5
+  // 4. Most weeks in the charts (top 25)
   const mostWeeksInTop5: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
-    const weeks = data.rows.filter((r: any) => r.rank <= 5).length;
+    const weeks = data.rows.filter((r: any) => r.rank <= CHART_SIZE).length;
     if (weeks > 0) {
       mostWeeksInTop5.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName, value: weeks, week: null });
     }

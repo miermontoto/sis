@@ -1,12 +1,13 @@
 // tipos y helpers
 export type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow } from './helpers.js';
-export { getRangeStart, getPreviousPeriodRange, getDateTrunc } from './helpers.js';
+export { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getDateTrunc, getDateTruncForDays } from './helpers.js';
 
 // queries genéricas de entidad
 export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getGlobalSeries, getRecentPlays } from './entity.js';
 
 // rankings
-export { computeRankings } from './rankings.js';
+export { computeRankings, getRankingHistory } from './rankings.js';
+export type { RankingHistoryPoint } from './rankings.js';
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';

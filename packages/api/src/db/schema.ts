@@ -69,6 +69,15 @@ export const mergeRules = sqliteTable('merge_rules', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+export const userSettings = sqliteTable('user_settings', {
+  userId: text('user_id').notNull(),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.key] }),
+]);
+
 export const pollingState = sqliteTable('polling_state', {
   id: integer('id').primaryKey().default(1),
   lastRecentlyPlayedCursor: text('last_recently_played_cursor'),

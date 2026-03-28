@@ -2,14 +2,16 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   RECENTLY_PLAYED_INTERVAL_MS,
   RECENTLY_PLAYED_LIMIT,
   METADATA_REFRESH_INTERVAL_MS,
+  RECORDS_CACHE_INTERVAL_MS,
 } from '../constants.js';
+import { computeAndCacheRecords } from './records-cache.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
   SpotifyRecentlyPlayedResponse,
@@ -19,6 +21,7 @@ let currentlyPlayingTimer: ReturnType<typeof setInterval> | null = null;
 let recentlyPlayedTimer: ReturnType<typeof setInterval> | null = null;
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
+let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 
 const ARTIST_FIX_INTERVAL_MS = 5 * 60_000; // cada 5 minutos
 
@@ -177,13 +180,20 @@ export function startPolling() {
 
   // verificar artistas de tracks + deduplicar, cada 5 min hasta completar
   fixTrackArtistAssociations()
-    .then(() => { deduplicateTracks(); deduplicateAlbums(); })
+    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
     .catch(err => console.error('[resolve] error verificando artistas:', err));
   artistFixTimer = setInterval(
     () => fixTrackArtistAssociations()
-      .then(() => { deduplicateTracks(); deduplicateAlbums(); })
+      .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
       .catch(err => console.error('[resolve] error verificando artistas:', err)),
     ARTIST_FIX_INTERVAL_MS,
+  );
+
+  // pre-computar records cache
+  try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); }
+  recordsCacheTimer = setInterval(
+    () => { try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); } },
+    RECORDS_CACHE_INTERVAL_MS,
   );
 
   console.log(`[poll] currently playing cada ${CURRENTLY_PLAYING_INTERVAL_MS / 1000}s`);
@@ -195,10 +205,12 @@ export function stopPolling() {
   if (recentlyPlayedTimer) clearInterval(recentlyPlayedTimer);
   if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
   if (artistFixTimer) clearInterval(artistFixTimer);
+  if (recordsCacheTimer) clearInterval(recordsCacheTimer);
   currentlyPlayingTimer = null;
   recentlyPlayedTimer = null;
   metadataRefreshTimer = null;
   artistFixTimer = null;
+  recordsCacheTimer = null;
   console.log('[poll] polling detenido');
 }
 

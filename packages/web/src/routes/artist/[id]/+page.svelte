@@ -1,65 +1,80 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type ArtistDetail, type Rankings, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
-  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
+  import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
-  import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import MergeAlbumModal from '$lib/components/MergeAlbumModal.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
+  import RankingBadges from '$lib/components/RankingBadges.svelte';
+  import Accolades from '$lib/components/Accolades.svelte';
+
   import type { EChartsOption } from 'echarts';
 
   let data = $state<ArtistDetail | null>(null);
-  let rankings = $state<Rankings | null>(null);
   let loading = $state(true);
-  let range = $state('all');
+  let heroColor = $state('');
+  let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
   let showAllTracks = $state(false);
   let showAllAlbums = $state(false);
   let showMergeModal = $state(false);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let mergeTarget = $state<{ id: string; name: string; imageUrl: string | null } | null>(null);
+  const fetchCtrl = createFetchController();
 
-  async function loadData() {
+  async function loadData(id: string) {
+    const signal = fetchCtrl.reset();
     loading = true;
-    rankings = null;
     try {
       const sort = metric === 'plays' ? 'plays' : 'time';
-      data = await api.artistDetail($page.params.id, range, {
+      const result = await api.artistDetail(id, 'all', {
         sort,
         trackLimit: showAllTracks ? 200 : 10,
         albumLimit: showAllAlbums ? 200 : 5,
+        signal,
       });
-      // cargar rankings async (no bloquea renderizado)
-      api.rankings('artist', $page.params.id, metric).then(r => rankings = r).catch(() => {});
+      if (signal.aborted) return;
+      data = result;
+      if (result.artist.imageUrl) {
+        extractColor(result.artist.imageUrl).then(([r, g, b]) => {
+          if (!signal.aborted) heroColor = `${r},${g},${b}`;
+        });
+      } else {
+        heroColor = '';
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      loading = false;
+      if (!signal.aborted) loading = false;
     }
   }
 
-  function setRange(r: string) {
-    range = r;
-    setQueryParams({ range: r });
-  }
+  let initialized = false;
+  let prevId = '';
 
   onMount(() => {
-    range = getQueryParam('range', 'all');
     metric = getRankingMetric();
+    initialized = true;
   });
 
   $effect(() => {
     const id = $page.params.id;
-    void range;
     void metric;
     void showAllTracks;
     void showAllAlbums;
-    if (id) loadData();
+    if (!initialized || !id) return;
+    if (id !== prevId) {
+      data = null;
+      chartHistoryData = null;
+      prevId = id;
+    }
+    loadData(id);
   });
-
-  const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
 
   let chartOption = $derived.by<EChartsOption>(() => {
     if (!data?.series.length) return {};
@@ -78,21 +93,22 @@
 {#if loading && !data}
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
-  <div class="detail-hero">
-    {#if data.artist.imageUrl}
-      <img class="detail-image detail-image--round" src={data.artist.imageUrl} alt={data.artist.name} />
-    {:else}
-      <div class="detail-image detail-image--round detail-image--placeholder"></div>
-    {/if}
-    <div class="detail-header-info">
-      <h1>{data.artist.name}</h1>
-      {#if data.artist.genres?.length}
-        <p class="detail-subtitle">{data.artist.genres.join(', ')}</p>
+  {#if heroColor}
+    <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
+  {/if}
+  <div class="detail-hero-row">
+    <div class="detail-hero">
+      {#if data.artist.imageUrl}
+        <img class="detail-image detail-image--round" src={data.artist.imageUrl} alt={data.artist.name} />
+      {:else}
+        <div class="detail-image detail-image--round detail-image--placeholder"></div>
       {/if}
+      <div class="detail-header-info">
+        <h1>{data.artist.name}</h1>
+      </div>
     </div>
+    <Accolades entityType="artist" entityId={$page.params.id} />
   </div>
-
-  <TimeRangeSelector value={range} onchange={setRange} />
 
   <div class="stats-grid">
     <div class="card stat-card">
@@ -109,19 +125,16 @@
         <div class="stat-label">First played</div>
       </div>
     {/if}
-  </div>
-
-  <div class="rankings-row">
-    {#each Object.entries(rankLabels) as [key, label]}
-      {@const rank = rankings?.[key as keyof Rankings] ?? null}
-      <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
-        <span class="ranking-label">{label}</span>
-        <span class="ranking-value" style:color={rank ? medalColor(rank) : undefined}>{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
+    {#if data.stats.last_played}
+      <div class="card stat-card">
+        <div class="stat-value">{new Date(data.stats.last_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+        <div class="stat-label">Last played</div>
       </div>
-    {/each}
+    {/if}
   </div>
 
-  <ChartStats entityType="artists" entityId={$page.params.id} bind:chartData={chartHistoryData} />
+  <RankingBadges entityType="artist" entityId={$page.params.id} bind:highlightedMonth />
+  <ChartStats entityType="artists" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
 
   {#if data.series.length > 1}
     <div class="card chart-card">
@@ -182,7 +195,7 @@
     bind:show={showMergeModal}
     targetAlbum={mergeTarget}
     artistId={$page.params.id}
-    onMerged={loadData}
+    onMerged={() => loadData($page.params.id)}
   />
 {/if}
 

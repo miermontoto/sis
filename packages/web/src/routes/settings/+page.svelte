@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getShowRankChanges, setShowRankChanges, getWeekStart, setWeekStart, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
 
   let health = $state<HealthData | null>(null);
@@ -10,11 +10,11 @@
 
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
-  let showRankChanges = $state(true);
   let weekStartPref = $state<WeekStartOption>('monday');
 
   // merges
   let merges = $state<MergeRule[]>([]);
+  let mergeSearch = $state('');
 
   async function loadMerges() {
     try { merges = await api.listMerges(); } catch { merges = []; }
@@ -52,14 +52,8 @@
     setRankingMetric(m);
   }
 
-  function handleRankChangesToggle() {
-    showRankChanges = !showRankChanges;
-    setShowRankChanges(showRankChanges);
-  }
-
   onMount(async () => {
     rankingMetric = getRankingMetric();
-    showRankChanges = getShowRankChanges();
     weekStartPref = getWeekStart();
     try {
       [health, streaks] = await Promise.all([
@@ -139,17 +133,6 @@
               Plays
             </button>
           </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Position changes</div>
-          <div class="pref-desc">Show rank movement indicators in top lists (compared to previous period)</div>
-        </div>
-        <div class="pref-control">
-          <button class="toggle" class:toggle-on={showRankChanges} onclick={handleRankChangesToggle}>
-            <span class="toggle-knob"></span>
-          </button>
         </div>
       </div>
       <div class="pref-row row-border">
@@ -326,8 +309,14 @@
 
   {#if merges.length > 0}
     {@const mergeTree = (() => {
+      const term = mergeSearch.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const byArtist = new Map<string, { artistName: string; artistId: string; artistImage: string | null; targets: Map<string, { targetName: string; targetImage: string | null; targetId: string; sources: typeof merges }> }>();
       for (const m of merges) {
+        if (term) {
+          const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const match = norm(m.artist_name ?? '').includes(term) || norm(m.target_name).includes(term) || norm(m.source_name).includes(term);
+          if (!match) continue;
+        }
         const aKey = m.artist_id ?? 'unknown';
         if (!byArtist.has(aKey)) byArtist.set(aKey, { artistName: m.artist_name ?? 'Unknown', artistId: aKey, artistImage: m.artist_image, targets: new Map() });
         const artist = byArtist.get(aKey)!;
@@ -337,7 +326,10 @@
       return [...byArtist.values()];
     })()}
     <div class="card section-card">
-      <h3 class="section-card-title">Album merges</h3>
+      <div class="merge-header">
+        <h3 class="section-card-title">Album merges</h3>
+        <input class="merge-search" type="text" placeholder="Filter merges..." bind:value={mergeSearch} />
+      </div>
       <div class="merge-tree">
         {#each mergeTree as artist}
           <div class="merge-artist">
@@ -639,6 +631,36 @@
     border-top: 1px solid var(--border);
     padding-top: 0.75rem;
     margin-top: 0.25rem;
+  }
+
+  /* merge header + search */
+  .merge-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .merge-header .section-card-title {
+    margin-bottom: 0;
+  }
+  .merge-search {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: var(--font);
+    padding: 0.35rem 0.7rem;
+    outline: none;
+    width: 180px;
+    transition: border-color 0.15s;
+  }
+  .merge-search:focus {
+    border-color: var(--accent);
+  }
+  .merge-search::placeholder {
+    color: var(--text-muted);
   }
 
   /* merge tree */

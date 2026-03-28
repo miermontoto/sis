@@ -4,6 +4,8 @@
   import { goto } from '$app/navigation';
   import type { Snippet } from 'svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
+  import NowPlaying from '$lib/components/NowPlaying.svelte';
+  import { loadSettings } from '$lib/api';
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);
@@ -19,8 +21,8 @@
     authCheckDone = true;
     fetch('/api/health')
       .then((res) => {
-        if (res.status === 401) goto('/login');
-        else authChecked = true;
+        if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
+        else { loadSettings().finally(() => { authChecked = true; }); }
       })
       .catch(() => {
         authChecked = true;
@@ -75,6 +77,9 @@
           </a>
         {/each}
       </nav>
+      <div class="sidebar-now-playing">
+        <NowPlaying compact />
+      </div>
     </aside>
     <main class="main-content">
       <div class="mobile-header">

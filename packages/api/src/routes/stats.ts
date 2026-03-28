@@ -2,13 +2,14 @@ import { Hono } from 'hono';
 import { sql, eq, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { listeningHistory, tracks, artists, trackArtists, albums } from '../db/schema.js';
-import { DEFAULT_PAGE_LIMIT } from '../constants.js';
+import { DEFAULT_PAGE_LIMIT, CHART_SIZE } from '../constants.js';
+import { getCachedRecords, getEntityAccolades } from '../services/records-cache.js';
 import type { TimeRange } from '../constants.js';
 import {
-  getRangeStart, getPreviousPeriodRange,
+  getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom,
   getTopEntities, getPrevPeriodEntities,
   getEntityStats, getEntitySeries, getGlobalSeries,
-  getRecentPlays, computeRankings,
+  getRecentPlays, computeRankings, getRankingHistory,
   getArtistTopTracks, getArtistTopAlbums,
   resolveAlbumIds, getAlbumArtists, getAlbumTracks,
   getTrackAlbumBreakdown,
@@ -20,11 +21,22 @@ const stats = new Hono();
 
 // helper: extraer parámetros comunes
 function parseParams(c: any) {
-  const range = (c.req.query('range') || 'month') as TimeRange;
   const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 200);
-  const rangeStart = getRangeStart(range);
   const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
-  return { range, limit, rangeStart, sort };
+
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+
+  if (startDate && endDate) {
+    const rangeStart = startDate + 'T00:00:00.000Z';
+    const rangeEnd = endDate + 'T23:59:59.999Z';
+    const customDays = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+    return { range: 'custom' as const, limit, rangeStart, rangeEnd, sort, customDays };
+  }
+
+  const range = (c.req.query('range') || 'month') as TimeRange;
+  const rangeStart = getRangeStart(range);
+  return { range, limit, rangeStart, rangeEnd: null as string | null, sort, customDays: undefined as number | undefined };
 }
 
 // helper: enriquecer track_id con metadata completa
@@ -67,12 +79,14 @@ function rankChangeFields(prev: ReturnType<typeof getPreviousPeriodRange>, prevR
 // --- top endpoints ---
 
 stats.get('/top-tracks', (c) => {
-  const { range, limit, rangeStart, sort } = parseParams(c);
+  const { range, limit, rangeStart, rangeEnd, sort } = parseParams(c);
   const db = getDb();
 
-  const rows = getTopEntities(db, 'track', rangeStart, sort, limit);
+  const rows = getTopEntities(db, 'track', rangeStart, sort, limit, rangeEnd);
 
-  const prev = getPreviousPeriodRange(range);
+  const prev = range === 'custom' && rangeStart && rangeEnd
+    ? getPreviousPeriodRangeCustom(rangeStart, rangeEnd)
+    : range !== 'custom' ? getPreviousPeriodRange(range as TimeRange) : null;
   const prevRankMap = prev
     ? buildRankChangeMap(getPrevPeriodEntities(db, 'track', prev.prevStart, prev.prevEnd, sort))
     : new Map<string, number>();
@@ -97,12 +111,14 @@ stats.get('/top-tracks', (c) => {
 });
 
 stats.get('/top-artists', (c) => {
-  const { range, limit, rangeStart, sort } = parseParams(c);
+  const { range, limit, rangeStart, rangeEnd, sort } = parseParams(c);
   const db = getDb();
 
-  const rows = getTopEntities(db, 'artist', rangeStart, sort, limit);
+  const rows = getTopEntities(db, 'artist', rangeStart, sort, limit, rangeEnd);
 
-  const prev = getPreviousPeriodRange(range);
+  const prev = range === 'custom' && rangeStart && rangeEnd
+    ? getPreviousPeriodRangeCustom(rangeStart, rangeEnd)
+    : range !== 'custom' ? getPreviousPeriodRange(range as TimeRange) : null;
   const prevRankMap = prev
     ? buildRankChangeMap(getPrevPeriodEntities(db, 'artist', prev.prevStart, prev.prevEnd, sort))
     : new Map<string, number>();
@@ -122,12 +138,14 @@ stats.get('/top-artists', (c) => {
 });
 
 stats.get('/top-albums', (c) => {
-  const { range, limit, rangeStart, sort } = parseParams(c);
+  const { range, limit, rangeStart, rangeEnd, sort } = parseParams(c);
   const db = getDb();
 
-  const rows = getTopEntities(db, 'album', rangeStart, sort, limit);
+  const rows = getTopEntities(db, 'album', rangeStart, sort, limit, rangeEnd);
 
-  const prev = getPreviousPeriodRange(range);
+  const prev = range === 'custom' && rangeStart && rangeEnd
+    ? getPreviousPeriodRangeCustom(rangeStart, rangeEnd)
+    : range !== 'custom' ? getPreviousPeriodRange(range as TimeRange) : null;
   const prevRankMap = prev
     ? buildRankChangeMap(getPrevPeriodEntities(db, 'album', prev.prevStart, prev.prevEnd, sort))
     : new Map<string, number>();
@@ -149,10 +167,12 @@ stats.get('/top-albums', (c) => {
 // --- specialized endpoints (no se extraen a queries) ---
 
 stats.get('/top-genres', (c) => {
-  const { limit, rangeStart } = parseParams(c);
+  const { limit, rangeStart, rangeEnd } = parseParams(c);
   const db = getDb();
 
-  const whereClause = rangeStart
+  const whereClause = rangeStart && rangeEnd
+    ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}`
+    : rangeStart
     ? sql`WHERE lh.played_at >= ${rangeStart}`
     : sql``;
 
@@ -172,11 +192,11 @@ stats.get('/top-genres', (c) => {
 });
 
 stats.get('/listening-time', (c) => {
-  const { rangeStart } = parseParams(c);
+  const { rangeStart, rangeEnd } = parseParams(c);
   const granularity = c.req.query('granularity') || 'day';
   const db = getDb();
 
-  return c.json(getGlobalSeries(db, rangeStart, granularity));
+  return c.json(getGlobalSeries(db, rangeStart, granularity, rangeEnd));
 });
 
 stats.get('/history', (c) => {
@@ -215,10 +235,12 @@ stats.get('/history', (c) => {
 });
 
 stats.get('/heatmap', (c) => {
-  const { rangeStart } = parseParams(c);
+  const { rangeStart, rangeEnd } = parseParams(c);
   const db = getDb();
 
-  const whereClause = rangeStart
+  const whereClause = rangeStart && rangeEnd
+    ? sql`WHERE played_at >= ${rangeStart} AND played_at <= ${rangeEnd}`
+    : rangeStart
     ? sql`WHERE played_at >= ${rangeStart}`
     : sql``;
 
@@ -291,7 +313,7 @@ stats.get('/streaks', (c) => {
 
 stats.get('/artist/:id', (c) => {
   const id = c.req.param('id');
-  const { range, rangeStart, sort } = parseParams(c);
+  const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
   const trackLimit = Math.min(parseInt(c.req.query('trackLimit') || '10'), 200);
   const albumLimit = Math.min(parseInt(c.req.query('albumLimit') || '5'), 200);
   const db = getDb();
@@ -299,29 +321,26 @@ stats.get('/artist/:id', (c) => {
   const artist = db.select().from(artists).where(eq(artists.spotifyId, id)).get();
   if (!artist) return c.json({ error: 'Artist not found' }, 404);
 
-  const statsRow = getEntityStats(db, 'artist', id, rangeStart);
-  const series = getEntitySeries(db, 'artist', id, rangeStart, range);
+  const statsRow = getEntityStats(db, 'artist', id, rangeStart, rangeEnd);
+  const series = getEntitySeries(db, 'artist', id, rangeStart, range === 'custom' ? 'all' : range as TimeRange, undefined, rangeEnd, customDays);
 
-  const topTracks = getArtistTopTracks(db, id, rangeStart, sort, trackLimit);
+  const topTracks = getArtistTopTracks(db, id, rangeStart, sort, trackLimit, rangeEnd);
   const topTracksResult = topTracks.map(row => {
-    const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
-    const album = track?.albumId
-      ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
-      : null;
+    const trackInfo = enrichTrack(db, row.track_id);
     return {
       trackId: row.track_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
-      track: track ? {
-        name: track.name,
-        durationMs: track.durationMs,
-        album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
-        artists: [{ id: artist.spotifyId, name: artist.name }],
+      track: trackInfo ? {
+        name: trackInfo.name,
+        durationMs: trackInfo.durationMs,
+        album: trackInfo.album,
+        artists: trackInfo.artists,
       } : null,
     };
   });
 
-  const topAlbumsRows = getArtistTopAlbums(db, id, rangeStart, sort, albumLimit);
+  const topAlbumsRows = getArtistTopAlbums(db, id, rangeStart, sort, albumLimit, rangeEnd);
   const topAlbumsResult = topAlbumsRows.map(row => {
     const album = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
     return {
@@ -334,20 +353,11 @@ stats.get('/artist/:id', (c) => {
 
   const recentPlays = getRecentPlays(db, 'artist', id, 10);
   const recentResult = recentPlays.map(row => {
-    const track = db.select().from(tracks).where(eq(tracks.spotifyId, row.track_id)).get();
-    const album = track?.albumId
-      ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
-      : null;
+    const trackInfo = enrichTrack(db, row.track_id);
     return {
       id: row.id,
       playedAt: row.played_at,
-      track: track ? {
-        id: track.spotifyId,
-        name: track.name,
-        durationMs: track.durationMs,
-        album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
-        artists: [{ id: artist.spotifyId, name: artist.name }],
-      } : null,
+      track: trackInfo,
     };
   });
 
@@ -363,7 +373,7 @@ stats.get('/artist/:id', (c) => {
 
 stats.get('/album/:id', (c) => {
   const id = c.req.param('id');
-  const { range, rangeStart, sort } = parseParams(c);
+  const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
   const db = getDb();
 
   const album = db.select().from(albums).where(eq(albums.spotifyId, id)).get();
@@ -373,10 +383,10 @@ stats.get('/album/:id', (c) => {
   const albumIds = resolveAlbumIds(db, id);
 
   const albumArtistRows = getAlbumArtists(db, id, albumIds);
-  const statsRow = getEntityStats(db, 'album', id, rangeStart, albumIds);
-  const series = getEntitySeries(db, 'album', id, rangeStart, range, albumIds);
+  const statsRow = getEntityStats(db, 'album', id, rangeStart, rangeEnd, albumIds);
+  const series = getEntitySeries(db, 'album', id, rangeStart, range === 'custom' ? 'all' : range as TimeRange, albumIds, rangeEnd, customDays);
 
-  const albumTracks = getAlbumTracks(db, id, rangeStart, sort, albumIds);
+  const albumTracks = getAlbumTracks(db, id, rangeStart, sort, albumIds, rangeEnd);
   const tracksResult = albumTracks.map(row => ({
     trackId: row.track_id,
     playCount: row.play_count,
@@ -438,7 +448,7 @@ stats.get('/album/:id', (c) => {
 
 stats.get('/track/:id', (c) => {
   const id = c.req.param('id');
-  const { range, rangeStart } = parseParams(c);
+  const { range, rangeStart, rangeEnd, customDays } = parseParams(c);
   const db = getDb();
 
   const track = db.select().from(tracks).where(eq(tracks.spotifyId, id)).get();
@@ -454,10 +464,16 @@ stats.get('/track/:id', (c) => {
     .map(ta => db.select().from(artists).where(eq(artists.spotifyId, ta.artistId)).get())
     .filter(Boolean);
 
-  const statsRow = getEntityStats(db, 'track', id, rangeStart);
-  const series = getEntitySeries(db, 'track', id, rangeStart, range);
+  const statsRow = getEntityStats(db, 'track', id, rangeStart, rangeEnd);
+  const series = getEntitySeries(db, 'track', id, rangeStart, range === 'custom' ? 'all' : range as TimeRange, undefined, rangeEnd, customDays);
 
-  const albumBreakdown = getTrackAlbumBreakdown(db, id, rangeStart);
+  const recentPlays = getRecentPlays(db, 'track', id, 10);
+  const recentResult = recentPlays.map(row => {
+    const trackInfo = enrichTrack(db, row.track_id);
+    return { id: row.id, playedAt: row.played_at, track: trackInfo };
+  });
+
+  const albumBreakdown = getTrackAlbumBreakdown(db, id, rangeStart, rangeEnd);
   const albumBreakdownResult = albumBreakdown.map(row => {
     const ab = db.select().from(albums).where(eq(albums.spotifyId, row.album_id)).get();
     return {
@@ -479,6 +495,7 @@ stats.get('/track/:id', (c) => {
     series,
     dailySeries: series.map(s => ({ day: s.period, play_count: s.play_count, total_ms: s.total_ms })),
     albumBreakdown: albumBreakdownResult,
+    recentPlays: recentResult,
   });
 });
 
@@ -501,7 +518,7 @@ stats.get('/charts', (c) => {
   const ws = c.req.query('weekStart');
   const weekStart = (ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday') as 'monday' | 'sunday' | 'friday';
   const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
-  const limit = Math.min(parseInt(c.req.query('limit') || '25'), 25);
+  const limit = Math.min(parseInt(c.req.query('limit') || String(CHART_SIZE)), CHART_SIZE);
   const period = c.req.query('period');
 
   if (!period) return c.json({ error: 'period is required' }, 400);
@@ -534,8 +551,18 @@ stats.get('/records', (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
 
   const type = c.req.query('type') as 'tracks' | 'albums' | 'artists' | undefined;
+  const cached = getCachedRecords(weekStart, sort, limit, type);
+  if (cached) return c.json(cached);
   const records = getRecords(db, weekStart, sort, limit, type);
   return c.json(records);
+});
+
+// --- accolades (records achievements per entity, from cache) ---
+
+stats.get('/accolades/:type/:id', (c) => {
+  const entityType = c.req.param('type') as 'artist' | 'track' | 'album';
+  const id = c.req.param('id');
+  return c.json(getEntityAccolades(entityType, id));
 });
 
 // --- rankings (lazy, loaded async by frontend) ---
@@ -548,6 +575,15 @@ stats.get('/rankings/:type/:id', (c) => {
 
   const rankings = computeRankings(db, entityType, id, sort);
   return c.json(rankings);
+});
+
+stats.get('/ranking-history/:type/:id', (c) => {
+  const entityType = c.req.param('type') as 'artist' | 'track' | 'album';
+  const id = c.req.param('id');
+  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
+  const db = getDb();
+
+  return c.json(getRankingHistory(db, entityType, id, sort));
 });
 
 // --- search ---
@@ -606,7 +642,6 @@ stats.get('/search', (c) => {
     ) ms ON ms.target_id = al.spotify_id
     WHERE unaccent(al.name) LIKE ${'%' + term + '%'}
       AND al.spotify_id NOT LIKE 'import:%'
-      AND al.spotify_id NOT LIKE 'local:%'
       AND al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album')
     ORDER BY playCount DESC
     LIMIT ${limit}
@@ -631,7 +666,6 @@ stats.get('/search', (c) => {
     WHERE (unaccent(t.name) LIKE ${'%' + term + '%'}
            OR unaccent(ar.name) LIKE ${'%' + term + '%'})
       AND t.spotify_id NOT LIKE 'import:%'
-      AND t.spotify_id NOT LIKE 'local:%'
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];

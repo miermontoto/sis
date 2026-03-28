@@ -1,54 +1,66 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, type AlbumDetail, type Rankings, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
-  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
-  import { medalColor } from '$lib/utils/medals';
+  import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
-  import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
-  import MergeAlbumModal from '$lib/components/MergeAlbumModal.svelte';
+  import RankingBadges from '$lib/components/RankingBadges.svelte';
+  import Accolades from '$lib/components/Accolades.svelte';
   import type { EChartsOption } from 'echarts';
 
   let data = $state<AlbumDetail | null>(null);
-  let rankings = $state<Rankings | null>(null);
   let loading = $state(true);
-  let range = $state('all');
+  let heroColor = $state('');
+  let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
-  let showMergeModal = $state(false);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
+  const fetchCtrl = createFetchController();
 
-  async function loadData() {
+  async function loadData(id: string) {
+    const signal = fetchCtrl.reset();
     loading = true;
-    rankings = null;
     try {
-      data = await api.albumDetail($page.params.id, range, metric === 'plays' ? 'plays' : 'time');
-      api.rankings('album', $page.params.id, metric).then(r => rankings = r).catch(() => {});
+      const result = await api.albumDetail(id, 'all', metric === 'plays' ? 'plays' : 'time', signal);
+      if (signal.aborted) return;
+      data = result;
+      if (result.album.imageUrl) {
+        extractColor(result.album.imageUrl).then(([r, g, b]) => {
+          if (!signal.aborted) heroColor = `${r},${g},${b}`;
+        });
+      } else {
+        heroColor = '';
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      loading = false;
+      if (!signal.aborted) loading = false;
     }
   }
 
-  function setRange(r: string) {
-    range = r;
-    setQueryParams({ range: r });
-  }
+  let initialized = false;
+  let prevId = '';
 
   onMount(() => {
-    range = getQueryParam('range', 'all');
     metric = getRankingMetric();
+    initialized = true;
   });
 
   $effect(() => {
     const id = $page.params.id;
-    void range;
     void metric;
-    if (id) loadData();
+    if (!initialized || !id) return;
+    // resetear al cambiar de álbum para mostrar spinner
+    if (id !== prevId) {
+      data = null;
+      chartHistoryData = null;
+      prevId = id;
+    }
+    loadData(id);
   });
-
-  const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
 
   let chartOption = $derived.by<EChartsOption>(() => {
     if (!data?.series.length) return {};
@@ -67,37 +79,41 @@
 {#if loading && !data}
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
-  <div class="detail-hero">
-    {#if data.album.imageUrl}
-      <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
-    {:else}
-      <div class="detail-image detail-image--placeholder"></div>
-    {/if}
-    <div class="detail-header-info">
-      <div class="album-title-row">
+  {#if heroColor}
+    <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
+  {/if}
+  <div class="detail-hero-row">
+    <div class="detail-hero">
+      {#if data.album.imageUrl}
+        <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
+      {:else}
+        <div class="detail-image detail-image--placeholder"></div>
+      {/if}
+      <div class="detail-header-info">
         <h1>{data.album.name}</h1>
-        {#if !data.mergedInto}
-          <button class="merge-header-btn" title="Manage merges" onclick={() => showMergeModal = true}>⤵ Merges</button>
+        <p class="detail-subtitle">
+          {#each data.artists as artist, i}
+            <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
+          {/each}
+        </p>
+        {#if data.album.releaseDate || data.album.totalTracks}
+          <p class="detail-meta-line">
+            {#if data.album.releaseDate}{data.album.releaseDate}{/if}
+            {#if data.album.releaseDate && data.album.totalTracks} &middot; {/if}
+            {#if data.album.totalTracks}{data.album.totalTracks} tracks{/if}
+          </p>
         {/if}
       </div>
-      <p class="detail-subtitle">
-        {#each data.artists as artist, i}
-          <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}, {/if}
-        {/each}
-        {#if data.album.releaseDate}
-          <span class="detail-meta"> &middot; {data.album.releaseDate}</span>
-        {/if}
-        {#if data.album.totalTracks}
-          <span class="detail-meta"> &middot; {data.album.totalTracks} tracks</span>
-        {/if}
-      </p>
     </div>
+    {#if !data.mergedInto}
+      <Accolades entityType="album" entityId={$page.params.id} />
+    {/if}
   </div>
 
   {#if data.mergedInto}
     <div class="merge-banner merge-banner--source">
       <span>Merged into <a href="/album/{data.mergedInto.id}">{data.mergedInto.name}</a></span>
-      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(data!.mergedInto!.ruleId); loadData(); }}>Unmerge</button>
+      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(data!.mergedInto!.ruleId); loadData($page.params.id); }}>Unmerge</button>
     </div>
   {/if}
 
@@ -119,8 +135,6 @@
     </div>
   {/if}
 
-  <TimeRangeSelector value={range} onchange={setRange} />
-
   <div class="stats-grid">
     <div class="card stat-card">
       <div class="stat-value">{formatNumber(data.stats.play_count)}</div>
@@ -136,19 +150,18 @@
         <div class="stat-label">First played</div>
       </div>
     {/if}
-  </div>
-
-  <div class="rankings-row">
-    {#each Object.entries(rankLabels) as [key, label]}
-      {@const rank = rankings?.[key as keyof Rankings] ?? null}
-      <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={!rankings}>
-        <span class="ranking-label">{label}</span>
-        <span class="ranking-value" style:color={rank ? medalColor(rank) : undefined}>{rankings ? (rank != null ? `#${rank}` : '—') : ''}</span>
+    {#if data.stats.last_played}
+      <div class="card stat-card">
+        <div class="stat-value">{new Date(data.stats.last_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+        <div class="stat-label">Last played</div>
       </div>
-    {/each}
+    {/if}
   </div>
 
-  <ChartStats entityType="albums" entityId={$page.params.id} bind:chartData={chartHistoryData} />
+  {#if !data.mergedInto}
+    <RankingBadges entityType="album" entityId={$page.params.id} bind:highlightedMonth />
+    <ChartStats entityType="albums" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+  {/if}
 
   {#if data.series.length > 1}
     <div class="card chart-card">
@@ -167,42 +180,7 @@
   {/if}
 {/if}
 
-{#if data}
-  <MergeAlbumModal
-    bind:show={showMergeModal}
-    targetAlbum={{ id: data.album.id, name: data.album.name, imageUrl: data.album.imageUrl }}
-    artistId={data.artists[0]?.id ?? ''}
-    existingMerges={data.mergedFrom}
-    onMerged={loadData}
-  />
-{/if}
-
 <style>
-  .album-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .album-title-row h1 {
-    margin: 0;
-  }
-  .merge-header-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    padding: 0.25rem 0.6rem;
-    border-radius: 6px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s;
-    font-family: var(--font);
-    flex-shrink: 0;
-  }
-  .merge-header-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
   .merge-banner {
     padding: 0.6rem 1rem;
     border-radius: 8px;
@@ -286,54 +264,6 @@
   }
   .merge-banner-unmerge:hover {
     background: rgba(255, 170, 0, 0.15);
-  }
-  .rankings-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-  }
-  .ranking-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.15rem;
-    flex: 1;
-    min-width: 60px;
-    padding: 0.5rem 0.75rem;
-    border-radius: 10px;
-    background: var(--bg-card);
-    border: 1px solid #2a2a2a;
-  }
-  .ranking-badge--active {
-    border-color: #1db954;
-  }
-  .ranking-badge--loading .ranking-value {
-    width: 28px;
-    height: 1.1rem;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    display: inline-block;
-  }
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-  .ranking-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .ranking-value {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text);
-  }
-  .ranking-badge--active .ranking-value {
-    color: #1db954;
   }
   .chart-card {
     margin-bottom: 1.5rem;

@@ -1,37 +1,61 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, getWeekStart, getRankingMetric, type ChartHistoryResponse } from '$lib/api';
+  import { api, createFetchController, getWeekStart, getRankingMetric, type ChartHistoryResponse } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
+  import PeakSelector from './PeakSelector.svelte';
 
   let {
     entityType,
     entityId,
     chartData = $bindable(null),
+    highlightedMonth = $bindable(''),
   }: {
     entityType: 'tracks' | 'albums' | 'artists';
     entityId: string;
     chartData?: ChartHistoryResponse | null;
+    highlightedMonth?: string;
   } = $props();
 
-  let loading = $state(true);
-
-  async function load() {
-    loading = true;
-    try {
-      chartData = await api.chartHistory(entityType, entityId, getWeekStart(), getRankingMetric());
-    } catch {
-      chartData = null;
-    } finally {
-      loading = false;
-    }
+  // extraer YYYY-MM de un periodo semanal (YYYY-WNN → usar la fecha del lunes de esa semana)
+  function periodToMonth(period: string): string {
+    const m = period.match(/^(\d{4})-W(\d{2})$/);
+    if (!m) return period.slice(0, 7);
+    const year = parseInt(m[1]);
+    const week = parseInt(m[2]);
+    // lunes de la semana W (ISO: semana empieza lunes, W01 contiene ene 4)
+    const jan4 = new Date(year, 0, 4);
+    const dayOfWeek = jan4.getDay() || 7;
+    const monday = new Date(jan4);
+    monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
+    return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}`;
   }
+
+  let loading = $state(true);
+  let hoveredWeek = $state('');
+  const fetchCtrl = createFetchController();
 
   $effect(() => {
     void entityId;
-    load();
+    const signal = fetchCtrl.reset();
+    loading = true;
+    api.chartHistory(entityType, entityId, getWeekStart(), getRankingMetric(), signal)
+      .then(r => { if (!signal.aborted) { chartData = r; loading = false; } })
+      .catch(() => { if (!signal.aborted) { chartData = null; loading = false; } });
+    return () => fetchCtrl.abort();
   });
 
   let data = $derived(chartData);
+
+  // racha consecutiva actual: contar hacia atrás desde el final mientras rank != null
+  let consecutiveWeeks = $derived.by(() => {
+    if (!data?.history.length) return 0;
+    let count = 0;
+    for (let i = data.history.length - 1; i >= 0; i--) {
+      if (data.history[i].rank != null) count++;
+      else break;
+    }
+    return count;
+  });
 
   function goToPeak() {
     if (!data) return;
@@ -87,27 +111,37 @@
         <span class="cs-val" class:cs-val--muted={data.currentRank == null} style:color={data.currentRank ? medalColor(data.currentRank) : undefined}>{data.currentRank != null ? `#${data.currentRank}` : '—'}</span>
         <span class="cs-label">Current</span>
       </div>
-      <button class="cs-badge cs-badge--clickable" onclick={goToPeak} title="View peak chart ({data.peakPeriod})">
-        <span class="cs-val" style:color={medalColor(data.peakRank) ?? 'var(--accent)'}>#{data.peakRank}{#if data.timesAtPeak > 1} <span class="cs-times">×{data.timesAtPeak}</span>{/if}</span>
-        <span class="cs-label">Peak</span>
-      </button>
-      <div class="cs-badge">
-        <span class="cs-val">{data.weeksOnChart}</span>
+      {#if data.timesAtPeak > 1 && data.peakPeriods?.length > 1}
+        <div class="cs-badge">
+          <PeakSelector peakRank={data.peakRank} peakPeriods={data.peakPeriods} onselect={(p) => goToWeek(p)} />
+          <span class="cs-label">Peak</span>
+        </div>
+      {:else}
+        <button class="cs-badge cs-badge--clickable" onclick={goToPeak} title="View peak chart ({data.peakPeriod})">
+          <span class="cs-val" style:color={medalColor(data.peakRank) ?? 'var(--accent)'}>#{data.peakRank}</span>
+          <span class="cs-label">Peak</span>
+        </button>
+      {/if}
+      <div class="cs-badge" title="{data.weeksOnChart} total, {consecutiveWeeks} consecutive">
+        <span class="cs-val">{data.weeksOnChart}{#if consecutiveWeeks > 0} <span class="cs-total">({consecutiveWeeks})</span>{/if}</span>
         <span class="cs-label">Weeks</span>
       </div>
     </div>
 
     {#if runCells.length > 0}
-      <div class="chart-run">
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="chart-run" onmouseleave={() => { hoveredWeek = ''; highlightedMonth = ''; }}>
         {#each runCells as cell}
           {#if cell.rank != null}
             <button
               class="run-cell"
               class:run-cell--peak={cell.isPeak}
+              class:run-cell--highlighted={hoveredWeek ? cell.period === hoveredWeek : (highlightedMonth && periodToMonth(cell.period) === highlightedMonth)}
               style:color={medalColor(cell.rank) ?? 'var(--accent)'}
               style:border-color={cell.isPeak ? (medalColor(cell.rank) ?? 'var(--accent)') : undefined}
               title="{cell.period}: #{cell.rank}"
               onclick={() => goToWeek(cell.period)}
+              onmouseenter={() => { hoveredWeek = cell.period; highlightedMonth = periodToMonth(cell.period); }}
             >{cell.rank}{#if cell.count > 1}<span class="run-times">×{cell.count}</span>{/if}</button>
           {:else}
             <div class="run-cell run-cell--gap" title="{cell.period}: off chart">{#if cell.count > 1}<span class="run-gap-count">{cell.count}</span>{/if}</div>
@@ -182,6 +216,12 @@
     font-weight: 500;
     opacity: 0.7;
   }
+  .cs-total {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-left: 0.15em;
+  }
   .cs-label {
     font-size: 0.65rem;
     color: var(--text-muted);
@@ -215,8 +255,10 @@
     -webkit-appearance: none;
     appearance: none;
   }
-  .run-cell:hover:not(.run-cell--gap) {
+  .run-cell:hover:not(.run-cell--gap),
+  .run-cell--highlighted {
     background: var(--bg-hover);
+    border-color: currentColor;
   }
   .run-cell--peak {
     border-width: 2px;
