@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { resolvedAlbumId, mergeRulesJoin } from './helpers.js';
+import { resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
 type Sort = 'plays' | 'time';
@@ -76,17 +76,18 @@ export interface ChartResponse {
 }
 
 // obtener ranking para un periodo específico (raw, sin metadata)
-function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit: number) {
+function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit: number, userId: number) {
   const pExpr = periodExpr(granularity, weekStart);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const uf = userFilter(userId);
 
   let groupCol, joinClause;
   if (entityType === 'tracks') {
     groupCol = sql`lh.track_id`;
     joinClause = sql``;
   } else if (entityType === 'albums') {
-    groupCol = resolvedAlbumId;
-    joinClause = mergeRulesJoin;
+    groupCol = resolvedAlbumId(userId);
+    joinClause = mergeRulesJoin(userId);
   } else {
     groupCol = sql`ta.artist_id`;
     joinClause = sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
@@ -97,7 +98,7 @@ function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity,
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${joinClause}
-    WHERE ${pExpr} = ${period}
+    WHERE ${pExpr} = ${period} ${uf}
     ${entityType === 'albums' ? sql`AND t.album_id IS NOT NULL` : sql``}
     GROUP BY entity_id
     ORDER BY ${metric} DESC
@@ -106,19 +107,20 @@ function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity,
 }
 
 // historial de chart para un conjunto de entidades hasta el periodo actual
-function getChartHistory(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, sort: Sort, entityIds: string[], currentPeriod: string): Map<string, { peakRank: number; peakPeriod: string; timesAtPeak: number; weeksOnChart: number; consecutiveWeeks: number }> {
+function getChartHistory(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, sort: Sort, entityIds: string[], currentPeriod: string, userId: number): Map<string, { peakRank: number; peakPeriod: string; peakPeriods: string[]; timesAtPeak: number; weeksOnChart: number; consecutiveWeeks: number }> {
   if (entityIds.length === 0) return new Map();
 
   const pExpr = periodExpr(granularity, weekStart);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const uf = userFilter(userId);
 
   let groupCol, joinClause;
   if (entityType === 'tracks') {
     groupCol = sql`lh.track_id`;
     joinClause = sql``;
   } else if (entityType === 'albums') {
-    groupCol = resolvedAlbumId;
-    joinClause = mergeRulesJoin;
+    groupCol = resolvedAlbumId(userId);
+    joinClause = mergeRulesJoin(userId);
   } else {
     groupCol = sql`ta.artist_id`;
     joinClause = sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
@@ -132,7 +134,8 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${joinClause}
-      ${entityType === 'albums' ? sql`WHERE t.album_id IS NOT NULL` : sql``}
+      WHERE 1=1 ${uf}
+      ${entityType === 'albums' ? sql`AND t.album_id IS NOT NULL` : sql``}
       GROUP BY period, entity_id
       HAVING period <= ${currentPeriod}
     )
@@ -144,14 +147,14 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 
   const idSet = new Set(entityIds);
   // por entidad: set de periodos en que aparece
-  const entityPeriods = new Map<string, Set<string>>();
+  const entityPeriodSets = new Map<string, Set<string>>();
   const result = new Map<string, { peakRank: number; peakPeriod: string; peakPeriods: string[]; timesAtPeak: number; weeksOnChart: number; consecutiveWeeks: number }>();
 
   for (const row of allPeriods) {
     if (!idSet.has(row.entity_id)) continue;
 
-    if (!entityPeriods.has(row.entity_id)) entityPeriods.set(row.entity_id, new Set());
-    entityPeriods.get(row.entity_id)!.add(row.period);
+    if (!entityPeriodSets.has(row.entity_id)) entityPeriodSets.set(row.entity_id, new Set());
+    entityPeriodSets.get(row.entity_id)!.add(row.period);
 
     const existing = result.get(row.entity_id);
     if (!existing) {
@@ -172,7 +175,7 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 
   // calcular racha consecutiva hacia atrás desde el periodo actual
   const currentIdx = allPeriodLabels.indexOf(currentPeriod);
-  for (const [eid, periodsSet] of entityPeriods) {
+  for (const [eid, periodsSet] of entityPeriodSets) {
     const entry = result.get(eid);
     if (!entry || currentIdx < 0) continue;
     let consecutive = 0;
@@ -187,20 +190,20 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 }
 
 // obtener chart completo con metadata, rank changes, y stats de historial
-export function getChart(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit = CHART_SIZE): ChartResponse {
-  const current = getRawRanking(db, entityType, granularity, weekStart, period, sort, limit);
+export function getChart(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, userId: number, limit = CHART_SIZE): ChartResponse {
+  const current = getRawRanking(db, entityType, granularity, weekStart, period, sort, limit, userId);
 
   // ranking del periodo anterior para rank changes
   const prev = prevPeriod(period, granularity);
   const prevMap = new Map<string, number>();
   if (prev) {
-    const prevRows = getRawRanking(db, entityType, granularity, weekStart, prev, sort, CHART_SIZE);
+    const prevRows = getRawRanking(db, entityType, granularity, weekStart, prev, sort, CHART_SIZE, userId);
     prevRows.forEach((r, i) => prevMap.set(r.entity_id, i + 1));
   }
 
   // historial de chart para las entidades actuales
   const entityIds = current.map(r => r.entity_id);
-  const history = getChartHistory(db, entityType, granularity, weekStart, sort, entityIds, period);
+  const history = getChartHistory(db, entityType, granularity, weekStart, sort, entityIds, period, userId);
 
   // enriquecer con metadata
   const entries: ChartEntry[] = current.map((row, i) => {
@@ -255,7 +258,7 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
 
     if (dropoutIds.length > 0) {
       const dIds = dropoutIds.map(([id]) => id);
-      const dropoutHistory = getChartHistory(db, entityType, granularity, weekStart, sort, dIds, prev);
+      const dropoutHistory = getChartHistory(db, entityType, granularity, weekStart, sort, dIds, prev, userId);
 
       for (const [eid, prevRank] of dropoutIds) {
         let name = '', imageUrl: string | null = null, artistName: string | null = null;
@@ -298,12 +301,14 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
 }
 
 // listar periodos disponibles (que tienen datos)
-export function getAvailablePeriods(db: Db, granularity: Granularity, weekStart: WeekStart): string[] {
+export function getAvailablePeriods(db: Db, granularity: Granularity, weekStart: WeekStart, userId: number): string[] {
   const pExpr = periodExpr(granularity, weekStart);
+  const uf = userFilter(userId);
 
   const rows = db.all(sql`
     SELECT DISTINCT ${pExpr} as period
     FROM listening_history lh
+    WHERE 1=1 ${uf}
     ORDER BY period DESC
   `) as { period: string }[];
 
@@ -323,17 +328,18 @@ export interface EntityChartHistory {
   history: { period: string; rank: number | null }[];
 }
 
-export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, weekStart: WeekStart, sort: Sort): EntityChartHistory {
+export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, weekStart: WeekStart, sort: Sort, userId: number): EntityChartHistory {
   const pExpr = periodExpr('week', weekStart);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const uf = userFilter(userId);
 
   let groupCol, joinClause;
   if (entityType === 'tracks') {
     groupCol = sql`lh.track_id`;
     joinClause = sql``;
   } else if (entityType === 'albums') {
-    groupCol = resolvedAlbumId;
-    joinClause = mergeRulesJoin;
+    groupCol = resolvedAlbumId(userId);
+    joinClause = mergeRulesJoin(userId);
   } else {
     groupCol = sql`ta.artist_id`;
     joinClause = sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
@@ -347,7 +353,8 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${joinClause}
-      ${entityType === 'albums' ? sql`WHERE t.album_id IS NOT NULL` : sql``}
+      WHERE 1=1 ${uf}
+      ${entityType === 'albums' ? sql`AND t.album_id IS NOT NULL` : sql``}
       GROUP BY period, eid
     )
     WHERE eid = ${entityId} AND rank <= ${CHART_SIZE}
@@ -372,7 +379,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
 
   // determinar si está en el chart actual (último periodo con datos en el sistema)
   const latestPeriod = db.all(sql`
-    SELECT ${pExpr} as period FROM listening_history lh ORDER BY lh.played_at DESC LIMIT 1
+    SELECT ${pExpr} as period FROM listening_history lh WHERE 1=1 ${uf} ORDER BY lh.played_at DESC LIMIT 1
   `)[0] as { period: string } | undefined;
 
   const currentRank = latestPeriod && lastRow.period === latestPeriod.period ? lastRow.rank : null;
@@ -380,6 +387,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
   // obtener todos los periodos del sistema entre el primero y último del entity para llenar gaps
   const allPeriods = db.all(sql`
     SELECT DISTINCT ${pExpr} as period FROM listening_history lh
+    WHERE 1=1 ${uf}
     ORDER BY period ASC
   `) as { period: string }[];
 

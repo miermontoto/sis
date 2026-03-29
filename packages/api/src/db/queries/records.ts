@@ -1,18 +1,15 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { resolvedAlbumId, mergeRulesJoin } from './helpers.js';
+import { resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
 type Sort = 'plays' | 'time';
 type WeekStart = 'monday' | 'sunday' | 'friday';
 
 // formato de semana según día de inicio
-// SQLite %W = semana empezando lunes (00-53)
-// Para alinear otros días de inicio, desplazamos la fecha antes de calcular %W
 function weekExpr(ws: WeekStart) {
   if (ws === 'monday') return sql`strftime('%Y-W%W', lh.played_at)`;
   if (ws === 'sunday') return sql`strftime('%Y-W%W', lh.played_at, '-1 day')`;
-  // friday (Billboard): restar 4 días para que viernes se alinee con lunes
   return sql`strftime('%Y-W%W', lh.played_at, '-4 days')`;
 }
 
@@ -52,17 +49,18 @@ export interface RecordsResponse {
 
 // --- queries de records por tipo de entidad ---
 
-function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): EntityRecords {
+function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): EntityRecords {
   const week = weekExpr(ws);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const uf = userFilter(userId);
 
-  // weekly rankings CTE
   const ranked = db.all(sql`
     WITH weekly AS (
       SELECT ${week} as w, lh.track_id as eid, ${metric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${week} ORDER BY ${metric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE 1=1 ${uf}
       GROUP BY w, lh.track_id
     ),
     first_week AS (
@@ -81,18 +79,20 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Enti
   return deriveRecords(ranked, limit);
 }
 
-function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): EntityRecords {
+function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): EntityRecords {
   const week = weekExpr(ws);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const uf = userFilter(userId);
+  const mrJoin = mergeRulesJoin(userId);
 
   const ranked = db.all(sql`
     WITH weekly AS (
-      SELECT ${week} as w, ${resolvedAlbumId} as eid, ${metric} as val,
+      SELECT ${week} as w, ${resolvedAlbumId(userId)} as eid, ${metric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${week} ORDER BY ${metric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      ${mergeRulesJoin}
-      WHERE t.album_id IS NOT NULL
+      ${mrJoin}
+      WHERE t.album_id IS NOT NULL ${uf}
       GROUP BY w, eid
     ),
     first_week AS (
@@ -111,9 +111,10 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Enti
   return deriveRecords(ranked, limit);
 }
 
-function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): ArtistRecords {
+function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): ArtistRecords {
   const week = weekExpr(ws);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const uf = userFilter(userId);
 
   const ranked = db.all(sql`
     WITH weekly AS (
@@ -122,6 +123,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Art
       FROM listening_history lh
       JOIN track_artists ta ON ta.track_id = lh.track_id
       JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE 1=1 ${uf}
       GROUP BY w, ta.artist_id
     ),
     first_week AS (
@@ -146,6 +148,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Art
              ROW_NUMBER() OVER (PARTITION BY ${trackWeek} ORDER BY ${trackMetric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE 1=1 ${uf}
       GROUP BY w, lh.track_id
     )
     SELECT ta.artist_id as artistId, a.name, a.image_url as imageUrl, COUNT(DISTINCT wt.tid) as count
@@ -158,14 +161,15 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number): Art
     LIMIT ${limit}
   `) as ArtistRecordEntry[];
 
+  const mrJoin = mergeRulesJoin(userId);
   const mostNo1Albums = db.all(sql`
     WITH weekly_albums AS (
-      SELECT ${trackWeek} as w, ${resolvedAlbumId} as aid, ${trackMetric} as val,
+      SELECT ${trackWeek} as w, ${resolvedAlbumId(userId)} as aid, ${trackMetric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${trackWeek} ORDER BY ${trackMetric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      ${mergeRulesJoin}
-      WHERE t.album_id IS NOT NULL
+      ${mrJoin}
+      WHERE t.album_id IS NOT NULL ${uf}
       GROUP BY w, aid
     )
     SELECT ta.artist_id as artistId, a.name, a.image_url as imageUrl, COUNT(DISTINCT wa.aid) as count
@@ -248,13 +252,13 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
 
 export type EntityTypeFilter = 'tracks' | 'albums' | 'artists';
 
-export function getRecords(db: Db, weekStart: WeekStart = 'monday', sort: Sort = 'time', limit = 10, type?: EntityTypeFilter): Partial<RecordsResponse> {
-  if (type === 'tracks') return { tracks: getTrackRecords(db, weekStart, sort, limit) };
-  if (type === 'albums') return { albums: getAlbumRecords(db, weekStart, sort, limit) };
-  if (type === 'artists') return { artists: getArtistRecords(db, weekStart, sort, limit) };
+export function getRecords(db: Db, weekStart: WeekStart = 'monday', sort: Sort = 'time', limit = 10, type: EntityTypeFilter | undefined, userId: number): Partial<RecordsResponse> {
+  if (type === 'tracks') return { tracks: getTrackRecords(db, weekStart, sort, limit, userId) };
+  if (type === 'albums') return { albums: getAlbumRecords(db, weekStart, sort, limit, userId) };
+  if (type === 'artists') return { artists: getArtistRecords(db, weekStart, sort, limit, userId) };
   return {
-    tracks: getTrackRecords(db, weekStart, sort, limit),
-    albums: getAlbumRecords(db, weekStart, sort, limit),
-    artists: getArtistRecords(db, weekStart, sort, limit),
+    tracks: getTrackRecords(db, weekStart, sort, limit, userId),
+    albums: getAlbumRecords(db, weekStart, sort, limit, userId),
+    artists: getArtistRecords(db, weekStart, sort, limit, userId),
   };
 }

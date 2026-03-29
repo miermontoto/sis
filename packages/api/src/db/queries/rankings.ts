@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
-import { getRangeStart, entityJoins, entityGroupCol, mergeRulesJoin } from './helpers.js';
+import { getRangeStart, entityJoins, entityGroupCol, mergeRulesJoin, userFilter } from './helpers.js';
 
 export interface RankingHistoryPoint {
   period: string;
@@ -10,9 +10,10 @@ export interface RankingHistoryPoint {
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
  *  Optimizado: un solo scan de listening_history con CASE para los 4 rangos,
  *  luego cálculo de posición en JS. */
-export function computeRankings(db: Db, entityType: EntityType, entityId: string, sort: Sort): Record<string, number | null> {
+export function computeRankings(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): Record<string, number | null> {
   const join = entityJoins(entityType);
-  const groupCol = entityGroupCol(entityType);
+  const groupCol = entityGroupCol(entityType, userId);
+  const uf = userFilter(userId);
 
   const weekStart = getRangeStart('week')!;
   const monthStart = getRangeStart('month')!;
@@ -26,7 +27,7 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
         month: sql`sum(CASE WHEN lh.played_at >= ${monthStart} THEN t.duration_ms ELSE 0 END)`,
         thisYear: sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN t.duration_ms ELSE 0 END)` };
 
-  const albumJoin = entityType === 'album' ? mergeRulesJoin : sql``;
+  const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
 
   const rows = db.all(sql`
     SELECT ${groupCol} as eid,
@@ -38,6 +39,7 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
     ${join}
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${albumJoin}
+    WHERE 1=1 ${uf}
     GROUP BY eid
   `) as { eid: string; val_all: number; val_week: number; val_month: number; val_year: number }[];
 
@@ -52,13 +54,12 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
   };
 }
 
-/** Historial de ranking: posición acumulada de una entidad mes a mes.
- *  Obtiene agregados mensuales de todas las entidades, calcula totales
- *  acumulados, y determina el rank del target en cada mes. */
-export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort): RankingHistoryPoint[] {
+/** Historial de ranking: posición acumulada de una entidad mes a mes. */
+export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPoint[] {
   const join = entityJoins(entityType);
-  const groupCol = entityGroupCol(entityType);
-  const albumJoin = entityType === 'album' ? mergeRulesJoin : sql``;
+  const groupCol = entityGroupCol(entityType, userId);
+  const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
+  const uf = userFilter(userId);
 
   const rows = db.all(sql`
     SELECT strftime('%Y-%m', lh.played_at) as period,
@@ -69,6 +70,7 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
     ${join}
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${albumJoin}
+    WHERE 1=1 ${uf}
     GROUP BY period, eid
     ORDER BY period
   `) as { period: string; eid: string; plays: number; total_ms: number }[];

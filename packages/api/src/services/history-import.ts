@@ -157,7 +157,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
     .filter((e): e is NormalizedEntry => e !== null);
 }
 
-export function importHistory(data: unknown[]): ImportResult {
+export function importHistory(data: unknown[], userId: number): ImportResult {
   const entries = normalizeEntries(data);
   const result: ImportResult = { total: data.length, imported: 0, duplicates: 0, skipped: data.length - entries.length };
 
@@ -201,9 +201,9 @@ export function importHistory(data: unknown[]): ImportResult {
         `);
 
         const insertResult = tx.run(sql`
-          INSERT INTO listening_history (track_id, played_at, duration_played_ms)
-          VALUES (${entry.trackId}, ${entry.playedAt}, ${entry.msPlayed})
-          ON CONFLICT (played_at) DO NOTHING
+          INSERT INTO listening_history (track_id, played_at, user_id, duration_played_ms)
+          VALUES (${entry.trackId}, ${entry.playedAt}, ${userId}, ${entry.msPlayed})
+          ON CONFLICT (user_id, played_at) DO NOTHING
         `);
 
         if (insertResult.changes > 0) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption, type UserRecord, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
 
   let health = $state<HealthData | null>(null);
@@ -11,6 +11,60 @@
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
   let weekStartPref = $state<WeekStartOption>('monday');
+
+  // admin
+  let me = $state<MeResponse | null>(null);
+  let users = $state<UserRecord[]>([]);
+  let newSpotifyId = $state('');
+  let addingUser = $state(false);
+  let userError = $state<string | null>(null);
+
+  async function loadUsers() {
+    try { users = await api.listUsers(); } catch { users = []; }
+  }
+
+  async function handleAddUser() {
+    if (!newSpotifyId.trim()) return;
+    addingUser = true;
+    userError = null;
+    try {
+      await api.addUser(newSpotifyId.trim());
+      newSpotifyId = '';
+      await loadUsers();
+    } catch (err: any) {
+      userError = err.message || 'Failed to add user';
+    } finally {
+      addingUser = false;
+    }
+  }
+
+  async function toggleAdmin(user: UserRecord) {
+    try {
+      await api.updateUser(user.id, { isAdmin: !user.isAdmin });
+      await loadUsers();
+    } catch (err: any) {
+      userError = err.message;
+    }
+  }
+
+  async function deactivateUser(user: UserRecord) {
+    if (!confirm(`Deactivate ${user.displayName || user.spotifyId}?`)) return;
+    try {
+      await api.deleteUser(user.id);
+      await loadUsers();
+    } catch (err: any) {
+      userError = err.message;
+    }
+  }
+
+  async function reactivateUser(user: UserRecord) {
+    try {
+      await api.updateUser(user.id, { isActive: true });
+      await loadUsers();
+    } catch (err: any) {
+      userError = err.message;
+    }
+  }
 
   // merges
   let merges = $state<MergeRule[]>([]);
@@ -56,11 +110,13 @@
     rankingMetric = getRankingMetric();
     weekStartPref = getWeekStart();
     try {
-      [health, streaks] = await Promise.all([
+      [health, streaks, me] = await Promise.all([
         api.health(),
         api.streaks(),
+        api.me(),
       ]);
       loadMerges();
+      if (me?.isAdmin) loadUsers();
     } catch (err: any) {
       error = err.message || 'Failed to load settings';
     } finally {
@@ -306,6 +362,65 @@
       </div>
     </div>
   </div>
+
+  {#if me?.isAdmin}
+    <div class="card section-card">
+      <h3 class="section-card-title">User management</h3>
+      <div class="section-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Add user to whitelist</div>
+            <div class="pref-desc">Enter a Spotify user ID. They can log in once added.</div>
+          </div>
+          <div class="pref-control import-control">
+            <input
+              class="merge-search"
+              type="text"
+              placeholder="Spotify user ID..."
+              bind:value={newSpotifyId}
+              onkeydown={(e) => { if (e.key === 'Enter') handleAddUser(); }}
+            />
+            <button class="action-btn" onclick={handleAddUser} disabled={addingUser || !newSpotifyId.trim()}>
+              {addingUser ? 'Adding...' : 'Add'}
+            </button>
+          </div>
+        </div>
+        {#if userError}
+          <div class="import-error">{userError}</div>
+        {/if}
+        {#if users.length > 0}
+          <div class="user-list">
+            {#each users as user}
+              <div class="pref-row row-border">
+                <div class="pref-info">
+                  <div class="pref-label">
+                    {user.displayName || user.spotifyId}
+                    {#if user.isAdmin}<span class="admin-badge">admin</span>{/if}
+                    {#if !user.isActive}<span class="inactive-badge">inactive</span>{/if}
+                  </div>
+                  <div class="pref-desc">{user.spotifyId}</div>
+                </div>
+                <div class="pref-control import-control">
+                  {#if user.isActive}
+                    <button class="action-btn action-btn--secondary" onclick={() => toggleAdmin(user)}>
+                      {user.isAdmin ? 'Remove admin' : 'Make admin'}
+                    </button>
+                    <button class="action-btn action-btn--secondary" style="color: #ff4444; border-color: #ff444444;" onclick={() => deactivateUser(user)}>
+                      Deactivate
+                    </button>
+                  {:else}
+                    <button class="action-btn action-btn--secondary" onclick={() => reactivateUser(user)}>
+                      Reactivate
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   {#if merges.length > 0}
     {@const mergeTree = (() => {
@@ -774,6 +889,30 @@
   }
   .merge-source-unmerge:hover {
     color: #ff4444;
+  }
+
+  .admin-badge, .inactive-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+  .admin-badge {
+    background: rgba(29, 185, 84, 0.15);
+    color: var(--accent);
+  }
+  .inactive-badge {
+    background: rgba(255, 68, 68, 0.12);
+    color: #ff4444;
+  }
+  .user-list {
+    display: flex;
+    flex-direction: column;
   }
 
   @media (max-width: 768px) {

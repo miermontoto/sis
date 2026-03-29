@@ -232,6 +232,24 @@ export interface HealthData {
   timestamp: string;
 }
 
+export interface MeResponse {
+  authenticated: boolean;
+  userId?: number;
+  spotifyId?: string;
+  isAdmin?: boolean;
+}
+
+export interface UserRecord {
+  id: number;
+  spotifyId: string;
+  displayName: string | null;
+  imageUrl: string | null;
+  isAdmin: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ImportResult {
   total: number;
   imported: number;
@@ -545,6 +563,14 @@ export const api = {
 
   mergeSuggestions: (artistId: string) =>
     apiFetch<MergeSuggestionAlbum[]>(`/admin/merge-suggestions/${encodeURIComponent(artistId)}`),
+
+  // user management (admin)
+  me: () => apiFetch<MeResponse>('/me'),
+  listUsers: () => apiFetch<UserRecord[]>('/admin/users'),
+  addUser: (spotifyId: string) => apiMutate<UserRecord>('POST', '/admin/users', { spotifyId }),
+  updateUser: (id: number, fields: { isAdmin?: boolean; isActive?: boolean }) =>
+    apiMutate<UserRecord>('PUT', `/admin/users/${id}`, fields),
+  deleteUser: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/admin/users/${id}`),
 
   importHistory: async (files: FileList): Promise<ImportResult> => {
     const formData = new FormData();

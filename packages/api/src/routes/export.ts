@@ -2,11 +2,13 @@ import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
+import type { AppVariables } from '../app.js';
 
-const exportRoute = new Hono();
+const exportRoute = new Hono<{ Variables: AppVariables }>();
 
 exportRoute.get('/', (c) => {
   const format = c.req.query('format') || 'json';
+  const userId = c.get('userId');
   const db = getDb();
 
   const rows = db.all(sql`
@@ -22,6 +24,7 @@ exportRoute.get('/', (c) => {
     LEFT JOIN albums a ON a.spotify_id = t.album_id
     LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id
     LEFT JOIN artists ar ON ar.spotify_id = ta.artist_id
+    WHERE lh.user_id = ${userId}
     GROUP BY lh.id
     ORDER BY lh.played_at DESC
   `) as {

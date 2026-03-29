@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { importHistory, type ImportResult } from '../services/history-import.js';
+import type { AppVariables } from '../app.js';
 
-const importRoute = new Hono();
+const importRoute = new Hono<{ Variables: AppVariables }>();
 
 importRoute.post('/', async (c) => {
+  const userId = c.get('userId');
   const body = await c.req.parseBody({ all: true });
   const files = body['files'];
 
@@ -31,7 +33,7 @@ importRoute.post('/', async (c) => {
         continue;
       }
 
-      const result = importHistory(data);
+      const result = importHistory(data, userId);
       aggregated.total += result.total;
       aggregated.imported += result.imported;
       aggregated.duplicates += result.duplicates;

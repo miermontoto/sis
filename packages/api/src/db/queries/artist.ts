@@ -1,18 +1,19 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, orderByCol, resolvedAlbumId, mergeRulesJoin } from './helpers.js';
+import { rangeWhere, orderByCol, resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
 
 /** Top tracks de un artista */
-export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd?: string | null) {
+export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number) {
   const wr = rangeWhere(rangeStart, rangeEnd);
   const ob = orderByCol(sort);
+  const uf = userFilter(userId);
 
   return db.all(sql`
     SELECT lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN track_artists ta ON ta.track_id = lh.track_id
     JOIN tracks t ON t.spotify_id = lh.track_id
-    WHERE ta.artist_id = ${artistId} ${wr}
+    WHERE ta.artist_id = ${artistId} ${wr} ${uf}
     GROUP BY lh.track_id
     ORDER BY ${ob} DESC
     LIMIT ${limit}
@@ -20,19 +21,21 @@ export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string 
 }
 
 /** Top álbumes de un artista (solo donde es artista principal, position=0) */
-export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd?: string | null) {
+export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number) {
   const wr = rangeWhere(rangeStart, rangeEnd);
   const ob = orderByCol(sort);
+  const uf = userFilter(userId);
+  const mrJoin = mergeRulesJoin(userId);
 
   return db.all(sql`
     SELECT album_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
     FROM (
-      SELECT ${resolvedAlbumId} as album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      SELECT ${resolvedAlbumId(userId)} as album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
       FROM listening_history lh
       JOIN track_artists ta ON ta.track_id = lh.track_id
       JOIN tracks t ON t.spotify_id = lh.track_id
-      ${mergeRulesJoin}
-      WHERE ta.artist_id = ${artistId} AND t.album_id IS NOT NULL ${wr}
+      ${mrJoin}
+      WHERE ta.artist_id = ${artistId} AND t.album_id IS NOT NULL ${wr} ${uf}
         AND t.album_id IN (
           SELECT DISTINCT t2.album_id FROM tracks t2
           JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id

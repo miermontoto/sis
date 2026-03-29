@@ -54,6 +54,35 @@ export function getDb() {
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id)'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
 
+  // multi-user: tabla de usuarios
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      spotify_id TEXT NOT NULL UNIQUE,
+      display_name TEXT,
+      image_url TEXT,
+      is_admin INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+
+  // multi-user: userId en tablas existentes
+  try { sqlite.exec('ALTER TABLE auth_tokens ADD COLUMN user_id INTEGER REFERENCES users(id)'); } catch {}
+  try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN user_id INTEGER REFERENCES users(id)'); } catch {}
+  try { sqlite.exec('ALTER TABLE listening_history ADD COLUMN user_id INTEGER REFERENCES users(id)'); } catch {}
+  try { sqlite.exec('ALTER TABLE merge_rules ADD COLUMN user_id INTEGER REFERENCES users(id)'); } catch {}
+
+  // multi-user: reemplazar unique en played_at por composite (user_id, played_at)
+  try { sqlite.exec('DROP INDEX IF EXISTS listening_history_played_at_unique'); } catch {}
+  try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_listening_history_user_played_at ON listening_history(user_id, played_at)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)'); } catch {}
+
+  // multi-user: unique en user_id para auth_tokens y polling_state
+  try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}
+  try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_polling_state_user_id ON polling_state(user_id)'); } catch {}
+
   console.log(`[db] conectado a ${dbPath} (WAL mode)`);
   return db;
 }

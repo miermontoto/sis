@@ -82,10 +82,10 @@ export function entityJoins(entityType: EntityType): SqlChunk {
   return sql``;
 }
 
-export function entityGroupCol(entityType: EntityType): SqlChunk {
+export function entityGroupCol(entityType: EntityType, userId?: number): SqlChunk {
   if (entityType === 'artist') return sql`ta.artist_id`;
   if (entityType === 'track') return sql`lh.track_id`;
-  return resolvedAlbumId;
+  return resolvedAlbumId(userId);
 }
 
 export function entityWhereCol(entityType: EntityType, id: string, albumIds?: string[]): SqlChunk {
@@ -100,10 +100,26 @@ export function entityWhereCol(entityType: EntityType, id: string, albumIds?: st
 }
 
 // fragmento SQL que resuelve album_id a través de merge_rules (via LEFT JOIN, no subquery)
-export const resolvedAlbumId = sql`COALESCE(mr_album.target_id, t.album_id)`;
+export function resolvedAlbumId(userId?: number): SqlChunk {
+  return sql`COALESCE(mr_album.target_id, t.album_id)`;
+}
 
-// JOIN para resolver merge_rules de álbumes — usar junto con resolvedAlbumId
-export const mergeRulesJoin = sql`LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id`;
+// JOIN para resolver merge_rules de álbumes — filtrado por usuario
+export function mergeRulesJoin(userId?: number): SqlChunk {
+  if (userId != null) {
+    return sql`LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id AND mr_album.user_id = ${userId}`;
+  }
+  return sql`LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id`;
+}
+
+// filtro de usuario para listening_history
+export function userFilter(userId: number): SqlChunk {
+  return sql`AND lh.user_id = ${userId}`;
+}
+
+export function userWhereClause(userId: number): SqlChunk {
+  return sql`WHERE lh.user_id = ${userId}`;
+}
 
 export function getDateTruncForDays(days: number): SqlChunk {
   if (days > 0 && days <= 30) return sql`date(lh.played_at)`;

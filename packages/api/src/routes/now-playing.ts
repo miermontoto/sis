@@ -3,13 +3,17 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
 import { spotifyFetch } from '../services/spotify-client.js';
+import type { AppVariables } from '../app.js';
 
-const nowPlaying = new Hono();
+const nowPlaying = new Hono<{ Variables: AppVariables }>();
 
 // retorna el track actual desde polling_state (sin llamada a spotify)
 nowPlaying.get('/', (c) => {
+  const userId = c.get('userId');
   const db = getDb();
-  const state = db.select().from(pollingState).where(eq(pollingState.id, 1)).get();
+  const state = userId
+    ? db.select().from(pollingState).where(eq(pollingState.userId, userId)).get()
+    : null;
 
   if (!state?.lastCurrentlyPlayingTrackId) {
     return c.json({ playing: false, isPlaying: false });
@@ -43,7 +47,7 @@ nowPlaying.get('/', (c) => {
     .filter(Boolean);
 
   // is_playing es columna manual, leer con raw SQL
-  const isPlayingRow = db.all(sql`SELECT is_playing FROM polling_state WHERE id = 1`)[0] as { is_playing: number } | undefined;
+  const isPlayingRow = db.all(sql`SELECT is_playing FROM polling_state WHERE user_id = ${userId}`)[0] as { is_playing: number } | undefined;
 
   return c.json({
     playing: true,
@@ -61,7 +65,8 @@ nowPlaying.get('/', (c) => {
 
 // lectura en vivo desde Spotify (no cache) — usado tras acciones de playback
 nowPlaying.get('/live', async (c) => {
-  const data = await spotifyFetch<any>('/me/player/currently-playing');
+  const userId = c.get('userId');
+  const data = await spotifyFetch<any>('/me/player/currently-playing', { userId });
 
   if (!data?.item || data.currently_playing_type !== 'track') {
     return c.json({ playing: false, isPlaying: false });
@@ -89,27 +94,30 @@ nowPlaying.get('/live', async (c) => {
 // --- controles de reproducción ---
 
 nowPlaying.put('/play', async (c) => {
-  await spotifyFetch('/me/player/play', { method: 'PUT' });
-  // actualizar estado local
+  const userId = c.get('userId');
+  await spotifyFetch('/me/player/play', { userId, method: 'PUT' });
   const db = getDb();
-  db.run(sql`UPDATE polling_state SET is_playing = 1 WHERE id = 1`);
+  db.run(sql`UPDATE polling_state SET is_playing = 1 WHERE user_id = ${userId}`);
   return c.json({ success: true });
 });
 
 nowPlaying.put('/pause', async (c) => {
-  await spotifyFetch('/me/player/pause', { method: 'PUT' });
+  const userId = c.get('userId');
+  await spotifyFetch('/me/player/pause', { userId, method: 'PUT' });
   const db = getDb();
-  db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE id = 1`);
+  db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
   return c.json({ success: true });
 });
 
 nowPlaying.post('/next', async (c) => {
-  await spotifyFetch('/me/player/next', { method: 'POST' });
+  const userId = c.get('userId');
+  await spotifyFetch('/me/player/next', { userId, method: 'POST' });
   return c.json({ success: true });
 });
 
 nowPlaying.post('/previous', async (c) => {
-  await spotifyFetch('/me/player/previous', { method: 'POST' });
+  const userId = c.get('userId');
+  await spotifyFetch('/me/player/previous', { userId, method: 'POST' });
   return c.json({ success: true });
 });
 

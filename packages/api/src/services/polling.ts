@@ -4,6 +4,7 @@ import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
 import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
+import { getAllActiveUsersWithTokens } from './user-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   RECENTLY_PLAYED_INTERVAL_MS,
@@ -17,101 +18,111 @@ import type {
   SpotifyRecentlyPlayedResponse,
 } from '../types/spotify.js';
 
-let currentlyPlayingTimer: ReturnType<typeof setInterval> | null = null;
-let recentlyPlayedTimer: ReturnType<typeof setInterval> | null = null;
+// timers por usuario
+interface UserTimers {
+  currentlyPlaying: ReturnType<typeof setInterval>;
+  recentlyPlayed: ReturnType<typeof setInterval>;
+}
+
+const userTimers = new Map<number, UserTimers>();
+
+// estado de archivos locales por usuario
+const userLocalTracks = new Map<number, { id: string; startedAt: string; durationMs: number; lastProgressMs: number }>();
+
+// timers compartidos (catálogo global)
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 
-const ARTIST_FIX_INTERVAL_MS = 5 * 60_000; // cada 5 minutos
+const ARTIST_FIX_INTERVAL_MS = 5 * 60_000;
 
-// estado del archivo local en reproducción (para registrar plays desde currently-playing)
-let lastLocalTrack: { id: string; startedAt: string; durationMs: number; lastProgressMs: number } | null = null;
-
-function getPollingState() {
+function getPollingStateForUser(userId: number) {
   const db = getDb();
-  return db.select().from(pollingState).where(eq(pollingState.id, 1)).get();
+  return db.select().from(pollingState).where(eq(pollingState.userId, userId)).get();
 }
 
-function updatePollingState(data: Partial<typeof pollingState.$inferInsert>) {
+function updatePollingStateForUser(userId: number, data: Partial<typeof pollingState.$inferInsert>) {
   const db = getDb();
-  const existing = getPollingState();
+  const existing = getPollingStateForUser(userId);
   if (existing) {
-    db.update(pollingState).set(data).where(eq(pollingState.id, 1)).run();
+    db.update(pollingState).set(data).where(eq(pollingState.userId, userId)).run();
   } else {
-    db.insert(pollingState).values({ id: 1, ...data }).run();
+    db.insert(pollingState).values({ userId, ...data }).run();
   }
 }
 
-async function pollCurrentlyPlaying() {
+async function pollCurrentlyPlaying(userId: number) {
   try {
-    const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing');
+    const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
     if (!data || !data.item || data.currently_playing_type !== 'track') {
       // si el track anterior era local, registrar la reproducción
-      if (lastLocalTrack) {
-        insertLocalPlay(lastLocalTrack.id, lastLocalTrack.startedAt, lastLocalTrack.durationMs);
-        console.log(`[poll] registrada reproducción local: ${lastLocalTrack.id}`);
-        lastLocalTrack = null;
+      const lastLocal = userLocalTracks.get(userId);
+      if (lastLocal) {
+        insertLocalPlay(lastLocal.id, lastLocal.startedAt, userId, lastLocal.durationMs);
+        console.log(`[poll:${userId}] registrada reproducción local: ${lastLocal.id}`);
+        userLocalTracks.delete(userId);
       }
-      updatePollingState({
+      updatePollingStateForUser(userId, {
         lastCurrentlyPlayingTrackId: null,
         lastCurrentlyPlayingAt: null,
       });
       const db = getDb();
-      db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE id = 1`);
+      db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
       return;
     }
 
     // resolver IDs sintéticos para archivos locales antes de comparar
     resolveLocalFileIds(data.item);
 
-    const state = getPollingState();
+    const state = getPollingStateForUser(userId);
     const trackChanged = state?.lastCurrentlyPlayingTrackId !== data.item.id;
 
     // detectar loop: mismo track local pero el progreso retrocedió (reinició)
     const progressMs = data.progress_ms ?? 0;
+    const lastLocal = userLocalTracks.get(userId);
     const loopDetected = !trackChanged
-      && lastLocalTrack
-      && lastLocalTrack.id === data.item.id
-      && progressMs < lastLocalTrack.lastProgressMs;
+      && lastLocal
+      && lastLocal.id === data.item.id
+      && progressMs < lastLocal.lastProgressMs;
 
     if (trackChanged || loopDetected) {
       // si el track anterior era local, registrar la reproducción
-      if (lastLocalTrack) {
-        insertLocalPlay(lastLocalTrack.id, lastLocalTrack.startedAt, lastLocalTrack.durationMs);
-        console.log(`[poll] registrada reproducción local: ${lastLocalTrack.id}`);
+      if (lastLocal) {
+        insertLocalPlay(lastLocal.id, lastLocal.startedAt, userId, lastLocal.durationMs);
+        console.log(`[poll:${userId}] registrada reproducción local: ${lastLocal.id}`);
       }
 
       if (trackChanged) {
         upsertTrack(data.item);
-        console.log(`[poll] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name}`);
+        console.log(`[poll:${userId}] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name}`);
       }
 
       // trackear si el track actual es local
-      lastLocalTrack = data.item.is_local
-        ? { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs }
-        : null;
-    } else if (lastLocalTrack) {
+      if (data.item.is_local) {
+        userLocalTracks.set(userId, { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs });
+      } else {
+        userLocalTracks.delete(userId);
+      }
+    } else if (lastLocal) {
       // actualizar progreso para detección de loop
-      lastLocalTrack.lastProgressMs = progressMs;
+      lastLocal.lastProgressMs = progressMs;
     }
 
-    updatePollingState({
+    updatePollingStateForUser(userId, {
       lastCurrentlyPlayingTrackId: data.item.id,
       lastCurrentlyPlayingAt: new Date().toISOString(),
     });
-    // is_playing no está en el schema de drizzle (columna manual)
     const db = getDb();
-    db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0} WHERE id = 1`);
+    db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0} WHERE user_id = ${userId}`);
   } catch (err) {
-    console.error('[poll] error en currently playing:', err);
+    console.error(`[poll:${userId}] error en currently playing:`, err);
   }
 }
 
-async function pollRecentlyPlayed() {
+async function pollRecentlyPlayed(userId: number) {
   try {
-    const state = getPollingState();
+    const state = getPollingStateForUser(userId);
     const params: Record<string, string> = {
       limit: String(RECENTLY_PLAYED_LIMIT),
     };
@@ -123,73 +134,112 @@ async function pollRecentlyPlayed() {
 
     const data = await spotifyFetch<SpotifyRecentlyPlayedResponse>(
       '/me/player/recently-played',
-      { params },
+      { userId, params },
     );
 
     if (!data?.items?.length) return;
 
     let inserted = 0;
     for (const item of data.items) {
-      if (insertPlay(item)) inserted++;
+      if (insertPlay(item, userId)) inserted++;
     }
 
     // actualizar cursor para la siguiente poll
     if (data.cursors?.after) {
-      updatePollingState({
+      updatePollingStateForUser(userId, {
         lastRecentlyPlayedCursor: data.cursors.after,
         lastPollAt: new Date().toISOString(),
       });
     }
 
     if (inserted > 0) {
-      console.log(`[poll] ${inserted} nuevas reproducciones registradas`);
+      console.log(`[poll:${userId}] ${inserted} nuevas reproducciones registradas`);
     }
   } catch (err) {
-    console.error('[poll] error en recently played:', err);
+    console.error(`[poll:${userId}] error en recently played:`, err);
   }
 }
 
-export function startPolling() {
-  const tokens = getStoredTokens();
+function startPollingForUser(userId: number) {
+  if (userTimers.has(userId)) return; // ya activo
+
+  const tokens = getStoredTokens(userId);
   if (!tokens) {
-    console.log('[poll] sin tokens, polling desactivado. completar OAuth primero');
+    console.log(`[poll:${userId}] sin tokens, saltando`);
     return;
   }
 
-  console.log('[poll] iniciando polling...');
+  console.log(`[poll:${userId}] iniciando polling...`);
 
-  // ejecutar inmediatamente, luego repetir
-  pollCurrentlyPlaying();
-  pollRecentlyPlayed();
-  enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err));
-  enrichLocalAlbumCovers().catch(err => console.error('[metadata] error en portadas locales:', err));
+  // ejecutar inmediatamente
+  pollCurrentlyPlaying(userId);
+  pollRecentlyPlayed(userId);
 
-  currentlyPlayingTimer = setInterval(pollCurrentlyPlaying, CURRENTLY_PLAYING_INTERVAL_MS);
-  recentlyPlayedTimer = setInterval(pollRecentlyPlayed, RECENTLY_PLAYED_INTERVAL_MS);
-  metadataRefreshTimer = setInterval(
-    () => {
-      enrichArtistMetadata().catch(err => console.error('[metadata] error en enriquecimiento:', err));
-      enrichLocalAlbumCovers().catch(err => console.error('[metadata] error en portadas locales:', err));
-      // resolver import: IDs junto con metadata (cada 24h, no agresivo)
-      resolveImportArtists().catch(err => console.error('[resolve] error resolviendo artistas:', err));
-      resolveImportAlbums().catch(err => console.error('[resolve] error resolviendo álbumes:', err));
-      fixTrackAlbumAssignments().catch(err => console.error('[resolve] error verificando álbumes:', err));
-    },
-    METADATA_REFRESH_INTERVAL_MS,
-  );
+  const timers: UserTimers = {
+    currentlyPlaying: setInterval(() => pollCurrentlyPlaying(userId), CURRENTLY_PLAYING_INTERVAL_MS),
+    recentlyPlayed: setInterval(() => pollRecentlyPlayed(userId), RECENTLY_PLAYED_INTERVAL_MS),
+  };
 
-  // verificar artistas de tracks + deduplicar, cada 5 min hasta completar
-  fixTrackArtistAssociations()
+  userTimers.set(userId, timers);
+}
+
+function stopPollingForUser(userId: number) {
+  const timers = userTimers.get(userId);
+  if (!timers) return;
+  clearInterval(timers.currentlyPlaying);
+  clearInterval(timers.recentlyPlayed);
+  userTimers.delete(userId);
+  userLocalTracks.delete(userId);
+}
+
+// obtener el primer userId con tokens (para operaciones globales de catálogo)
+function getAnyActiveUserId(): number | null {
+  const users = getAllActiveUsersWithTokens();
+  return users.length > 0 ? users[0].userId : null;
+}
+
+export function startPolling() {
+  const activeUsers = getAllActiveUsersWithTokens();
+  if (activeUsers.length === 0) {
+    console.log('[poll] sin usuarios con tokens, polling desactivado');
+    return;
+  }
+
+  console.log(`[poll] iniciando polling para ${activeUsers.length} usuario(s)...`);
+
+  // polling per-user
+  for (const { userId } of activeUsers) {
+    startPollingForUser(userId);
+  }
+
+  // operaciones globales de catálogo (usan cualquier token activo)
+  const globalUserId = activeUsers[0].userId;
+
+  enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
+  enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
+
+  metadataRefreshTimer = setInterval(() => {
+    const uid = getAnyActiveUserId();
+    if (!uid) return;
+    enrichArtistMetadata(uid).catch(err => console.error('[metadata] error:', err));
+    enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
+    resolveImportArtists(uid).catch(err => console.error('[resolve] error artistas:', err));
+    resolveImportAlbums(uid).catch(err => console.error('[resolve] error álbumes:', err));
+    fixTrackAlbumAssignments(uid).catch(err => console.error('[resolve] error álbumes tracks:', err));
+  }, METADATA_REFRESH_INTERVAL_MS);
+
+  fixTrackArtistAssociations(globalUserId)
     .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
-    .catch(err => console.error('[resolve] error verificando artistas:', err));
-  artistFixTimer = setInterval(
-    () => fixTrackArtistAssociations()
+    .catch(err => console.error('[resolve] error artistas:', err));
+  artistFixTimer = setInterval(() => {
+    const uid = getAnyActiveUserId();
+    if (!uid) return;
+    fixTrackArtistAssociations(uid)
       .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
-      .catch(err => console.error('[resolve] error verificando artistas:', err)),
-    ARTIST_FIX_INTERVAL_MS,
-  );
+      .catch(err => console.error('[resolve] error artistas:', err));
+  }, ARTIST_FIX_INTERVAL_MS);
 
-  // pre-computar records cache
+  // records cache (se recomputa para todos los usuarios)
   try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); }
   recordsCacheTimer = setInterval(
     () => { try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); } },
@@ -201,20 +251,22 @@ export function startPolling() {
 }
 
 export function stopPolling() {
-  if (currentlyPlayingTimer) clearInterval(currentlyPlayingTimer);
-  if (recentlyPlayedTimer) clearInterval(recentlyPlayedTimer);
+  // detener timers por usuario
+  for (const [userId] of userTimers) {
+    stopPollingForUser(userId);
+  }
+
+  // detener timers compartidos
   if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
   if (artistFixTimer) clearInterval(artistFixTimer);
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
-  currentlyPlayingTimer = null;
-  recentlyPlayedTimer = null;
   metadataRefreshTimer = null;
   artistFixTimer = null;
   recordsCacheTimer = null;
   console.log('[poll] polling detenido');
 }
 
-// re-iniciar polling (útil después de OAuth)
+// re-iniciar polling (útil después de OAuth de nuevo usuario)
 export function restartPolling() {
   stopPolling();
   startPolling();

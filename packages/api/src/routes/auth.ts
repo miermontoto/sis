@@ -4,14 +4,9 @@ import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES }
 import { storeTokens } from '../services/token-manager.js';
 import { restartPolling } from '../services/polling.js';
 import { createSession, deleteSession } from '../services/session.js';
+import { findOrCreateUser, isAllowedUser, migrateExistingData } from '../services/user-manager.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
 import crypto from 'crypto';
-
-function getAllowedUsers(): string[] | null {
-  const raw = process.env.ALLOWED_SPOTIFY_USERS;
-  if (!raw || raw.trim() === '') return null;
-  return raw.split(',').map((s) => s.trim()).filter(Boolean);
-}
 
 const auth = new Hono();
 
@@ -95,43 +90,55 @@ auth.get('/callback', async (c) => {
 
   const data: SpotifyTokenResponse = await res.json();
 
-  // verificar usuario contra allowlist
-  const allowed = getAllowedUsers();
-  if (allowed) {
-    const meRes = await fetch(`${SPOTIFY_API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${data.access_token}` },
-    });
-    if (!meRes.ok) {
-      console.error('[auth] error al obtener perfil de spotify');
-      return c.json({ error: 'error al verificar identidad' }, 500);
-    }
-    const me: { id: string } = await meRes.json();
-    if (!allowed.includes(me.id)) {
-      console.warn(`[auth] usuario ${me.id} no está en la lista de permitidos`);
-      return c.json({ error: 'usuario no autorizado' }, 403);
-    }
+  // obtener perfil del usuario
+  const meRes = await fetch(`${SPOTIFY_API_BASE}/me`, {
+    headers: { Authorization: `Bearer ${data.access_token}` },
+  });
+  if (!meRes.ok) {
+    const meText = await meRes.text();
+    console.error(`[auth] error al obtener perfil de spotify: ${meRes.status} ${meText}`);
+    return c.json({ error: 'error al verificar identidad' }, 500);
+  }
+  const me: { id: string; display_name: string; images?: { url: string }[] } = await meRes.json();
 
-    // crear sesión y setear cookie
-    const sessionToken = createSession(me.id);
-    const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
-    setCookie(c, 'sis_session', sessionToken, {
-      httpOnly: true,
-      secure: isSecure,
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
-    console.log(`[auth] sesión creada para usuario ${me.id}`);
+  // verificar si el usuario está permitido
+  if (!isAllowedUser(me.id)) {
+    console.warn(`[auth] usuario ${me.id} no está autorizado`);
+    return c.json({ error: 'usuario no autorizado' }, 403);
   }
 
-  storeTokens({
+  // crear o recuperar usuario en la DB
+  const user = findOrCreateUser(me.id, me.display_name, me.images?.[0]?.url ?? null);
+
+  if (!user.isActive) {
+    console.warn(`[auth] usuario ${me.id} está desactivado`);
+    return c.json({ error: 'usuario desactivado' }, 403);
+  }
+
+  // almacenar tokens para este usuario
+  storeTokens(user.id, {
     accessToken: data.access_token,
     refreshToken: data.refresh_token!,
     expiresIn: data.expires_in,
     scope: data.scope,
   });
 
-  // iniciar polling ahora que tenemos tokens
+  // migrar datos existentes huérfanos al primer usuario
+  migrateExistingData(user.id);
+
+  // crear sesión
+  const sessionToken = createSession(me.id, user.id, user.isAdmin);
+  const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
+  setCookie(c, 'sis_session', sessionToken, {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+  console.log(`[auth] sesi��n creada para usuario ${me.id} (id: ${user.id})`);
+
+  // reiniciar polling para incluir al nuevo usuario
   restartPolling();
 
   // recuperar returnTo y limpiar cookie

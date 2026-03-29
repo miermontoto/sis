@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort, SqlChunk } from './helpers.js';
-import { rangeWhere } from './helpers.js';
+import { rangeWhere, userFilter } from './helpers.js';
 
-/** Resolver IDs de álbum: el target + todos sus sources mergeados */
-export function resolveAlbumIds(db: Db, albumId: string): string[] {
+/** Resolver IDs de álbum: el target + todos sus sources mergeados (por usuario) */
+export function resolveAlbumIds(db: Db, albumId: string, userId: number): string[] {
   const sources = db.all(sql`
-    SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND target_id = ${albumId}
+    SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND target_id = ${albumId} AND user_id = ${userId}
   `) as { source_id: string }[];
   return [albumId, ...sources.map(r => r.source_id)];
 }
@@ -21,7 +21,7 @@ function albumIdIn(ids: string[], tableAlias = 't') {
 
 /** Artistas principales de un álbum (position=0 únicamente), incluye mergeados */
 export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
-  const albumIds = ids ?? resolveAlbumIds(db, albumId);
+  const albumIds = ids ?? [albumId];
   return db.all(sql`
     SELECT ta.artist_id, a.name, a.image_url
     FROM tracks t
@@ -33,10 +33,11 @@ export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
   `) as { artist_id: string; name: string; image_url: string | null }[];
 }
 
-/** Tracks de un álbum con play counts, incluye mergeados */
-export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | null, sort: Sort, ids?: string[], rangeEnd?: string | null) {
-  const albumIds = ids ?? resolveAlbumIds(db, albumId);
+/** Tracks de un ��lbum con play counts, incluye mergeados */
+export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | null, sort: Sort, ids: string[] | undefined, rangeEnd: string | null | undefined, userId: number) {
+  const albumIds = ids ?? [albumId];
   const wr = rangeWhere(rangeStart, rangeEnd);
+  const uf = userFilter(userId);
 
   return db.all(sql`
     SELECT t.spotify_id as track_id, t.name, t.duration_ms, t.track_number,
@@ -46,7 +47,7 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
       SELECT lh.track_id, count(*) as play_count, sum(tr.duration_ms) as total_ms
       FROM listening_history lh
       JOIN tracks tr ON tr.spotify_id = lh.track_id
-      WHERE ${albumIdIn(albumIds, 'tr')} ${wr}
+      WHERE ${albumIdIn(albumIds, 'tr')} ${wr} ${uf}
       GROUP BY lh.track_id
     ) s ON s.track_id = t.spotify_id
     WHERE ${albumIdIn(albumIds)}

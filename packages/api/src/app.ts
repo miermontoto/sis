@@ -15,22 +15,41 @@ import settingsRoute from './routes/settings.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens } from './services/token-manager.js';
 import { validateSession } from './services/session.js';
+import { hasAnyUsers } from './services/user-manager.js';
 import { sql } from 'drizzle-orm';
 
-const app = new Hono();
+export type AppVariables = {
+  userId: number;
+  spotifyId: string;
+  isAdmin: boolean;
+};
+
+const app = new Hono<{ Variables: AppVariables }>();
 
 app.use('*', logger());
 app.use('/api/*', cors());
 
-// auth gate: proteger rutas si ALLOWED_SPOTIFY_USERS está configurado
+// auth gate: proteger todas las rutas /api/* excepto health
 app.use('/api/*', async (c, next) => {
-  const allowed = process.env.ALLOWED_SPOTIFY_USERS;
-  if (!allowed || allowed.trim() === '') return next();
+  // health check público (usado por el frontend para verificar auth)
+  if (c.req.path === '/api/health') return next();
+
+  // si no hay usuarios, permitir acceso sin auth (bootstrap)
+  if (!hasAnyUsers()) return next();
 
   const token = getCookie(c, 'sis_session');
-  if (!token || !validateSession(token)) {
+  if (!token) {
     return c.json({ error: 'no autorizado' }, 401);
   }
+
+  const session = validateSession(token);
+  if (!session) {
+    return c.json({ error: 'sesión expirada' }, 401);
+  }
+
+  c.set('userId', session.userId);
+  c.set('spotifyId', session.spotifyId);
+  c.set('isAdmin', session.isAdmin);
   return next();
 });
 
@@ -59,11 +78,28 @@ app.get('/api/covers/:filename', (c) => {
   });
 });
 
-// health check
+// health check — público pero retorna 401 si hay usuarios y no hay sesión válida
 app.get('/api/health', (c) => {
+  if (hasAnyUsers()) {
+    const token = getCookie(c, 'sis_session');
+    if (!token || !validateSession(token)) {
+      return c.json({ error: 'no autorizado' }, 401);
+    }
+  }
+
   const db = getDb();
-  const tokens = getStoredTokens();
-  const historyCount = db.all(sql`SELECT count(*) as count FROM listening_history`)[0] as { count: number };
+  const userId = (() => {
+    const token = getCookie(c, 'sis_session');
+    if (token) {
+      const session = validateSession(token);
+      if (session) return session.userId;
+    }
+    return undefined;
+  })();
+  const tokens = getStoredTokens(userId);
+  const historyCount = userId
+    ? db.all(sql`SELECT count(*) as count FROM listening_history WHERE user_id = ${userId}`)[0] as { count: number }
+    : db.all(sql`SELECT count(*) as count FROM listening_history`)[0] as { count: number };
 
   return c.json({
     status: 'ok',
@@ -71,6 +107,18 @@ app.get('/api/health', (c) => {
     authenticated: !!tokens,
     totalPlays: historyCount.count,
     timestamp: new Date().toISOString(),
+  });
+});
+
+// endpoint para info del usuario actual
+app.get('/api/me', (c) => {
+  const userId = c.get('userId');
+  if (!userId) return c.json({ authenticated: false });
+  return c.json({
+    authenticated: true,
+    userId: c.get('userId'),
+    spotifyId: c.get('spotifyId'),
+    isAdmin: c.get('isAdmin'),
   });
 });
 

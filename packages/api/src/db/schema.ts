@@ -1,4 +1,15 @@
-import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  spotifyId: text('spotify_id').notNull().unique(),
+  displayName: text('display_name'),
+  imageUrl: text('image_url'),
+  isAdmin: integer('is_admin', { mode: 'boolean' }).default(false),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
 
 export const artists = sqliteTable('artists', {
   spotifyId: text('spotify_id').primaryKey(),
@@ -43,17 +54,21 @@ export const trackArtists = sqliteTable('track_artists', {
 export const listeningHistory = sqliteTable('listening_history', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   trackId: text('track_id').notNull().references(() => tracks.spotifyId),
-  playedAt: text('played_at').notNull().unique(),
+  playedAt: text('played_at').notNull(),
+  userId: integer('user_id').references(() => users.id),
   contextType: text('context_type'),
   contextUri: text('context_uri'),
   durationPlayedMs: integer('duration_played_ms'),
 }, (table) => [
+  uniqueIndex('idx_listening_history_user_played_at').on(table.userId, table.playedAt),
   index('idx_listening_history_played_at').on(table.playedAt),
   index('idx_listening_history_track_id').on(table.trackId),
+  index('idx_listening_history_user_id').on(table.userId),
 ]);
 
 export const authTokens = sqliteTable('auth_tokens', {
-  id: integer('id').primaryKey().default(1),
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id).unique(),
   accessToken: text('access_token').notNull(),
   refreshToken: text('refresh_token').notNull(),
   expiresAt: text('expires_at').notNull(),
@@ -63,6 +78,7 @@ export const authTokens = sqliteTable('auth_tokens', {
 
 export const mergeRules = sqliteTable('merge_rules', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id),
   entityType: text('entity_type').notNull(), // 'album' (extensible a 'track' en el futuro)
   sourceId: text('source_id').notNull(),
   targetId: text('target_id').notNull(),
@@ -79,7 +95,8 @@ export const userSettings = sqliteTable('user_settings', {
 ]);
 
 export const pollingState = sqliteTable('polling_state', {
-  id: integer('id').primaryKey().default(1),
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id).unique(),
   lastRecentlyPlayedCursor: text('last_recently_played_cursor'),
   lastPollAt: text('last_poll_at'),
   lastCurrentlyPlayingTrackId: text('last_currently_playing_track_id'),

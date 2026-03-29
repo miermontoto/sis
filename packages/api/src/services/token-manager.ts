@@ -10,9 +10,11 @@ export interface TokenData {
   expiresAt: string;
 }
 
-export function getStoredTokens(): TokenData | null {
+export function getStoredTokens(userId?: number): TokenData | null {
   const db = getDb();
-  const row = db.select().from(authTokens).where(eq(authTokens.id, 1)).get();
+  const row = userId != null
+    ? db.select().from(authTokens).where(eq(authTokens.userId, userId)).get()
+    : db.select().from(authTokens).get(); // fallback para health check sin user
   if (!row) return null;
   return {
     accessToken: row.accessToken,
@@ -21,14 +23,14 @@ export function getStoredTokens(): TokenData | null {
   };
 }
 
-export function storeTokens(data: { accessToken: string; refreshToken: string; expiresIn: number; scope?: string }) {
+export function storeTokens(userId: number, data: { accessToken: string; refreshToken: string; expiresIn: number; scope?: string }) {
   const db = getDb();
   const expiresAt = new Date(Date.now() + data.expiresIn * 1000).toISOString();
   const now = new Date().toISOString();
 
   db.insert(authTokens)
     .values({
-      id: 1,
+      userId,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
       expiresAt,
@@ -36,7 +38,7 @@ export function storeTokens(data: { accessToken: string; refreshToken: string; e
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: authTokens.id,
+      target: authTokens.userId,
       set: {
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
@@ -47,18 +49,18 @@ export function storeTokens(data: { accessToken: string; refreshToken: string; e
     })
     .run();
 
-  console.log(`[token] almacenado, expira en ${data.expiresIn}s`);
+  console.log(`[token] almacenado para usuario ${userId}, expira en ${data.expiresIn}s`);
 }
 
-export function isTokenExpiringSoon(): boolean {
-  const tokens = getStoredTokens();
+export function isTokenExpiringSoon(userId: number): boolean {
+  const tokens = getStoredTokens(userId);
   if (!tokens) return true;
   return Date.now() >= new Date(tokens.expiresAt).getTime() - TOKEN_REFRESH_BUFFER_MS;
 }
 
-export async function refreshAccessToken(): Promise<string> {
-  const tokens = getStoredTokens();
-  if (!tokens) throw new Error('no hay tokens almacenados, se requiere login');
+export async function refreshAccessToken(userId: number): Promise<string> {
+  const tokens = getStoredTokens(userId);
+  if (!tokens) throw new Error(`no hay tokens almacenados para usuario ${userId}, se requiere login`);
 
   const clientId = process.env.SPOTIFY_CLIENT_ID!;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!;
@@ -77,12 +79,12 @@ export async function refreshAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`error al refrescar token: ${res.status} ${text}`);
+    throw new Error(`error al refrescar token para usuario ${userId}: ${res.status} ${text}`);
   }
 
   const data: SpotifyTokenResponse = await res.json();
 
-  storeTokens({
+  storeTokens(userId, {
     accessToken: data.access_token,
     refreshToken: data.refresh_token || tokens.refreshToken,
     expiresIn: data.expires_in,
@@ -92,11 +94,11 @@ export async function refreshAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-export async function getValidAccessToken(): Promise<string> {
-  if (isTokenExpiringSoon()) {
-    return refreshAccessToken();
+export async function getValidAccessToken(userId: number): Promise<string> {
+  if (isTokenExpiringSoon(userId)) {
+    return refreshAccessToken(userId);
   }
-  const tokens = getStoredTokens();
-  if (!tokens) throw new Error('no hay tokens almacenados');
+  const tokens = getStoredTokens(userId);
+  if (!tokens) throw new Error(`no hay tokens almacenados para usuario ${userId}`);
   return tokens.accessToken;
 }

@@ -131,7 +131,8 @@ export function upsertTrack(track: SpotifyTrack) {
 }
 
 // enriquecer artistas sin imagen consultando la API de spotify en lotes de 50
-export async function enrichArtistMetadata() {
+// userId: cualquier usuario activo cuyo token se usa para la API
+export async function enrichArtistMetadata(userId: number) {
   const db = getDb();
   const missing = db.all(
     sql`SELECT spotify_id FROM artists WHERE image_url IS NULL AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'`
@@ -146,7 +147,7 @@ export async function enrichArtistMetadata() {
   for (let i = 0; i < missing.length; i += BATCH_SIZE) {
     const batch = missing.slice(i, i + BATCH_SIZE);
     const ids = batch.map(a => a.spotify_id).join(',');
-    const data = await spotifyFetch<SpotifyArtistsBatchResponse>('/artists', { params: { ids } });
+    const data = await spotifyFetch<SpotifyArtistsBatchResponse>('/artists', { userId, params: { ids } });
 
     if (!data?.artists) continue;
 
@@ -173,7 +174,7 @@ export async function enrichArtistMetadata() {
 const RESOLVE_BATCH_LIMIT = 500; // máximo por ejecución
 const SEARCH_DELAY_MS = 100; // pausa entre búsquedas para respetar rate limits
 
-export async function resolveImportArtists() {
+export async function resolveImportArtists(userId: number) {
   const db = getDb();
   const pending = db.all(
     sql`SELECT spotify_id, name FROM artists WHERE spotify_id LIKE 'import:%' ORDER BY
@@ -188,7 +189,7 @@ export async function resolveImportArtists() {
 
   for (const row of pending) {
     const data = await spotifyFetch<SpotifySearchArtistResult>('/search', {
-      params: { q: row.name, type: 'artist', limit: '1' },
+      userId, params: { q: row.name, type: 'artist', limit: '1' },
     });
 
     if (!data?.artists?.items?.length) {
@@ -256,7 +257,7 @@ export async function resolveImportArtists() {
 }
 
 // resolver álbumes con ID import: buscándolos en la API de Spotify
-export async function resolveImportAlbums() {
+export async function resolveImportAlbums(userId: number) {
   const db = getDb();
   const pending = db.all(
     sql`SELECT a.spotify_id, a.name,
@@ -284,7 +285,7 @@ export async function resolveImportAlbums() {
 
     const query = `album:${row.name} artist:${row.artist_name}`;
     const data = await spotifyFetch<SpotifySearchAlbumResult>('/search', {
-      params: { q: query, type: 'album', limit: '1' },
+      userId, params: { q: query, type: 'album', limit: '1' },
     });
 
     if (!data?.albums?.items?.length) {
@@ -356,7 +357,7 @@ export async function resolveImportAlbums() {
 
 // corregir tracks con Spotify ID real que están asignados al álbum incorrecto
 // (ocurre cuando el import agrupa versiones distintas bajo el mismo álbum)
-export async function fixTrackAlbumAssignments() {
+export async function fixTrackAlbumAssignments(userId: number) {
   const db = getDb();
 
   // buscar tracks con ID real de Spotify cuyo álbum podría ser incorrecto
@@ -380,7 +381,7 @@ export async function fixTrackAlbumAssignments() {
     const ids = batch.map(c => c.spotify_id).join(',');
 
     const data = await spotifyFetch<{ tracks: SpotifyTrack[] }>('/tracks', {
-      params: { ids },
+      userId, params: { ids },
     });
 
     if (!data?.tracks) continue;
@@ -423,7 +424,7 @@ export async function fixTrackAlbumAssignments() {
 
 // corregir track_artists para tracks con Spotify ID real que solo tienen 1 artista
 // (ocurre cuando el import solo almacena el artista principal del álbum)
-export async function fixTrackArtistAssociations() {
+export async function fixTrackArtistAssociations(userId: number) {
   const db = getDb();
 
   const candidates = db.all(sql`
@@ -444,7 +445,7 @@ export async function fixTrackArtistAssociations() {
     const ids = batch.map(c => c.spotify_id).join(',');
 
     const data = await spotifyFetch<{ tracks: SpotifyTrack[] }>('/tracks', {
-      params: { ids },
+      userId, params: { ids },
     });
 
     if (!data?.tracks) continue;
@@ -822,13 +823,14 @@ export async function enrichLocalAlbumCovers() {
 }
 
 // insertar reproducción de archivo local (llamado desde polling cuando el track cambia)
-export function insertLocalPlay(trackId: string, playedAt: string, durationMs?: number): boolean {
+export function insertLocalPlay(trackId: string, playedAt: string, userId: number, durationMs?: number): boolean {
   const db = getDb();
   try {
     db.insert(listeningHistory)
       .values({
         trackId,
         playedAt,
+        userId,
         durationPlayedMs: durationMs ?? null,
       })
       .run();
@@ -840,7 +842,7 @@ export function insertLocalPlay(trackId: string, playedAt: string, durationMs?: 
 }
 
 // insertar entrada en el historial, retorna true si se insertó (no duplicado)
-export function insertPlay(item: SpotifyPlayHistoryItem): boolean {
+export function insertPlay(item: SpotifyPlayHistoryItem, userId: number): boolean {
   const db = getDb();
 
   upsertTrack(item.track);
@@ -850,6 +852,7 @@ export function insertPlay(item: SpotifyPlayHistoryItem): boolean {
       .values({
         trackId: item.track.id,
         playedAt: item.played_at,
+        userId,
         contextType: item.context?.type ?? null,
         contextUri: item.context?.uri ?? null,
       })

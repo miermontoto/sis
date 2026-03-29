@@ -2,20 +2,22 @@ import { SPOTIFY_API_BASE } from '../constants.js';
 import { getValidAccessToken, refreshAccessToken } from './token-manager.js';
 
 interface SpotifyRequestOptions {
+  userId: number;
   params?: Record<string, string>;
   method?: 'GET' | 'PUT' | 'POST' | 'DELETE';
   body?: unknown;
 }
 
 // cliente HTTP para spotify con auto-refresh y manejo de rate limits
-export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestOptions = {}): Promise<T | null> {
+export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestOptions): Promise<T | null> {
+  const { userId } = options;
   const url = new URL(`${SPOTIFY_API_BASE}${endpoint}`);
   if (options.params) {
     Object.entries(options.params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
 
   const method = options.method ?? 'GET';
-  let accessToken = await getValidAccessToken();
+  let accessToken = await getValidAccessToken(userId);
 
   const buildInit = (token: string): RequestInit => ({
     method,
@@ -30,8 +32,8 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
 
   // si 401, refrescar token y reintentar una vez
   if (res.status === 401) {
-    console.log('[spotify] token expirado, refrescando...');
-    accessToken = await refreshAccessToken();
+    console.log(`[spotify] token expirado para usuario ${userId}, refrescando...`);
+    accessToken = await refreshAccessToken(userId);
     res = await fetch(url.toString(), buildInit(accessToken));
   }
 
