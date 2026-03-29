@@ -86,7 +86,7 @@
         <h3 class="record-title">{title}</h3>
         <div class="record-list">
           {#each items as item, i}
-            <a href={item.week ? `/charts?type=${activeTab}&granularity=week&period=${item.week}` : entityLink(activeTab, item.entityId)} class="record-item">
+            <a href={item.week && item.week !== 'active' ? `/charts?type=${activeTab}&granularity=week&period=${item.week}` : entityLink(activeTab, item.entityId)} class="record-item">
               <span class="record-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
               {#if item.imageUrl}
                 <img class="record-art" class:record-art--round={activeTab === 'artists'} src={item.imageUrl} alt="" />
@@ -101,7 +101,9 @@
               </div>
               <div class="record-value">
                 <span class="record-val">{formatValue(item.value, valueType)}</span>
-                {#if item.week}
+                {#if item.week === 'active'}
+                  <span class="record-active">active</span>
+                {:else if item.week}
                   <span class="record-week">{item.week}</span>
                 {/if}
               </div>
@@ -116,6 +118,7 @@
   {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut')}
   {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks')}
   {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks')}
+  {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks')}
 
   {#if activeTab === 'artists' && 'mostNo1Tracks' in currentData}
     {@const artistData = currentData as ArtistRecordsData}
@@ -257,5 +260,12 @@
   .record-week {
     font-size: 0.65rem;
     color: var(--text-muted);
+  }
+  .record-active {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 </style>

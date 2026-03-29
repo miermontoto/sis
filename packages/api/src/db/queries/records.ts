@@ -34,6 +34,7 @@ interface EntityRecords {
   biggestDebuts: RecordEntry[];
   mostWeeksAtNo1: RecordEntry[];
   mostWeeksInTop5: RecordEntry[];
+  longestChartRun: RecordEntry[];
 }
 
 interface ArtistRecords extends EntityRecords {
@@ -240,11 +241,50 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   }
   mostWeeksInTop5.sort((a, b) => b.value - a.value);
 
+  // 5. Longest consecutive run on the charts (top 25)
+  // construir lista global de periodos ordenados (igual que charts.ts)
+  const allWeekLabels = [...new Set(rows.map((r: any) => r.w as string))].sort();
+  const weekIndexMap = new Map(allWeekLabels.map((w, i) => [w, i]));
+  const latestWeek = allWeekLabels[allWeekLabels.length - 1] ?? '';
+
+  const longestChartRun: RecordEntry[] = [];
+  for (const [eid, data] of byEntity) {
+    // set de periodos donde la entidad está en el top 25
+    const chartWeekSet = new Set(
+      data.rows.filter((r: any) => r.rank <= CHART_SIZE).map((r: any) => r.w as string)
+    );
+    if (chartWeekSet.size === 0) continue;
+
+    // recorrer periodos globales y buscar la racha más larga
+    let maxStreak = 0, curStreak = 0;
+    let endsAtLatest = false;
+    for (const w of allWeekLabels) {
+      if (chartWeekSet.has(w)) {
+        curStreak++;
+      } else {
+        if (curStreak > maxStreak) maxStreak = curStreak;
+        curStreak = 0;
+      }
+    }
+    if (curStreak > maxStreak) { maxStreak = curStreak; endsAtLatest = true; }
+    else if (curStreak === maxStreak && curStreak > 0) { endsAtLatest = true; }
+
+    if (maxStreak > 0) {
+      longestChartRun.push({
+        entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName,
+        value: maxStreak,
+        week: endsAtLatest ? 'active' : null,
+      });
+    }
+  }
+  longestChartRun.sort((a, b) => b.value - a.value);
+
   return {
     peakWeekPlays: peakWeekPlays.slice(0, limit),
     biggestDebuts: biggestDebuts.slice(0, limit),
     mostWeeksAtNo1: mostWeeksAtNo1.slice(0, limit),
     mostWeeksInTop5: mostWeeksInTop5.slice(0, limit),
+    longestChartRun: longestChartRun.slice(0, limit),
   };
 }
 

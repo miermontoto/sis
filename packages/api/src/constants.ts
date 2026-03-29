@@ -16,7 +16,12 @@ export const SPOTIFY_SCOPES = [
   'user-library-read',
   'user-read-playback-state',
   'user-modify-playback-state',
+  'playlist-modify-private',
+  'playlist-read-private',
 ].join(' ');
+
+// scopes necesarios para crear playlists
+export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-read-private'];
 
 // URLs de la API de spotify
 export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';

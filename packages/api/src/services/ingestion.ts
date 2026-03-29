@@ -59,12 +59,14 @@ export function upsertTrack(track: SpotifyTrack) {
   resolveLocalFileIds(track);
   const db = getDb();
 
-  // upsert álbum
+  // upsert álbum (incluye artist_ids del album-level de spotify)
+  const albumArtistIds = track.album.artists?.map(a => a.id) ?? null;
   db.insert(albums)
     .values({
       spotifyId: track.album.id,
       name: track.album.name,
       imageUrl: track.album.images[0]?.url ?? null,
+      artistIds: albumArtistIds,
       releaseDate: track.album.release_date,
       totalTracks: track.album.total_tracks,
       albumType: track.album.album_type,
@@ -75,6 +77,7 @@ export function upsertTrack(track: SpotifyTrack) {
       set: {
         name: track.album.name,
         imageUrl: sql`COALESCE(${track.album.images[0]?.url ?? null}, albums.image_url)`,
+        artistIds: albumArtistIds ? JSON.stringify(albumArtistIds) : sql`albums.artist_ids`,
         updatedAt: now(),
       },
     })

@@ -24,6 +24,7 @@ export const albums = sqliteTable('albums', {
   spotifyId: text('spotify_id').primaryKey(),
   name: text('name').notNull(),
   imageUrl: text('image_url'),
+  artistIds: text('artist_ids', { mode: 'json' }).$type<string[]>(),
   releaseDate: text('release_date'),
   totalTracks: integer('total_tracks'),
   albumType: text('album_type'),
@@ -92,6 +93,30 @@ export const userSettings = sqliteTable('user_settings', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => [
   primaryKey({ columns: [table.userId, table.key] }),
+]);
+
+// playlists generadas por el usuario
+export const generatedPlaylists = sqliteTable('generated_playlists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  spotifyPlaylistId: text('spotify_playlist_id'),
+  name: text('name').notNull(),
+  strategy: text('strategy').notNull(), // 'top_tracks' | 'deep_cuts' | 'time_vibes' | 'rediscovery'
+  params: text('params', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  trackCount: integer('track_count').notNull().default(0),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  index('idx_generated_playlists_user_id').on(table.userId),
+]);
+
+export const generatedPlaylistTracks = sqliteTable('generated_playlist_tracks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  playlistId: integer('playlist_id').notNull().references(() => generatedPlaylists.id),
+  trackId: text('track_id').notNull().references(() => tracks.spotifyId),
+  position: integer('position').notNull(),
+}, (table) => [
+  index('idx_gpt_playlist_id').on(table.playlistId),
 ]);
 
 export const pollingState = sqliteTable('polling_state', {

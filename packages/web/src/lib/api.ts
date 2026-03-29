@@ -237,6 +237,33 @@ export interface MeResponse {
   userId?: number;
   spotifyId?: string;
   isAdmin?: boolean;
+  scopes?: string[];
+}
+
+// --- playlist types ---
+
+export type PlaylistStrategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery';
+
+export interface GeneratedPlaylist {
+  id: number;
+  spotifyPlaylistId: string | null;
+  spotifyUrl?: string;
+  name: string;
+  strategy: PlaylistStrategy;
+  params: Record<string, unknown>;
+  trackCount: number;
+  tracks?: { position: number; track: TrackInfo | null }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlaylistListResponse {
+  items: GeneratedPlaylist[];
+  total: number;
+}
+
+export interface PlaylistPreviewResponse {
+  tracks: { position: number; track: TrackInfo | null }[];
 }
 
 export interface UserRecord {
@@ -386,6 +413,7 @@ export interface EntityRecords {
   biggestDebuts: RecordEntry[];
   mostWeeksAtNo1: RecordEntry[];
   mostWeeksInTop5: RecordEntry[];
+  longestChartRun: RecordEntry[];
 }
 
 export interface ArtistRecordsData extends EntityRecords {
@@ -571,6 +599,22 @@ export const api = {
   updateUser: (id: number, fields: { isAdmin?: boolean; isActive?: boolean }) =>
     apiMutate<UserRecord>('PUT', `/admin/users/${id}`, fields),
   deleteUser: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/admin/users/${id}`),
+
+  // playlist API
+  generatePlaylist: (body: { strategy: PlaylistStrategy; params: Record<string, unknown>; name?: string; preview?: boolean }) =>
+    apiMutate<GeneratedPlaylist | PlaylistPreviewResponse>('POST', '/playlists/generate', body),
+
+  listPlaylists: (limit = 20, offset = 0) =>
+    apiFetch<PlaylistListResponse>('/playlists', { limit: String(limit), offset: String(offset) }),
+
+  getPlaylist: (id: number) =>
+    apiFetch<GeneratedPlaylist>(`/playlists/${id}`),
+
+  deletePlaylist: (id: number, removeFromSpotify = false) =>
+    apiMutate<{ success: boolean }>('DELETE', `/playlists/${id}${removeFromSpotify ? '?spotify=true' : ''}`),
+
+  regeneratePlaylist: (id: number) =>
+    apiMutate<GeneratedPlaylist>('POST', `/playlists/${id}/regenerate`),
 
   importHistory: async (files: FileList): Promise<ImportResult> => {
     const formData = new FormData();

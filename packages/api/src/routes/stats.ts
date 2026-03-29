@@ -12,6 +12,7 @@ import {
   getRecentPlays, computeRankings, getRankingHistory,
   getArtistTopTracks, getArtistTopAlbums,
   resolveAlbumIds, getAlbumArtists, getAlbumTracks,
+  enrichTrack,
   getTrackAlbumBreakdown,
   getRecords,
   getChart, getAvailablePeriods, getEntityChartHistory,
@@ -39,27 +40,6 @@ function parseParams(c: any) {
   const range = (c.req.query('range') || 'month') as TimeRange;
   const rangeStart = getRangeStart(range);
   return { range, limit, rangeStart, rangeEnd: null as string | null, sort, customDays: undefined as number | undefined };
-}
-
-// helper: enriquecer track_id con metadata completa
-function enrichTrack(db: ReturnType<typeof getDb>, trackId: string) {
-  const track = db.select().from(tracks).where(eq(tracks.spotifyId, trackId)).get();
-  if (!track) return null;
-  const album = track.albumId
-    ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
-    : null;
-  const artRows = db.select().from(trackArtists).where(eq(trackArtists.trackId, trackId)).all();
-  const arts = artRows
-    .sort((a, b) => a.position - b.position)
-    .map(ta => db.select().from(artists).where(eq(artists.spotifyId, ta.artistId)).get())
-    .filter(Boolean);
-  return {
-    id: track.spotifyId,
-    name: track.name,
-    durationMs: track.durationMs,
-    album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
-    artists: arts.map(a => ({ id: a!.spotifyId, name: a!.name })),
-  };
 }
 
 // helper: calcular rank changes entre periodo actual y anterior

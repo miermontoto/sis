@@ -53,6 +53,7 @@ export function getDb() {
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_artists INTEGER'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id)'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
+  try { sqlite.exec('ALTER TABLE albums ADD COLUMN artist_ids TEXT'); } catch {}
 
   // multi-user: tabla de usuarios
   try {

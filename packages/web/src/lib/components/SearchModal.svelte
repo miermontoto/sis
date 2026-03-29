@@ -134,7 +134,7 @@
                   onmouseenter={() => selectedIndex = flatIndex('artists', i)}
                 >
                   {#if artist.imageUrl}
-                    <img src={artist.imageUrl} alt="" class="search-thumb search-thumb--round" />
+                    <img src={artist.imageUrl} alt="" class="search-thumb search-thumb--round" loading="lazy" width="40" height="40" />
                   {:else}
                     <div class="search-thumb search-thumb--round search-thumb--empty"></div>
                   {/if}
@@ -161,7 +161,7 @@
                   onmouseenter={() => selectedIndex = flatIndex('albums', i)}
                 >
                   {#if album.imageUrl}
-                    <img src={album.imageUrl} alt="" class="search-thumb" />
+                    <img src={album.imageUrl} alt="" class="search-thumb" loading="lazy" width="40" height="40" />
                   {:else}
                     <div class="search-thumb search-thumb--empty"></div>
                   {/if}
@@ -188,7 +188,7 @@
                   onmouseenter={() => selectedIndex = flatIndex('tracks', i)}
                 >
                   {#if track.albumImageUrl}
-                    <img src={track.albumImageUrl} alt="" class="search-thumb" />
+                    <img src={track.albumImageUrl} alt="" class="search-thumb" loading="lazy" width="40" height="40" />
                   {:else}
                     <div class="search-thumb search-thumb--empty"></div>
                   {/if}
@@ -223,12 +223,11 @@
   .search-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.7);
     z-index: 200;
     display: flex;
     justify-content: center;
     padding-top: 15vh;
-    backdrop-filter: blur(4px);
   }
 
   .search-modal {
@@ -242,6 +241,7 @@
     flex-direction: column;
     overflow: hidden;
     align-self: flex-start;
+    will-change: transform;
   }
 
   .search-input {
@@ -289,7 +289,7 @@
     cursor: pointer;
     text-align: left;
     font-family: var(--font);
-    transition: background 0.1s;
+    transition: none;
   }
 
   .search-result:hover,

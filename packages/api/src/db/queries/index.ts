@@ -12,8 +12,12 @@ export type { RankingHistoryPoint } from './rankings.js';
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
 export { resolveAlbumIds, getAlbumArtists, getAlbumTracks } from './album.js';
-export { getTrackAlbumBreakdown } from './track.js';
+export { enrichTrack, getTrackAlbumBreakdown } from './track.js';
 export { getRecords } from './records.js';
 export type { RecordsResponse } from './records.js';
 export { getChart, getAvailablePeriods, getEntityChartHistory } from './charts.js';
 export type { ChartEntry, ChartResponse, EntityChartHistory } from './charts.js';
+
+// playlist strategies
+export { strategyTopRange, strategyTopArtist, strategyTopGenre, strategyDeepCuts, strategyTimeVibes, strategyRediscovery } from './playlists.js';
+export type { TopRangeParams, TopArtistParams, TopGenreParams, DeepCutsParams, TimeVibesParams, RediscoveryParams } from './playlists.js';

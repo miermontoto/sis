@@ -27,6 +27,7 @@
     biggestDebut: 'Biggest debut',
     weeksAtNo1: 'Weeks at #1',
     weeksInChart: 'Weeks in charts',
+    longestRun: 'Longest chart run',
     mostNo1Tracks: '#1 tracks',
     mostNo1Albums: '#1 albums',
   };
@@ -39,7 +40,7 @@
   }
 
   function formatValue(a: Accolade): string {
-    if (a.type === 'weeksAtNo1' || a.type === 'weeksInChart') return `${a.value} wk${a.value !== 1 ? 's' : ''}`;
+    if (a.type === 'weeksAtNo1' || a.type === 'weeksInChart' || a.type === 'longestRun') return `${a.value} wk${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'mostNo1Tracks' || a.type === 'mostNo1Albums') return String(a.value);
     if (metric === 'plays') return `${formatNumber(a.value)} plays`;
     return formatDuration(a.value);

@@ -47,6 +47,7 @@
     { href: '/charts', label: 'Charts', icon: '%' },
     { href: '/insights', label: 'Insights', icon: '!' },
     { href: '/records', label: 'Records', icon: '^' },
+    { href: '/playlists', label: 'Playlists', icon: '+' },
     { href: '/settings', label: 'Settings', icon: '@' },
   ];
 

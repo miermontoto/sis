@@ -94,6 +94,18 @@ export async function refreshAccessToken(userId: number): Promise<string> {
   return data.access_token;
 }
 
+export function getStoredScopes(userId: number): string[] {
+  const db = getDb();
+  const row = db.select().from(authTokens).where(eq(authTokens.userId, userId)).get();
+  if (!row?.scope) return [];
+  return row.scope.split(' ');
+}
+
+export function hasRequiredScopes(userId: number, required: string[]): boolean {
+  const granted = new Set(getStoredScopes(userId));
+  return required.every(s => granted.has(s));
+}
+
 export async function getValidAccessToken(userId: number): Promise<string> {
   if (isTokenExpiringSoon(userId)) {
     return refreshAccessToken(userId);

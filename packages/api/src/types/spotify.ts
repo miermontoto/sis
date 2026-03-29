@@ -22,6 +22,7 @@ export interface SpotifyAlbum {
   id: string;
   name: string;
   images: SpotifyImage[];
+  artists: SpotifyArtistSimple[];
   release_date: string;
   total_tracks: number;
   album_type: string;
