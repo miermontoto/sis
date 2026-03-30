@@ -30,6 +30,8 @@
     longestRun: 'Longest chart run',
     mostNo1Tracks: '#1 tracks',
     mostNo1Albums: '#1 albums',
+    inPlaylists: 'In playlists',
+    inMostPlaylists: 'In most playlists',
   };
 
   function medal(rank: number): string {
@@ -40,6 +42,7 @@
   }
 
   function formatValue(a: Accolade): string {
+    if (a.type === 'inPlaylists' || a.type === 'inMostPlaylists') return `${a.value} playlist${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'weeksAtNo1' || a.type === 'weeksInChart' || a.type === 'longestRun') return `${a.value} wk${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'mostNo1Tracks' || a.type === 'mostNo1Albums') return String(a.value);
     if (metric === 'plays') return `${formatNumber(a.value)} plays`;

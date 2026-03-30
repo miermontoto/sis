@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import type { Db, Sort, SqlChunk } from './helpers.js';
-import { rangeWhere, userFilter } from './helpers.js';
+import type { Db, Sort } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn } from './helpers.js';
 
 /** Resolver IDs de álbum: el target + todos sus sources mergeados (por usuario) */
 export function resolveAlbumIds(db: Db, albumId: string, userId: number): string[] {
@@ -8,15 +8,6 @@ export function resolveAlbumIds(db: Db, albumId: string, userId: number): string
     SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND target_id = ${albumId} AND user_id = ${userId}
   `) as { source_id: string }[];
   return [albumId, ...sources.map(r => r.source_id)];
-}
-
-// helper: WHERE con IDs pre-resueltos
-function albumIdIn(ids: string[], tableAlias = 't') {
-  const col = sql.raw(`${tableAlias}.album_id`);
-  if (ids.length === 1) return sql`${col} = ${ids[0]}`;
-  // construir IN (...) con placeholders
-  const placeholders = sql.join(ids.map(id => sql`${id}`), sql`, `);
-  return sql`${col} IN (${placeholders})`;
 }
 
 /** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists */

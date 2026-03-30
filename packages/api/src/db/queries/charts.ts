@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
+import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse } from '@sis/shared';
 import { resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
@@ -36,43 +37,6 @@ function prevPeriod(period: string, granularity: Granularity): string | null {
   const wn = parseInt(ws);
   if (wn <= 0) return `${parseInt(ys) - 1}-W52`;
   return `${ys}-W${String(wn - 1).padStart(2, '0')}`;
-}
-
-export interface ChartEntry {
-  rank: number;
-  entityId: string;
-  name: string;
-  imageUrl: string | null;
-  artistName: string | null;
-  plays: number;
-  totalMs: number;
-  previousRank: number | null;
-  rankChange: number | null;
-  isNew: boolean;
-  isReentry: boolean;
-  peakRank: number;
-  peakPeriod: string;
-  peakPeriods: string[];
-  timesAtPeak: number;
-  weeksOnChart: number;
-  consecutiveWeeks: number;
-}
-
-export interface DropoutEntry {
-  entityId: string;
-  name: string;
-  imageUrl: string | null;
-  artistName: string | null;
-  previousRank: number;
-  peakRank: number;
-  peakPeriod: string;
-  weeksOnChart: number;
-}
-
-export interface ChartResponse {
-  period: string;
-  entries: ChartEntry[];
-  dropouts: DropoutEntry[];
 }
 
 // obtener ranking para un periodo específico (raw, sin metadata)
@@ -317,18 +281,7 @@ export function getAvailablePeriods(db: Db, granularity: Granularity, weekStart:
 
 // --- historial de chart para una entidad individual ---
 
-export interface EntityChartHistory {
-  currentRank: number | null;
-  currentPeriod: string;
-  peakRank: number;
-  peakPeriod: string;
-  peakPeriods: string[];
-  timesAtPeak: number;
-  weeksOnChart: number;
-  history: { period: string; rank: number | null }[];
-}
-
-export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, weekStart: WeekStart, sort: Sort, userId: number): EntityChartHistory {
+export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, weekStart: WeekStart, sort: Sort, userId: number): ChartHistoryResponse {
   const pExpr = periodExpr('week', weekStart);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
   const uf = userFilter(userId);

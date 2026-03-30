@@ -18,10 +18,11 @@ export const SPOTIFY_SCOPES = [
   'user-modify-playback-state',
   'playlist-modify-private',
   'playlist-read-private',
+  'playlist-read-collaborative',
 ].join(' ');
 
 // scopes necesarios para crear playlists
-export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-read-private'];
+export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-read-private', 'playlist-read-collaborative'];
 
 // URLs de la API de spotify
 export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
@@ -55,3 +56,6 @@ export const RECORDS_CACHE_INTERVAL_MS = 6 * 60 * 60_000;
 
 // intervalo de resolución de entidades import: (5 min)
 export const RESOLVE_INTERVAL_MS = 5 * 60_000;
+
+// intervalo de sincronización de playlists de spotify (6h)
+export const PLAYLIST_SYNC_INTERVAL_MS = 6 * 60 * 60_000;

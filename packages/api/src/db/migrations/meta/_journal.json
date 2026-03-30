@@ -29,6 +29,13 @@
       "when": 1774794649281,
       "tag": "0003_tough_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1774808460252,
+      "tag": "0004_common_hydra",
+      "breakpoints": true
     }
   ]
 }

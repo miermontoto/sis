@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sis/shared": "workspace:*",
     "echarts": "^5.6.0"
   },
   "devDependencies": {

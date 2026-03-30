@@ -9,7 +9,9 @@ import {
   enrichTrack,
   strategyTopRange, strategyTopArtist, strategyTopGenre,
   strategyDeepCuts, strategyTimeVibes, strategyRediscovery,
+  getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries,
 } from '../db/queries/index.js';
+import { syncUserPlaylists } from '../services/playlist-sync.js';
 import type {
   TopRangeParams, TopArtistParams, TopGenreParams,
   DeepCutsParams, TimeVibesParams, RediscoveryParams,
@@ -200,7 +202,96 @@ playlists.get('/', (c) => {
   });
 });
 
-// detalle de una playlist
+// ==================== LIBRARY (V2) ====================
+
+// listar playlists sincronizadas (metadata ligera)
+playlists.get('/library', (c) => {
+  const userId = c.get('userId');
+  const db = getDb();
+  const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200);
+  const offset = parseInt(c.req.query('offset') || '0');
+
+  const { items, total } = getLibraryPlaylists(db, userId, limit, offset);
+
+  return c.json({
+    items: items.map(r => ({
+      id: r.id,
+      spotifyId: r.spotify_id,
+      name: r.name,
+      imageUrl: r.image_url,
+      ownerName: r.owner_name,
+      isOwned: !!r.is_owned,
+      isAlgorithmic: !!r.is_algorithmic,
+      trackCount: r.track_count,
+      lastSyncedAt: r.last_synced_at,
+    })),
+    total,
+  });
+});
+
+// sync manual
+playlists.post('/library/sync', async (c) => {
+  const userId = c.get('userId');
+  await syncUserPlaylists(userId);
+  return c.json({ success: true });
+});
+
+// detalle de una playlist de biblioteca
+playlists.get('/library/:id', (c) => {
+  const userId = c.get('userId');
+  const db = getDb();
+  const id = parseInt(c.req.param('id'));
+
+  const row = db.all(sql`
+    SELECT * FROM spotify_playlists WHERE id = ${id} AND user_id = ${userId}
+  `)[0] as any;
+
+  if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
+
+  const trackStats = getPlaylistTrackStats(db, id, userId);
+  const genres = getPlaylistGenres(db, id);
+  const series = getPlaylistSeries(db, id, userId);
+
+  const tracksPlayed = trackStats.filter(t => t.play_count > 0).length;
+
+  return c.json({
+    playlist: {
+      id: row.id,
+      spotifyId: row.spotify_id,
+      name: row.name,
+      imageUrl: row.image_url,
+      ownerName: row.owner_name,
+      isOwned: !!row.is_owned,
+      isAlgorithmic: !!row.is_algorithmic,
+      trackCount: row.track_count,
+      lastSyncedAt: row.last_synced_at,
+    },
+    tracks: trackStats.map(t => ({
+      trackId: t.track_id,
+      position: t.position,
+      addedAt: t.added_at,
+      playCount: t.play_count,
+      totalMs: t.total_ms,
+      lastPlayed: t.last_played,
+      track: enrichTrack(db, t.track_id),
+    })),
+    genres,
+    series,
+    coverage: {
+      tracksPlayed,
+      totalTracks: row.track_count,
+      percent: row.track_count > 0 ? Math.round((tracksPlayed / row.track_count) * 100) : 0,
+    },
+    stats: {
+      totalPlays: trackStats.reduce((s, t) => s + t.play_count, 0),
+      totalMs: trackStats.reduce((s, t) => s + t.total_ms, 0),
+    },
+  });
+});
+
+// ==================== GENERATED (V1) ====================
+
+// detalle de una playlist generada
 playlists.get('/:id', (c) => {
   const userId = c.get('userId');
   const db = getDb();

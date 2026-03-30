@@ -1,8 +1,8 @@
 import { getDb } from '../db/connection.js';
 import { getRecords } from '../db/queries/index.js';
-import type { RecordsResponse } from '../db/queries/index.js';
+import type { RecordsResponse, Accolade, AccoladesResponse } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 
 type WeekStart = 'monday' | 'sunday' | 'friday';
@@ -64,6 +64,7 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
     mostWeeksAtNo1: e.mostWeeksAtNo1.slice(0, limit),
     mostWeeksInTop5: e.mostWeeksInTop5.slice(0, limit),
     longestChartRun: e.longestChartRun.slice(0, limit),
+    inMostPlaylists: e.inMostPlaylists.slice(0, limit),
   });
 
   const sliceArtist = (e: RecordsResponse['artists']) => ({
@@ -82,21 +83,8 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
   };
 }
 
-/** Accolade de una entidad individual */
-export interface Accolade {
-  type: string;
-  rank: number;
-  value: number;
-  week: string | null;
-}
-
-export interface AccoladesResult {
-  metric: 'plays' | 'time';
-  accolades: Accolade[];
-}
-
 /** Busca en la cache qué records tiene una entidad para un usuario */
-export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', entityId: string, userId: number): AccoladesResult {
+export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', entityId: string, userId: number): AccoladesResponse {
   // buscar cache entry del usuario
   let cacheEntry: [string, RecordsResponse] | undefined;
   for (const [key, val] of cache) {
@@ -120,11 +108,12 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ['weeksAtNo1', data.mostWeeksAtNo1 as any[]],
     ['weeksInChart', data.mostWeeksInTop5 as any[]],
     ['longestRun', data.longestChartRun as any[]],
+    ['inMostPlaylists', data.inMostPlaylists as any[]],
   ];
 
   for (const [type, list] of checks) {
     const idx = list.findIndex((e: any) => e.entityId === entityId);
-    if (idx !== -1) {
+    if (idx !== -1 && idx < 25) {
       const entry = list[idx] as any;
       accolades.push({ type, rank: idx + 1, value: entry.value, week: entry.week ?? null });
     }
@@ -138,9 +127,54 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ];
     for (const [type, list] of artistChecks) {
       const idx = list.findIndex((e: any) => e.artistId === entityId);
-      if (idx !== -1) {
+      if (idx !== -1 && idx < 25) {
         accolades.push({ type, rank: idx + 1, value: list[idx].count, week: null });
       }
+    }
+  }
+
+  // playlist presence: posición en el ranking de "entity in most playlists"
+  const db = getDb();
+  if (entityType === 'track') {
+    const rows = db.all(sql`
+      SELECT spt.track_id as eid, COUNT(DISTINCT spt.playlist_id) as cnt
+      FROM spotify_playlist_tracks spt
+      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+      GROUP BY spt.track_id
+      HAVING cnt > 1
+      ORDER BY cnt DESC
+    `) as { eid: string; cnt: number }[];
+    const idx = rows.findIndex(r => r.eid === entityId);
+    if (idx !== -1 && idx < 25) {
+      accolades.push({ type: 'inPlaylists', rank: idx + 1, value: rows[idx].cnt, week: null });
+    }
+  } else if (entityType === 'artist') {
+    const rows = db.all(sql`
+      SELECT ta.artist_id as eid, COUNT(DISTINCT spt.playlist_id) as cnt
+      FROM spotify_playlist_tracks spt
+      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+      JOIN track_artists ta ON ta.track_id = spt.track_id AND ta.position = 0
+      GROUP BY ta.artist_id
+      ORDER BY cnt DESC
+    `) as { eid: string; cnt: number }[];
+    const idx = rows.findIndex(r => r.eid === entityId);
+    if (idx !== -1 && idx < 25) {
+      accolades.push({ type: 'inPlaylists', rank: idx + 1, value: rows[idx].cnt, week: null });
+    }
+  } else if (entityType === 'album') {
+    const rows = db.all(sql`
+      SELECT t.album_id as eid, COUNT(DISTINCT spt.playlist_id) as cnt
+      FROM spotify_playlist_tracks spt
+      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+      JOIN tracks t ON t.spotify_id = spt.track_id
+      WHERE t.album_id IS NOT NULL
+      GROUP BY t.album_id
+      HAVING cnt > 1
+      ORDER BY cnt DESC
+    `) as { eid: string; cnt: number }[];
+    const idx = rows.findIndex(r => r.eid === entityId);
+    if (idx !== -1 && idx < 25) {
+      accolades.push({ type: 'inPlaylists', rank: idx + 1, value: rows[idx].cnt, week: null });
     }
   }
 

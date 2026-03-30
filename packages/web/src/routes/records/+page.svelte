@@ -61,6 +61,7 @@
 
   function formatValue(val: number, label: string): string {
     if (label === 'weeks') return `${val} wk${val !== 1 ? 's' : ''}`;
+    if (label === 'playlists') return `${val} playlist${val !== 1 ? 's' : ''}`;
     if (metric === 'plays') return `${formatNumber(val)} plays`;
     return formatDuration(val);
   }
@@ -80,23 +81,29 @@
 {#if loading && !currentData}
   <div class="loading"><div class="spinner"></div></div>
 {:else if currentData}
-  {#snippet recordList(title: string, items: { entityId: string; name: string; imageUrl: string | null; artistName: string | null; value: number; week: string | null }[], valueType: string)}
+  {#snippet recordList(title: string, items: { entityId: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null; value: number; week: string | null }[], valueType: string)}
     {#if items.length > 0}
       <div class="record-section">
         <h3 class="record-title">{title}</h3>
         <div class="record-list">
           {#each items as item, i}
-            <a href={item.week && item.week !== 'active' ? `/charts?type=${activeTab}&granularity=week&period=${item.week}` : entityLink(activeTab, item.entityId)} class="record-item">
+            <div class="record-item">
               <span class="record-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
               {#if item.imageUrl}
-                <img class="record-art" class:record-art--round={activeTab === 'artists'} src={item.imageUrl} alt="" />
+                <a href={entityLink(activeTab, item.entityId)} class="record-art-link">
+                  <img class="record-art" class:record-art--round={activeTab === 'artists'} src={item.imageUrl} alt="" />
+                </a>
               {:else}
                 <div class="record-art" class:record-art--round={activeTab === 'artists'}></div>
               {/if}
               <div class="record-info">
-                <div class="record-name">{item.name}</div>
+                <a href={entityLink(activeTab, item.entityId)} class="record-name-link">{item.name}</a>
                 {#if item.artistName}
-                  <div class="record-sub">{item.artistName}</div>
+                  {#if item.artistId}
+                    <a href="/artist/{item.artistId}" class="record-sub-link">{item.artistName}</a>
+                  {:else}
+                    <div class="record-sub">{item.artistName}</div>
+                  {/if}
                 {/if}
               </div>
               <div class="record-value">
@@ -104,10 +111,10 @@
                 {#if item.week === 'active'}
                   <span class="record-active">active</span>
                 {:else if item.week}
-                  <span class="record-week">{item.week}</span>
+                  <a href="/charts?type={activeTab}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
                 {/if}
               </div>
-            </a>
+            </div>
           {/each}
         </div>
       </div>
@@ -119,6 +126,9 @@
   {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks')}
   {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks')}
   {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks')}
+  {#if currentData.inMostPlaylists?.length}
+    {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists')}
+  {/if}
 
   {#if activeTab === 'artists' && 'mostNo1Tracks' in currentData}
     {@const artistData = currentData as ArtistRecordsData}
@@ -151,6 +161,7 @@
     {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks)}
     {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums)}
   {/if}
+
 {/if}
 
 <style>
@@ -219,6 +230,11 @@
     color: var(--text-muted);
     flex-shrink: 0;
   }
+  .record-art-link {
+    display: flex;
+    flex-shrink: 0;
+    line-height: 0;
+  }
   .record-art {
     width: 36px;
     height: 36px;
@@ -234,16 +250,30 @@
     flex: 1;
     min-width: 0;
   }
-  .record-name {
+  .record-name-link {
     font-size: 0.85rem;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+  }
+  .record-name-link:hover {
+    color: var(--accent);
   }
   .record-sub {
     font-size: 0.75rem;
     color: var(--text-muted);
+  }
+  .record-sub-link {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .record-sub-link:hover {
+    color: var(--accent);
   }
   .record-value {
     display: flex;
@@ -260,6 +290,10 @@
   .record-week {
     font-size: 0.65rem;
     color: var(--text-muted);
+    text-decoration: none;
+  }
+  .record-week:hover {
+    color: var(--accent);
   }
   .record-active {
     font-size: 0.6rem;

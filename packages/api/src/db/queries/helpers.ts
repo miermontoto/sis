@@ -147,3 +147,11 @@ export function rangeWhereClause(rangeStart: string | null, rangeEnd?: string | 
   if (rangeEnd) return sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}`;
   return sql`WHERE lh.played_at >= ${rangeStart}`;
 }
+
+/** Construir IN (...) o = para lista de IDs de álbum */
+export function albumIdIn(ids: string[], tableAlias = 't'): SqlChunk {
+  const col = sql.raw(`${tableAlias}.album_id`);
+  if (ids.length === 1) return sql`${col} = ${ids[0]}`;
+  const placeholders = sql.join(ids.map(id => sql`${id}`), sql`, `);
+  return sql`${col} IN (${placeholders})`;
+}

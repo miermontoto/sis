@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
+import type { RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse } from '@sis/shared';
 import { resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
@@ -11,41 +12,6 @@ function weekExpr(ws: WeekStart) {
   if (ws === 'monday') return sql`strftime('%Y-W%W', lh.played_at)`;
   if (ws === 'sunday') return sql`strftime('%Y-W%W', lh.played_at, '-1 day')`;
   return sql`strftime('%Y-W%W', lh.played_at, '-4 days')`;
-}
-
-interface RecordEntry {
-  entityId: string;
-  name: string;
-  imageUrl: string | null;
-  artistName: string | null;
-  value: number;
-  week: string | null;
-}
-
-interface ArtistRecordEntry {
-  artistId: string;
-  name: string;
-  imageUrl: string | null;
-  count: number;
-}
-
-interface EntityRecords {
-  peakWeekPlays: RecordEntry[];
-  biggestDebuts: RecordEntry[];
-  mostWeeksAtNo1: RecordEntry[];
-  mostWeeksInTop5: RecordEntry[];
-  longestChartRun: RecordEntry[];
-}
-
-interface ArtistRecords extends EntityRecords {
-  mostNo1Tracks: ArtistRecordEntry[];
-  mostNo1Albums: ArtistRecordEntry[];
-}
-
-export interface RecordsResponse {
-  tracks: EntityRecords;
-  albums: EntityRecords;
-  artists: ArtistRecords;
 }
 
 // --- queries de records por tipo de entidad ---
@@ -69,6 +35,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     )
     SELECT w.*, fw.debut_week,
            t.name, al.image_url,
+           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = w.eid AND ta.position = 0 LIMIT 1) as artist_id,
            (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
             WHERE ta.track_id = w.eid AND ta.position = 0 LIMIT 1) as artist_name
     FROM weekly w
@@ -77,7 +44,23 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     LEFT JOIN albums al ON al.spotify_id = t.album_id
   `) as any[];
 
-  return deriveRecords(ranked, limit);
+  const base = deriveRecords(ranked, limit);
+  base.inMostPlaylists = db.all(sql`
+    SELECT spt.track_id as entityId, t.name, al.image_url as imageUrl,
+           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = spt.track_id AND ta.position = 0 LIMIT 1) as artistId,
+           (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
+            WHERE ta.track_id = spt.track_id AND ta.position = 0 LIMIT 1) as artistName,
+           COUNT(DISTINCT spt.playlist_id) as value
+    FROM spotify_playlist_tracks spt
+    JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+    JOIN tracks t ON t.spotify_id = spt.track_id
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    GROUP BY spt.track_id
+    HAVING value > 1
+    ORDER BY value DESC
+    LIMIT ${limit}
+  `) as RecordEntry[];
+  return base;
 }
 
 function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): EntityRecords {
@@ -101,6 +84,8 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     )
     SELECT w.*, fw.debut_week,
            al.name, al.image_url,
+           (SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+            WHERE t2.album_id = w.eid LIMIT 1) as artist_id,
            (SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
             JOIN artists a ON a.spotify_id = ta.artist_id
             WHERE t2.album_id = w.eid LIMIT 1) as artist_name
@@ -109,10 +94,27 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     JOIN albums al ON al.spotify_id = w.eid
   `) as any[];
 
-  return deriveRecords(ranked, limit);
+  const albumBase = deriveRecords(ranked, limit);
+  albumBase.inMostPlaylists = db.all(sql`
+    SELECT t.album_id as entityId, al.name, al.image_url as imageUrl,
+           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistId,
+           (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
+            WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistName,
+           COUNT(DISTINCT spt.playlist_id) as value
+    FROM spotify_playlist_tracks spt
+    JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+    JOIN tracks t ON t.spotify_id = spt.track_id
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    WHERE t.album_id IS NOT NULL
+    GROUP BY t.album_id
+    HAVING value > 1
+    ORDER BY value DESC
+    LIMIT ${limit}
+  `) as RecordEntry[];
+  return albumBase;
 }
 
-function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): ArtistRecords {
+function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): ArtistRecordsData {
   const week = weekExpr(ws);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
   const uf = userFilter(userId);
@@ -184,6 +186,18 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     LIMIT ${limit}
   `) as ArtistRecordEntry[];
 
+  base.inMostPlaylists = db.all(sql`
+    SELECT ta.artist_id as entityId, a.name, a.image_url as imageUrl, NULL as artistId, NULL as artistName,
+           COUNT(DISTINCT spt.playlist_id) as value
+    FROM spotify_playlist_tracks spt
+    JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+    JOIN track_artists ta ON ta.track_id = spt.track_id AND ta.position = 0
+    JOIN artists a ON a.spotify_id = ta.artist_id
+    GROUP BY ta.artist_id
+    ORDER BY value DESC
+    LIMIT ${limit}
+  `) as RecordEntry[];
+
   return {
     ...base,
     mostNo1Tracks,
@@ -195,10 +209,10 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 
 function deriveRecords(rows: any[], limit: number): EntityRecords {
   // agrupar por entidad
-  const byEntity = new Map<string, { rows: any[]; debutWeek: string; name: string; imageUrl: string | null; artistName: string | null }>();
+  const byEntity = new Map<string, { rows: any[]; debutWeek: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null }>();
   for (const r of rows) {
     if (!byEntity.has(r.eid)) {
-      byEntity.set(r.eid, { rows: [], debutWeek: r.debut_week, name: r.name, imageUrl: r.image_url, artistName: r.artist_name });
+      byEntity.set(r.eid, { rows: [], debutWeek: r.debut_week, name: r.name, imageUrl: r.image_url, artistId: r.artist_id ?? null, artistName: r.artist_name });
     }
     byEntity.get(r.eid)!.rows.push(r);
   }
@@ -207,7 +221,7 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   const peakWeekPlays: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
     const best = data.rows.reduce((a: any, b: any) => a.val > b.val ? a : b);
-    peakWeekPlays.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName, value: best.val, week: best.w });
+    peakWeekPlays.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: best.val, week: best.w });
   }
   peakWeekPlays.sort((a, b) => b.value - a.value);
 
@@ -216,7 +230,7 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   for (const [eid, data] of byEntity) {
     const debut = data.rows.find((r: any) => r.w === data.debutWeek);
     if (debut) {
-      biggestDebuts.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName, value: debut.val, week: debut.w });
+      biggestDebuts.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: debut.val, week: debut.w });
     }
   }
   biggestDebuts.sort((a, b) => b.value - a.value);
@@ -226,7 +240,7 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   for (const [eid, data] of byEntity) {
     const weeks = data.rows.filter((r: any) => r.rank === 1).length;
     if (weeks > 0) {
-      mostWeeksAtNo1.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName, value: weeks, week: null });
+      mostWeeksAtNo1.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: weeks, week: null });
     }
   }
   mostWeeksAtNo1.sort((a, b) => b.value - a.value);
@@ -236,7 +250,7 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   for (const [eid, data] of byEntity) {
     const weeks = data.rows.filter((r: any) => r.rank <= CHART_SIZE).length;
     if (weeks > 0) {
-      mostWeeksInTop5.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName, value: weeks, week: null });
+      mostWeeksInTop5.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: weeks, week: null });
     }
   }
   mostWeeksInTop5.sort((a, b) => b.value - a.value);
@@ -271,7 +285,7 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
 
     if (maxStreak > 0) {
       longestChartRun.push({
-        entityId: eid, name: data.name, imageUrl: data.imageUrl, artistName: data.artistName,
+        entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName,
         value: maxStreak,
         week: endsAtLatest ? 'active' : null,
       });
@@ -285,6 +299,7 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
     mostWeeksAtNo1: mostWeeksAtNo1.slice(0, limit),
     mostWeeksInTop5: mostWeeksInTop5.slice(0, limit),
     longestChartRun: longestChartRun.slice(0, limit),
+    inMostPlaylists: [],
   };
 }
 

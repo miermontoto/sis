@@ -11,7 +11,9 @@ import {
   RECENTLY_PLAYED_LIMIT,
   METADATA_REFRESH_INTERVAL_MS,
   RECORDS_CACHE_INTERVAL_MS,
+  PLAYLIST_SYNC_INTERVAL_MS,
 } from '../constants.js';
+import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { computeAndCacheRecords } from './records-cache.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
@@ -33,6 +35,7 @@ const userLocalTracks = new Map<number, { id: string; startedAt: string; duratio
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
+let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
 
 const ARTIST_FIX_INTERVAL_MS = 5 * 60_000;
 
@@ -246,6 +249,16 @@ export function startPolling() {
     RECORDS_CACHE_INTERVAL_MS,
   );
 
+  // playlist sync (6h) — recomputar records después de sync para incluir playlist data
+  syncAllUsersPlaylists()
+    .then(() => { try { computeAndCacheRecords(); } catch {} })
+    .catch(err => console.error('[playlist-sync] error:', err));
+  playlistSyncTimer = setInterval(() => {
+    syncAllUsersPlaylists()
+      .then(() => { try { computeAndCacheRecords(); } catch {} })
+      .catch(err => console.error('[playlist-sync] error:', err));
+  }, PLAYLIST_SYNC_INTERVAL_MS);
+
   console.log(`[poll] currently playing cada ${CURRENTLY_PLAYING_INTERVAL_MS / 1000}s`);
   console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
 }
@@ -260,9 +273,11 @@ export function stopPolling() {
   if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
   if (artistFixTimer) clearInterval(artistFixTimer);
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
+  if (playlistSyncTimer) clearInterval(playlistSyncTimer);
   metadataRefreshTimer = null;
   artistFixTimer = null;
   recordsCacheTimer = null;
+  playlistSyncTimer = null;
   console.log('[poll] polling detenido');
 }
 

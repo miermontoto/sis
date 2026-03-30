@@ -1,9 +1,36 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type PlaylistStrategy, type GeneratedPlaylist, type PlaylistPreviewResponse, type TrackInfo, type GenreItem, type MeResponse } from '$lib/api';
+  import { goto } from '$app/navigation';
+  import { api, type PlaylistStrategy, type GeneratedPlaylist, type PlaylistPreviewResponse, type TrackInfo, type GenreItem, type MeResponse, type LibraryPlaylist } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
-  import { formatDate } from '$lib/utils/format';
+  import { formatDate, formatDuration, formatNumber } from '$lib/utils/format';
+
+  // tabs
+  let activeTab = $state<'library' | 'generate'>('library');
+
+  // library state
+  let libraryPlaylists = $state<LibraryPlaylist[]>([]);
+  let libraryLoading = $state(true);
+  let syncing = $state(false);
+
+  async function loadLibrary() {
+    libraryLoading = true;
+    try {
+      const res = await api.libraryPlaylists(200);
+      libraryPlaylists = res.items;
+    } catch {}
+    libraryLoading = false;
+  }
+
+  async function handleSync() {
+    syncing = true;
+    try {
+      await api.syncLibrary();
+      await loadLibrary();
+    } catch {}
+    syncing = false;
+  }
 
   const strategies: { key: PlaylistStrategy; label: string; desc: string; icon: string }[] = [
     { key: 'top_range', label: 'Top Tracks', desc: 'Tu ranking por rango temporal', icon: '*' },
@@ -69,6 +96,7 @@
       genres = genreData;
       savedPlaylists = plData.items;
     } catch {}
+    loadLibrary();
   });
 
   function buildParams(): Record<string, unknown> {
@@ -206,14 +234,56 @@
 
 <h1>Playlists</h1>
 
-{#if !hasPlaylistScopes}
-  <div class="scope-banner">
-    <span>Se requieren permisos adicionales de Spotify para crear playlists.</span>
-    <a href="/auth/login?returnTo=/playlists" class="action-btn small">Re-autenticar</a>
-  </div>
-{/if}
+<div class="tabs">
+  <button class:active={activeTab === 'library'} onclick={() => activeTab = 'library'}>Library</button>
+  <button class:active={activeTab === 'generate'} onclick={() => activeTab = 'generate'}>Generate</button>
+</div>
 
-<div class="card">
+{#if activeTab === 'library'}
+  <!-- LIBRARY TAB -->
+  <div class="library-header">
+    <span class="library-count">{libraryPlaylists.length} playlists</span>
+    <button class="action-btn small secondary" onclick={handleSync} disabled={syncing}>
+      {syncing ? 'Syncing...' : 'Sync now'}
+    </button>
+  </div>
+
+  {#if libraryLoading}
+    <div class="loading"><div class="spinner"></div></div>
+  {:else if libraryPlaylists.length === 0}
+    <div class="card empty">No hay playlists sincronizadas. Haz click en "Sync now" para importar tus playlists de Spotify.</div>
+  {:else}
+    <div class="library-grid">
+      {#each libraryPlaylists as pl}
+        <a href="/playlists/{pl.id}" class="library-card">
+          {#if pl.imageUrl}
+            <img class="library-img" src={pl.imageUrl} alt={pl.name} />
+          {:else}
+            <div class="library-img placeholder"></div>
+          {/if}
+          <div class="library-info">
+            <div class="library-name">{pl.name}</div>
+            <div class="library-meta">
+              {#if pl.isAlgorithmic}<span class="badge algo">Algorithmic</span>{/if}
+              <span>{pl.trackCount} tracks</span>
+              {#if pl.ownerName}<span class="library-owner">by {pl.ownerName}</span>{/if}
+            </div>
+          </div>
+        </a>
+      {/each}
+    </div>
+  {/if}
+
+{:else}
+  <!-- GENERATE TAB -->
+  {#if !hasPlaylistScopes}
+    <div class="scope-banner">
+      <span>Se requieren permisos adicionales de Spotify para crear playlists.</span>
+      <a href="/auth/login?returnTo=/playlists" class="action-btn small">Re-autenticar</a>
+    </div>
+  {/if}
+
+  <div class="card">
   <h2>Generar playlist</h2>
   <div class="strategy-grid">
     {#each strategies as s}
@@ -437,9 +507,171 @@
   </div>
 {/if}
 
+{/if}
+
 <style>
   h1 { margin-bottom: 1.5rem; }
   h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tabs button {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.6rem 1.2rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tabs button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tabs button:hover:not(.active) {
+    color: var(--text);
+  }
+
+  .library-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .library-count {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  .library-card {
+    display: flex;
+    gap: 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    text-decoration: none;
+    color: var(--text);
+    transition: border-color 0.15s;
+  }
+
+  .library-card:hover {
+    border-color: var(--text-muted);
+  }
+
+  .library-img {
+    width: 64px;
+    height: 64px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .library-img.placeholder {
+    background: var(--bg-hover);
+  }
+
+  .library-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .library-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .library-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .library-owner {
+    opacity: 0.7;
+  }
+
+  .library-stats {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .badge.algo {
+    background: rgba(255, 165, 0, 0.15);
+    color: orange;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+  }
+
+  .coverage-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 0.2rem;
+    overflow: hidden;
+  }
+
+  .coverage-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .coverage-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+  }
+
+  .loading {
+    display: flex;
+    justify-content: center;
+    padding: 3rem;
+  }
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 3rem;
+  }
 
   .card {
     background: var(--bg-card);

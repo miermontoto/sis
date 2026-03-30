@@ -119,6 +119,36 @@ export const generatedPlaylistTracks = sqliteTable('generated_playlist_tracks', 
   index('idx_gpt_playlist_id').on(table.playlistId),
 ]);
 
+// playlists sincronizadas de spotify (biblioteca del usuario)
+export const spotifyPlaylists = sqliteTable('spotify_playlists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  spotifyId: text('spotify_id').notNull(),
+  name: text('name').notNull(),
+  imageUrl: text('image_url'),
+  ownerName: text('owner_name'),
+  isOwned: integer('is_owned', { mode: 'boolean' }).default(false),
+  isAlgorithmic: integer('is_algorithmic', { mode: 'boolean' }).default(false),
+  trackCount: integer('track_count').default(0),
+  snapshotId: text('snapshot_id'),
+  lastSyncedAt: text('last_synced_at'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  uniqueIndex('idx_spotify_playlists_user_spotify').on(table.userId, table.spotifyId),
+]);
+
+export const spotifyPlaylistTracks = sqliteTable('spotify_playlist_tracks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  playlistId: integer('playlist_id').notNull().references(() => spotifyPlaylists.id),
+  trackId: text('track_id').notNull().references(() => tracks.spotifyId),
+  position: integer('position').notNull(),
+  addedAt: text('added_at'),
+}, (table) => [
+  index('idx_spt_playlist_id').on(table.playlistId),
+  uniqueIndex('idx_spt_playlist_track').on(table.playlistId, table.trackId),
+]);
+
 export const pollingState = sqliteTable('polling_state', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').references(() => users.id).unique(),

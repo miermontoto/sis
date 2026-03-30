@@ -1,20 +1,12 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
-import { entityJoins, entityGroupCol, entityWhereCol, rangeWhere, rangeWhereClause, orderByCol, getDateTrunc, getDateTruncForDays, mergeRulesJoin, userFilter } from './helpers.js';
+import { entityJoins, entityGroupCol, entityWhereCol, rangeWhere, rangeWhereClause, orderByCol, getDateTrunc, getDateTruncForDays, mergeRulesJoin, userFilter, albumIdIn } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
-
-// helper: construir IN (...) con IDs literales
-function inList(ids: string[], tableAlias = 't') {
-  const col = sql.raw(`${tableAlias}.album_id`);
-  if (ids.length === 1) return sql`${col} = ${ids[0]}`;
-  const placeholders = sql.join(ids.map(id => sql`${id}`), sql`, `);
-  return sql`${col} IN (${placeholders})`;
-}
 
 /** Stats agregados para cualquier entidad. Para álbumes, pasar albumIds pre-resueltos. */
 export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, rangeEnd: string | null | undefined, albumIds: string[] | undefined, userId: number): StatsRow {
   const join = entityJoins(entityType);
-  const where = entityType === 'album' && albumIds ? inList(albumIds) : entityWhereCol(entityType, entityId);
+  const where = entityType === 'album' && albumIds ? albumIdIn(albumIds) : entityWhereCol(entityType, entityId);
   const wr = rangeWhere(rangeStart, rangeEnd);
   const uf = userFilter(userId);
 
@@ -118,7 +110,7 @@ export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart:
 /** Serie temporal. Para álbumes, pasar albumIds pre-resueltos. */
 export function getEntitySeries(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, range: TimeRange, albumIds: string[] | undefined, rangeEnd: string | null | undefined, customDays: number | undefined, userId: number): SeriesRow[] {
   const join = entityJoins(entityType);
-  const where = entityType === 'album' && albumIds ? inList(albumIds) : entityWhereCol(entityType, entityId);
+  const where = entityType === 'album' && albumIds ? albumIdIn(albumIds) : entityWhereCol(entityType, entityId);
   const wr = rangeWhere(rangeStart, rangeEnd);
   const dateTrunc = customDays != null ? getDateTruncForDays(customDays) : getDateTrunc(range);
   const uf = userFilter(userId);
@@ -163,7 +155,7 @@ export function getRecentPlays(db: Db, entityType: EntityType, entityId: string,
   const uf = userFilter(userId);
 
   if (entityType === 'album') {
-    const where = albumIds ? inList(albumIds) : sql`t.album_id = ${entityId}`;
+    const where = albumIds ? albumIdIn(albumIds) : sql`t.album_id = ${entityId}`;
     return db.all(sql`
       SELECT lh.id, lh.played_at, lh.track_id
       FROM listening_history lh

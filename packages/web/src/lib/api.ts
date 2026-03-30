@@ -1,3 +1,35 @@
+// --- DTOs re-exportados desde @sis/shared (single source of truth) ---
+
+export type {
+  TrackInfo, FormattedArtist, FormattedAlbum,
+  TopTrackItem, TopArtistItem, TopAlbumItem,
+  RankingMetric, WeekStartOption, DateRangeParams,
+  HistoryItem, HistoryResponse,
+  NowPlayingResponse,
+  ListeningTimeItem, HeatmapItem, StreaksData, GenreItem,
+  HealthData, MeResponse, UserRecord, ImportResult,
+  PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
+  LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
+  SearchResults,
+  ArtistDetail, AlbumDetail, TrackDetail, Rankings,
+  ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint,
+  RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem,
+  Accolade, AccoladesResponse,
+  MergeRule, MergeSuggestionAlbum,
+} from '@sis/shared';
+
+import type {
+  RankingMetric, WeekStartOption, DateRangeParams,
+  TopTrackItem, TopArtistItem, TopAlbumItem,
+  GenreItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
+  NowPlayingResponse, ArtistDetail, AlbumDetail, TrackDetail,
+  SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
+  AccoladesResponse, Rankings, RankingHistoryPoint, HealthData,
+  MergeRule, MergeSuggestionAlbum, MeResponse, UserRecord, ImportResult,
+  PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
+  LibraryPlaylistListResponse, LibraryPlaylistDetail,
+} from '@sis/shared';
+
 const BASE = '/api';
 
 // cache de respuestas con TTL corto para evitar refetches en navegación back/forward
@@ -73,47 +105,6 @@ export function createFetchController() {
   };
 }
 
-export interface TrackInfo {
-  id: string;
-  name: string;
-  durationMs: number;
-  album: { id: string; name: string; imageUrl: string | null } | null;
-  artists: { id: string; name: string }[];
-}
-
-export interface TopTrackItem {
-  trackId: string;
-  playCount: number;
-  totalMs: number;
-  rankChange: number | null;
-  previousRank: number | null;
-  isNew: boolean;
-  track: TrackInfo | null;
-}
-
-export interface TopArtistItem {
-  artistId: string;
-  playCount: number;
-  totalMs: number;
-  rankChange: number | null;
-  previousRank: number | null;
-  isNew: boolean;
-  artist: { name: string; imageUrl: string | null; genres: string[] } | null;
-}
-
-export interface TopAlbumItem {
-  albumId: string;
-  playCount: number;
-  totalMs: number;
-  rankChange: number | null;
-  previousRank: number | null;
-  isNew: boolean;
-  album: { name: string; imageUrl: string | null; releaseDate: string | null } | null;
-}
-
-export type RankingMetric = 'time' | 'plays';
-export type WeekStartOption = 'monday' | 'sunday' | 'friday';
-
 // --- user settings (synced to server, localStorage as fallback) ---
 
 interface SettingsData {
@@ -179,161 +170,6 @@ export function setWeekStart(ws: WeekStartOption) {
   updateSetting({ weekStart: ws });
 }
 
-export interface HistoryItem {
-  id: number;
-  playedAt: string;
-  contextType: string | null;
-  track: TrackInfo | null;
-}
-
-export interface HistoryResponse {
-  items: HistoryItem[];
-  page: number;
-  limit: number;
-  total: number;
-  hasMore: boolean;
-}
-
-export interface NowPlayingResponse {
-  playing: boolean;
-  isPlaying: boolean;
-  track?: TrackInfo;
-  updatedAt?: string;
-}
-
-export interface ListeningTimeItem {
-  period: string;
-  play_count: number;
-  total_ms: number;
-}
-
-export interface HeatmapItem {
-  day_of_week: number;
-  hour: number;
-  play_count: number;
-}
-
-export interface StreaksData {
-  currentStreak: number;
-  longestStreak: number;
-  totalDays: number;
-}
-
-export interface GenreItem {
-  genre: string;
-  play_count: number;
-}
-
-export interface HealthData {
-  status: string;
-  database: string;
-  authenticated: boolean;
-  totalPlays: number;
-  timestamp: string;
-}
-
-export interface MeResponse {
-  authenticated: boolean;
-  userId?: number;
-  spotifyId?: string;
-  isAdmin?: boolean;
-  scopes?: string[];
-}
-
-// --- playlist types ---
-
-export type PlaylistStrategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery';
-
-export interface GeneratedPlaylist {
-  id: number;
-  spotifyPlaylistId: string | null;
-  spotifyUrl?: string;
-  name: string;
-  strategy: PlaylistStrategy;
-  params: Record<string, unknown>;
-  trackCount: number;
-  tracks?: { position: number; track: TrackInfo | null }[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PlaylistListResponse {
-  items: GeneratedPlaylist[];
-  total: number;
-}
-
-export interface PlaylistPreviewResponse {
-  tracks: { position: number; track: TrackInfo | null }[];
-}
-
-export interface UserRecord {
-  id: number;
-  spotifyId: string;
-  displayName: string | null;
-  imageUrl: string | null;
-  isAdmin: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ImportResult {
-  total: number;
-  imported: number;
-  duplicates: number;
-  skipped: number;
-}
-
-// --- search types ---
-
-export interface SearchResults {
-  artists: { id: string; name: string; imageUrl: string | null; playCount: number }[];
-  albums: { id: string; name: string; imageUrl: string | null; artistName: string | null; playCount: number }[];
-  tracks: { id: string; name: string; albumImageUrl: string | null; artistName: string | null; playCount: number }[];
-}
-
-// --- detail types ---
-
-export interface Rankings {
-  week: number | null;
-  month: number | null;
-  thisYear: number | null;
-  all: number | null;
-}
-
-export interface ArtistDetail {
-  artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
-  stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
-  series: { period: string; play_count: number; total_ms: number }[];
-  topTracks: TopTrackItem[];
-  topAlbums: TopAlbumItem[];
-  recentPlays: HistoryItem[];
-}
-
-export interface AlbumDetail {
-  album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
-  artists: { id: string; name: string; imageUrl: string | null }[];
-  stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
-  series: { period: string; play_count: number; total_ms: number }[];
-  tracks: TopTrackItem[];
-  recentPlays: HistoryItem[];
-  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
-  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
-}
-
-export interface TrackDetail {
-  track: {
-    id: string; name: string; durationMs: number; trackNumber: number | null; explicit: boolean;
-    album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } | null;
-    artists: { id: string; name: string; imageUrl: string | null }[];
-  };
-  stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
-  series: { period: string; play_count: number; total_ms: number }[];
-  dailySeries: { day: string; play_count: number; total_ms: number }[];
-  albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } }[];
-  recentPlays: HistoryItem[];
-}
-
 // invalidar cache (tras mutaciones o cuando se necesite data fresca)
 export function invalidateCache(pathPrefix?: string) {
   if (!pathPrefix) {
@@ -364,143 +200,6 @@ async function apiMutate<T>(method: string, path: string, body?: unknown): Promi
   // invalidar cache tras mutaciones
   responseCache.clear();
   return res.json();
-}
-
-// --- merge types ---
-
-export interface MergeRule {
-  id: number;
-  entity_type: string;
-  source_id: string;
-  target_id: string;
-  source_name: string;
-  source_image: string | null;
-  target_name: string;
-  target_image: string | null;
-  artist_id: string | null;
-  artist_name: string | null;
-  artist_image: string | null;
-  created_at: string;
-}
-
-export interface MergeSuggestionAlbum {
-  id: string;
-  name: string;
-  image_url: string | null;
-  plays: number;
-}
-
-// --- records types ---
-
-export interface RecordEntry {
-  entityId: string;
-  name: string;
-  imageUrl: string | null;
-  artistName: string | null;
-  value: number;
-  week: string | null;
-}
-
-export interface ArtistRecordEntry {
-  artistId: string;
-  name: string;
-  imageUrl: string | null;
-  count: number;
-}
-
-export interface EntityRecords {
-  peakWeekPlays: RecordEntry[];
-  biggestDebuts: RecordEntry[];
-  mostWeeksAtNo1: RecordEntry[];
-  mostWeeksInTop5: RecordEntry[];
-  longestChartRun: RecordEntry[];
-}
-
-export interface ArtistRecordsData extends EntityRecords {
-  mostNo1Tracks: ArtistRecordEntry[];
-  mostNo1Albums: ArtistRecordEntry[];
-}
-
-export interface RecordsResponse {
-  tracks: EntityRecords;
-  albums: EntityRecords;
-  artists: ArtistRecordsData;
-}
-
-// --- accolades types ---
-
-export interface Accolade {
-  type: string;
-  rank: number;
-  value: number;
-  week: string | null;
-}
-
-export interface AccoladesResponse {
-  metric: 'plays' | 'time';
-  accolades: Accolade[];
-}
-
-// --- charts types ---
-
-export interface ChartEntry {
-  rank: number;
-  entityId: string;
-  name: string;
-  imageUrl: string | null;
-  artistName: string | null;
-  plays: number;
-  totalMs: number;
-  previousRank: number | null;
-  rankChange: number | null;
-  isNew: boolean;
-  isReentry: boolean;
-  peakRank: number;
-  peakPeriod: string;
-  peakPeriods: string[];
-  timesAtPeak: number;
-  weeksOnChart: number;
-  consecutiveWeeks: number;
-}
-
-export interface DropoutEntry {
-  entityId: string;
-  name: string;
-  imageUrl: string | null;
-  artistName: string | null;
-  previousRank: number;
-  peakRank: number;
-  peakPeriod: string;
-  weeksOnChart: number;
-}
-
-export interface ChartResponse {
-  period: string;
-  entries: ChartEntry[];
-  dropouts: DropoutEntry[];
-}
-
-// --- chart history types ---
-
-export interface RankingHistoryPoint {
-  period: string;
-  rank: number;
-}
-
-export interface ChartHistoryResponse {
-  currentRank: number | null;
-  currentPeriod: string;
-  peakRank: number;
-  peakPeriod: string;
-  peakPeriods: string[];
-  timesAtPeak: number;
-  weeksOnChart: number;
-  history: { period: string; rank: number | null }[];
-}
-
-export interface DateRangeParams {
-  startDate: string;
-  endDate: string;
 }
 
 function rangeParams(range: string, dates?: DateRangeParams): Record<string, string> {
@@ -615,6 +314,16 @@ export const api = {
 
   regeneratePlaylist: (id: number) =>
     apiMutate<GeneratedPlaylist>('POST', `/playlists/${id}/regenerate`),
+
+  // library playlists (V2)
+  libraryPlaylists: (limit = 50, offset = 0) =>
+    apiFetch<LibraryPlaylistListResponse>('/playlists/library', { limit: String(limit), offset: String(offset) }),
+
+  libraryPlaylistDetail: (id: number) =>
+    apiFetch<LibraryPlaylistDetail>(`/playlists/library/${id}`),
+
+  syncLibrary: () =>
+    apiMutate<{ success: boolean }>('POST', '/playlists/library/sync'),
 
   importHistory: async (files: FileList): Promise<ImportResult> => {
     const formData = new FormData();

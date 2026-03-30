@@ -77,3 +77,33 @@ export interface SpotifyTokenResponse {
   expires_in: number;
   refresh_token?: string;
 }
+
+export interface SpotifyPlaylistsResponse {
+  items: {
+    id: string;
+    name: string;
+    description: string | null;
+    images: SpotifyImage[];
+    owner: { id: string; display_name: string };
+    snapshot_id: string;
+    tracks: { total: number };
+    collaborative: boolean;
+    public: boolean;
+  }[];
+  total: number;
+  limit: number;
+  offset: number;
+  next: string | null;
+}
+
+export interface SpotifyPlaylistTracksResponse {
+  items: {
+    added_at: string;
+    track: SpotifyTrack | null;
+    is_local: boolean;
+  }[];
+  total: number;
+  limit: number;
+  offset: number;
+  next: string | null;
+}

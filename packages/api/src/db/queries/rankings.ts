@@ -1,11 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
+import type { RankingHistoryPoint } from '@sis/shared';
 import { getRangeStart, entityJoins, entityGroupCol, mergeRulesJoin, userFilter } from './helpers.js';
-
-export interface RankingHistoryPoint {
-  period: string;
-  rank: number;
-}
 
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
  *  Optimizado: un solo scan de listening_history con CASE para los 4 rangos,
