@@ -113,8 +113,7 @@
       </div>
       {#if data.timesAtPeak > 1 && data.peakPeriods?.length > 1}
         <div class="cs-badge">
-          <PeakSelector peakRank={data.peakRank} peakPeriods={data.peakPeriods} onselect={(p) => goToWeek(p)} />
-          <span class="cs-label">Peak</span>
+          <PeakSelector peakRank={data.peakRank} peakPeriods={data.peakPeriods} onselect={(p) => goToWeek(p)} size="lg" />
         </div>
       {:else}
         <button class="cs-badge cs-badge--clickable" onclick={goToPeak} title="View peak chart ({data.peakPeriod})">
@@ -210,11 +209,6 @@
   }
   .cs-val--muted {
     color: var(--text-muted);
-  }
-  .cs-times {
-    font-size: 0.7rem;
-    font-weight: 500;
-    opacity: 0.7;
   }
   .cs-total {
     font-size: 0.8rem;

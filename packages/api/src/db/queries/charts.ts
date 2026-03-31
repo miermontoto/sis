@@ -185,31 +185,35 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
     const isNew = notInPrev && weeksOnChart <= 1; // primera vez en el chart
     const isReentry = notInPrev && weeksOnChart > 1; // reingreso
 
-    let name = '', imageUrl: string | null = null, artistName: string | null = null;
+    let name = '', imageUrl: string | null = null, artistName: string | null = null, artistId: string | null = null;
 
     if (entityType === 'tracks') {
       const info = db.all(sql`
         SELECT t.name, al.image_url,
                (SELECT a.name FROM track_artists ta2 JOIN artists a ON a.spotify_id = ta2.artist_id
-                WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_name
+                WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_name,
+               (SELECT ta2.artist_id FROM track_artists ta2
+                WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_id
         FROM tracks t LEFT JOIN albums al ON al.spotify_id = t.album_id
         WHERE t.spotify_id = ${row.entity_id}
       `)[0] as any;
-      if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; }
+      if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; artistId = info.artist_id; }
     } else if (entityType === 'albums') {
       const info = db.all(sql`
         SELECT al.name, al.image_url,
                (SELECT a.name FROM tracks t2 JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-                JOIN artists a ON a.spotify_id = ta2.artist_id WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_name
+                JOIN artists a ON a.spotify_id = ta2.artist_id WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_name,
+               (SELECT ta2.artist_id FROM tracks t2 JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
+                WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_id
         FROM albums al WHERE al.spotify_id = ${row.entity_id}
       `)[0] as any;
-      if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; }
+      if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; artistId = info.artist_id; }
     } else {
       const info = db.all(sql`SELECT name, image_url FROM artists WHERE spotify_id = ${row.entity_id}`)[0] as any;
       if (info) { name = info.name; imageUrl = info.image_url; }
     }
 
-    return { rank, entityId: row.entity_id, name, imageUrl, artistName, plays: row.plays, totalMs: row.total_ms, previousRank, rankChange, isNew, isReentry, peakRank, peakPeriod, peakPeriods, timesAtPeak, weeksOnChart, consecutiveWeeks };
+    return { rank, entityId: row.entity_id, name, imageUrl, artistName, artistId, plays: row.plays, totalMs: row.total_ms, previousRank, rankChange, isNew, isReentry, peakRank, peakPeriod, peakPeriods, timesAtPeak, weeksOnChart, consecutiveWeeks };
   });
 
   // entidades que salieron del chart (estaban en prev pero no en current)
@@ -225,25 +229,29 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
       const dropoutHistory = getChartHistory(db, entityType, granularity, weekStart, sort, dIds, prev, userId);
 
       for (const [eid, prevRank] of dropoutIds) {
-        let name = '', imageUrl: string | null = null, artistName: string | null = null;
+        let name = '', imageUrl: string | null = null, artistName: string | null = null, artistId: string | null = null;
 
         if (entityType === 'tracks') {
           const info = db.all(sql`
             SELECT t.name, al.image_url,
                    (SELECT a.name FROM track_artists ta2 JOIN artists a ON a.spotify_id = ta2.artist_id
-                    WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_name
+                    WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_name,
+                   (SELECT ta2.artist_id FROM track_artists ta2
+                    WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_id
             FROM tracks t LEFT JOIN albums al ON al.spotify_id = t.album_id
             WHERE t.spotify_id = ${eid}
           `)[0] as any;
-          if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; }
+          if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; artistId = info.artist_id; }
         } else if (entityType === 'albums') {
           const info = db.all(sql`
             SELECT al.name, al.image_url,
                    (SELECT a.name FROM tracks t2 JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-                    JOIN artists a ON a.spotify_id = ta2.artist_id WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_name
+                    JOIN artists a ON a.spotify_id = ta2.artist_id WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_name,
+                   (SELECT ta2.artist_id FROM tracks t2 JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
+                    WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_id
             FROM albums al WHERE al.spotify_id = ${eid}
           `)[0] as any;
-          if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; }
+          if (info) { name = info.name; imageUrl = info.image_url; artistName = info.artist_name; artistId = info.artist_id; }
         } else {
           const info = db.all(sql`SELECT name, image_url FROM artists WHERE spotify_id = ${eid}`)[0] as any;
           if (info) { name = info.name; imageUrl = info.image_url; }
@@ -251,7 +259,7 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
 
         const hist = dropoutHistory.get(eid);
         dropouts.push({
-          entityId: eid, name, imageUrl, artistName,
+          entityId: eid, name, imageUrl, artistName, artistId,
           previousRank: prevRank,
           peakRank: hist?.peakRank ?? prevRank,
           peakPeriod: hist?.peakPeriod ?? prev,

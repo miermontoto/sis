@@ -4,6 +4,7 @@ export interface ChartEntry {
   name: string;
   imageUrl: string | null;
   artistName: string | null;
+  artistId: string | null;
   plays: number;
   totalMs: number;
   previousRank: number | null;
@@ -23,6 +24,7 @@ export interface DropoutEntry {
   name: string;
   imageUrl: string | null;
   artistName: string | null;
+  artistId: string | null;
   previousRank: number;
   peakRank: number;
   peakPeriod: string;

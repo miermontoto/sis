@@ -178,54 +178,6 @@
 {/if}
 
 <style>
-  .rankings-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-  }
-  .ranking-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.15rem;
-    flex: 1;
-    min-width: 60px;
-    padding: 0.5rem 0.75rem;
-    border-radius: 10px;
-    background: var(--bg-card);
-    border: 1px solid #2a2a2a;
-  }
-  .ranking-badge--active {
-    border-color: #1db954;
-  }
-  .ranking-badge--loading .ranking-value {
-    width: 28px;
-    height: 1.1rem;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    display: inline-block;
-  }
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-  .ranking-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .ranking-value {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text);
-  }
-  .ranking-badge--active .ranking-value {
-    color: #1db954;
-  }
   .chart-card {
     margin-bottom: 1.5rem;
     padding: 1rem;

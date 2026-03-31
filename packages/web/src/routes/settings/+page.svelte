@@ -570,38 +570,6 @@
     font-weight: 500;
   }
 
-  /* toggle switch */
-  .toggle {
-    position: relative;
-    width: 44px;
-    height: 24px;
-    border-radius: 12px;
-    border: none;
-    background: var(--border);
-    cursor: pointer;
-    padding: 0;
-    transition: background 0.2s;
-  }
-
-  .toggle-on {
-    background: var(--accent);
-  }
-
-  .toggle-knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 0.2s;
-  }
-
-  .toggle-on .toggle-knob {
-    transform: translateX(20px);
-  }
-
   /* status badge */
   .status-badge {
     display: inline-flex;

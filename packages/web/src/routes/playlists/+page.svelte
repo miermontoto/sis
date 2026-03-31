@@ -304,7 +304,7 @@
       <!-- Rango temporal (no para rediscovery) -->
       {#if selectedStrategy !== 'rediscovery'}
         <div class="filter-row">
-          <label>Rango temporal</label>
+          <span class="filter-label">Rango temporal</span>
           <TimeRangeSelector
             value={range}
             onchange={(r) => range = r}
@@ -318,7 +318,7 @@
       <!-- Top Artist: buscar artista -->
       {#if selectedStrategy === 'top_artist'}
         <div class="filter-row">
-          <label>Artista</label>
+          <span class="filter-label">Artista</span>
           <div class="artist-search">
             <input
               type="text"
@@ -337,7 +337,7 @@
       <!-- Top Genre: selector de genero -->
       {#if selectedStrategy === 'top_genre'}
         <div class="filter-row">
-          <label>Genero</label>
+          <span class="filter-label">Genero</span>
           <select bind:value={genreFilter}>
             <option value="">Seleccionar genero...</option>
             {#each genres as g}
@@ -350,11 +350,11 @@
       <!-- Deep Cuts -->
       {#if selectedStrategy === 'deep_cuts'}
         <div class="filter-row">
-          <label>Popularidad maxima: {maxPopularity} <span class="hint">(0 = desconocido, 100 = mainstream)</span></label>
+          <span class="filter-label">Popularidad maxima: {maxPopularity} <span class="hint">(0 = desconocido, 100 = mainstream)</span></span>
           <input type="range" min="0" max="50" bind:value={maxPopularity} />
         </div>
         <div class="filter-row">
-          <label>Minimo de plays</label>
+          <span class="filter-label">Minimo de plays</span>
           <input type="number" min="1" max="100" bind:value={minPlaysDeep} />
         </div>
       {/if}
@@ -362,7 +362,7 @@
       <!-- Time Vibes -->
       {#if selectedStrategy === 'time_vibes'}
         <div class="filter-row">
-          <label>Dias</label>
+          <span class="filter-label">Dias</span>
           <div class="day-selector">
             {#each dayLabels as label, i}
               <button
@@ -374,7 +374,7 @@
           </div>
         </div>
         <div class="filter-row">
-          <label>Horas: {hourStart}:00 — {hourEnd}:00</label>
+          <span class="filter-label">Horas: {hourStart}:00 — {hourEnd}:00</span>
           <div class="hour-range">
             <input type="number" min="0" max="23" bind:value={hourStart} />
             <span>—</span>
@@ -386,11 +386,11 @@
       <!-- Rediscovery -->
       {#if selectedStrategy === 'rediscovery'}
         <div class="filter-row">
-          <label>Minimo de plays historicos</label>
+          <span class="filter-label">Minimo de plays historicos</span>
           <input type="number" min="1" max="500" bind:value={minPlaysRediscovery} />
         </div>
         <div class="filter-row">
-          <label>No escuchado en los ultimos</label>
+          <span class="filter-label">No escuchado en los ultimos</span>
           <div class="segmented">
             {#each [30, 60, 90, 180] as days}
               <button class:active={recencyDays === days} onclick={() => recencyDays = days}>{days}d</button>
@@ -401,7 +401,7 @@
 
       <!-- Track count -->
       <div class="filter-row">
-        <label>Cantidad de tracks</label>
+        <span class="filter-label">Cantidad de tracks</span>
         <div class="segmented">
           {#each [25, 50, 100] as n}
             <button class:active={trackCount === n} onclick={() => trackCount = n}>{n}</button>
@@ -411,7 +411,7 @@
 
       <!-- Nombre -->
       <div class="filter-row">
-        <label>Nombre (opcional)</label>
+        <span class="filter-label">Nombre (opcional)</span>
         <input type="text" placeholder="Auto-generado si vacio" bind:value={playlistName} />
       </div>
 
@@ -615,39 +615,12 @@
     opacity: 0.7;
   }
 
-  .library-stats {
-    display: flex;
-    gap: 0.75rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
   .badge.algo {
     background: rgba(255, 165, 0, 0.15);
     color: orange;
     padding: 0.1rem 0.4rem;
     border-radius: 999px;
     font-size: 0.65rem;
-  }
-
-  .coverage-bar {
-    height: 3px;
-    background: var(--border);
-    border-radius: 2px;
-    margin-top: 0.2rem;
-    overflow: hidden;
-  }
-
-  .coverage-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    transition: width 0.3s;
-  }
-
-  .coverage-label {
-    font-size: 0.65rem;
-    color: var(--text-muted);
   }
 
   .loading {
@@ -752,7 +725,7 @@
     gap: 0.4rem;
   }
 
-  .filter-row label {
+  .filter-row .filter-label {
     font-size: 0.85rem;
     color: var(--text-muted);
   }

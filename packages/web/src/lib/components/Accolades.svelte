@@ -10,7 +10,7 @@
     entityId: string;
   } = $props();
 
-  const chartType = entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks';
+  let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
   function accoladeHref(a: Accolade): string | null {
     if (a.week) return `/charts?type=${chartType}&granularity=week&period=${a.week}`;

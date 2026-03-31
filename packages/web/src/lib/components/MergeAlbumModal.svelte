@@ -24,16 +24,44 @@
 
   let existingIds = $derived(new Set(existingMerges.map(m => m.id)));
 
+  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
   // fuzzy filter: normalizar y buscar coincidencia parcial
   function fuzzyMatch(name: string, query: string): boolean {
-    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     return norm(name).includes(norm(query));
   }
 
+  // similaridad entre dos strings (0-1): porcentaje de trigramas en común
+  function trigrams(s: string): Set<string> {
+    const t = new Set<string>();
+    for (let i = 0; i <= s.length - 3; i++) t.add(s.slice(i, i + 3));
+    return t;
+  }
+
+  function similarity(triA: Set<string>, triB: Set<string>): number {
+    if (triA.size === 0 || triB.size === 0) return 0;
+    let common = 0;
+    for (const t of triA) if (triB.has(t)) common++;
+    return common / Math.max(triA.size, triB.size);
+  }
+
+  // ordenar sugerencias: similares al target primero, luego por plays
+  let sortedSuggestions = $derived.by(() => {
+    const targetTri = trigrams(norm(targetAlbum.name));
+    const scored = suggestions.map(a => ({ a, sim: similarity(trigrams(norm(a.name)), targetTri) }));
+    scored.sort((x, y) => {
+      const xs = x.sim >= 0.3, ys = y.sim >= 0.3;
+      if (xs !== ys) return xs ? -1 : 1;
+      if (xs && ys) return y.sim - x.sim || y.a.plays - x.a.plays;
+      return y.a.plays - x.a.plays;
+    });
+    return scored.map(s => s.a);
+  });
+
   let filteredSuggestions = $derived(
     searchQuery.length > 0
-      ? suggestions.filter(a => fuzzyMatch(a.name, searchQuery))
-      : suggestions
+      ? sortedSuggestions.filter(a => fuzzyMatch(a.name, searchQuery))
+      : sortedSuggestions
   );
 
   function close() {

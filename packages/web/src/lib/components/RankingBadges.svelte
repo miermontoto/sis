@@ -23,7 +23,7 @@
   const fetchCtrl = createFetchController();
 
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
-  const chartType = entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks';
+  let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
   $effect(() => {
     void entityId;
@@ -134,7 +134,7 @@
 {:else if history.length >= 2}
   <div class="chart-wrap">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div onmouseleave={handleChartOut} onclick={handleChartClick} style="cursor: pointer;">
+    <div onmouseleave={handleChartOut} onclick={handleChartClick} onkeydown={(e) => { if (e.key === 'Enter') handleChartClick(e as any); }} role="button" tabindex="0" style="cursor: pointer;">
       <BaseChart
         option={chartOption}
         height="180px"

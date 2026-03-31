@@ -197,16 +197,16 @@
         <div class="chart-info">
           <div class="chart-name">{entry.name}</div>
           {#if entry.artistName}
-            <div class="chart-artist">{entry.artistName}</div>
+            <!-- svelte-ignore node_invalid_placement_ssr -->
+            <a href="/artist/{entry.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{entry.artistName}</a>
           {/if}
         </div>
         <div class="chart-stats">
-          {#if entry.rank <= entry.peakRank && entry.peakPeriods?.includes(selectedPeriod)}
+          {#if entry.rank <= entry.peakRank && entry.peakPeriods?.includes(selectedPeriod) && entry.timesAtPeak === 1}
             <div class="chart-peak-badge">PEAK</div>
           {:else if entry.timesAtPeak > 1 && entry.peakPeriods?.length > 1}
             <div class="chart-stat">
               <PeakSelector peakRank={entry.peakRank} peakPeriods={entry.peakPeriods} onselect={(p) => selectedPeriod = p} />
-              <span class="chart-stat-label">peak</span>
             </div>
           {:else}
             <button class="chart-stat chart-stat--peak" title="Go to peak chart ({entry.peakPeriod})" onclick={(e) => { e.preventDefault(); e.stopPropagation(); selectedPeriod = entry.peakPeriod; }}>
@@ -250,7 +250,8 @@
           <div class="chart-info">
             <div class="chart-name">{d.name}</div>
             {#if d.artistName}
-              <div class="chart-artist">{d.artistName}</div>
+              <!-- svelte-ignore node_invalid_placement_ssr -->
+              <a href="/artist/{d.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{d.artistName}</a>
             {/if}
           </div>
           <div class="chart-stats">
@@ -428,6 +429,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-decoration: none;
+    display: block;
+  }
+  .chart-artist:hover {
+    color: var(--accent);
   }
   .chart-stats {
     display: flex;
@@ -454,11 +460,6 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
-  }
-  .chart-stat-times {
-    font-size: 0.65rem;
-    font-weight: 500;
-    opacity: 0.7;
   }
   .chart-stat-total {
     font-size: 0.7rem;
@@ -488,9 +489,10 @@
     color: #f0c040;
     background: rgba(240, 192, 64, 0.12);
     border: 1px solid rgba(240, 192, 64, 0.3);
-    padding: 0.2rem 0.4rem;
+    padding: 0;
     border-radius: 5px;
     min-width: 2.5rem;
+    width: 2.5rem;
     height: 2.2rem;
     display: flex;
     align-items: center;

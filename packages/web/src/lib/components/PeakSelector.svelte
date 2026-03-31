@@ -5,10 +5,12 @@
     peakRank,
     peakPeriods,
     onselect,
+    size = 'sm',
   }: {
     peakRank: number;
     peakPeriods: string[];
     onselect: (period: string) => void;
+    size?: 'sm' | 'lg';
   } = $props();
 
   let open = $state(false);
@@ -42,10 +44,13 @@
   });
 </script>
 
-<span class="peak-selector" bind:this={container}>
+<span class="peak-selector" class:peak-selector--lg={size === 'lg'} bind:this={container}>
   <button class="peak-trigger" onclick={toggle} title="View peak weeks">
-    <span class="peak-val" style:color={medalColor(peakRank) ?? 'var(--accent)'}>#{peakRank}</span>
-    <span class="peak-times">×{peakPeriods.length}</span>
+    <span class="peak-top">
+      <span class="peak-val" style:color={medalColor(peakRank) ?? 'var(--accent)'}>#{peakRank}</span>
+      <span class="peak-times">×{peakPeriods.length}</span>
+    </span>
+    <span class="peak-label">peak</span>
   </button>
   {#if open}
     <div class="peak-dropdown">
@@ -60,13 +65,17 @@
   .peak-selector {
     position: relative;
     display: inline-flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
+    width: 100%;
+    height: 100%;
   }
   .peak-trigger {
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.25em;
+    justify-content: center;
+    gap: 0.1rem;
     background: none;
     border: none;
     cursor: pointer;
@@ -74,19 +83,41 @@
     border-radius: 6px;
     font-family: var(--font);
     transition: background 0.15s;
+    width: 100%;
   }
   .peak-trigger:hover {
     background: rgba(29, 185, 84, 0.12);
   }
+  .peak-top {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+  }
   .peak-val {
-    font-size: 1.1rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    line-height: 1;
+    line-height: 1.1;
+  }
+  .peak-label {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
   .peak-times {
     font-size: 0.7rem;
     font-weight: 500;
     color: var(--text-muted);
+  }
+  .peak-selector--lg .peak-val {
+    font-size: 1.1rem;
+  }
+  .peak-selector--lg .peak-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+  }
+  .peak-selector--lg .peak-times {
+    font-size: 0.75rem;
   }
   .peak-dropdown {
     position: absolute;
