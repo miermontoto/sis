@@ -3,7 +3,7 @@ export type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPla
 export { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getDateTrunc, getDateTruncForDays, albumIdIn } from './helpers.js';
 
 // queries genéricas de entidad
-export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getGlobalSeries, getRecentPlays } from './entity.js';
+export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getGlobalSeries, getRecentPlays, getHistoryPage, deleteHistoryEntries } from './entity.js';
 
 // rankings
 export { computeRankings, getRankingHistory } from './rankings.js';

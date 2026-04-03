@@ -168,3 +168,51 @@ export function getRecentPlays(db: Db, entityType: EntityType, entityId: string,
     LIMIT ${limit}
   `) as RecentPlayRow[];
 }
+
+export interface HistoryPageResult {
+  items: RecentPlayRow[];
+  total: number;
+}
+
+/** Historial paginado, con filtros opcionales. */
+export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; albumId?: string; trackId?: string; artistId?: string }): HistoryPageResult {
+  const { date, albumId, trackId, artistId } = filters ?? {};
+  const dateFilter = date ? sql` AND date(lh.played_at) = ${date}` : sql``;
+  const needsTrackJoin = albumId || artistId;
+  const trackJoin = needsTrackJoin ? sql`JOIN tracks t ON t.spotify_id = lh.track_id` : sql``;
+  const artistJoin = artistId ? sql`JOIN track_artists ta ON ta.track_id = lh.track_id` : sql``;
+  const albumWhere = albumId ? sql` AND t.album_id = ${albumId}` : sql``;
+  const trackWhere = trackId ? sql` AND lh.track_id = ${trackId}` : sql``;
+  const artistWhere = artistId ? sql` AND ta.artist_id = ${artistId}` : sql``;
+
+  const items = db.all(sql`
+    SELECT lh.id, lh.played_at, lh.track_id
+    FROM listening_history lh
+    ${trackJoin}
+    ${artistJoin}
+    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}
+    ORDER BY lh.played_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `) as RecentPlayRow[];
+
+  const total = (db.all(sql`
+    SELECT count(*) as count
+    FROM listening_history lh
+    ${trackJoin}
+    ${artistJoin}
+    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}
+  `) as { count: number }[])[0].count;
+
+  return { items, total };
+}
+
+/** Eliminar entradas del historial por IDs, restringido al usuario. */
+export function deleteHistoryEntries(db: Db, userId: number, ids: number[]): number {
+  if (ids.length === 0) return 0;
+  const placeholders = sql.join(ids.map(id => sql`${id}`), sql`, `);
+  const result = db.run(sql`
+    DELETE FROM listening_history
+    WHERE id IN (${placeholders}) AND user_id = ${userId}
+  `);
+  return result.changes;
+}

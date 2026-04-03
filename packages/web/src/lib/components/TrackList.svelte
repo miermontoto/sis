@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
-  import { formatDuration, timeAgo } from '$lib/utils/format';
+  import { formatDuration, formatDate, timeAgo } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
@@ -72,7 +72,7 @@
             {/if}
           {/if}
           {#if showTime && 'playedAt' in item}
-            <div class="track-time">{timeAgo(item.playedAt)}</div>
+            <div class="track-time" title={formatDate(item.playedAt)}>{timeAgo(item.playedAt)}</div>
           {/if}
         </div>
       </div>

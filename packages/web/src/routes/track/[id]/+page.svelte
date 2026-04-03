@@ -173,7 +173,7 @@
   {/if}
 
   {#if data.recentPlays.length > 0}
-    <h2 class="section-title">Recent plays</h2>
+    <h2 class="section-title"><a href="/history?track={$page.params.id}" class="section-link">Recent plays</a></h2>
     <TrackList items={data.recentPlays} showTime />
   {/if}
 {/if}

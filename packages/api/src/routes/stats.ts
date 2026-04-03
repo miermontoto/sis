@@ -20,6 +20,8 @@ import {
   formatTopTrackRow, formatTopArtistRow, formatTopAlbumRow,
   formatRecentPlay, formatArtistTrackRow, formatArtistAlbumRow,
   getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence,
+  getHistoryPage,
+  deleteHistoryEntries,
 } from '../db/queries/index.js';
 import type { EntityType } from '../db/queries/helpers.js';
 
@@ -150,37 +152,46 @@ stats.get('/history', (c) => {
   const page = Math.max(1, parseInt(c.req.query('page') || '1'));
   const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 100);
   const offset = (page - 1) * limit;
-  const date = c.req.query('date'); // YYYY-MM-DD
   const userId = c.get('userId');
   const db = getDb();
 
-  const dateFilter = date
-    ? sql` AND date(played_at) = ${date}`
-    : sql``;
+  const { items: rows, total } = getHistoryPage(db, userId, limit, offset, {
+    date: c.req.query('date'),
+    albumId: c.req.query('album'),
+    trackId: c.req.query('track'),
+    artistId: c.req.query('artist'),
+  });
 
-  const rows = db.all(sql`
-    SELECT * FROM listening_history
-    WHERE user_id = ${userId}${dateFilter}
-    ORDER BY played_at DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `) as any[];
-
-  const result = rows.map((row: any) => ({
+  const items = rows.map(row => ({
     id: row.id,
     playedAt: row.played_at,
-    contextType: row.context_type,
+    contextType: null,
     track: enrichTrack(db, row.track_id),
   }));
 
-  const total = db.all(sql`SELECT count(*) as count FROM listening_history WHERE user_id = ${userId}${dateFilter}`)[0] as { count: number };
-
   return c.json({
-    items: result,
+    items,
     page,
     limit,
-    total: total.count,
-    hasMore: offset + limit < total.count,
+    total,
+    hasMore: offset + limit < total,
   });
+});
+
+stats.delete('/history', async (c) => {
+  const userId = c.get('userId');
+  const db = getDb();
+  const body = await c.req.json<{ ids: number[] }>();
+
+  if (!Array.isArray(body.ids) || body.ids.length === 0) {
+    return c.json({ error: 'ids array required' }, 400);
+  }
+  if (body.ids.length > 5000) {
+    return c.json({ error: 'max 5000 entries per request' }, 400);
+  }
+
+  const deleted = deleteHistoryEntries(db, userId, body.ids);
+  return c.json({ deleted });
 });
 
 stats.get('/heatmap', (c) => {
