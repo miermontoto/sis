@@ -29,22 +29,16 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
 
   if (entityType === 'album') {
     const mrJoin = mergeRulesJoin(userId);
-    // para álbumes: si no hay filtro de rango, usar WHERE con user filter directamente
     const rangeFilter = rangeStart
       ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
       : sql`WHERE 1=1`;
 
     return db.all(sql`
-      SELECT entity_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
-      FROM (
-        SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        ${mrJoin}
-        ${rangeFilter} ${uf}
-        GROUP BY t.album_id
-        HAVING t.album_id IS NOT NULL
-      )
+      SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${mrJoin}
+      ${rangeFilter} ${uf} AND t.album_id IS NOT NULL
       GROUP BY entity_id
       ORDER BY ${ob} DESC
       LIMIT ${limit}
@@ -79,16 +73,11 @@ export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart:
   if (entityType === 'album') {
     const mrJoin = mergeRulesJoin(userId);
     return db.all(sql`
-      SELECT entity_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
-      FROM (
-        SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd} ${uf}
-        GROUP BY t.album_id
-        HAVING t.album_id IS NOT NULL
-      )
+      SELECT ${groupCol} as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${mrJoin}
+      WHERE lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd} ${uf} AND t.album_id IS NOT NULL
       GROUP BY entity_id
       ORDER BY ${ob} DESC
       LIMIT 200
