@@ -103,7 +103,7 @@
     </div>
   {:else}
     <div class="card empty-state">
-      <p>No listening data yet. <a href="/auth/login">Connect Spotify</a> to start tracking.</p>
+      <p>No listening data yet.</p>
     </div>
   {/if}
 {/if}

@@ -5,7 +5,7 @@
   import type { Snippet } from 'svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
-  import { loadSettings } from '$lib/api';
+  import { api, loadSettings, type MeResponse } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { onDestroy } from 'svelte';
 
@@ -13,8 +13,24 @@
   let authChecked = $state(false);
   let authCheckDone = false;
   let showSearch = $state(false);
+  let user = $state<MeResponse | null>(null);
+  let showUserMenu = $state(false);
+  let userMenuRef = $state<HTMLElement | null>(null);
 
   onDestroy(() => nowPlayingStore.stopPolling());
+
+  function handleClickOutside(e: MouseEvent) {
+    if (showUserMenu && userMenuRef && !userMenuRef.contains(e.target as Node)) {
+      showUserMenu = false;
+    }
+  }
+
+  $effect(() => {
+    if (showUserMenu) {
+      document.addEventListener('click', handleClickOutside, true);
+      return () => document.removeEventListener('click', handleClickOutside, true);
+    }
+  });
 
   $effect(() => {
     if (page.url.pathname === '/login') {
@@ -26,7 +42,12 @@
     fetch('/api/health')
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
-        else { loadSettings().finally(() => { authChecked = true; nowPlayingStore.startPolling(); }); }
+        else {
+          Promise.all([loadSettings(), api.me().then(m => { user = m; })]).finally(() => {
+            authChecked = true;
+            nowPlayingStore.startPolling();
+          });
+        }
       })
       .catch(() => {
         authChecked = true;
@@ -52,7 +73,6 @@
     { href: '/insights', label: 'Insights', icon: '!' },
     { href: '/records', label: 'Records', icon: '^' },
     { href: '/playlists', label: 'Playlists', icon: '+' },
-    { href: '/settings', label: 'Settings', icon: '@' },
   ];
 
   let pageTitle = $derived(
@@ -85,6 +105,28 @@
       <div class="sidebar-now-playing">
         <NowPlaying compact />
       </div>
+      {#if user?.authenticated}
+        <div class="sidebar-user-wrap" bind:this={userMenuRef}>
+          <button class="sidebar-user" onclick={() => showUserMenu = !showUserMenu}>
+            {#if user.imageUrl}
+              <img class="sidebar-user-avatar" src={user.imageUrl} alt="" />
+            {:else}
+              <div class="sidebar-user-avatar sidebar-user-avatar--empty"></div>
+            {/if}
+            <div class="sidebar-user-info">
+              <span class="sidebar-user-name">{user.displayName ?? user.spotifyId}</span>
+              <span class="sidebar-user-id">{user.spotifyId}</span>
+            </div>
+            <span class="sidebar-user-dots">...</span>
+          </button>
+          {#if showUserMenu}
+            <div class="user-menu">
+              <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
+              <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </aside>
     <main class="main-content">
       <div class="mobile-header">

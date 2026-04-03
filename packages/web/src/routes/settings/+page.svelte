@@ -48,7 +48,17 @@
   }
 
   async function deactivateUser(user: UserRecord) {
-    if (!confirm(`Deactivate ${user.displayName || user.spotifyId}?`)) return;
+    if (!confirm(`Deactivate ${user.displayName || user.spotifyId}? They won't be able to log in.`)) return;
+    try {
+      await api.deleteUser(user.id);
+      await loadUsers();
+    } catch (err: any) {
+      userError = err.message;
+    }
+  }
+
+  async function deleteUser(user: UserRecord) {
+    if (!confirm(`Permanently delete ${user.displayName || user.spotifyId} and all their data? This cannot be undone.`)) return;
     try {
       await api.deleteUser(user.id);
       await loadUsers();
@@ -405,12 +415,15 @@
                     <button class="action-btn action-btn--secondary" onclick={() => toggleAdmin(user)}>
                       {user.isAdmin ? 'Remove admin' : 'Make admin'}
                     </button>
-                    <button class="action-btn action-btn--secondary" style="color: #ff4444; border-color: #ff444444;" onclick={() => deactivateUser(user)}>
+                    <button class="action-btn action-btn--secondary" style="color: var(--danger); border-color: rgba(231, 76, 60, 0.3);" onclick={() => deactivateUser(user)}>
                       Deactivate
                     </button>
                   {:else}
                     <button class="action-btn action-btn--secondary" onclick={() => reactivateUser(user)}>
                       Reactivate
+                    </button>
+                    <button class="action-btn action-btn--secondary" style="color: var(--danger); border-color: rgba(231, 76, 60, 0.3);" onclick={() => deleteUser(user)}>
+                      Delete
                     </button>
                   {/if}
                 </div>

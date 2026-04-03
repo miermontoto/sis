@@ -16,7 +16,7 @@ import playlists from './routes/playlists.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession } from './services/session.js';
-import { hasAnyUsers } from './services/user-manager.js';
+import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { sql } from 'drizzle-orm';
 
 export type AppVariables = {
@@ -116,10 +116,13 @@ app.get('/api/health', (c) => {
 app.get('/api/me', (c) => {
   const userId = c.get('userId');
   if (!userId) return c.json({ authenticated: false });
+  const user = getUserById(userId);
   return c.json({
     authenticated: true,
-    userId: c.get('userId'),
+    userId,
     spotifyId: c.get('spotifyId'),
+    displayName: user?.displayName ?? null,
+    imageUrl: user?.imageUrl ?? null,
     isAdmin: c.get('isAdmin'),
     scopes: getStoredScopes(userId),
   });

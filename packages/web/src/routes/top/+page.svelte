@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type DateRangeParams } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type DateRangeParams } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
@@ -21,6 +21,7 @@
   let topAlbums = $state<TopAlbumItem[]>([]);
   let loading = $state(true);
   let barColors = $state<[number, number, number][]>([]);
+  const fetchCtrl = createFetchController();
 
   function getCustomDates(): DateRangeParams | undefined {
     if (range === 'custom' && startDate && endDate) return { startDate, endDate };
@@ -33,19 +34,23 @@
   let observer: IntersectionObserver | null = null;
 
   async function loadData() {
+    const signal = fetchCtrl.reset();
     loading = true;
     visibleCount = PAGE_SIZE;
     try {
       const dates = getCustomDates();
       if (activeTab === 'tracks') {
-        topTracks = await api.topTracks(range, 200, metric, dates);
+        topTracks = await api.topTracks(range, 200, metric, dates, signal);
       } else if (activeTab === 'artists') {
-        topArtists = await api.topArtists(range, 200, metric, dates);
+        topArtists = await api.topArtists(range, 200, metric, dates, signal);
       } else {
-        topAlbums = await api.topAlbums(range, 200, metric, dates);
+        topAlbums = await api.topAlbums(range, 200, metric, dates, signal);
       }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      loading = false;
+      if (!signal.aborted) loading = false;
     }
   }
 

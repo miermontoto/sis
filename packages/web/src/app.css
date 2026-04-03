@@ -67,6 +67,8 @@ a:hover {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-logo {
@@ -364,6 +366,108 @@ a.track-item {
   padding: 0.5rem;
 }
 
+/* sidebar user badge */
+.sidebar-user-wrap {
+  position: relative;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  width: 100%;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: border-color 0.15s;
+}
+
+.sidebar-user:hover {
+  border-color: var(--text-muted);
+}
+
+.sidebar-user-dots {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 0;
+  flex-shrink: 0;
+  margin-left: auto;
+  align-self: center;
+}
+
+.user-menu {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.25rem;
+  z-index: 50;
+}
+
+.user-menu-item {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.1s;
+}
+
+.user-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.user-menu-item--danger {
+  color: var(--danger);
+}
+
+.user-menu-item--danger:hover {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.sidebar-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-id {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .mobile-only-np {
   display: none;
   margin-bottom: 1rem;
@@ -569,7 +673,8 @@ a.track-item {
 
   .sidebar-logo,
   .sidebar-search,
-  .sidebar-now-playing {
+  .sidebar-now-playing,
+  .sidebar-user-wrap {
     display: none;
   }
 

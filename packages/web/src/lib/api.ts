@@ -211,19 +211,19 @@ export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
   nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
 
-  topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams) =>
-    apiFetch<TopTrackItem[]>('/stats/top-tracks', { ...rangeParams(range, dates), limit: String(limit), sort }),
+  topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<TopTrackItem[]>('/stats/top-tracks', { ...rangeParams(range, dates), limit: String(limit), sort }, signal),
 
-  topArtists: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams) =>
-    apiFetch<TopArtistItem[]>('/stats/top-artists', { ...rangeParams(range, dates), limit: String(limit), sort }),
+  topArtists: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<TopArtistItem[]>('/stats/top-artists', { ...rangeParams(range, dates), limit: String(limit), sort }, signal),
 
-  topAlbums: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams) =>
-    apiFetch<TopAlbumItem[]>('/stats/top-albums', { ...rangeParams(range, dates), limit: String(limit), sort }),
+  topAlbums: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<TopAlbumItem[]>('/stats/top-albums', { ...rangeParams(range, dates), limit: String(limit), sort }, signal),
 
-  topGenres: (range = 'month', limit = 20, dates?: DateRangeParams) =>
-    apiFetch<GenreItem[]>('/stats/top-genres', { ...rangeParams(range, dates), limit: String(limit) }),
+  topGenres: (range = 'month', limit = 20, dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<GenreItem[]>('/stats/top-genres', { ...rangeParams(range, dates), limit: String(limit) }, signal),
 
-  history: (page = 1, limit = 50, filters?: { date?: string; album?: string; track?: string; artist?: string }) => {
+  history: (page = 1, limit = 50, filters?: { date?: string; album?: string; track?: string; artist?: string }, signal?: AbortSignal) => {
     const f = filters ?? {};
     return apiFetch<HistoryResponse>('/stats/history', {
       page: String(page), limit: String(limit),
@@ -231,19 +231,19 @@ export const api = {
       ...(f.album ? { album: f.album } : {}),
       ...(f.track ? { track: f.track } : {}),
       ...(f.artist ? { artist: f.artist } : {}),
-    });
+    }, signal);
   },
 
   deleteHistory: (ids: number[]) =>
     apiMutate<{ deleted: number }>('DELETE', '/stats/history', { ids }),
 
-  listeningTime: (range = 'month', granularity = 'day', dates?: DateRangeParams) =>
-    apiFetch<ListeningTimeItem[]>('/stats/listening-time', { ...rangeParams(range, dates), granularity }),
+  listeningTime: (range = 'month', granularity = 'day', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<ListeningTimeItem[]>('/stats/listening-time', { ...rangeParams(range, dates), granularity }, signal),
 
-  heatmap: (range = 'month', dates?: DateRangeParams) =>
-    apiFetch<HeatmapItem[]>('/stats/heatmap', { ...rangeParams(range, dates) }),
+  heatmap: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<HeatmapItem[]>('/stats/heatmap', { ...rangeParams(range, dates) }, signal),
 
-  streaks: () => apiFetch<StreaksData>('/stats/streaks'),
+  streaks: (signal?: AbortSignal) => apiFetch<StreaksData>('/stats/streaks', undefined, signal),
 
   artistDetail: (id: string, range = 'all', opts?: { sort?: string; trackLimit?: number; albumLimit?: number; signal?: AbortSignal }) =>
     apiFetch<ArtistDetail>(`/stats/artist/${encodeURIComponent(id)}`, {
@@ -265,14 +265,14 @@ export const api = {
   chartHistory: (type: string, id: string, weekStart: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<ChartHistoryResponse>(`/stats/chart-history/${type}/${encodeURIComponent(id)}`, { weekStart, sort }, signal),
 
-  chartPeriods: (granularity: string, weekStart: string) =>
-    apiFetch<{ periods: string[] }>('/stats/charts/periods', { granularity, weekStart }),
+  chartPeriods: (granularity: string, weekStart: string, signal?: AbortSignal) =>
+    apiFetch<{ periods: string[] }>('/stats/charts/periods', { granularity, weekStart }, signal),
 
-  chart: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', limit = 25) =>
-    apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }),
+  chart: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', limit = 25, signal?: AbortSignal) =>
+    apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }, signal),
 
-  records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists') =>
-    apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, ...(type && { type }) }),
+  records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists', signal?: AbortSignal) =>
+    apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, ...(type && { type }) }, signal),
 
   playbackPlay: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/play'),
   playbackPause: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/pause'),

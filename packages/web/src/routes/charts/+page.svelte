@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
@@ -22,7 +22,7 @@
 
   // cache: `${type}:${granularity}:${period}:${metric}` → ChartResponse
   let cache = $state<Map<string, ChartResponse>>(new Map());
-  let requestId = 0;
+  const fetchCtrl = createFetchController();
 
   function cacheKey() {
     return `${activeType}:${granularity}:${selectedPeriod}:${metric}`;
@@ -49,14 +49,19 @@
 
   async function loadPeriods() {
     periodsLoading = true;
+    const signal = fetchCtrl.reset();
     try {
-      const res = await api.chartPeriods(granularity, weekStart);
+      const res = await api.chartPeriods(granularity, weekStart, signal);
+      if (signal.aborted) return;
       periods = res.periods;
       if (periods.length > 0 && !periods.includes(selectedPeriod)) {
         selectedPeriod = periods[0];
       }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      periodsLoading = false;
+      if (!signal.aborted) periodsLoading = false;
     }
   }
 
@@ -64,16 +69,19 @@
     if (!selectedPeriod) return;
     const key = cacheKey();
     if (cache.has(key)) return;
-    const thisRequest = ++requestId;
+    const signal = fetchCtrl.reset();
     loading = true;
     try {
-      const result = await api.chart(activeType, granularity, selectedPeriod, weekStart, metric);
-      if (thisRequest !== requestId) return;
+      const result = await api.chart(activeType, granularity, selectedPeriod, weekStart, metric, 25, signal);
+      if (signal.aborted) return;
       const next = new Map(cache);
       next.set(key, result);
       cache = next;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      if (thisRequest === requestId) loading = false;
+      if (!signal.aborted) loading = false;
     }
   }
 

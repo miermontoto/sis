@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, getWeekStart, type EntityRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, getWeekStart, type EntityRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
 
@@ -19,25 +19,27 @@
   let currentData = $derived(cache.get(cacheKey(activeTab)) ?? null);
   let loading = $derived(loadingTab === activeTab);
 
-  let requestId = 0; // para cancelar requests obsoletos
+  const fetchCtrl = createFetchController();
 
   async function loadTab(tab: 'tracks' | 'albums' | 'artists') {
     const key = cacheKey(tab);
     if (cache.has(key)) return;
-    const thisRequest = ++requestId;
+    const signal = fetchCtrl.reset();
     loadingTab = tab;
     try {
-      const result = await api.records(weekStart, metric, tab);
-      // ignorar si el request ya es obsoleto
-      if (thisRequest !== requestId) return;
+      const result = await api.records(weekStart, metric, tab, signal);
+      if (signal.aborted) return;
       const data = result[tab];
       if (data) {
         const next = new Map(cache);
         next.set(key, data);
         cache = next;
       }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      if (thisRequest === requestId) loadingTab = null;
+      if (!signal.aborted) loadingTab = null;
     }
   }
 

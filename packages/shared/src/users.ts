@@ -2,6 +2,8 @@ export interface MeResponse {
   authenticated: boolean;
   userId?: number;
   spotifyId?: string;
+  displayName?: string | null;
+  imageUrl?: string | null;
   isAdmin?: boolean;
   scopes?: string[];
 }

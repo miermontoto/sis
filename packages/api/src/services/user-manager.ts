@@ -85,6 +85,16 @@ export function updateUser(id: number, fields: { isAdmin?: boolean; isActive?: b
   return getUserById(id);
 }
 
+/** Elimina un usuario y todos sus datos asociados. */
+export function hardDeleteUser(id: number): void {
+  const db = getDb();
+  db.delete(listeningHistory).where(eq(listeningHistory.userId, id)).run();
+  db.delete(authTokens).where(eq(authTokens.userId, id)).run();
+  db.delete(pollingState).where(eq(pollingState.userId, id)).run();
+  db.delete(mergeRules).where(eq(mergeRules.userId, id)).run();
+  db.delete(users).where(eq(users.id, id)).run();
+}
+
 /** Asigna todos los datos huérfanos (user_id NULL) al usuario indicado. */
 export function migrateExistingData(userId: number): void {
   const db = getDb();

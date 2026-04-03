@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DateRangeParams } from '$lib/api';
+  import { api, createFetchController, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -15,6 +15,7 @@
   let genres = $state<GenreItem[]>([]);
   let streaks = $state<StreaksData | null>(null);
   let loading = $state(true);
+  const fetchCtrl = createFetchController();
 
   function granularityForRange(r: string): string {
     if (r === 'custom' && startDate && endDate) {
@@ -34,17 +35,21 @@
   }
 
   async function loadData() {
+    const signal = fetchCtrl.reset();
     loading = true;
     try {
       const dates = getCustomDates();
       [listeningData, heatmap, genres, streaks] = await Promise.all([
-        api.listeningTime(range, granularityForRange(range), dates),
-        api.heatmap(range, dates),
-        api.topGenres(range, 10, dates),
-        api.streaks(),
+        api.listeningTime(range, granularityForRange(range), dates, signal),
+        api.heatmap(range, dates, signal),
+        api.topGenres(range, 10, dates, signal),
+        api.streaks(signal),
       ]);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     } finally {
-      loading = false;
+      if (!signal.aborted) loading = false;
     }
   }
 

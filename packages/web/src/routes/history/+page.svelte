@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { api, type HistoryItem } from '$lib/api';
+  import { api, createFetchController, type HistoryItem } from '$lib/api';
   import { timeAgo, formatDate } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -30,6 +30,7 @@
   let lastSelectedIndex = $state<number | null>(null);
   let deleting = $state(false);
   let showConfirm = $state(false);
+  const fetchCtrl = createFetchController();
 
   function currentFilters() {
     const f: Record<string, string> = {};
@@ -41,14 +42,21 @@
   }
 
   async function loadPage(p: number) {
-    const res = await api.history(p, 50, currentFilters());
-    if (p === 1) {
-      items = res.items;
-    } else {
-      items = [...items, ...res.items];
+    const signal = p === 1 ? fetchCtrl.reset() : undefined;
+    try {
+      const res = await api.history(p, 50, currentFilters(), signal);
+      if (signal?.aborted) return;
+      if (p === 1) {
+        items = res.items;
+      } else {
+        items = [...items, ...res.items];
+      }
+      hasMore = res.hasMore;
+      currentPage = p;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+      throw e;
     }
-    hasMore = res.hasMore;
-    currentPage = p;
   }
 
   async function reload() {

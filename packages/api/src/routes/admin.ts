@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { sql, eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { mergeRules, albums, artists, tracks, trackArtists, users } from '../db/schema.js';
-import { getAllUsers, updateUser, getUserById } from '../services/user-manager.js';
+import { getAllUsers, updateUser, getUserById, hardDeleteUser } from '../services/user-manager.js';
 import type { AppVariables } from '../app.js';
 
 const admin = new Hono<{ Variables: AppVariables }>();
@@ -212,8 +212,13 @@ admin.delete('/users/:id', (c) => {
   const user = getUserById(id);
   if (!user) return c.json({ error: 'user not found' }, 404);
 
-  // soft delete: desactivar
-  updateUser(id, { isActive: false });
+  if (user.isActive) {
+    // active users get soft-deleted first
+    updateUser(id, { isActive: false });
+  } else {
+    // inactive users get hard-deleted
+    hardDeleteUser(id);
+  }
   return c.json({ success: true });
 });
 
