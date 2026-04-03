@@ -223,8 +223,8 @@ export const api = {
   topGenres: (range = 'month', limit = 20, dates?: DateRangeParams) =>
     apiFetch<GenreItem[]>('/stats/top-genres', { ...rangeParams(range, dates), limit: String(limit) }),
 
-  history: (page = 1, limit = 50) =>
-    apiFetch<HistoryResponse>('/stats/history', { page: String(page), limit: String(limit) }),
+  history: (page = 1, limit = 50, date?: string) =>
+    apiFetch<HistoryResponse>('/stats/history', { page: String(page), limit: String(limit), ...(date ? { date } : {}) }),
 
   listeningTime: (range = 'month', granularity = 'day', dates?: DateRangeParams) =>
     apiFetch<ListeningTimeItem[]>('/stats/listening-time', { ...rangeParams(range, dates), granularity }),

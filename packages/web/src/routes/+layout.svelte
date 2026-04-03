@@ -6,11 +6,15 @@
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
   import { loadSettings } from '$lib/api';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { onDestroy } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);
   let authCheckDone = false;
   let showSearch = $state(false);
+
+  onDestroy(() => nowPlayingStore.stopPolling());
 
   $effect(() => {
     if (page.url.pathname === '/login') {
@@ -22,7 +26,7 @@
     fetch('/api/health')
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
-        else { loadSettings().finally(() => { authChecked = true; }); }
+        else { loadSettings().finally(() => { authChecked = true; nowPlayingStore.startPolling(); }); }
       })
       .catch(() => {
         authChecked = true;

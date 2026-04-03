@@ -150,26 +150,29 @@ stats.get('/history', (c) => {
   const page = Math.max(1, parseInt(c.req.query('page') || '1'));
   const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 100);
   const offset = (page - 1) * limit;
+  const date = c.req.query('date'); // YYYY-MM-DD
   const userId = c.get('userId');
   const db = getDb();
 
-  const rows = db
-    .select()
-    .from(listeningHistory)
-    .where(eq(listeningHistory.userId, userId))
-    .orderBy(desc(listeningHistory.playedAt))
-    .limit(limit)
-    .offset(offset)
-    .all();
+  const dateFilter = date
+    ? sql` AND date(played_at) = ${date}`
+    : sql``;
 
-  const result = rows.map(row => ({
+  const rows = db.all(sql`
+    SELECT * FROM listening_history
+    WHERE user_id = ${userId}${dateFilter}
+    ORDER BY played_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `) as any[];
+
+  const result = rows.map((row: any) => ({
     id: row.id,
-    playedAt: row.playedAt,
-    contextType: row.contextType,
-    track: enrichTrack(db, row.trackId),
+    playedAt: row.played_at,
+    contextType: row.context_type,
+    track: enrichTrack(db, row.track_id),
   }));
 
-  const total = db.all(sql`SELECT count(*) as count FROM listening_history WHERE user_id = ${userId}`)[0] as { count: number };
+  const total = db.all(sql`SELECT count(*) as count FROM listening_history WHERE user_id = ${userId}${dateFilter}`)[0] as { count: number };
 
   return c.json({
     items: result,

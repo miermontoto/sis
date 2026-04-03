@@ -6,6 +6,7 @@
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import { medalColor } from '$lib/utils/medals';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
   type EntityType = 'tracks' | 'albums' | 'artists';
   type Granularity = 'week' | 'month' | 'year';
@@ -28,6 +29,23 @@
   }
 
   let currentData = $derived(cache.get(cacheKey()) ?? null);
+
+  // ancho mínimo para la columna "wks" basado en el texto más largo
+  function wksText(wk: number, cons: number): string {
+    return cons > 0 ? `${wk} (${cons})` : `${wk}`;
+  }
+  let wksMinWidth = $derived.by(() => {
+    if (!currentData) return '2.5rem';
+    let maxLen = 0;
+    for (const e of currentData.entries) {
+      maxLen = Math.max(maxLen, wksText(e.weeksOnChart, e.consecutiveWeeks).length);
+    }
+    for (const d of currentData.dropouts) {
+      maxLen = Math.max(maxLen, String(d.weeksOnChart).length);
+    }
+    // 0.55em por carácter (números son más estrechos que ch) + padding
+    return maxLen <= 3 ? '2.5rem' : `${maxLen * 0.55 + 0.5}em`;
+  });
 
   async function loadPeriods() {
     periodsLoading = true;
@@ -63,6 +81,12 @@
     if (activeType === 'artists') return `/artist/${id}`;
     if (activeType === 'albums') return `/album/${id}`;
     return `/track/${id}`;
+  }
+
+  function isEntityLive(id: string): boolean {
+    if (activeType === 'tracks') return id === nowPlayingStore.trackId;
+    if (activeType === 'albums') return id === nowPlayingStore.albumId;
+    return nowPlayingStore.artistIds.includes(id);
   }
 
   let currentIndex = $derived(periods.indexOf(selectedPeriod));
@@ -195,7 +219,7 @@
           <div class="chart-art" class:chart-art--round={activeType === 'artists'}></div>
         {/if}
         <div class="chart-info">
-          <div class="chart-name">{entry.name}</div>
+          <div class="chart-name">{entry.name}{#if isEntityLive(entry.entityId)} <span class="live-dot"></span>{/if}</div>
           {#if entry.artistName}
             <!-- svelte-ignore node_invalid_placement_ssr -->
             <a href="/artist/{entry.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{entry.artistName}</a>
@@ -215,7 +239,7 @@
             </button>
           {/if}
           {#if granularity === 'week'}
-            <div class="chart-stat" title="{entry.weeksOnChart} total, {entry.consecutiveWeeks} consecutive">
+            <div class="chart-stat" style:min-width={wksMinWidth} title="{entry.weeksOnChart} total, {entry.consecutiveWeeks} consecutive">
               <span class="chart-stat-val">{entry.weeksOnChart}{#if entry.consecutiveWeeks > 0} <span class="chart-stat-total">({entry.consecutiveWeeks})</span>{/if}</span>
               <span class="chart-stat-label">wks</span>
             </div>
@@ -260,7 +284,7 @@
               <span class="chart-stat-label">peak</span>
             </div>
             {#if granularity === 'week'}
-              <div class="chart-stat" title="Weeks on chart">
+              <div class="chart-stat" style:min-width={wksMinWidth} title="Weeks on chart">
                 <span class="chart-stat-val">{d.weeksOnChart}</span>
                 <span class="chart-stat-label">wks</span>
               </div>
@@ -417,6 +441,9 @@
     min-width: 0;
   }
   .chart-name {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.9rem;
     font-weight: 500;
     white-space: nowrap;

@@ -90,7 +90,19 @@
 
   let totalMs = $derived(listeningData.reduce((s, d) => s + d.total_ms, 0));
   let totalPlays = $derived(listeningData.reduce((s, d) => s + d.play_count, 0));
-  let avgDailyMs = $derived(listeningData.length > 0 ? totalMs / listeningData.length : 0);
+  let dayCount = $derived.by(() => {
+    if (listeningData.length === 0) return 1;
+    const first = listeningData[0].period;
+    const last = listeningData[listeningData.length - 1].period;
+    const gran = granularityForRange(range);
+    if (gran === 'day') return listeningData.length;
+    // para week/month, calcular días reales entre primer y último periodo
+    const start = new Date(first + (first.length <= 7 ? '-01' : ''));
+    const end = new Date(last + (last.length <= 7 ? '-01' : ''));
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + (gran === 'month' ? 30 : 7));
+    return days;
+  });
+  let avgDailyMs = $derived(listeningData.length > 0 ? totalMs / dayCount : 0);
   let maxHeatmapValue = $derived(Math.max(...heatmap.map(h => h.play_count), 1));
 
   let lineChartOption = $derived<EChartsOption>({

@@ -1,27 +1,12 @@
 <script lang="ts">
-  import { api, type NowPlayingResponse } from '$lib/api';
-  import { onMount } from 'svelte';
+  import { api } from '$lib/api';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
   let { compact = false }: { compact?: boolean } = $props();
 
-  let data = $state<NowPlayingResponse | null>(null);
   let acting = $state(false);
 
-  async function poll() {
-    try {
-      data = await api.nowPlaying();
-    } catch {
-      data = null;
-    }
-  }
-
-  async function pollLive() {
-    try {
-      data = await api.nowPlayingLive();
-    } catch {
-      await poll();
-    }
-  }
+  let data = $derived(nowPlayingStore.data);
 
   async function togglePlay() {
     if (!data || acting) return;
@@ -29,10 +14,10 @@
     try {
       if (data.isPlaying) {
         await api.playbackPause();
-        data.isPlaying = false;
+        nowPlayingStore.data = { ...data, isPlaying: false };
       } else {
         await api.playbackPlay();
-        data.isPlaying = true;
+        nowPlayingStore.data = { ...data, isPlaying: true };
       }
     } catch {} finally {
       acting = false;
@@ -44,7 +29,7 @@
     acting = true;
     try {
       await api.playbackNext();
-      setTimeout(pollLive, 500);
+      setTimeout(() => nowPlayingStore.pollLive(), 500);
     } catch {} finally {
       acting = false;
     }
@@ -55,19 +40,13 @@
     acting = true;
     try {
       await api.playbackPrevious();
-      setTimeout(pollLive, 500);
+      setTimeout(() => nowPlayingStore.pollLive(), 500);
     } catch {} finally {
       acting = false;
     }
   }
 
   let spotifyUrl = $derived(data?.track ? `https://open.spotify.com/track/${data.track.id}` : null);
-
-  onMount(() => {
-    poll();
-    const interval = setInterval(poll, 10_000);
-    return () => clearInterval(interval);
-  });
 </script>
 
 {#if data?.playing && data.track}

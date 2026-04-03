@@ -8,6 +8,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import type { EChartsOption } from 'echarts';
 
   let activeTab = $state<'tracks' | 'artists' | 'albums'>('tracks');
@@ -312,7 +313,7 @@
               <div class="track-art" style="border-radius: 50%;"></div>
             {/if}
             <div class="track-info">
-              <div class="track-name">{item.artist.name}</div>
+              <div class="track-name">{item.artist.name}{#if nowPlayingStore.artistIds.includes(item.artistId)} <span class="live-dot"></span>{/if}</div>
             </div>
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
@@ -334,7 +335,7 @@
               <div class="track-art"></div>
             {/if}
             <div class="track-info">
-              <div class="track-name">{item.album.name}</div>
+              <div class="track-name">{item.album.name}{#if item.albumId === nowPlayingStore.albumId} <span class="live-dot"></span>{/if}</div>
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
             <div class="track-meta">

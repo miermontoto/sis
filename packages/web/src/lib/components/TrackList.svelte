@@ -2,6 +2,7 @@
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, timeAgo } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
@@ -11,6 +12,12 @@
   }
 
   let { items, showRank = false, showTime = false, metric = 'time' }: Props = $props();
+
+  function getTrackId(item: TopTrackItem | HistoryItem): string | null {
+    if ('trackId' in item) return item.trackId;
+    if ('track' in item && item.track) return item.track.id;
+    return null;
+  }
 
   // type guard
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
@@ -47,6 +54,7 @@
             {:else}
               {track.name}
             {/if}
+            {#if getTrackId(item) === nowPlayingStore.trackId}<span class="live-dot"></span>{/if}
           </div>
           <div class="track-artist">
             {#each track.artists as artist, i}

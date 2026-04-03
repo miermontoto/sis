@@ -11,6 +11,7 @@
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
   import type { EChartsOption } from 'echarts';
 
@@ -104,7 +105,7 @@
         <div class="detail-image detail-image--round detail-image--placeholder"></div>
       {/if}
       <div class="detail-header-info">
-        <h1>{data.artist.name}</h1>
+        <h1>{data.artist.name}{#if nowPlayingStore.artistIds.includes($page.params.id)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
       </div>
     </div>
     <Accolades entityType="artist" entityId={$page.params.id} />
@@ -120,16 +121,16 @@
       <div class="stat-label">Listening time</div>
     </div>
     {#if data.stats.first_played}
-      <div class="card stat-card">
+      <a href="/history?date={data.stats.first_played.split('T')[0]}" class="card stat-card stat-card--link">
         <div class="stat-value">{new Date(data.stats.first_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
         <div class="stat-label">First played</div>
-      </div>
+      </a>
     {/if}
     {#if data.stats.last_played}
-      <div class="card stat-card">
+      <a href="/history?date={data.stats.last_played.split('T')[0]}" class="card stat-card stat-card--link">
         <div class="stat-value">{new Date(data.stats.last_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
         <div class="stat-label">Last played</div>
-      </div>
+      </a>
     {/if}
   </div>
 
