@@ -22,7 +22,8 @@
 
   // cache: `${type}:${granularity}:${period}:${metric}` → ChartResponse
   let cache = $state<Map<string, ChartResponse>>(new Map());
-  const fetchCtrl = createFetchController();
+  const periodsFetchCtrl = createFetchController();
+  const chartFetchCtrl = createFetchController();
 
   function cacheKey() {
     return `${activeType}:${granularity}:${selectedPeriod}:${metric}`;
@@ -49,7 +50,7 @@
 
   async function loadPeriods() {
     periodsLoading = true;
-    const signal = fetchCtrl.reset();
+    const signal = periodsFetchCtrl.reset();
     try {
       const res = await api.chartPeriods(granularity, weekStart, signal);
       if (signal.aborted) return;
@@ -65,11 +66,37 @@
     }
   }
 
+  function periodMatchesGranularity(period: string, gran: Granularity): boolean {
+    if (gran === 'year') return /^\d{4}$/.test(period);
+    if (gran === 'month') return /^\d{4}-\d{2}$/.test(period);
+    return /^\d{4}-W\d{2}$/.test(period);
+  }
+
+  // replicar strftime('%Y-W%W', date, offset) de SQLite
+  function computeCurrentPeriod(gran: Granularity, ws: WeekStartOption): string {
+    const now = new Date();
+    if (gran === 'year') return String(now.getFullYear());
+    if (gran === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // week: aplicar offset de weekStart y calcular %W
+    const d = new Date(now);
+    if (ws === 'sunday') d.setDate(d.getDate() - 1);
+    else if (ws === 'friday') d.setDate(d.getDate() - 4);
+
+    const year = d.getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const jan1Day = jan1.getDay(); // 0=dom..6=sab
+    const jan1DayMon = jan1Day === 0 ? 6 : jan1Day - 1; // lun=0..dom=6
+    const daysFromJan1 = Math.floor((d.getTime() - jan1.getTime()) / 86400000);
+    const weekNum = Math.floor((daysFromJan1 + jan1DayMon) / 7);
+    return `${year}-W${String(weekNum).padStart(2, '0')}`;
+  }
+
   async function loadChart() {
-    if (!selectedPeriod) return;
+    if (!selectedPeriod || !periodMatchesGranularity(selectedPeriod, granularity)) return;
     const key = cacheKey();
     if (cache.has(key)) return;
-    const signal = fetchCtrl.reset();
+    const signal = chartFetchCtrl.reset();
     loading = true;
     try {
       const result = await api.chart(activeType, granularity, selectedPeriod, weekStart, metric, 25, signal);
@@ -156,15 +183,21 @@
     const params = $page.url.searchParams;
     if (params.get('type')) activeType = params.get('type') as EntityType;
     if (params.get('granularity')) granularity = params.get('granularity') as Granularity;
-    if (params.get('period')) selectedPeriod = params.get('period')!;
+    // usar periodo de URL si existe, si no calcular el actual
+    selectedPeriod = params.get('period') || computeCurrentPeriod(granularity, weekStart);
     initialized = true;
   });
 
-  // cargar periodos cuando cambia granularidad o weekStart
+  // cuando cambia granularidad o weekStart, recalcular periodo actual y cargar periodos
   $effect(() => {
     void granularity;
     void weekStart;
-    if (initialized) loadPeriods();
+    if (!initialized) return;
+    // establecer periodo actual para que el chart cargue inmediatamente
+    if (!periodMatchesGranularity(selectedPeriod, granularity)) {
+      selectedPeriod = computeCurrentPeriod(granularity, weekStart);
+    }
+    loadPeriods();
   });
 
   // cargar chart cuando cambia el periodo o tipo

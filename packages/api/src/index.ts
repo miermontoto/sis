@@ -16,12 +16,14 @@ if (existsSync(envPath)) {
 import { serve } from '@hono/node-server';
 import app from './app.js';
 import { getDb, closeDb } from './db/connection.js';
+import { initReadWorker, closeReadWorker } from './db/read-pool.js';
 import { startPolling, stopPolling } from './services/polling.js';
 
 const PORT = parseInt(process.env.PORT || '3000');
 
-// inicializar db (ejecuta migraciones)
+// inicializar db (ejecuta migraciones) y worker de lectura
 getDb();
+await initReadWorker();
 
 // iniciar servidor
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
@@ -35,6 +37,7 @@ startPolling();
 const shutdown = () => {
   console.log('\n[sis] cerrando...');
   stopPolling();
+  closeReadWorker();
   closeDb();
   process.exit(0);
 };

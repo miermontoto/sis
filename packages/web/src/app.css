@@ -721,6 +721,13 @@ a.track-item {
     margin: 0 0.25rem;
   }
 
+  .mobile-header-right {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+
   .mobile-search-bar {
     flex: 1;
     margin-left: 0.75rem;
@@ -733,6 +740,65 @@ a.track-item {
     text-align: left;
     cursor: pointer;
     font-family: var(--font);
+  }
+
+  .mobile-user-wrap {
+    position: relative;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .mobile-user-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+  }
+
+  .mobile-user-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .mobile-user-avatar--empty {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+
+  .mobile-user-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-width: 180px;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+  }
+
+  .mobile-user-menu-header {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .mobile-user-menu-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mobile-user-menu-id {
+    font-size: 0.7rem;
+    color: var(--text-muted);
   }
 
   .main-content {

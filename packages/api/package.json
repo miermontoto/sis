@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts && mkdir -p dist/db && cp -r src/db/migrations dist/db/migrations",
+    "build": "tsup src/index.ts src/db/worker.ts --format esm --dts && mkdir -p dist/db && cp -r src/db/migrations dist/db/migrations",
     "start": "node dist/index.js"
   },
   "dependencies": {

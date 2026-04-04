@@ -22,6 +22,9 @@ export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopArtistRow, forma
 // playlist library analytics
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';
 
+// inline queries extraídas de stats.ts
+export { getTopGenres, getHeatmap, getStreakDays, searchEntities, getAlbumMergeInfo, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists } from './inline.js';
+
 // playlist strategies
 export { strategyTopRange, strategyTopArtist, strategyTopGenre, strategyDeepCuts, strategyTimeVibes, strategyRediscovery } from './playlists.js';
 export type { TopRangeParams, TopArtistParams, TopGenreParams, DeepCutsParams, TimeVibesParams, RediscoveryParams } from './playlists.js';

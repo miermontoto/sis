@@ -16,12 +16,15 @@
   let user = $state<MeResponse | null>(null);
   let showUserMenu = $state(false);
   let userMenuRef = $state<HTMLElement | null>(null);
+  let mobileUserMenuRef = $state<HTMLElement | null>(null);
 
   onDestroy(() => nowPlayingStore.stopPolling());
 
   function handleClickOutside(e: MouseEvent) {
-    if (showUserMenu && userMenuRef && !userMenuRef.contains(e.target as Node)) {
-      showUserMenu = false;
+    if (showUserMenu) {
+      const inDesktop = userMenuRef?.contains(e.target as Node);
+      const inMobile = mobileUserMenuRef?.contains(e.target as Node);
+      if (!inDesktop && !inMobile) showUserMenu = false;
     }
   }
 
@@ -131,9 +134,32 @@
     <main class="main-content">
       <div class="mobile-header">
         <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle} <span class="mobile-header-sep">|</span> {pageTitle}{/if}</span>
-        <button class="mobile-search-bar" onclick={() => showSearch = true}>
-          Search...
-        </button>
+        <div class="mobile-header-right">
+          <button class="mobile-search-bar" onclick={() => showSearch = true}>
+            Search...
+          </button>
+          {#if user?.authenticated}
+            <div class="mobile-user-wrap" bind:this={mobileUserMenuRef}>
+              <button class="mobile-user-btn" onclick={() => showUserMenu = !showUserMenu}>
+                {#if user.imageUrl}
+                  <img class="mobile-user-avatar" src={user.imageUrl} alt="" />
+                {:else}
+                  <div class="mobile-user-avatar mobile-user-avatar--empty"></div>
+                {/if}
+              </button>
+              {#if showUserMenu}
+                <div class="mobile-user-menu">
+                  <div class="mobile-user-menu-header">
+                    <span class="mobile-user-menu-name">{user.displayName ?? user.spotifyId}</span>
+                    <span class="mobile-user-menu-id">{user.spotifyId}</span>
+                  </div>
+                  <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
+                  <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
       {@render children()}
     </main>
