@@ -80,6 +80,19 @@ export function getDb() {
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_listening_history_user_played_at ON listening_history(user_id, played_at)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id)'); } catch {}
 
+  // album covers: historial de portadas observadas + uploads
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS album_covers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      album_id TEXT NOT NULL,
+      image_url TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'spotify',
+      observed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(album_id, image_url)
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_album_covers_album_id ON album_covers(album_id)'); } catch {}
+
   // multi-user: unique en user_id para auth_tokens y polling_state
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_polling_state_user_id ON polling_state(user_id)'); } catch {}

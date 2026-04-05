@@ -17,6 +17,13 @@ export interface ArtistDetail {
   recentPlays: HistoryItem[];
 }
 
+export interface AlbumCover {
+  id: number;
+  imageUrl: string;
+  source: 'spotify' | 'musicbrainz' | 'upload';
+  observedAt: string;
+}
+
 export interface AlbumDetail {
   album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
   artists: { id: string; name: string; imageUrl: string | null }[];
@@ -26,6 +33,7 @@ export interface AlbumDetail {
   recentPlays: HistoryItem[];
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
+  covers?: AlbumCover[];
 }
 
 export interface TrackDetail {

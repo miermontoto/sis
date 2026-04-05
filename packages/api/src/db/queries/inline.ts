@@ -169,3 +169,22 @@ export function getTrackArtists(db: Db, trackId: string) {
     ORDER BY ta.position ASC
   `) as { spotify_id: string; name: string; image_url: string | null }[];
 }
+
+// --- album covers ---
+
+export function getAlbumCovers(db: Db, albumId: string) {
+  return db.all(sql`
+    SELECT id, album_id, image_url, source, observed_at
+    FROM album_covers
+    WHERE album_id = ${albumId}
+    ORDER BY observed_at DESC
+  `) as { id: number; album_id: string; image_url: string; source: string; observed_at: string }[];
+}
+
+export function setAlbumCover(db: Db, albumId: string, imageUrl: string) {
+  db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
+}
+
+export function insertAlbumCover(db: Db, albumId: string, imageUrl: string, source: string) {
+  db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${albumId}, ${imageUrl}, ${source})`);
+}

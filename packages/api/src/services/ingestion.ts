@@ -83,6 +83,12 @@ export function upsertTrack(track: SpotifyTrack) {
     })
     .run();
 
+  // registrar portada observada
+  const albumImageUrl = track.album.images[0]?.url;
+  if (albumImageUrl) {
+    db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${track.album.id}, ${albumImageUrl}, 'spotify')`);
+  }
+
   // upsert artistas
   for (const artist of track.artists) {
     db.insert(artists)
@@ -327,6 +333,7 @@ export async function resolveImportAlbums(userId: number) {
         // actualizar imagen si el real no la tiene
         if (imageUrl) {
           db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
+          db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${found.id}, ${imageUrl}, 'spotify')`);
         }
       } else {
         // crear álbum con ID real, migrar tracks, eliminar import:
@@ -812,6 +819,7 @@ export async function enrichLocalAlbumCovers() {
         .where(sql`spotify_id = ${album.spotify_id}`)
         .run();
       if (coverUrl) {
+        db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${album.spotify_id}, ${coverUrl}, 'musicbrainz')`);
         updated++;
         console.log(`[metadata] portada encontrada: ${artist.name} - ${album.name}`);
       }

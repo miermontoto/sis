@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -18,7 +18,39 @@
   let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
+  let showCoverPicker = $state(false);
+  let uploadingCover = $state(false);
   const fetchCtrl = createFetchController();
+
+  let hasMultipleCovers = $derived((data?.covers?.length ?? 0) > 1 || data?.album.imageUrl === null);
+
+  async function selectCover(imageUrl: string) {
+    if (!data) return;
+    await api.setAlbumCover($page.params.id, imageUrl);
+    data = { ...data, album: { ...data.album, imageUrl } };
+    if (imageUrl) {
+      extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
+    }
+  }
+
+  async function handleCoverUpload(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !data) return;
+    uploadingCover = true;
+    try {
+      const { imageUrl } = await api.uploadAlbumCover($page.params.id, file);
+      data = {
+        ...data,
+        album: { ...data.album, imageUrl },
+        covers: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.covers ?? [])],
+      };
+      extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
+    } finally {
+      uploadingCover = false;
+      input.value = '';
+    }
+  }
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -85,11 +117,41 @@
   {/if}
   <div class="detail-hero-row">
     <div class="detail-hero">
-      {#if data.album.imageUrl}
-        <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
-      {:else}
-        <div class="detail-image detail-image--placeholder"></div>
-      {/if}
+      <div class="cover-container">
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div class="cover-wrapper" onclick={() => showCoverPicker = !showCoverPicker}>
+          {#if data.album.imageUrl}
+            <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
+          {:else}
+            <div class="detail-image detail-image--placeholder"></div>
+          {/if}
+          {#if hasMultipleCovers}
+            <div class="cover-edit-hint">{showCoverPicker ? 'X' : '...'}</div>
+          {/if}
+        </div>
+        {#if showCoverPicker}
+          <div class="cover-picker">
+            {#each data.covers ?? [] as cover}
+              <button
+                class="cover-thumb"
+                class:cover-thumb--active={data.album.imageUrl === cover.imageUrl}
+                onclick={() => selectCover(cover.imageUrl)}
+                title="{cover.source} - {new Date(cover.observedAt).toLocaleDateString()}"
+              >
+                <img src={cover.imageUrl} alt="" />
+              </button>
+            {/each}
+            <label class="cover-thumb cover-thumb--upload" title="Upload cover">
+              {#if uploadingCover}
+                <div class="spinner" style="width:16px;height:16px;"></div>
+              {:else}
+                +
+              {/if}
+              <input type="file" accept="image/*" onchange={handleCoverUpload} hidden />
+            </label>
+          </div>
+        {/if}
+      </div>
       <div class="detail-header-info">
         <h1>{data.album.name}{#if $page.params.id === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
         <p class="detail-subtitle">
@@ -269,5 +331,76 @@
   .chart-card {
     margin-bottom: 1.5rem;
     padding: 1rem;
+  }
+  .cover-container {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .cover-wrapper {
+    cursor: pointer;
+    position: relative;
+  }
+  .cover-edit-hint {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .cover-wrapper:hover .cover-edit-hint {
+    opacity: 1;
+  }
+  .cover-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    max-width: 200px;
+  }
+  .cover-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s;
+  }
+  .cover-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .cover-thumb--active {
+    border-color: var(--accent);
+  }
+  .cover-thumb:hover:not(.cover-thumb--active) {
+    border-color: var(--text-muted);
+  }
+  .cover-thumb--upload {
+    border: 2px dashed var(--border);
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+  .cover-thumb--upload:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>

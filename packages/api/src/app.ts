@@ -66,9 +66,10 @@ app.route('/api/playlists', playlists);
 
 // servir portadas descargadas desde data/covers/
 const coversDir = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
+fs.mkdirSync(coversDir, { recursive: true });
+
 app.get('/api/covers/:filename', (c) => {
   const filename = c.req.param('filename');
-  // solo permitir nombres seguros
   if (!/^[\w:.%-]+\.(jpg|png)$/.test(filename)) return c.notFound();
   const filePath = path.join(coversDir, filename);
   if (!fs.existsSync(filePath)) return c.notFound();
@@ -78,6 +79,54 @@ app.get('/api/covers/:filename', (c) => {
     'Content-Type': mime,
     'Cache-Control': 'public, max-age=604800, immutable',
   });
+});
+
+// listar portadas de un álbum
+app.get('/api/covers/album/:albumId', (c) => {
+  const albumId = c.req.param('albumId');
+  const db = getDb();
+  const covers = db.all(sql`
+    SELECT id, image_url, source, observed_at FROM album_covers
+    WHERE album_id = ${albumId} ORDER BY observed_at DESC
+  `) as any[];
+  return c.json({ covers: covers.map(r => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })) });
+});
+
+// seleccionar portada activa
+app.put('/api/covers/album/:albumId', async (c) => {
+  const albumId = c.req.param('albumId');
+  const { imageUrl } = await c.req.json<{ imageUrl: string }>();
+  if (!imageUrl) return c.json({ error: 'imageUrl required' }, 400);
+  const db = getDb();
+  db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
+  return c.json({ ok: true });
+});
+
+// subir portada personalizada
+app.post('/api/covers/:albumId', async (c) => {
+  const albumId = c.req.param('albumId');
+  const body = await c.req.parseBody();
+  const file = body['file'];
+  if (!file || typeof file === 'string') return c.json({ error: 'file required' }, 400);
+
+  const arrayBuf = await file.arrayBuffer();
+  if (arrayBuf.byteLength > 2 * 1024 * 1024) return c.json({ error: 'max 2MB' }, 400);
+
+  const contentType = file.type || 'image/jpeg';
+  if (!contentType.startsWith('image/')) return c.json({ error: 'must be an image' }, 400);
+  const ext = contentType.includes('png') ? 'png' : 'jpg';
+
+  const safeId = albumId.replace(/[^a-zA-Z0-9_:-]/g, '_');
+  const filename = `${safeId}_custom_${Date.now()}.${ext}`;
+  const buffer = Buffer.from(arrayBuf);
+  fs.writeFileSync(path.join(coversDir, filename), buffer);
+
+  const imageUrl = `/api/covers/${filename}`;
+  const db = getDb();
+  db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${albumId}, ${imageUrl}, 'upload')`);
+  db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
+
+  return c.json({ imageUrl });
 });
 
 // health check — público pero retorna 401 si hay usuarios y no hay sesión válida

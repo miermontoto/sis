@@ -244,7 +244,7 @@ stats.get('/album/:id', async (c) => {
   const albumIds = await dbRead<string[]>('resolveAlbumIds', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo] = await Promise.all([
+  const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo, coversRaw] = await Promise.all([
     dbRead<any[]>('getAlbumArtists', id, albumIds),
     dbRead<any>('getEntityStats', 'album', id, rangeStart, rangeEnd, albumIds, userId),
     dbRead<any>('getEntitySeries', 'album', id, rangeStart, rangeKey, albumIds, rangeEnd, customDays, userId),
@@ -252,6 +252,7 @@ stats.get('/album/:id', async (c) => {
     dbRead<any[]>('getRecentPlays', 'album', id, 10, albumIds, userId),
     dbRead<any>('getAlbumPlaylistPresence', id, userId),
     dbRead<any>('getAlbumMergeInfo', id),
+    dbRead<any[]>('getAlbumCovers', id),
   ]);
 
   const recentPlays = await Promise.all(recentRaw.map((row: any) => dbRead<any>('formatRecentPlay', row)));
@@ -282,6 +283,7 @@ stats.get('/album/:id', async (c) => {
     mergedFrom: mergeInfo.mergedFrom.map((r: any) => ({ id: r.source_id, ruleId: r.rule_id, name: r.name, imageUrl: r.image_url })),
     mergedInto: mergeInfo.mergedInto ? { id: mergeInfo.mergedInto.target_id, ruleId: mergeInfo.mergedInto.rule_id, name: mergeInfo.mergedInto.name, imageUrl: mergeInfo.mergedInto.image_url } : null,
     playlists,
+    covers: coversRaw.map((r: any) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
   });
 });
 

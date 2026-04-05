@@ -17,7 +17,7 @@ export type { NowPlayingResponse } from './now-playing.js';
 export type { RankingMetric, WeekStartOption, DateRangeParams } from './settings.js';
 
 // detalle de entidades
-export type { Rankings, ArtistDetail, AlbumDetail, TrackDetail } from './detail.js';
+export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } from './detail.js';
 
 // charts
 export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, ChartHistoryResponse } from './charts.js';

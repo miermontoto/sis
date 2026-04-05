@@ -11,7 +11,7 @@ export type {
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
-  ArtistDetail, AlbumDetail, TrackDetail, Rankings,
+  ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, Rankings,
   ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint,
   RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem,
   Accolade, AccoladesResponse,
@@ -22,7 +22,7 @@ import type {
   RankingMetric, WeekStartOption, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
-  NowPlayingResponse, ArtistDetail, AlbumDetail, TrackDetail,
+  NowPlayingResponse, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPoint, HealthData,
   MergeRule, MergeSuggestionAlbum, MeResponse, UserRecord, ImportResult,
@@ -342,6 +342,23 @@ export const api = {
       formData.append('files', file);
     }
     const res = await fetch(`${BASE}/import`, { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(err.error || `API error: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  albumCovers: (albumId: string, signal?: AbortSignal) =>
+    apiFetch<{ covers: AlbumCover[] }>(`/covers/album/${encodeURIComponent(albumId)}`, {}, signal),
+
+  setAlbumCover: (albumId: string, imageUrl: string) =>
+    apiMutate<{ ok: boolean }>('PUT', `/covers/album/${encodeURIComponent(albumId)}`, { imageUrl }),
+
+  uploadAlbumCover: async (albumId: string, file: File): Promise<{ imageUrl: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE}/covers/${encodeURIComponent(albumId)}`, { method: 'POST', body: formData });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(err.error || `API error: ${res.status}`);

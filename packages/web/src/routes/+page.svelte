@@ -91,7 +91,7 @@
 
   {#if topTracks.length > 0}
     <div class="card" style="margin-bottom: 1.5rem;">
-      <h3 style="margin-bottom: 0.75rem;"><a href="/top" class="section-link">Top tracks this week</a></h3>
+      <h3 style="margin-bottom: 0.75rem;"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>
       <TrackList items={topTracks} showRank {metric} />
     </div>
   {/if}
