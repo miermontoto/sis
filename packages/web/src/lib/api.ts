@@ -3,7 +3,7 @@
 export type {
   TrackInfo, FormattedArtist, FormattedAlbum,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  RankingMetric, WeekStartOption, DateRangeParams,
+  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting,
   HistoryItem, HistoryResponse,
   NowPlayingResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem,
@@ -17,9 +17,10 @@ export type {
   Accolade, AccoladesResponse,
   MergeRule, MergeSuggestionAlbum,
 } from '@sis/shared';
+export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
-  RankingMetric, WeekStartOption, DateRangeParams,
+  RankingMetric, WeekStartOption, LocaleSetting, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
   NowPlayingResponse, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
@@ -110,11 +111,13 @@ export function createFetchController() {
 interface SettingsData {
   rankingMetric: RankingMetric;
   weekStart: WeekStartOption;
+  locale: LocaleSetting;
 }
 
 const SETTINGS_DEFAULTS: SettingsData = {
   rankingMetric: 'time',
   weekStart: 'friday',
+  locale: 'auto',
 };
 
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
@@ -126,15 +129,18 @@ export async function loadSettings(): Promise<void> {
     settingsCache = {
       rankingMetric: (data.rankingMetric as RankingMetric) || 'time',
       weekStart: (data.weekStart as WeekStartOption) || 'friday',
+      locale: (data.locale as LocaleSetting) || 'auto',
     };
     // sync to localStorage as fallback
     localStorage.setItem('sis:rankingMetric', settingsCache.rankingMetric);
     localStorage.setItem('sis:weekStart', settingsCache.weekStart);
+    localStorage.setItem('sis:locale', settingsCache.locale);
   } catch {
     // fallback: read from localStorage
     settingsCache = {
       rankingMetric: (localStorage.getItem('sis:rankingMetric') as RankingMetric) || 'time',
       weekStart: (localStorage.getItem('sis:weekStart') as WeekStartOption) || 'friday',
+      locale: (localStorage.getItem('sis:locale') as LocaleSetting) || 'auto',
     };
   }
   settingsLoaded = true;
@@ -168,6 +174,24 @@ export function setWeekStart(ws: WeekStartOption) {
   settingsCache.weekStart = ws;
   localStorage.setItem('sis:weekStart', ws);
   updateSetting({ weekStart: ws });
+}
+
+/** Resolved locale: if 'auto', returns navigator.language; otherwise the stored BCP 47 tag */
+export function getLocale(): string {
+  const raw = getRawLocale();
+  return raw === 'auto' ? navigator.language : raw;
+}
+
+/** Raw stored value ('auto' or specific tag) — for the settings UI */
+export function getRawLocale(): LocaleSetting {
+  if (settingsLoaded) return settingsCache.locale;
+  return (localStorage.getItem('sis:locale') as LocaleSetting) || 'auto';
+}
+
+export function setLocale(locale: LocaleSetting) {
+  settingsCache.locale = locale;
+  localStorage.setItem('sis:locale', locale);
+  updateSetting({ locale });
 }
 
 // invalidar cache (tras mutaciones o cuando se necesite data fresca)
@@ -270,6 +294,9 @@ export const api = {
 
   chart: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', limit = 25, signal?: AbortSignal) =>
     apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }, signal),
+
+  chartPeaks: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', ids: string[], signal?: AbortSignal) =>
+    apiFetch<Record<string, { peakRank: number; peakPeriod: string; peakPeriods: string[]; timesAtPeak: number; weeksOnChart: number; consecutiveWeeks: number; isReentry: boolean }>>('/stats/charts/peaks', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, signal),
 
   records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists', signal?: AbortSignal) =>
     apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, ...(type && { type }) }, signal),

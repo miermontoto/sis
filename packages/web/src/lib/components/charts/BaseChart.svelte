@@ -79,7 +79,7 @@
   // actualizar cuando cambia la opción
   $effect(() => {
     if (chart && option) {
-      chart.setOption(option, { notMerge: true });
+      chart.setOption(option);
     }
   });
 </script>

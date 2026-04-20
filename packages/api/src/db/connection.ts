@@ -26,6 +26,11 @@ export function getDb() {
   sqlite.pragma('busy_timeout = 5000');
   sqlite.pragma('foreign_keys = ON');
 
+  // performance: cache grande, temp tables en memoria, menos fsync (seguro con WAL)
+  sqlite.pragma('cache_size = -64000');
+  sqlite.pragma('temp_store = MEMORY');
+  sqlite.pragma('synchronous = NORMAL');
+
   // función personalizada para búsquedas sin acentos
   sqlite.function('unaccent', (s: unknown) =>
     typeof s === 'string' ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : s
@@ -52,6 +57,12 @@ export function getDb() {
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_album INTEGER'); } catch {}
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_artists INTEGER'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_track_artists_track_id ON track_artists(track_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON track_artists(artist_id)'); } catch {}
+  // composite para aggregaciones: GROUP BY track_id filtrado por user_id + rango temporal
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_lh_user_track ON listening_history(user_id, track_id)'); } catch {}
+  // merge_rules: JOIN en queries de álbumes
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_merge_rules_lookup ON merge_rules(entity_type, source_id, user_id)'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
   try { sqlite.exec('ALTER TABLE albums ADD COLUMN artist_ids TEXT'); } catch {}
 

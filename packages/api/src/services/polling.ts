@@ -15,6 +15,7 @@ import {
 } from '../constants.js';
 import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { computeAndCacheRecords } from './records-cache.js';
+import { resetDeferredState } from './deferred-startup.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
   SpotifyRecentlyPlayedResponse,
@@ -242,17 +243,13 @@ export function startPolling() {
       .catch(err => console.error('[resolve] error artistas:', err));
   }, ARTIST_FIX_INTERVAL_MS);
 
-  // records cache (se recomputa para todos los usuarios)
-  try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); }
+  // records cache — la primera computación se delega al login/navegación del usuario
   recordsCacheTimer = setInterval(
     () => { try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); } },
     RECORDS_CACHE_INTERVAL_MS,
   );
 
-  // playlist sync (6h) — recomputar records después de sync para incluir playlist data
-  syncAllUsersPlaylists()
-    .then(() => { try { computeAndCacheRecords(); } catch {} })
-    .catch(err => console.error('[playlist-sync] error:', err));
+  // playlist sync (6h) — la primera sync se delega al login/navegación del usuario
   playlistSyncTimer = setInterval(() => {
     syncAllUsersPlaylists()
       .then(() => { try { computeAndCacheRecords(); } catch {} })
@@ -284,5 +281,6 @@ export function stopPolling() {
 // re-iniciar polling (útil después de OAuth de nuevo usuario)
 export function restartPolling() {
   stopPolling();
+  resetDeferredState();
   startPolling();
 }

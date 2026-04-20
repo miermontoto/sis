@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPoint, type RankingMetric } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPoint, type RankingMetric, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption, ECharts } from 'echarts';
@@ -10,7 +10,7 @@
     entityId,
     highlightedMonth = $bindable(''),
   }: {
-    entityType: 'artist' | 'track' | 'album';
+    entityType: EntityType;
     entityId: string;
     highlightedMonth?: string;
   } = $props();
@@ -174,10 +174,6 @@
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
     display: inline-block;
-  }
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
   }
   .ranking-label {
     font-size: 0.7rem;

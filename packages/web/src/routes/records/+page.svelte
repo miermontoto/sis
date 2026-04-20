@@ -2,14 +2,14 @@
   import { onMount } from 'svelte';
   import { api, createFetchController, getRankingMetric, getWeekStart, type EntityRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
-  import { medalColor } from '$lib/utils/medals';
+  import TrackItem from '$lib/components/TrackItem.svelte';
 
+  type TabType = 'tracks' | 'albums' | 'artists';
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
-  let activeTab = $state<'tracks' | 'albums' | 'artists'>('tracks');
+  let activeTab = $state<TabType>('tracks');
   let loadingTab = $state<string | null>(null);
 
-  // cache por tab: clave = `${weekStart}:${metric}:${tab}`
   let cache = $state<Map<string, EntityRecords | ArtistRecordsData>>(new Map());
 
   function cacheKey(tab: string) {
@@ -21,7 +21,7 @@
 
   const fetchCtrl = createFetchController();
 
-  async function loadTab(tab: 'tracks' | 'albums' | 'artists') {
+  async function loadTab(tab: TabType) {
     const key = cacheKey(tab);
     if (cache.has(key)) return;
     const signal = fetchCtrl.reset();
@@ -89,34 +89,35 @@
         <h3 class="record-title">{title}</h3>
         <div class="record-list">
           {#each items as item, i}
-            <div class="record-item">
-              <span class="record-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-              {#if item.imageUrl}
-                <a href={entityLink(activeTab, item.entityId)} class="record-art-link">
-                  <img class="record-art" class:record-art--round={activeTab === 'artists'} src={item.imageUrl} alt="" />
-                </a>
-              {:else}
-                <div class="record-art" class:record-art--round={activeTab === 'artists'}></div>
-              {/if}
-              <div class="record-info">
-                <a href={entityLink(activeTab, item.entityId)} class="record-name-link">{item.name}</a>
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(activeTab, item.entityId)}
+              imageRound={activeTab === 'artists'}
+              name={item.name}
+              nameHref={entityLink(activeTab, item.entityId)}
+              compact
+            >
+              {#snippet subtitle()}
                 {#if item.artistName}
                   {#if item.artistId}
-                    <a href="/artist/{item.artistId}" class="record-sub-link">{item.artistName}</a>
+                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
                   {:else}
-                    <div class="record-sub">{item.artistName}</div>
+                    {item.artistName}
                   {/if}
                 {/if}
-              </div>
-              <div class="record-value">
-                <span class="record-val">{formatValue(item.value, valueType)}</span>
-                {#if item.week === 'active'}
-                  <span class="record-active">active</span>
-                {:else if item.week}
-                  <a href="/charts?type={activeTab}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
-                {/if}
-              </div>
-            </div>
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, valueType)}</span>
+                  {#if item.week === 'active'}
+                    <span class="record-active">active</span>
+                  {:else if item.week}
+                    <a href="/charts?type={activeTab}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
+                  {/if}
+                </div>
+              {/snippet}
+            </TrackItem>
           {/each}
         </div>
       </div>
@@ -140,20 +141,20 @@
           <h3 class="record-title">{title}</h3>
           <div class="record-list">
             {#each items as item, i}
-              <a href="/artist/{item.artistId}" class="record-item">
-                <span class="record-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                {#if item.imageUrl}
-                  <img class="record-art record-art--round" src={item.imageUrl} alt="" />
-                {:else}
-                  <div class="record-art record-art--round"></div>
-                {/if}
-                <div class="record-info">
-                  <div class="record-name">{item.name}</div>
-                </div>
-                <div class="record-value">
-                  <span class="record-val">{item.count}</span>
-                </div>
-              </a>
+              <TrackItem
+                href="/artist/{item.artistId}"
+                rank={i + 1}
+                imageUrl={item.imageUrl}
+                imageRound
+                name={item.name}
+                compact
+              >
+                {#snippet meta()}
+                  <div class="record-value">
+                    <span class="record-val">{item.count}</span>
+                  </div>
+                {/snippet}
+              </TrackItem>
             {/each}
           </div>
         </div>
@@ -209,73 +210,12 @@
     border-radius: 10px;
     overflow: hidden;
   }
-  .record-item {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.5rem 0.75rem;
-    text-decoration: none;
-    color: var(--text);
-    transition: background 0.1s;
+  .record-list :global(.track-item) {
     border-bottom: 1px solid var(--border);
+    border-radius: 0;
   }
-  .record-item:last-child {
+  .record-list :global(.track-item:last-child) {
     border-bottom: none;
-  }
-  .record-item:hover {
-    background: var(--bg-hover);
-  }
-  .record-rank {
-    width: 1.5rem;
-    text-align: center;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
-  .record-art-link {
-    display: flex;
-    flex-shrink: 0;
-    line-height: 0;
-  }
-  .record-art {
-    width: 36px;
-    height: 36px;
-    border-radius: 4px;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: var(--border);
-  }
-  .record-art--round {
-    border-radius: 50%;
-  }
-  .record-info {
-    flex: 1;
-    min-width: 0;
-  }
-  .record-name-link {
-    font-size: 0.85rem;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text);
-    text-decoration: none;
-    display: block;
-  }
-  .record-name-link:hover {
-    color: var(--accent);
-  }
-  .record-sub {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-  .record-sub-link {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-decoration: none;
-  }
-  .record-sub-link:hover {
-    color: var(--accent);
   }
   .record-value {
     display: flex;

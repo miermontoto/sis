@@ -12,8 +12,16 @@ import type { AppVariables } from '../app.js';
 const stats = new Hono<{ Variables: AppVariables }>();
 
 // helpers: parseo de query params comunes
-type WeekStart = 'monday' | 'sunday' | 'friday';
-type Sort = 'plays' | 'time';
+import type { WeekStartOption, RankingMetric, Granularity, EntityType } from '@sis/shared';
+type WeekStart = WeekStartOption;
+type Sort = RankingMetric;
+
+/** Convertir param plural ('tracks') a EntityType singular ('track') */
+function toEntityType(plural: string): EntityType {
+  if (plural === 'tracks') return 'track';
+  if (plural === 'albums') return 'album';
+  return 'artist';
+}
 
 function parseWeekStart(c: any): WeekStart {
   const ws = c.req.query('weekStart');
@@ -33,7 +41,7 @@ function periodMatchesGranularity(period: string, granularity: 'week' | 'month' 
 
 function parseParams(c: any) {
   const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 200);
-  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as 'plays' | 'time';
+  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as Sort;
 
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
@@ -67,7 +75,7 @@ function rankChangeFields(prev: ReturnType<typeof getPreviousPeriodRange>, prevR
 }
 
 // helper genérico: top-* endpoint con rank changes
-async function handleTopEntities(c: any, entityType: EntityType, formatFn: string) {
+async function handleTopEntities(c: any, entityType: EntityType, formatFn: string, batchFormatFn?: string) {
   const { range, limit, rangeStart, rangeEnd, sort } = parseParams(c);
   const userId = c.get('userId');
 
@@ -80,9 +88,12 @@ async function handleTopEntities(c: any, entityType: EntityType, formatFn: strin
     ? buildRankChangeMap(await dbRead<{ entity_id: string }[]>('getPrevPeriodEntities', entityType, prev.prevStart, prev.prevEnd, sort, userId))
     : new Map<string, number>();
 
-  const formatted = await Promise.all(rows.map(row => dbRead<any>(formatFn, row)));
+  // usar batch formatter si disponible (evita N+1 queries)
+  const formatted = batchFormatFn
+    ? await dbRead<any[]>(batchFormatFn, rows)
+    : await Promise.all(rows.map(row => dbRead<any>(formatFn, row)));
 
-  return c.json(formatted.map((f, i) => ({
+  return c.json(formatted.map((f: any, i: number) => ({
     ...f,
     ...rankChangeFields(prev, prevRankMap, rows[i].entity_id, i + 1),
   })));
@@ -90,7 +101,7 @@ async function handleTopEntities(c: any, entityType: EntityType, formatFn: strin
 
 // --- top endpoints ---
 
-stats.get('/top-tracks', (c) => handleTopEntities(c, 'track', 'formatTopTrackRow'));
+stats.get('/top-tracks', (c) => handleTopEntities(c, 'track', 'formatTopTrackRow', 'formatTopTrackRows'));
 stats.get('/top-artists', (c) => handleTopEntities(c, 'artist', 'formatTopArtistRow'));
 stats.get('/top-albums', (c) => handleTopEntities(c, 'album', 'formatTopAlbumRow'));
 
@@ -123,12 +134,12 @@ stats.get('/history', async (c) => {
     artistId: c.req.query('artist'),
   });
 
-  const enriched = await Promise.all(rows.map(row => dbRead<any>('enrichTrack', row.track_id)));
-  const items = rows.map((row, i) => ({
+  const trackMap = await dbRead<Map<string, any>>('enrichTracksBatch', rows.map(r => r.track_id));
+  const items = rows.map((row) => ({
     id: row.id,
     playedAt: row.played_at,
     contextType: null,
-    track: enriched[i],
+    track: trackMap.get(row.track_id) ?? null,
   }));
 
   return c.json({ items, page, limit, total, hasMore: offset + limit < total });
@@ -217,9 +228,9 @@ stats.get('/artist/:id', async (c) => {
   ]);
 
   const [topTracks, topAlbums, recentPlays] = await Promise.all([
-    Promise.all(topTracksRaw.map((row: any) => dbRead<any>('formatArtistTrackRow', row))),
+    dbRead<any[]>('formatArtistTrackRows', topTracksRaw),
     Promise.all(topAlbumsRaw.map((row: any) => dbRead<any>('formatArtistAlbumRow', row))),
-    Promise.all(recentRaw.map((row: any) => dbRead<any>('formatRecentPlay', row))),
+    dbRead<any[]>('formatRecentPlays', recentRaw),
   ]);
 
   return c.json({
@@ -255,7 +266,7 @@ stats.get('/album/:id', async (c) => {
     dbRead<any[]>('getAlbumCovers', id),
   ]);
 
-  const recentPlays = await Promise.all(recentRaw.map((row: any) => dbRead<any>('formatRecentPlay', row)));
+  const recentPlays = await dbRead<any[]>('formatRecentPlays', recentRaw);
 
   const tracksResult = albumTracks.map((row: any) => ({
     trackId: row.track_id,
@@ -307,7 +318,7 @@ stats.get('/track/:id', async (c) => {
   ]);
 
   const [recentPlays, albumBreakdowns] = await Promise.all([
-    Promise.all(recentRaw.map((row: any) => dbRead<any>('formatRecentPlay', row))),
+    dbRead<any[]>('formatRecentPlays', recentRaw),
     Promise.all(albumBreakdownRaw.map((row: any) => dbRead<any>('lookupAlbum', row.album_id).then(ab => ({
       albumId: row.album_id,
       playCount: row.play_count,
@@ -336,14 +347,14 @@ stats.get('/track/:id', async (c) => {
 
 stats.get('/charts/periods', async (c) => {
   const userId = c.get('userId');
-  const granularity = (c.req.query('granularity') || 'week') as 'week' | 'month' | 'year';
+  const granularity = (c.req.query('granularity') || 'week') as Granularity;
   return c.json({ periods: await dbRead('getAvailablePeriods', granularity, parseWeekStart(c), userId) });
 });
 
 stats.get('/charts', async (c) => {
   const userId = c.get('userId');
-  const type = (c.req.query('type') || 'tracks') as 'tracks' | 'albums' | 'artists';
-  const granularity = (c.req.query('granularity') || 'week') as 'week' | 'month' | 'year';
+  const type = toEntityType(c.req.query('type') || 'tracks');
+  const granularity = (c.req.query('granularity') || 'week') as Granularity;
   const limit = Math.min(parseInt(c.req.query('limit') || String(CHART_SIZE)), CHART_SIZE);
   const period = c.req.query('period');
 
@@ -353,11 +364,27 @@ stats.get('/charts', async (c) => {
   return c.json(await dbRead('getChart', type, granularity, parseWeekStart(c), period, parseSort(c), userId, limit));
 });
 
+// --- chart peaks (deferred loading for chart page) ---
+
+stats.get('/charts/peaks', async (c) => {
+  const userId = c.get('userId');
+  const type = toEntityType(c.req.query('type') || 'tracks');
+  const granularity = (c.req.query('granularity') || 'week') as Granularity;
+  const period = c.req.query('period');
+  const ids = c.req.query('ids');
+
+  if (!period) return c.json({ error: 'period is required' }, 400);
+  if (!ids) return c.json({ error: 'ids is required' }, 400);
+
+  const entityIds = ids.split(',').filter(Boolean);
+  return c.json(await dbRead('getChartPeaks', type, granularity, parseWeekStart(c), period, parseSort(c), userId, entityIds));
+});
+
 // --- chart history for a single entity ---
 
 stats.get('/chart-history/:type/:id', async (c) => {
   const userId = c.get('userId');
-  const entityType = c.req.param('type') as 'tracks' | 'albums' | 'artists';
+  const entityType = toEntityType(c.req.param('type'));
   const id = c.req.param('id');
 
   return c.json(await dbRead('getEntityChartHistory', entityType, id, parseWeekStart(c), parseSort(c), userId));
@@ -370,7 +397,8 @@ stats.get('/records', async (c) => {
   const weekStart = parseWeekStart(c);
   const sort = parseSort(c);
   const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
-  const type = c.req.query('type') as 'tracks' | 'albums' | 'artists' | undefined;
+  const rawType = c.req.query('type');
+  const type = rawType ? toEntityType(rawType) : undefined;
 
   const cached = getCachedRecords(userId, weekStart, sort, limit, type);
   if (cached) return c.json(cached);
@@ -381,7 +409,7 @@ stats.get('/records', async (c) => {
 
 stats.get('/accolades/:type/:id', (c) => {
   const userId = c.get('userId');
-  const entityType = c.req.param('type') as 'artist' | 'track' | 'album';
+  const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
   return c.json(getEntityAccolades(entityType, id, userId));
 });
@@ -389,14 +417,14 @@ stats.get('/accolades/:type/:id', (c) => {
 // --- rankings (lazy, loaded async by frontend) ---
 
 stats.get('/rankings/:type/:id', async (c) => {
-  const entityType = c.req.param('type') as 'artist' | 'track' | 'album';
+  const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
   const userId = c.get('userId');
   return c.json(await dbRead('computeRankings', entityType, id, parseSort(c), userId));
 });
 
 stats.get('/ranking-history/:type/:id', async (c) => {
-  const entityType = c.req.param('type') as 'artist' | 'track' | 'album';
+  const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
   const userId = c.get('userId');
   return c.json(await dbRead('getRankingHistory', entityType, id, parseSort(c), userId));

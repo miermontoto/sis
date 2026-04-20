@@ -4,7 +4,7 @@
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import { formatHours, DAY_NAMES } from '$lib/utils/format';
+  import { formatHours, getLocalizedDayNames } from '$lib/utils/format';
   import type { EChartsOption } from 'echarts';
 
   let range = $state('all');
@@ -109,6 +109,7 @@
   });
   let avgDailyMs = $derived(listeningData.length > 0 ? totalMs / dayCount : 0);
   let maxHeatmapValue = $derived(Math.max(...heatmap.map(h => h.play_count), 1));
+  let dayNames = $derived(getLocalizedDayNames());
 
   let lineChartOption = $derived<EChartsOption>({
     grid: { left: 50, right: 20, top: 20, bottom: 30 },
@@ -148,10 +149,10 @@
   });
 
   let heatmapOption = $derived<EChartsOption>({
-    tooltip: { formatter: (params: any) => { const [hour, day] = params.value; return `${DAY_NAMES[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
+    tooltip: { formatter: (params: any) => { const [hour, day] = params.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
     grid: { left: 50, right: 20, top: 10, bottom: 30 },
     xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { color: '#888' }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
-    yAxis: { type: 'category', data: DAY_NAMES, splitArea: { show: true }, axisLabel: { color: '#888' }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
+    yAxis: { type: 'category', data: dayNames, splitArea: { show: true }, axisLabel: { color: '#888' }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
     visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#141414', '#0d3320', '#1a6b3f', '#1db954'] } },
     series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, h.day_of_week, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 3 } }],
   });

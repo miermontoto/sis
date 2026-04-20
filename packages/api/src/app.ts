@@ -17,6 +17,7 @@ import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession } from './services/session.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
+import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
 
 export type AppVariables = {
@@ -51,6 +52,10 @@ app.use('/api/*', async (c, next) => {
   c.set('userId', session.userId);
   c.set('spotifyId', session.spotifyId);
   c.set('isAdmin', session.isAdmin);
+
+  // startup diferido: playlist sync + records cache al primer request del usuario
+  triggerDeferredStartup(session.userId);
+
   return next();
 });
 

@@ -1,13 +1,15 @@
 import { getDb } from '../db/connection.js';
 import { getRecords } from '../db/queries/index.js';
+import { dbRead } from '../db/read-pool.js';
 import type { RecordsResponse, Accolade, AccoladesResponse } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 
-type WeekStart = 'monday' | 'sunday' | 'friday';
-type Sort = 'plays' | 'time';
-type EntityTypeFilter = 'tracks' | 'albums' | 'artists';
+import type { RankingMetric, WeekStartOption, EntityType } from '@sis/shared';
+type WeekStart = WeekStartOption;
+type Sort = RankingMetric;
+type EntityTypeFilter = EntityType;
 
 // cache: "userId:weekStart:sort" → resultado completo (all types, limit 50)
 const cache = new Map<string, RecordsResponse>();
@@ -28,7 +30,7 @@ function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string)
   };
 }
 
-/** Computa records para todos los usuarios activos */
+/** Computa records para todos los usuarios activos (síncrono, bloquea el event loop) */
 export function computeAndCacheRecords() {
   const activeUsers = getAllActiveUsersWithTokens();
   if (activeUsers.length === 0) return;
@@ -36,21 +38,43 @@ export function computeAndCacheRecords() {
   const db = getDb();
 
   for (const { userId, spotifyId } of activeUsers) {
-    const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
-    const k = cacheKey(userId, weekStart, sort);
-
-    console.log(`[records-cache] computing records for user ${userId} (${k})...`);
-    const start = performance.now();
-    const result = getRecords(db, weekStart, sort, 50, undefined, userId) as RecordsResponse;
-    const ms = (performance.now() - start).toFixed(0);
-    console.log(`[records-cache] done in ${ms}ms`);
-
-    // limpiar cache anterior de este usuario
-    for (const [key] of cache) {
-      if (key.startsWith(`${userId}:`)) cache.delete(key);
-    }
-    cache.set(k, result);
+    computeAndCacheForUser(db, userId, spotifyId);
   }
+}
+
+export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: number, spotifyId: string) {
+  const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
+  const k = cacheKey(userId, weekStart, sort);
+
+  console.log(`[records-cache] computing records for user ${userId} (${k})...`);
+  const start = performance.now();
+  const result = getRecords(db, weekStart, sort, 50, undefined, userId) as RecordsResponse;
+  const ms = (performance.now() - start).toFixed(0);
+  console.log(`[records-cache] done in ${ms}ms`);
+
+  // limpiar cache anterior de este usuario
+  for (const [key] of cache) {
+    if (key.startsWith(`${userId}:`)) cache.delete(key);
+  }
+  cache.set(k, result);
+}
+
+/** Computa records en un worker thread (prod) para no bloquear el event loop principal. */
+export async function computeAndCacheForUserAsync(userId: number, spotifyId: string) {
+  const db = getDb();
+  const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
+  const k = cacheKey(userId, weekStart, sort);
+
+  console.log(`[records-cache] computing records for user ${userId} (${k}) [worker]...`);
+  const start = performance.now();
+  const result = await dbRead<RecordsResponse>('getRecords', weekStart, sort, 50, undefined, userId);
+  const ms = (performance.now() - start).toFixed(0);
+  console.log(`[records-cache] done in ${ms}ms`);
+
+  for (const [key] of cache) {
+    if (key.startsWith(`${userId}:`)) cache.delete(key);
+  }
+  cache.set(k, result);
 }
 
 /** Devuelve records cacheados para un usuario, o null si no hay cache */

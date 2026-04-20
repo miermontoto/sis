@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { api, createFetchController, type Accolade } from '$lib/api';
+  import { api, createFetchController, type Accolade, type EntityType, type RankingMetric } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
 
   let {
     entityType,
     entityId,
   }: {
-    entityType: 'artist' | 'track' | 'album';
+    entityType: EntityType;
     entityId: string;
   } = $props();
 
@@ -18,7 +18,7 @@
   }
 
   let accolades = $state<Accolade[]>([]);
-  let metric = $state<'plays' | 'time'>('time');
+  let metric = $state<RankingMetric>('time');
   let loading = $state(true);
   const fetchCtrl = createFetchController();
 

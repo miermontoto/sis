@@ -2,11 +2,12 @@ import { sql } from 'drizzle-orm';
 import type { getDb } from '../connection.js';
 import { TIME_RANGES } from '../../constants.js';
 import type { TimeRange } from '../../constants.js';
+import type { EntityType, RankingMetric } from '@sis/shared';
 
 export type Db = ReturnType<typeof getDb>;
 export type SqlChunk = ReturnType<typeof sql>;
-export type EntityType = 'artist' | 'track' | 'album';
-export type Sort = 'plays' | 'time';
+export type { EntityType };
+export type Sort = RankingMetric;
 
 // --- tipos de resultado ---
 

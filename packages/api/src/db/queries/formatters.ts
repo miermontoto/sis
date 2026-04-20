@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
 import type { FormattedArtist, FormattedAlbum } from '@sis/shared';
 import { artists, albums, tracks, trackArtists } from '../schema.js';
-import { enrichTrack } from './track.js';
+import { enrichTrack, enrichTracksBatch } from './track.js';
 
 // --- formatters para filas de top-* endpoints ---
 
@@ -20,7 +20,7 @@ export function lookupAlbum(db: Db, spotifyId: string): FormattedAlbum | null {
   return { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate };
 }
 
-/** Formatear fila de top-tracks (enriquece con metadata del track) */
+/** Formatear fila de top-tracks (enriquece con metadata del track) — versión single (legacy) */
 export function formatTopTrackRow(db: Db, row: { entity_id: string; play_count: number; total_ms: number }) {
   const trackInfo = enrichTrack(db, row.entity_id);
   return {
@@ -34,6 +34,25 @@ export function formatTopTrackRow(db: Db, row: { entity_id: string; play_count: 
       artists: trackInfo.artists,
     } : null,
   };
+}
+
+/** Formatear múltiples filas de top-tracks en batch (2 queries en vez de N*5) */
+export function formatTopTrackRows(db: Db, rows: { entity_id: string; play_count: number; total_ms: number }[]) {
+  const trackMap = enrichTracksBatch(db, rows.map(r => r.entity_id));
+  return rows.map(row => {
+    const trackInfo = trackMap.get(row.entity_id);
+    return {
+      trackId: row.entity_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      track: trackInfo ? {
+        name: trackInfo.name,
+        durationMs: trackInfo.durationMs,
+        album: trackInfo.album,
+        artists: trackInfo.artists,
+      } : null,
+    };
+  });
 }
 
 /** Formatear fila de top-artists */
@@ -56,7 +75,7 @@ export function formatTopAlbumRow(db: Db, row: { entity_id: string; play_count: 
   };
 }
 
-/** Formatear fila de recent play (con enrichTrack) */
+/** Formatear fila de recent play (con enrichTrack) — versión single (legacy) */
 export function formatRecentPlay(db: Db, row: { id: number; played_at: string; track_id: string }) {
   return {
     id: row.id,
@@ -65,7 +84,17 @@ export function formatRecentPlay(db: Db, row: { id: number; played_at: string; t
   };
 }
 
-/** Formatear fila de artist top-tracks (campo track_id en vez de entity_id) */
+/** Formatear múltiples recent plays en batch */
+export function formatRecentPlays(db: Db, rows: { id: number; played_at: string; track_id: string }[]) {
+  const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id));
+  return rows.map(row => ({
+    id: row.id,
+    playedAt: row.played_at,
+    track: trackMap.get(row.track_id) ?? null,
+  }));
+}
+
+/** Formatear fila de artist top-tracks (campo track_id en vez de entity_id) — versión single (legacy) */
 export function formatArtistTrackRow(db: Db, row: { track_id: string; play_count: number; total_ms: number }) {
   const trackInfo = enrichTrack(db, row.track_id);
   return {
@@ -79,6 +108,25 @@ export function formatArtistTrackRow(db: Db, row: { track_id: string; play_count
       artists: trackInfo.artists,
     } : null,
   };
+}
+
+/** Formatear múltiples artist top-tracks en batch */
+export function formatArtistTrackRows(db: Db, rows: { track_id: string; play_count: number; total_ms: number }[]) {
+  const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id));
+  return rows.map(row => {
+    const trackInfo = trackMap.get(row.track_id);
+    return {
+      trackId: row.track_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      track: trackInfo ? {
+        name: trackInfo.name,
+        durationMs: trackInfo.durationMs,
+        album: trackInfo.album,
+        artists: trackInfo.artists,
+      } : null,
+    };
+  });
 }
 
 /** Formatear fila de artist top-albums */

@@ -4,76 +4,88 @@ import type { RankingHistoryPoint } from '@sis/shared';
 import { getRangeStart, entityJoins, entityGroupCol, mergeRulesJoin, userFilter } from './helpers.js';
 
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
- *  Optimizado: un solo scan de listening_history con CASE para los 4 rangos,
- *  luego cálculo de posición en JS. */
+ *  Optimizado: 1 scan con CASE para los 4 rangos + COUNT del target en la misma query. */
 export function computeRankings(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): Record<string, number | null> {
   const join = entityJoins(entityType);
   const groupCol = entityGroupCol(entityType, userId);
   const uf = userFilter(userId);
+  const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
+  const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 
   const weekStart = getRangeStart('week')!;
   const monthStart = getRangeStart('month')!;
   const yearStart = getRangeStart('thisYear')!;
 
-  const metric = sort === 'plays'
-    ? { all: sql`count(*)`, week: sql`sum(CASE WHEN lh.played_at >= ${weekStart} THEN 1 ELSE 0 END)`,
-        month: sql`sum(CASE WHEN lh.played_at >= ${monthStart} THEN 1 ELSE 0 END)`,
-        thisYear: sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN 1 ELSE 0 END)` }
-    : { all: sql`sum(t.duration_ms)`, week: sql`sum(CASE WHEN lh.played_at >= ${weekStart} THEN t.duration_ms ELSE 0 END)`,
-        month: sql`sum(CASE WHEN lh.played_at >= ${monthStart} THEN t.duration_ms ELSE 0 END)`,
-        thisYear: sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN t.duration_ms ELSE 0 END)` };
+  const valExpr = sort === 'plays' ? sql`1` : sql`t.duration_ms`;
 
-  const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
+  // un solo scan: agrupa por entidad, calcula scores en 4 rangos
+  // luego cuenta cuántas tienen score mayor que el target
+  const result = db.all(sql`
+    WITH entity_scores AS (
+      SELECT ${groupCol} as eid,
+             sum(${valExpr}) as val_all,
+             sum(CASE WHEN lh.played_at >= ${weekStart} THEN ${valExpr} ELSE 0 END) as val_week,
+             sum(CASE WHEN lh.played_at >= ${monthStart} THEN ${valExpr} ELSE 0 END) as val_month,
+             sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year
+      FROM listening_history lh
+      ${join}
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${albumJoin}
+      WHERE 1=1 ${uf} ${albumFilter}
+      GROUP BY eid
+    ),
+    target AS (
+      SELECT val_all, val_week, val_month, val_year FROM entity_scores WHERE eid = ${entityId}
+    )
+    SELECT
+      (SELECT val_week FROM target) as my_week,
+      (SELECT val_month FROM target) as my_month,
+      (SELECT val_year FROM target) as my_year,
+      (SELECT val_all FROM target) as my_all,
+      sum(CASE WHEN val_week > (SELECT val_week FROM target) THEN 1 ELSE 0 END) as rank_week,
+      sum(CASE WHEN val_month > (SELECT val_month FROM target) THEN 1 ELSE 0 END) as rank_month,
+      sum(CASE WHEN val_year > (SELECT val_year FROM target) THEN 1 ELSE 0 END) as rank_year,
+      sum(CASE WHEN val_all > (SELECT val_all FROM target) THEN 1 ELSE 0 END) as rank_all
+    FROM entity_scores
+  `)[0] as { my_week: number; my_month: number; my_year: number; my_all: number; rank_week: number; rank_month: number; rank_year: number; rank_all: number } | undefined;
 
-  const rows = db.all(sql`
-    SELECT ${groupCol} as eid,
-           ${metric.all} as val_all,
-           ${metric.week} as val_week,
-           ${metric.month} as val_month,
-           ${metric.thisYear} as val_year
-    FROM listening_history lh
-    ${join}
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    ${albumJoin}
-    WHERE 1=1 ${uf}
-    GROUP BY eid
-  `) as { eid: string; val_all: number; val_week: number; val_month: number; val_year: number }[];
-
-  const me = rows.find(r => r.eid === entityId);
-  if (!me) return { week: null, month: null, thisYear: null, all: null };
+  if (!result || !result.my_all) return { week: null, month: null, thisYear: null, all: null };
 
   return {
-    week: me.val_week > 0 ? rows.filter(r => r.val_week > me.val_week).length + 1 : null,
-    month: me.val_month > 0 ? rows.filter(r => r.val_month > me.val_month).length + 1 : null,
-    thisYear: me.val_year > 0 ? rows.filter(r => r.val_year > me.val_year).length + 1 : null,
-    all: rows.filter(r => r.val_all > me.val_all).length + 1,
+    week: result.my_week > 0 ? result.rank_week + 1 : null,
+    month: result.my_month > 0 ? result.rank_month + 1 : null,
+    thisYear: result.my_year > 0 ? result.rank_year + 1 : null,
+    all: result.rank_all + 1,
   };
 }
 
-/** Historial de ranking: posición acumulada de una entidad mes a mes. */
+/** Historial de ranking: posición acumulada de una entidad mes a mes.
+ *  Optimizado: acumula mes a mes y calcula rank con COUNT. */
 export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPoint[] {
   const join = entityJoins(entityType);
   const groupCol = entityGroupCol(entityType, userId);
   const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
+  const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
   const uf = userFilter(userId);
+  const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
 
+  // un solo scan: obtener totales mensuales por entidad
   const rows = db.all(sql`
     SELECT strftime('%Y-%m', lh.played_at) as period,
            ${groupCol} as eid,
-           count(*) as plays,
-           sum(t.duration_ms) as total_ms
+           ${metricCol} as val
     FROM listening_history lh
     ${join}
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${albumJoin}
-    WHERE 1=1 ${uf}
+    WHERE 1=1 ${uf} ${albumFilter}
     GROUP BY period, eid
     ORDER BY period
-  `) as { period: string; eid: string; plays: number; total_ms: number }[];
+  `) as { period: string; eid: string; val: number }[];
 
   if (rows.length === 0) return [];
 
-  // acumular totales por entidad
+  // acumular totales por entidad y calcular rank solo en meses donde el target tiene datos
   const cumulative = new Map<string, number>();
   const periods = [...new Set(rows.map(r => r.period))].sort();
 
@@ -81,18 +93,15 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
   let rowIdx = 0;
 
   for (const period of periods) {
-    // sumar incrementos de este periodo
     while (rowIdx < rows.length && rows[rowIdx].period === period) {
       const r = rows[rowIdx];
-      const prev = cumulative.get(r.eid) || 0;
-      cumulative.set(r.eid, prev + (sort === 'plays' ? r.plays : r.total_ms));
+      cumulative.set(r.eid, (cumulative.get(r.eid) || 0) + r.val);
       rowIdx++;
     }
 
     const myVal = cumulative.get(entityId);
     if (myVal == null) continue;
 
-    // contar cuántos tienen más que yo
     let higher = 0;
     for (const [, val] of cumulative) {
       if (val > myVal) higher++;

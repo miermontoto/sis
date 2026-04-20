@@ -1,3 +1,5 @@
+import { getLocale } from '$lib/api';
+
 // formatear duración en ms a minutos con separador de miles
 export function formatDuration(ms: number): string {
   const minutes = Math.round(ms / 60_000);
@@ -11,10 +13,10 @@ export function formatHours(ms: number): string {
 
 // formatear número con separador de miles
 export function formatNumber(n: number): string {
-  return n.toLocaleString('en-US');
+  return n.toLocaleString(getLocale());
 }
 
-// formatear fecha relativa: "hace 5 min", "hace 2h", "ayer"
+// formatear fecha relativa: "5m ago", "2h ago", "yesterday"
 export function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -26,13 +28,13 @@ export function timeAgo(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`;
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatShortDate(dateStr);
 }
 
-// formatear fecha completa
+// formatear fecha completa con hora y zona horaria
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z');
-  return d.toLocaleString('en-US', {
+  return d.toLocaleString(getLocale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -42,5 +44,39 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-// nombres de días de la semana
-export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// "Jan 5" o "Jan 5, 2024" si no es el año actual
+export function formatShortDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return date.toLocaleDateString(getLocale(), opts);
+}
+
+// "January 2024"
+export function formatMonthYear(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
+}
+
+// "Friday, January 5, 2024"
+export function formatFullDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString(getLocale(), {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+}
+
+// "Jan 5" con timeZone explícita (para charts UTC)
+export function formatShortDateUTC(date: Date): string {
+  return date.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// nombres de días de la semana localizados [Sun, Mon, ..., Sat]
+export function getLocalizedDayNames(): string[] {
+  const locale = getLocale();
+  const base = new Date(2017, 0, 1); // domingo
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString(locale, { weekday: 'short' });
+  });
+}

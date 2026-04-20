@@ -1,24 +1,25 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { api, createFetchController, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption } from '$lib/api';
-  import { formatDuration, formatNumber } from '$lib/utils/format';
+  import { api, createFetchController, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption, type Granularity } from '$lib/api';
+
+  type ChartEntityType = 'tracks' | 'albums' | 'artists';
+  import { formatDuration, formatNumber, formatMonthYear, formatShortDateUTC } from '$lib/utils/format';
+  import { computeCurrentPeriod, getClosedCharts, dismissClosedChart, type ClosedChart } from '$lib/utils/periods';
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
-  type EntityType = 'tracks' | 'albums' | 'artists';
-  type Granularity = 'week' | 'month' | 'year';
-
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
-  let activeType = $state<EntityType>('tracks');
+  let activeType = $state<ChartEntityType>('tracks');
   let granularity = $state<Granularity>('week');
   let selectedPeriod = $state('');
   let periods = $state<string[]>([]);
   let loading = $state(false);
   let periodsLoading = $state(false);
+  let closedChart = $state<ClosedChart | null>(null);
 
   // cache: `${type}:${granularity}:${period}:${metric}` → ChartResponse
   let cache = $state<Map<string, ChartResponse>>(new Map());
@@ -30,6 +31,7 @@
   }
 
   let currentData = $derived(cache.get(cacheKey()) ?? null);
+  let peaksReady = $derived(peaksLoaded.has(cacheKey()));
 
   // ancho mínimo para la columna "wks" basado en el texto más largo
   function wksText(wk: number, cons: number): string {
@@ -72,25 +74,9 @@
     return /^\d{4}-W\d{2}$/.test(period);
   }
 
-  // replicar strftime('%Y-W%W', date, offset) de SQLite
-  function computeCurrentPeriod(gran: Granularity, ws: WeekStartOption): string {
-    const now = new Date();
-    if (gran === 'year') return String(now.getFullYear());
-    if (gran === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // week: aplicar offset de weekStart y calcular %W
-    const d = new Date(now);
-    if (ws === 'sunday') d.setDate(d.getDate() - 1);
-    else if (ws === 'friday') d.setDate(d.getDate() - 4);
-
-    const year = d.getFullYear();
-    const jan1 = new Date(year, 0, 1);
-    const jan1Day = jan1.getDay(); // 0=dom..6=sab
-    const jan1DayMon = jan1Day === 0 ? 6 : jan1Day - 1; // lun=0..dom=6
-    const daysFromJan1 = Math.floor((d.getTime() - jan1.getTime()) / 86400000);
-    const weekNum = Math.floor((daysFromJan1 + jan1DayMon) / 7);
-    return `${year}-W${String(weekNum).padStart(2, '0')}`;
-  }
+  // cache de peaks ya cargados
+  let peaksLoaded = $state<Set<string>>(new Set());
 
   async function loadChart() {
     if (!selectedPeriod || !periodMatchesGranularity(selectedPeriod, granularity)) return;
@@ -104,6 +90,30 @@
       const next = new Map(cache);
       next.set(key, result);
       cache = next;
+
+      // cargar peaks en background (no bloquea el render)
+      if (!peaksLoaded.has(key)) {
+        const allIds = [...result.entries.map(e => e.entityId), ...result.dropouts.map(d => d.entityId)];
+        api.chartPeaks(activeType, granularity, selectedPeriod, weekStart, metric, allIds).then(peaks => {
+          const cached = cache.get(key);
+          if (!cached) return;
+          const updated = { ...cached };
+          updated.entries = cached.entries.map(e => {
+            const p = peaks[e.entityId];
+            if (!p) return e;
+            return { ...e, peakRank: p.peakRank, peakPeriod: p.peakPeriod, peakPeriods: p.peakPeriods, timesAtPeak: p.timesAtPeak, weeksOnChart: p.weeksOnChart, consecutiveWeeks: p.consecutiveWeeks, isReentry: p.isReentry, isNew: e.isNew && !p.isReentry };
+          });
+          updated.dropouts = cached.dropouts.map(d => {
+            const p = peaks[d.entityId];
+            if (!p) return d;
+            return { ...d, peakRank: p.peakRank, peakPeriod: p.peakPeriod, weeksOnChart: p.weeksOnChart };
+          });
+          const m = new Map(cache);
+          m.set(key, updated);
+          cache = m;
+          peaksLoaded = new Set([...peaksLoaded, key]);
+        }).catch(() => {});
+      }
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;
@@ -135,9 +145,8 @@
   function periodDateRange(period: string, gran: Granularity, ws: WeekStartOption): string {
     if (gran === 'year') return period;
     if (gran === 'month') {
-      const [y, m] = period.split('-').map(Number);
-      const d = new Date(y, m - 1, 1);
-      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      if (!/^\d{4}-\d{2}$/.test(period)) return period;
+      return formatMonthYear(period + '-01');
     }
     // week: YYYY-WNN
     // SQLite %W: semanas empezando lunes, semana 00 = la que contiene ene 1
@@ -166,7 +175,7 @@
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 6);
 
-    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const fmt = (d: Date) => formatShortDateUTC(d);
     const y1 = start.getUTCFullYear();
     const y2 = end.getUTCFullYear();
     return y1 !== y2 ? `${fmt(start)}, ${y1} – ${fmt(end)}, ${y2}` : `${fmt(start)} – ${fmt(end)}, ${y1}`;
@@ -175,6 +184,25 @@
   let dateRangeLabel = $derived(selectedPeriod ? periodDateRange(selectedPeriod, granularity, weekStart) : '');
 
   let initialized = false;
+
+  function updateClosedChart() {
+    const all = getClosedCharts(weekStart);
+    closedChart = all.find(c => c.granularity === granularity) ?? null;
+  }
+
+  function handleDismissBanner() {
+    if (closedChart) {
+      dismissClosedChart(closedChart.granularity, weekStart);
+      closedChart = null;
+    }
+  }
+
+  function viewClosedChart() {
+    if (closedChart) {
+      selectedPeriod = closedChart.period;
+      handleDismissBanner();
+    }
+  }
 
   onMount(() => {
     metric = getRankingMetric();
@@ -185,6 +213,7 @@
     if (params.get('granularity')) granularity = params.get('granularity') as Granularity;
     // usar periodo de URL si existe, si no calcular el actual
     selectedPeriod = params.get('period') || computeCurrentPeriod(granularity, weekStart);
+    updateClosedChart();
     initialized = true;
   });
 
@@ -200,6 +229,12 @@
     loadPeriods();
   });
 
+  // actualizar banner cuando cambia granularidad
+  $effect(() => {
+    void granularity;
+    if (initialized) updateClosedChart();
+  });
+
   // cargar chart cuando cambia el periodo o tipo
   $effect(() => {
     void selectedPeriod;
@@ -213,6 +248,15 @@
   <h1>Charts</h1>
   <p>Browse ranked charts by period</p>
 </div>
+
+{#if closedChart}
+  <div class="closed-chart-banner">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>{closedChart.label}</span>
+    <button class="banner-action" onclick={viewClosedChart}>View</button>
+    <button class="banner-dismiss" onclick={handleDismissBanner}>&times;</button>
+  </div>
+{/if}
 
 {#if dateRangeLabel}
   <div class="period-date-range">{dateRangeLabel}</div>
@@ -267,7 +311,12 @@
           {/if}
         </div>
         <div class="chart-stats">
-          {#if entry.rank <= entry.peakRank && entry.peakPeriods?.includes(selectedPeriod) && entry.timesAtPeak === 1}
+          {#if !peaksReady}
+            <div class="chart-stat"><span class="ghost-text"></span><span class="chart-stat-label">peak</span></div>
+            {#if granularity === 'week'}
+              <div class="chart-stat" style:min-width={wksMinWidth}><span class="ghost-text"></span><span class="chart-stat-label">wks</span></div>
+            {/if}
+          {:else if entry.rank <= entry.peakRank && entry.peakPeriods?.includes(selectedPeriod) && entry.timesAtPeak === 1}
             <div class="chart-peak-badge">PEAK</div>
           {:else if entry.timesAtPeak > 1 && entry.peakPeriods?.length > 1}
             <div class="chart-stat">
@@ -279,7 +328,7 @@
               <span class="chart-stat-label">peak</span>
             </button>
           {/if}
-          {#if granularity === 'week'}
+          {#if peaksReady && granularity === 'week'}
             <div class="chart-stat" style:min-width={wksMinWidth} title="{entry.weeksOnChart} total, {entry.consecutiveWeeks} consecutive">
               <span class="chart-stat-val">{entry.weeksOnChart}{#if entry.consecutiveWeeks > 0} <span class="chart-stat-total">({entry.consecutiveWeeks})</span>{/if}</span>
               <span class="chart-stat-label">wks</span>
@@ -320,15 +369,22 @@
             {/if}
           </div>
           <div class="chart-stats">
-            <div class="chart-stat" title="Peak rank">
-              <span class="chart-stat-val" style:color={medalColor(d.peakRank)}>#{d.peakRank}</span>
-              <span class="chart-stat-label">peak</span>
-            </div>
-            {#if granularity === 'week'}
-              <div class="chart-stat" style:min-width={wksMinWidth} title="Weeks on chart">
-                <span class="chart-stat-val">{d.weeksOnChart}</span>
-                <span class="chart-stat-label">wks</span>
+            {#if !peaksReady}
+              <div class="chart-stat"><span class="ghost-text"></span><span class="chart-stat-label">peak</span></div>
+              {#if granularity === 'week'}
+                <div class="chart-stat" style:min-width={wksMinWidth}><span class="ghost-text"></span><span class="chart-stat-label">wks</span></div>
+              {/if}
+            {:else}
+              <div class="chart-stat" title="Peak rank">
+                <span class="chart-stat-val" style:color={medalColor(d.peakRank)}>#{d.peakRank}</span>
+                <span class="chart-stat-label">peak</span>
               </div>
+              {#if granularity === 'week'}
+                <div class="chart-stat" style:min-width={wksMinWidth} title="Weeks on chart">
+                  <span class="chart-stat-val">{d.weeksOnChart}</span>
+                  <span class="chart-stat-label">wks</span>
+                </div>
+              {/if}
             {/if}
           </div>
         </a>
@@ -338,6 +394,51 @@
 {/if}
 
 <style>
+  .closed-chart-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius);
+    border: 1px solid rgba(29, 185, 84, 0.3);
+    background: rgba(29, 185, 84, 0.06);
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+  .closed-chart-banner svg {
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .banner-action {
+    margin-left: auto;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .banner-action:hover {
+    background: var(--accent-hover);
+  }
+  .banner-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    line-height: 1;
+  }
+  .banner-dismiss:hover {
+    color: var(--text);
+  }
+
   .charts-controls {
     display: flex;
     align-items: center;
@@ -431,6 +532,7 @@
     font-size: 0.85rem;
     color: var(--text-muted);
     margin-bottom: 0.75rem;
+    text-align: right;
   }
   .chart-list {
     background: var(--bg-card);

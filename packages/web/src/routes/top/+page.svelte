@@ -33,6 +33,18 @@
   let sentinel = $state<HTMLElement | null>(null);
   let observer: IntersectionObserver | null = null;
 
+  async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[]) {
+    let urls: (string | null)[] = [];
+    if (tab === 'tracks') {
+      urls = tracks.slice(0, 10).map(t => t.track?.album?.imageUrl ?? null);
+    } else if (tab === 'artists') {
+      urls = artistsList.slice(0, 10).map(a => a.artist?.imageUrl ?? null);
+    } else {
+      urls = albumsList.slice(0, 10).map(a => a.album?.imageUrl ?? null);
+    }
+    return Promise.all(urls.map(u => u ? extractColor(u) : Promise.resolve<[number, number, number]>([29, 185, 84])));
+  }
+
   async function loadData() {
     const signal = fetchCtrl.reset();
     loading = true;
@@ -45,6 +57,10 @@
         topArtists = await api.topArtists(range, 200, metric, dates, signal);
       } else {
         topAlbums = await api.topAlbums(range, 200, metric, dates, signal);
+      }
+      // extraer colores en el mismo ciclo para evitar doble re-render del chart
+      if (!signal.aborted) {
+        barColors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums);
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
@@ -123,21 +139,6 @@
     void startDate;
     void endDate;
     if (initialized) loadData();
-  });
-
-  // extraer colores del top 10 cuando cambian los datos
-  $effect(() => {
-    let urls: (string | null)[] = [];
-    if (activeTab === 'tracks') {
-      urls = topTracks.slice(0, 10).map(t => t.track?.album?.imageUrl ?? null);
-    } else if (activeTab === 'artists') {
-      urls = topArtists.slice(0, 10).map(a => a.artist?.imageUrl ?? null);
-    } else {
-      urls = topAlbums.slice(0, 10).map(a => a.album?.imageUrl ?? null);
-    }
-
-    Promise.all(urls.map(u => u ? extractColor(u) : Promise.resolve<[number, number, number]>([29, 185, 84])))
-      .then(colors => { barColors = colors; });
   });
 
   function metricValue(item: { playCount: number; totalMs: number }): number {

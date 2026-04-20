@@ -298,6 +298,55 @@ a.track-item {
   color: var(--text-muted);
 }
 
+.track-link {
+  color: inherit;
+  text-decoration: none;
+}
+.track-link:hover {
+  color: var(--accent);
+}
+.artist-link {
+  color: inherit;
+  text-decoration: none;
+}
+.artist-link:hover {
+  color: var(--accent);
+}
+.track-art-link {
+  display: flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.track-art--round {
+  border-radius: 50%;
+}
+
+/* compact track items */
+.track-item.compact {
+  padding: 0.25rem 0.5rem;
+  gap: 0.6rem;
+}
+.track-item.compact .track-art {
+  width: 36px;
+  height: 36px;
+}
+.track-item.compact .track-name {
+  font-size: 0.85rem;
+}
+.track-item.compact .track-artist {
+  font-size: 0.75rem;
+}
+.track-item.compact .track-plays {
+  font-size: 0.8rem;
+}
+.track-item.compact .track-time {
+  font-size: 0.7rem;
+}
+.track-item.compact .track-rank {
+  font-size: 0.75rem;
+  min-width: 1.2rem;
+}
+
 /* tabs */
 .tabs {
   display: flex;
@@ -652,6 +701,22 @@ a.track-item {
 @keyframes live-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* shimmer ghost loading */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.ghost-text {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.85rem;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* responsive */

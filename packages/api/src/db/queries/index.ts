@@ -11,13 +11,13 @@ export { computeRankings, getRankingHistory } from './rankings.js';
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
 export { resolveAlbumIds, getAlbumArtists, getAlbumTracks } from './album.js';
-export { enrichTrack, getTrackAlbumBreakdown } from './track.js';
+export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown } from './track.js';
 export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';
-export { getChart, getAvailablePeriods, getEntityChartHistory } from './charts.js';
+export { getChart, getChartPeaks, getAvailablePeriods, getEntityChartHistory } from './charts.js';
 
 // entity formatters
-export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopArtistRow, formatTopAlbumRow, formatRecentPlay, formatArtistTrackRow, formatArtistAlbumRow } from './formatters.js';
+export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, formatRecentPlay, formatRecentPlays, formatArtistTrackRow, formatArtistTrackRows, formatArtistAlbumRow } from './formatters.js';
 
 // playlist library analytics
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';

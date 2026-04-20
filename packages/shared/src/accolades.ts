@@ -5,7 +5,9 @@ export interface Accolade {
   week: string | null;
 }
 
+import type { RankingMetric } from './settings.js';
+
 export interface AccoladesResponse {
-  metric: 'plays' | 'time';
+  metric: RankingMetric;
   accolades: Accolade[];
 }

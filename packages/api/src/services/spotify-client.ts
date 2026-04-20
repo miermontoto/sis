@@ -60,5 +60,10 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
   // algunos endpoints devuelven body vacío con 200
   const text = await res.text();
   if (!text) return null;
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(`[spotify] respuesta no-JSON de ${endpoint}: ${text.slice(0, 80)}`);
+    return null;
+  }
 }

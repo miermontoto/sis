@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import type { RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse } from '@sis/shared';
+import type { RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse, RankingMetric, WeekStartOption, EntityType } from '@sis/shared';
 import { resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
-type Sort = 'plays' | 'time';
-type WeekStart = 'monday' | 'sunday' | 'friday';
+type Sort = RankingMetric;
+type WeekStart = WeekStartOption;
 
 // formato de semana según día de inicio
 function weekExpr(ws: WeekStart) {
@@ -305,12 +305,12 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
 
 // --- función principal ---
 
-export type EntityTypeFilter = 'tracks' | 'albums' | 'artists';
+export type EntityTypeFilter = EntityType;
 
 export function getRecords(db: Db, weekStart: WeekStart = 'monday', sort: Sort = 'time', limit = 10, type: EntityTypeFilter | undefined, userId: number): Partial<RecordsResponse> {
-  if (type === 'tracks') return { tracks: getTrackRecords(db, weekStart, sort, limit, userId) };
-  if (type === 'albums') return { albums: getAlbumRecords(db, weekStart, sort, limit, userId) };
-  if (type === 'artists') return { artists: getArtistRecords(db, weekStart, sort, limit, userId) };
+  if (type === 'track') return { tracks: getTrackRecords(db, weekStart, sort, limit, userId) };
+  if (type === 'album') return { albums: getAlbumRecords(db, weekStart, sort, limit, userId) };
+  if (type === 'artist') return { artists: getArtistRecords(db, weekStart, sort, limit, userId) };
   return {
     tracks: getTrackRecords(db, weekStart, sort, limit, userId),
     albums: getAlbumRecords(db, weekStart, sort, limit, userId),

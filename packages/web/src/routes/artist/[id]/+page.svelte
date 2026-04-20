@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
-  import { formatDuration, formatNumber, formatDate } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatDate, formatShortDate } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -122,20 +122,20 @@
     </div>
     {#if data.stats.first_played}
       <a href="/history?date={data.stats.first_played.split('T')[0]}" class="card stat-card stat-card--link">
-        <div class="stat-value">{new Date(data.stats.first_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+        <div class="stat-value">{formatShortDate(data.stats.first_played)}</div>
         <div class="stat-label">First played</div>
       </a>
     {/if}
     {#if data.stats.last_played}
       <a href="/history?date={data.stats.last_played.split('T')[0]}" class="card stat-card stat-card--link">
-        <div class="stat-value">{new Date(data.stats.last_played).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+        <div class="stat-value">{formatShortDate(data.stats.last_played)}</div>
         <div class="stat-label">Last played</div>
       </a>
     {/if}
   </div>
 
   <RankingBadges entityType="artist" entityId={$page.params.id} bind:highlightedMonth />
-  <ChartStats entityType="artists" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+  <ChartStats entityType="artist" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
 
   {#if data.series.length > 1}
     <div class="card chart-card">

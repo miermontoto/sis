@@ -23,14 +23,30 @@ function resolveArtistId(name: string): string {
   return id;
 }
 
-function resolveAlbumId(artistName: string, albumName: string): string {
+function resolveAlbumId(artistId: string, artistName: string, albumName: string): string {
   const key = `${artistName.toLowerCase()}|${albumName.toLowerCase()}`;
   if (albumIdCache.has(key)) return albumIdCache.get(key)!;
 
   const db = getDb();
-  const existing = db.get(
-    sql`SELECT spotify_id FROM albums WHERE LOWER(name) = ${albumName.toLowerCase()}`
-  ) as { spotify_id: string } | undefined;
+  // match por nombre + mismo artista primario (via artist_ids[0] o track_artists position=0)
+  // evita colapsar álbumes distintos con el mismo nombre de artistas distintos
+  const existing = db.get(sql`
+    SELECT spotify_id FROM albums
+    WHERE LOWER(name) = ${albumName.toLowerCase()}
+      AND (
+        json_extract(artist_ids, '$[0]') = ${artistId}
+        OR EXISTS (
+          SELECT 1 FROM tracks t
+          JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+          WHERE t.album_id = albums.spotify_id AND ta.artist_id = ${artistId}
+        )
+      )
+    ORDER BY
+      (SELECT COUNT(*) FROM tracks WHERE album_id = albums.spotify_id) DESC,
+      (SELECT COUNT(*) FROM listening_history lh JOIN tracks tr ON tr.spotify_id = lh.track_id WHERE tr.album_id = albums.spotify_id) DESC,
+      spotify_id ASC
+    LIMIT 1
+  `) as { spotify_id: string } | undefined;
 
   const id = existing?.spotify_id ?? importId(artistName, albumName);
   albumIdCache.set(key, id);
@@ -124,14 +140,15 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
 
         const albumName = entry.master_metadata_album_album_name;
 
+        const artistId = resolveArtistId(artistName);
         return {
           playedAt: new Date(entry.ts).toISOString(),
           trackName,
           artistName,
           albumName,
           trackId,
-          artistId: resolveArtistId(artistName),
-          albumId: albumName ? resolveAlbumId(artistName, albumName) : null,
+          artistId,
+          albumId: albumName ? resolveAlbumId(artistId, artistName, albumName) : null,
           msPlayed: entry.ms_played,
         };
       } else {
@@ -170,12 +187,14 @@ export function importHistory(data: unknown[], userId: number): ImportResult {
 
     db.transaction((tx) => {
       for (const entry of batch) {
-        // crear artista si no existe
-        tx.run(sql`
-          INSERT INTO artists (spotify_id, name, genres, updated_at)
-          VALUES (${entry.artistId}, ${entry.artistName}, '[]', ${now})
-          ON CONFLICT (spotify_id) DO NOTHING
-        `);
+        // crear artista si no existe (ignorar nombres vacíos)
+        if (entry.artistName) {
+          tx.run(sql`
+            INSERT INTO artists (spotify_id, name, genres, updated_at)
+            VALUES (${entry.artistId}, ${entry.artistName}, '[]', ${now})
+            ON CONFLICT (spotify_id) DO NOTHING
+          `);
+        }
 
         // crear álbum si existe
         if (entry.albumId && entry.albumName) {

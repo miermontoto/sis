@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption, type UserRecord, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption, type LocaleSetting, type UserRecord, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
 
   let health = $state<HealthData | null>(null);
@@ -11,6 +11,7 @@
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
   let weekStartPref = $state<WeekStartOption>('monday');
+  let localePref = $state<LocaleSetting>('auto');
 
   // admin
   let me = $state<MeResponse | null>(null);
@@ -119,6 +120,7 @@
   onMount(async () => {
     rankingMetric = getRankingMetric();
     weekStartPref = getWeekStart();
+    localePref = getRawLocale();
     try {
       [health, streaks, me] = await Promise.all([
         api.health(),
@@ -212,6 +214,25 @@
             <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
             <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
           </div>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">Locale</div>
+          <div class="pref-desc">Affects date and number formatting across the app</div>
+        </div>
+        <div class="pref-control">
+          <select
+            class="locale-select"
+            value={localePref}
+            onchange={(e) => { const v = (e.target as HTMLSelectElement).value; localePref = v; setLocale(v); }}
+          >
+            {#each LOCALE_OPTIONS as opt}
+              <option value={opt.value}>
+                {opt.value === 'auto' ? `${opt.label} (${getLocale()})` : opt.label}
+              </option>
+            {/each}
+          </select>
         </div>
       </div>
     </div>
@@ -581,6 +602,24 @@
     background: var(--accent);
     color: #000;
     font-weight: 500;
+  }
+
+  /* locale select */
+  .locale-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: var(--font);
+    padding: 0.4rem 0.7rem;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .locale-select:focus {
+    border-color: var(--accent);
   }
 
   /* status badge */

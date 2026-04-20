@@ -14,7 +14,8 @@ export type { HistoryItem, HistoryResponse } from './history.js';
 export type { NowPlayingResponse } from './now-playing.js';
 
 // configuración
-export type { RankingMetric, WeekStartOption, DateRangeParams } from './settings.js';
+export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting } from './settings.js';
+export { LOCALE_OPTIONS } from './settings.js';
 
 // detalle de entidades
 export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } from './detail.js';

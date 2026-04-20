@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getWeekStart, getRankingMetric, type ChartHistoryResponse } from '$lib/api';
+  import { api, createFetchController, getWeekStart, getRankingMetric, type ChartHistoryResponse, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
   import PeakSelector from './PeakSelector.svelte';
 
@@ -10,11 +10,13 @@
     chartData = $bindable(null),
     highlightedMonth = $bindable(''),
   }: {
-    entityType: 'tracks' | 'albums' | 'artists';
+    entityType: EntityType;
     entityId: string;
     chartData?: ChartHistoryResponse | null;
     highlightedMonth?: string;
   } = $props();
+
+  const pluralType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
   // extraer YYYY-MM de un periodo semanal (YYYY-WNN → usar la fecha del lunes de esa semana)
   function periodToMonth(period: string): string {
@@ -38,7 +40,7 @@
     void entityId;
     const signal = fetchCtrl.reset();
     loading = true;
-    api.chartHistory(entityType, entityId, getWeekStart(), getRankingMetric(), signal)
+    api.chartHistory(pluralType, entityId, getWeekStart(), getRankingMetric(), signal)
       .then(r => { if (!signal.aborted) { chartData = r; loading = false; } })
       .catch(() => { if (!signal.aborted) { chartData = null; loading = false; } });
     return () => fetchCtrl.abort();
@@ -59,11 +61,11 @@
 
   function goToPeak() {
     if (!data) return;
-    goto(`/charts?type=${entityType}&granularity=week&period=${data.peakPeriod}`);
+    goto(`/charts?type=${pluralType}&granularity=week&period=${data.peakPeriod}`);
   }
 
   function goToWeek(period: string) {
-    goto(`/charts?type=${entityType}&granularity=week&period=${period}`);
+    goto(`/charts?type=${pluralType}&granularity=week&period=${period}`);
   }
 
   // construir celdas del chart-run: agrupar rachas consecutivas en la misma posición
@@ -197,10 +199,6 @@
     background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
-  }
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
   }
   .cs-val {
     font-size: 1.1rem;

@@ -59,6 +59,32 @@ export function upsertTrack(track: SpotifyTrack) {
   resolveLocalFileIds(track);
   const db = getDb();
 
+  // dedupe: si ya existe un álbum con mismo nombre + mismo artista primario, reusar su ID
+  // en vez de crear un registro nuevo (evita álbumes duplicados entre mercados/ediciones
+  // y entre fuentes sintéticas —import:/local:— y las reales de spotify)
+  const primaryArtistId = track.album.artists?.[0]?.id;
+  if (primaryArtistId && track.album.id) {
+    const existing = db.get(sql`
+      SELECT spotify_id FROM albums
+      WHERE LOWER(name) = LOWER(${track.album.name})
+        AND spotify_id != ${track.album.id}
+        AND (
+          json_extract(artist_ids, '$[0]') = ${primaryArtistId}
+          OR EXISTS (
+            SELECT 1 FROM tracks t
+            JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+            WHERE t.album_id = albums.spotify_id AND ta.artist_id = ${primaryArtistId}
+          )
+        )
+      ORDER BY
+        (SELECT COUNT(*) FROM tracks WHERE album_id = albums.spotify_id) DESC,
+        (SELECT COUNT(*) FROM listening_history lh JOIN tracks tr ON tr.spotify_id = lh.track_id WHERE tr.album_id = albums.spotify_id) DESC,
+        spotify_id ASC
+      LIMIT 1
+    `) as { spotify_id: string } | undefined;
+    if (existing) track.album.id = existing.spotify_id;
+  }
+
   // upsert álbum (incluye artist_ids del album-level de spotify)
   const albumArtistIds = track.album.artists?.map(a => a.id) ?? null;
   db.insert(albums)
@@ -77,7 +103,7 @@ export function upsertTrack(track: SpotifyTrack) {
       set: {
         name: track.album.name,
         imageUrl: sql`COALESCE(${track.album.images[0]?.url ?? null}, albums.image_url)`,
-        artistIds: albumArtistIds ? JSON.stringify(albumArtistIds) : sql`albums.artist_ids`,
+        artistIds: albumArtistIds ?? sql`albums.artist_ids`,
         updatedAt: now(),
       },
     })
@@ -89,8 +115,9 @@ export function upsertTrack(track: SpotifyTrack) {
     db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${track.album.id}, ${albumImageUrl}, 'spotify')`);
   }
 
-  // upsert artistas
+  // upsert artistas (ignorar nombres vacíos)
   for (const artist of track.artists) {
+    if (!artist.name) continue;
     db.insert(artists)
       .values({
         spotifyId: artist.id,
@@ -477,10 +504,11 @@ export async function fixTrackArtistAssociations(userId: number) {
         WHERE track_id = ${apiTrack.id}
           AND artist_id LIKE 'import:%'`);
 
-      // upsert todos los artistas y relaciones
+      // upsert todos los artistas y relaciones (ignorar nombres vacíos)
       let added = false;
       for (let pos = 0; pos < apiTrack.artists.length; pos++) {
         const artist = apiTrack.artists[pos];
+        if (!artist.name) continue;
 
         db.insert(artists)
           .values({
@@ -573,6 +601,11 @@ export function deduplicateTracks() {
         db.run(sql`INSERT OR IGNORE INTO track_artists (track_id, artist_id, position)
           SELECT ${canonical}, artist_id, position FROM track_artists WHERE track_id = ${dupe}`);
         db.run(sql`DELETE FROM track_artists WHERE track_id = ${dupe}`);
+        // re-apuntar playlist references (generated + spotify library)
+        db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${canonical} WHERE track_id = ${dupe}`);
+        db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${dupe}`);
+        db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${canonical} WHERE track_id = ${dupe}`);
+        db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${dupe}`);
         // eliminar track duplicado
         db.run(sql`DELETE FROM tracks WHERE spotify_id = ${dupe}`);
       }
@@ -708,6 +741,10 @@ export function deduplicateLocalAlbums() {
             db.run(sql`INSERT OR IGNORE INTO track_artists (track_id, artist_id, position)
               SELECT ${existing.spotify_id}, artist_id, position FROM track_artists WHERE track_id = ${dt.spotify_id}`);
             db.run(sql`DELETE FROM track_artists WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${existing.spotify_id} WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${existing.spotify_id} WHERE track_id = ${dt.spotify_id}`);
+            db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${dt.spotify_id}`);
             db.run(sql`DELETE FROM tracks WHERE spotify_id = ${dt.spotify_id}`);
           } else {
             // track único: mover al álbum canónico

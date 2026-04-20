@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api, createFetchController, type HistoryItem } from '$lib/api';
-  import { timeAgo, formatDate } from '$lib/utils/format';
+  import { timeAgo, formatDate, formatFullDate } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
 
@@ -126,9 +126,7 @@
   }
 
   function formatDateLabel(d: string): string {
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    });
+    return formatFullDate(d + 'T00:00:00');
   }
 
   function toggleEdit() {

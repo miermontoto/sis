@@ -1,17 +1,18 @@
 <script lang="ts">
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, formatDate, timeAgo } from '$lib/utils/format';
-  import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import TrackItem from './TrackItem.svelte';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
     showRank?: boolean;
     showTime?: boolean;
     metric?: RankingMetric;
+    compact?: boolean;
   }
 
-  let { items, showRank = false, showTime = false, metric = 'time' }: Props = $props();
+  let { items, showRank = false, showTime = false, metric = 'time', compact = false }: Props = $props();
 
   function getTrackId(item: TopTrackItem | HistoryItem): string | null {
     if ('trackId' in item) return item.trackId;
@@ -19,7 +20,6 @@
     return null;
   }
 
-  // type guard
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
     return 'playCount' in item;
   }
@@ -34,35 +34,21 @@
   {#each items as item, i}
     {@const track = isTopTrack(item) ? item.track : item.track}
     {#if track}
-      <div class="track-item">
-        {#if showRank}
-          <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-        {/if}
-        {#if track.album?.imageUrl}
-          <a href="/album/{track.album.id}" class="track-art-link">
-            <img class="track-art" src={track.album.imageUrl} alt={track.album?.name ?? ''} />
-          </a>
-        {:else}
-          <div class="track-art"></div>
-        {/if}
-        <div class="track-info">
-          <div class="track-name">
-            {#if isTopTrack(item)}
-              <a href="/track/{item.trackId}" class="track-link">{track.name}</a>
-            {:else if 'track' in item && item.track}
-              <a href="/track/{item.track.id}" class="track-link">{track.name}</a>
-            {:else}
-              {track.name}
-            {/if}
-            {#if getTrackId(item) === nowPlayingStore.trackId}<span class="live-dot"></span>{/if}
-          </div>
-          <div class="track-artist">
-            {#each track.artists as artist, i}
-              <a href="/artist/{artist.id}" class="artist-link">{artist.name}</a>{#if i < track.artists.length - 1}{', '}{/if}
-            {/each}
-          </div>
-        </div>
-        <div class="track-meta">
+      <TrackItem
+        rank={showRank ? i + 1 : undefined}
+        imageUrl={track.album?.imageUrl}
+        imageHref={track.album ? `/album/${track.album.id}` : undefined}
+        name={track.name}
+        nameHref={isTopTrack(item) ? `/track/${item.trackId}` : ('track' in item && item.track ? `/track/${item.track.id}` : undefined)}
+        isLive={getTrackId(item) === nowPlayingStore.trackId}
+        {compact}
+      >
+        {#snippet subtitle()}
+          {#each track.artists as artist, ai}
+            <a href="/artist/{artist.id}" class="artist-link">{artist.name}</a>{#if ai < track.artists.length - 1}{', '}{/if}
+          {/each}
+        {/snippet}
+        {#snippet meta()}
           {#if isTopTrack(item)}
             <div class="track-plays">{formatMetric(item)}</div>
             {#if metric === 'time'}
@@ -74,25 +60,8 @@
           {#if showTime && 'playedAt' in item}
             <div class="track-time" title={formatDate(item.playedAt)}>{timeAgo(item.playedAt)}</div>
           {/if}
-        </div>
-      </div>
+        {/snippet}
+      </TrackItem>
     {/if}
   {/each}
 </div>
-
-<style>
-  .track-link {
-    color: inherit;
-    text-decoration: none;
-  }
-  .track-link:hover {
-    color: var(--accent);
-  }
-  .artist-link {
-    color: inherit;
-    text-decoration: none;
-  }
-  .artist-link:hover {
-    color: var(--accent);
-  }
-</style>
