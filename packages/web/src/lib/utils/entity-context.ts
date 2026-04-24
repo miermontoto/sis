@@ -17,6 +17,16 @@ export interface EntityContext {
 function buildActions(entity: EntityContext): ContextMenuAction[] {
   const actions: ContextMenuAction[] = [
     {
+      label: 'Play',
+      onClick: async () => {
+        const { nowPlayingStore } = await import('$lib/stores/now-playing.svelte');
+        const opts = entity.type === 'track'
+          ? { uris: [`spotify:track:${entity.id}`] }
+          : { context_uri: `spotify:${entity.type}:${entity.id}` };
+        nowPlayingStore.playContext(opts);
+      },
+    },
+    {
       label: 'Manage merges',
       disabled: entity.type !== 'artist' && !entity.parentArtistId,
       onClick: () => mergeModal.open({

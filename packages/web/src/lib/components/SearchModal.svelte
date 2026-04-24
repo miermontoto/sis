@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { api, type SearchResults } from '$lib/api';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
   let { show = $bindable(false) }: { show: boolean } = $props();
 
@@ -105,6 +106,25 @@
   let noResults = $derived(
     results && results.artists.length === 0 && results.albums.length === 0 && results.tracks.length === 0
   );
+
+  let playingId = $state<string | null>(null);
+  let playError = $state('');
+
+  async function playItem(e: MouseEvent, type: 'artist' | 'album' | 'track', id: string) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (playingId) return;
+    playingId = id;
+    playError = '';
+    const opts = type === 'track'
+      ? { uris: [`spotify:track:${id}`] }
+      : { context_uri: `spotify:${type}:${id}` };
+    const result = await nowPlayingStore.playContext(opts);
+    if (result && !result.success && result.error === 'no_active_device') {
+      playError = 'No active device. Open Spotify to play.';
+    }
+    playingId = null;
+  }
 </script>
 
 {#if show}
@@ -131,7 +151,8 @@
             <div class="search-section">
               <div class="search-section-title">Artists</div>
               {#each results!.artists as artist, i}
-                <button
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('artists', i)}
                   onmousedown={() => navigate('artist', artist.id)}
@@ -146,10 +167,13 @@
                     <div class="search-result-name">{artist.name}</div>
                     <div class="search-result-sub">Artist</div>
                   </div>
+                  <button class="search-play-btn" title="Play" disabled={playingId === artist.id} onmousedown={(e) => playItem(e, 'artist', artist.id)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
                   {#if artist.playCount > 0}
                     <div class="search-result-plays">{artist.playCount} plays</div>
                   {/if}
-                </button>
+                </div>
               {/each}
             </div>
           {/if}
@@ -158,7 +182,8 @@
             <div class="search-section">
               <div class="search-section-title">Albums</div>
               {#each results!.albums as album, i}
-                <button
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('albums', i)}
                   onmousedown={() => navigate('album', album.id)}
@@ -173,10 +198,13 @@
                     <div class="search-result-name">{album.name}</div>
                     <div class="search-result-sub">{album.artistName || 'Album'}</div>
                   </div>
+                  <button class="search-play-btn" title="Play" disabled={playingId === album.id} onmousedown={(e) => playItem(e, 'album', album.id)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
                   {#if album.playCount > 0}
                     <div class="search-result-plays">{album.playCount} plays</div>
                   {/if}
-                </button>
+                </div>
               {/each}
             </div>
           {/if}
@@ -185,7 +213,8 @@
             <div class="search-section">
               <div class="search-section-title">Tracks</div>
               {#each results!.tracks as track, i}
-                <button
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('tracks', i)}
                   onmousedown={() => navigate('track', track.id)}
@@ -200,10 +229,13 @@
                     <div class="search-result-name">{track.name}</div>
                     <div class="search-result-sub">{track.artistName || 'Track'}</div>
                   </div>
+                  <button class="search-play-btn" title="Play" disabled={playingId === track.id} onmousedown={(e) => playItem(e, 'track', track.id)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
                   {#if track.playCount > 0}
                     <div class="search-result-plays">{track.playCount} plays</div>
                   {/if}
-                </button>
+                </div>
               {/each}
             </div>
           {/if}
@@ -215,9 +247,13 @@
       {/if}
 
       <div class="search-hint">
-        <span><kbd>↑↓</kbd> navigate</span>
-        <span><kbd>↵</kbd> select</span>
-        <span><kbd>esc</kbd> close</span>
+        {#if playError}
+          <span class="search-play-error">{playError}</span>
+        {:else}
+          <span><kbd>↑↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> select</span>
+          <span><kbd>esc</kbd> close</span>
+        {/if}
       </div>
     </div>
   </div>
@@ -337,6 +373,43 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .search-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    transform: scale(0.85);
+  }
+
+  .search-result:hover .search-play-btn,
+  .search-result.selected .search-play-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .search-play-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+
+  .search-play-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .search-play-error {
+    color: var(--text-muted);
+    font-style: italic;
   }
 
   .search-result-plays {

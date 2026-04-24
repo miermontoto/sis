@@ -5,7 +5,7 @@ export type {
   TopTrackItem, TopArtistItem, TopAlbumItem,
   RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting,
   HistoryItem, HistoryResponse,
-  NowPlayingResponse,
+  NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem,
   HealthData, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
@@ -23,7 +23,8 @@ import type {
   RankingMetric, WeekStartOption, LocaleSetting, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
-  NowPlayingResponse, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
+  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse,
+  ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPoint, HealthData,
   MergeRule, MergeSuggestion, MeResponse, UserRecord, ImportResult,
@@ -48,7 +49,7 @@ async function apiFetch<T>(path: string, params?: Record<string, string>, signal
   const cacheKey = url.toString();
 
   // endpoints que siempre necesitan data fresca
-  const noCache = path === '/now-playing' || path === '/now-playing/live' || path === '/health';
+  const noCache = path === '/now-playing' || path === '/now-playing/live' || path === '/now-playing/devices' || path === '/health';
 
   // servir desde cache si es reciente
   if (!noCache) {
@@ -311,6 +312,12 @@ export const api = {
   playbackPause: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/pause'),
   playbackNext: () => apiMutate<{ success: boolean }>('POST', '/now-playing/next'),
   playbackPrevious: () => apiMutate<{ success: boolean }>('POST', '/now-playing/previous'),
+  playbackPlayContext: (body: PlayContextRequest) =>
+    apiMutate<PlayContextResponse>('PUT', '/now-playing/play-context', body),
+  playbackDevices: () =>
+    apiFetch<DevicesResponse>('/now-playing/devices'),
+  playbackTransfer: (deviceId: string, play?: boolean) =>
+    apiMutate<{ success: boolean }>('PUT', '/now-playing/device', { device_id: deviceId, play }),
 
   accolades: (type: 'artist' | 'track' | 'album', id: string, signal?: AbortSignal) =>
     apiFetch<AccoladesResponse>(`/stats/accolades/${type}/${encodeURIComponent(id)}`, undefined, signal),

@@ -23,6 +23,7 @@
   let showCoverPicker = $state(false);
   let uploadingCover = $state(false);
   let showMergeModal = $state(false);
+  let playActing = $state(false);
   let coverContainerEl: HTMLDivElement | undefined = $state();
   const fetchCtrl = createFetchController();
 
@@ -189,6 +190,19 @@
       </div>
     </div>
     <div class="hero-actions">
+      <button
+        class="play-entity-btn"
+        title="Play on Spotify"
+        disabled={playActing}
+        onclick={async () => {
+          playActing = true;
+          await nowPlayingStore.playContext({ context_uri: `spotify:album:${$page.params.id}` });
+          playActing = false;
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Play
+      </button>
       {#if !data.mergedInto}
         <Accolades entityType="album" entityId={$page.params.id} />
       {/if}
@@ -284,6 +298,24 @@
 {/if}
 
 <style>
+  .play-entity-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .play-entity-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .play-entity-btn:disabled { opacity: 0.5; cursor: default; }
+
   .hero-actions {
     display: flex;
     align-items: center;

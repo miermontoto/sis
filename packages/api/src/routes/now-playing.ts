@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
-import { spotifyFetch } from '../services/spotify-client.js';
+import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import type { AppVariables } from '../app.js';
+import type { SpotifyDevice, PlayContextRequest } from '@sis/shared';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
 
@@ -118,6 +119,64 @@ nowPlaying.post('/next', async (c) => {
 nowPlaying.post('/previous', async (c) => {
   const userId = c.get('userId');
   await spotifyFetch('/me/player/previous', { userId, method: 'POST' });
+  return c.json({ success: true });
+});
+
+// --- reproducir contenido específico (track/album/artist) ---
+
+nowPlaying.put('/play-context', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<PlayContextRequest>();
+
+  const spotifyBody: Record<string, unknown> = {};
+  if (body.context_uri) spotifyBody.context_uri = body.context_uri;
+  if (body.uris) spotifyBody.uris = body.uris;
+
+  const endpoint = body.device_id
+    ? `/me/player/play?device_id=${body.device_id}`
+    : '/me/player/play';
+
+  const res = await spotifyFetchRaw(endpoint, {
+    userId,
+    method: 'PUT',
+    body: Object.keys(spotifyBody).length > 0 ? spotifyBody : undefined,
+  });
+
+  if (!res) return c.json({ success: false, error: 'rate_limited' });
+
+  if (res.status === 404) {
+    const text = await res.text();
+    if (text.includes('NO_ACTIVE_DEVICE')) {
+      return c.json({ success: false, error: 'no_active_device' });
+    }
+    return c.json({ success: false, error: 'not_found' });
+  }
+
+  if (res.status === 204 || res.ok) {
+    const db = getDb();
+    db.run(sql`UPDATE polling_state SET is_playing = 1 WHERE user_id = ${userId}`);
+    return c.json({ success: true });
+  }
+
+  return c.json({ success: false, error: 'spotify_error' });
+});
+
+// --- dispositivos Spotify Connect ---
+
+nowPlaying.get('/devices', async (c) => {
+  const userId = c.get('userId');
+  const data = await spotifyFetch<{ devices: SpotifyDevice[] }>('/me/player/devices', { userId });
+  return c.json({ devices: data?.devices ?? [] });
+});
+
+nowPlaying.put('/device', async (c) => {
+  const userId = c.get('userId');
+  const { device_id, play } = await c.req.json<{ device_id: string; play?: boolean }>();
+  await spotifyFetch('/me/player', {
+    userId,
+    method: 'PUT',
+    body: { device_ids: [device_id], play: play ?? true },
+  });
   return c.json({ success: true });
 });
 

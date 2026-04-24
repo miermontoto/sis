@@ -11,7 +11,7 @@ export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryI
 export type { HistoryItem, HistoryResponse } from './history.js';
 
 // now playing
-export type { NowPlayingResponse } from './now-playing.js';
+export type { NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse } from './now-playing.js';
 
 // configuración
 export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting } from './settings.js';

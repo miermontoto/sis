@@ -1,4 +1,4 @@
-import { api, type NowPlayingResponse } from '$lib/api';
+import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse } from '$lib/api';
 
 let _data = $state<NowPlayingResponse | null>(null);
 let _intervalId: ReturnType<typeof setInterval> | null = null;
@@ -31,6 +31,18 @@ function stopPolling() {
   }
 }
 
+async function playContext(opts: PlayContextRequest): Promise<PlayContextResponse | null> {
+  try {
+    const result = await api.playbackPlayContext(opts);
+    if (result?.success) {
+      setTimeout(() => pollLive(), 500);
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 export const nowPlayingStore = {
   get data() { return _data; },
   set data(v: NowPlayingResponse | null) { _data = v; },
@@ -41,4 +53,5 @@ export const nowPlayingStore = {
   startPolling,
   stopPolling,
   pollLive,
+  playContext,
 };

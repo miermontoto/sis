@@ -35,6 +35,51 @@ function logRateLimitSkipOccasionally(endpoint: string) {
   console.log(`[spotify] rate limited ${remainingS}s, saltando (ej. ${endpoint})`);
 }
 
+// versión raw que devuelve el Response para inspección de status/body
+export async function spotifyFetchRaw(endpoint: string, options: SpotifyRequestOptions): Promise<Response | null> {
+  if (isRateLimited()) {
+    logRateLimitSkipOccasionally(endpoint);
+    return null;
+  }
+
+  const { userId } = options;
+  const url = new URL(`${SPOTIFY_API_BASE}${endpoint}`);
+  if (options.params) {
+    Object.entries(options.params).forEach(([k, v]) => url.searchParams.set(k, v));
+  }
+
+  const method = options.method ?? 'GET';
+  let accessToken = await getValidAccessToken(userId);
+
+  const buildInit = (token: string): RequestInit => ({
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+  });
+
+  let res = await fetch(url.toString(), buildInit(accessToken));
+
+  if (res.status === 401) {
+    accessToken = await refreshAccessToken(userId);
+    res = await fetch(url.toString(), buildInit(accessToken));
+  }
+
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
+    if (retryAfter > 30) {
+      markRateLimited(retryAfter);
+      return null;
+    }
+    await new Promise(r => setTimeout(r, retryAfter * 1000));
+    return spotifyFetchRaw(endpoint, options);
+  }
+
+  return res;
+}
+
 // cliente HTTP para spotify con auto-refresh y manejo de rate limits
 export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestOptions): Promise<T | null> {
   // si estamos en castigo global, saltar llamadas de fondo para no extenderlo

@@ -23,6 +23,7 @@
   let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
   let showMergeModal = $state(false);
+  let playActing = $state(false);
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -112,6 +113,19 @@
       </div>
     </div>
     <div class="hero-actions">
+      <button
+        class="play-entity-btn"
+        title="Play on Spotify"
+        disabled={playActing}
+        onclick={async () => {
+          playActing = true;
+          await nowPlayingStore.playContext({ uris: [`spotify:track:${$page.params.id}`] });
+          playActing = false;
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Play
+      </button>
       {#if !data.mergedInto}
         <Accolades entityType="track" entityId={$page.params.id} />
       {/if}
@@ -234,6 +248,24 @@
     margin-bottom: 1.5rem;
     padding: 1rem;
   }
+  .play-entity-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .play-entity-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .play-entity-btn:disabled { opacity: 0.5; cursor: default; }
+
   .hero-actions {
     display: flex;
     align-items: center;
