@@ -5,6 +5,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import { formatDate, formatDuration, formatNumber } from '$lib/utils/format';
+  import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
 
   // tabs
   let activeTab = $state<'library' | 'generate'>('library');
@@ -85,7 +86,21 @@
 
   const dayLabels = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
+  let initialized = false;
+
+  const STRATEGY_KEYS: PlaylistStrategy[] = ['top_range', 'top_artist', 'top_genre', 'deep_cuts', 'time_vibes', 'rediscovery'];
+
   onMount(async () => {
+    // leer filtros desde la URL
+    const urlTab = getQueryParam('tab', '');
+    if (urlTab === 'library' || urlTab === 'generate') activeTab = urlTab;
+    const urlStrategy = getQueryParam('strategy', '') as PlaylistStrategy | '';
+    if (urlStrategy && STRATEGY_KEYS.includes(urlStrategy as PlaylistStrategy)) selectedStrategy = urlStrategy as PlaylistStrategy;
+    const urlRange = getQueryParam('range', '');
+    if (urlRange) range = urlRange;
+    startDate = getQueryParam('startDate', '');
+    endDate = getQueryParam('endDate', '');
+    initialized = true;
     try {
       const [meData, genreData, plData] = await Promise.all([
         api.me() as Promise<MeResponse>,
@@ -97,6 +112,23 @@
       savedPlaylists = plData.items;
     } catch {}
     loadLibrary();
+  });
+
+  // sincronizar filtros de alto nivel con la URL (tab, strategy, range, startDate, endDate)
+  $effect(() => {
+    const t = activeTab;
+    const s = selectedStrategy;
+    const r = range;
+    const sd = startDate;
+    const ed = endDate;
+    if (!initialized) return;
+    setQueryParams({
+      tab: t,
+      strategy: s ?? null,
+      range: t === 'generate' && s && s !== 'rediscovery' ? r : null,
+      startDate: t === 'generate' && s && s !== 'rediscovery' && r === 'custom' ? sd || null : null,
+      endDate: t === 'generate' && s && s !== 'rediscovery' && r === 'custom' ? ed || null : null,
+    });
   });
 
   function buildParams(): Record<string, unknown> {

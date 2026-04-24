@@ -20,3 +20,9 @@ export interface GenreItem {
   genre: string;
   play_count: number;
 }
+
+export interface DiscoveryItem {
+  period: string;
+  distinct_count: number;
+  cumulative: number;
+}

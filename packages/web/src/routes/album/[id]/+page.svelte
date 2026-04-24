@@ -2,13 +2,15 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
-  import { formatDuration, formatNumber, formatDate, formatShortDate } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
+  import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
+  import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import type { EChartsOption } from 'echarts';
 
@@ -20,7 +22,29 @@
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let showCoverPicker = $state(false);
   let uploadingCover = $state(false);
+  let showMergeModal = $state(false);
+  let coverContainerEl: HTMLDivElement | undefined = $state();
   const fetchCtrl = createFetchController();
+
+  function handleCoverOutside(e: PointerEvent) {
+    if (coverContainerEl && !coverContainerEl.contains(e.target as Node)) {
+      showCoverPicker = false;
+    }
+  }
+
+  function handleCoverKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') showCoverPicker = false;
+  }
+
+  $effect(() => {
+    if (!showCoverPicker) return;
+    document.addEventListener('pointerdown', handleCoverOutside);
+    document.addEventListener('keydown', handleCoverKey);
+    return () => {
+      document.removeEventListener('pointerdown', handleCoverOutside);
+      document.removeEventListener('keydown', handleCoverKey);
+    };
+  });
 
   let hasMultipleCovers = $derived((data?.covers?.length ?? 0) > 1 || data?.album.imageUrl === null);
 
@@ -117,16 +141,12 @@
   {/if}
   <div class="detail-hero-row">
     <div class="detail-hero">
-      <div class="cover-container">
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-        <div class="cover-wrapper" onclick={() => showCoverPicker = !showCoverPicker}>
+      <div class="cover-container" bind:this={coverContainerEl}>
+        <div class="cover-wrapper">
           {#if data.album.imageUrl}
             <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
           {:else}
             <div class="detail-image detail-image--placeholder"></div>
-          {/if}
-          {#if hasMultipleCovers}
-            <div class="cover-edit-hint">{showCoverPicker ? 'X' : '...'}</div>
           {/if}
         </div>
         {#if showCoverPicker}
@@ -168,9 +188,18 @@
         {/if}
       </div>
     </div>
-    {#if !data.mergedInto}
-      <Accolades entityType="album" entityId={$page.params.id} />
-    {/if}
+    <div class="hero-actions">
+      {#if !data.mergedInto}
+        <Accolades entityType="album" entityId={$page.params.id} />
+      {/if}
+      <EntityActionsMenu
+        title="Actions"
+        actions={[
+          { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', onClick: () => { showCoverPicker = true; } },
+          { label: 'Manage merges', onClick: () => { showMergeModal = true; } },
+        ]}
+      />
+    </div>
   </div>
 
   {#if data.mergedInto}
@@ -208,13 +237,13 @@
       <div class="stat-label">Listening time</div>
     </div>
     {#if data.stats.first_played}
-      <a href="/history?date={data.stats.first_played.split('T')[0]}" class="card stat-card stat-card--link">
+      <a href="/history?date={localDateKey(data.stats.first_played)}&focus={encodeURIComponent(data.stats.first_played)}" class="card stat-card stat-card--link">
         <div class="stat-value">{formatShortDate(data.stats.first_played)}</div>
         <div class="stat-label">First played</div>
       </a>
     {/if}
     {#if data.stats.last_played}
-      <a href="/history?date={data.stats.last_played.split('T')[0]}" class="card stat-card stat-card--link">
+      <a href="/history?date={localDateKey(data.stats.last_played)}&focus={encodeURIComponent(data.stats.last_played)}" class="card stat-card stat-card--link">
         <div class="stat-value">{formatShortDate(data.stats.last_played)}</div>
         <div class="stat-label">Last played</div>
       </a>
@@ -243,7 +272,24 @@
   {/if}
 {/if}
 
+{#if data}
+  <MergeEntityModal
+    bind:show={showMergeModal}
+    entityType="album"
+    target={{ id: data.album.id, name: data.album.name, imageUrl: data.album.imageUrl }}
+    parentId={data.artists[0]?.id ?? ''}
+    existingMerges={data.mergedFrom}
+    onMerged={() => loadData($page.params.id)}
+  />
+{/if}
+
 <style>
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    align-self: center;
+  }
   .merge-banner {
     padding: 0.6rem 1rem;
     border-radius: 8px;
@@ -362,11 +408,19 @@
     opacity: 1;
   }
   .cover-picker {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
-    margin-top: 0.5rem;
     max-width: 200px;
+    padding: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    z-index: 20;
   }
   .cover-thumb {
     width: 40px;

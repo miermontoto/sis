@@ -15,6 +15,8 @@ export interface ArtistDetail {
   topTracks: TopTrackItem[];
   topAlbums: TopAlbumItem[];
   recentPlays: HistoryItem[];
+  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
+  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
 }
 
 export interface AlbumCover {
@@ -47,4 +49,6 @@ export interface TrackDetail {
   dailySeries: { day: string; play_count: number; total_ms: number }[];
   albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } }[];
   recentPlays: HistoryItem[];
+  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
+  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
 }

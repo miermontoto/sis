@@ -52,6 +52,25 @@ export function formatShortDate(dateStr: string): string {
   return date.toLocaleDateString(getLocale(), opts);
 }
 
+// combina fecha + hora para items del historial: sólo hora si es dentro de las
+// últimas 24h, "Yesterday, 9:12" si ya pasaron >24h pero cae en el día anterior,
+// "Jan 5, 15:45" (mismo año) o "Jan 5, 2024, 15:45" (otro año) para el resto.
+export function formatHistoryStamp(dateStr: string): string {
+  const locale = getLocale();
+  const date = new Date(dateStr);
+  const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  const within24h = now.getTime() - date.getTime() < 24 * 3_600_000;
+  if (within24h) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  if (isYesterday) return `Yesterday, ${time}`;
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return `${date.toLocaleDateString(locale, opts)}, ${time}`;
+}
+
 // "January 2024"
 export function formatMonthYear(dateStr: string): string {
   const d = new Date(dateStr);
@@ -68,6 +87,15 @@ export function formatFullDate(dateStr: string): string {
 // "Jan 5" con timeZone explícita (para charts UTC)
 export function formatShortDateUTC(date: Date): string {
   return date.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// YYYY-MM-DD en timezone local (evita off-by-one al filtrar por fecha)
+export function localDateKey(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
 // nombres de días de la semana localizados [Sun, Mon, ..., Sat]

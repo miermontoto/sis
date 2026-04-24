@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 import {
@@ -10,6 +10,8 @@ import {
   RECENTLY_PLAYED_INTERVAL_MS,
   RECENTLY_PLAYED_LIMIT,
   METADATA_REFRESH_INTERVAL_MS,
+  RESOLVE_INTERVAL_MS,
+  ARTIST_FIX_INTERVAL_MS,
   RECORDS_CACHE_INTERVAL_MS,
   PLAYLIST_SYNC_INTERVAL_MS,
 } from '../constants.js';
@@ -34,11 +36,10 @@ const userLocalTracks = new Map<number, { id: string; startedAt: string; duratio
 
 // timers compartidos (catálogo global)
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let resolveImportsTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
-
-const ARTIST_FIX_INTERVAL_MS = 5 * 60_000;
 
 function getPollingStateForUser(userId: number) {
   const db = getDb();
@@ -219,6 +220,8 @@ export function startPolling() {
   // operaciones globales de catálogo (usan cualquier token activo)
   const globalUserId = activeUsers[0].userId;
 
+  cleanOrphanImports();
+
   enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
   enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
 
@@ -227,10 +230,20 @@ export function startPolling() {
     if (!uid) return;
     enrichArtistMetadata(uid).catch(err => console.error('[metadata] error:', err));
     enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
+  }, METADATA_REFRESH_INTERVAL_MS);
+
+  // resolución de entidades import:
+  const runResolve = (uid: number) => {
     resolveImportArtists(uid).catch(err => console.error('[resolve] error artistas:', err));
     resolveImportAlbums(uid).catch(err => console.error('[resolve] error álbumes:', err));
     fixTrackAlbumAssignments(uid).catch(err => console.error('[resolve] error álbumes tracks:', err));
-  }, METADATA_REFRESH_INTERVAL_MS);
+  };
+  runResolve(globalUserId);
+  resolveImportsTimer = setInterval(() => {
+    const uid = getAnyActiveUserId();
+    if (!uid) return;
+    runResolve(uid);
+  }, RESOLVE_INTERVAL_MS);
 
   fixTrackArtistAssociations(globalUserId)
     .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
@@ -268,10 +281,12 @@ export function stopPolling() {
 
   // detener timers compartidos
   if (metadataRefreshTimer) clearInterval(metadataRefreshTimer);
+  if (resolveImportsTimer) clearInterval(resolveImportsTimer);
   if (artistFixTimer) clearInterval(artistFixTimer);
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
   if (playlistSyncTimer) clearInterval(playlistSyncTimer);
   metadataRefreshTimer = null;
+  resolveImportsTimer = null;
   artistFixTimer = null;
   recordsCacheTimer = null;
   playlistSyncTimer = null;

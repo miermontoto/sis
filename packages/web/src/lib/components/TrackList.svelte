@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
-  import { formatDuration, formatDate, timeAgo } from '$lib/utils/format';
+  import { formatDuration, formatDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import TrackItem from './TrackItem.svelte';
 
@@ -10,9 +10,15 @@
     showTime?: boolean;
     metric?: RankingMetric;
     compact?: boolean;
+    focusId?: string | null;
+    itemFocusKey?: (item: TopTrackItem | HistoryItem) => string | null;
   }
 
-  let { items, showRank = false, showTime = false, metric = 'time', compact = false }: Props = $props();
+  let { items, showRank = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey }: Props = $props();
+
+  function resolveFocusKey(item: TopTrackItem | HistoryItem): string | null {
+    return itemFocusKey ? itemFocusKey(item) : getTrackId(item);
+  }
 
   function getTrackId(item: TopTrackItem | HistoryItem): string | null {
     if ('trackId' in item) return item.trackId;
@@ -33,6 +39,8 @@
 <div class="track-list">
   {#each items as item, i}
     {@const track = isTopTrack(item) ? item.track : item.track}
+    {@const trackId = getTrackId(item)}
+    {@const focusKey = resolveFocusKey(item)}
     {#if track}
       <TrackItem
         rank={showRank ? i + 1 : undefined}
@@ -40,7 +48,10 @@
         imageHref={track.album ? `/album/${track.album.id}` : undefined}
         name={track.name}
         nameHref={isTopTrack(item) ? `/track/${item.trackId}` : ('track' in item && item.track ? `/track/${item.track.id}` : undefined)}
-        isLive={getTrackId(item) === nowPlayingStore.trackId}
+        isLive={trackId === nowPlayingStore.trackId}
+        focusId={focusKey ?? undefined}
+        highlighted={focusId != null && focusKey === focusId}
+        entity={trackId ? { type: 'track', id: trackId, name: track.name, imageUrl: track.album?.imageUrl ?? null, parentArtistId: track.artists[0]?.id } : undefined}
         {compact}
       >
         {#snippet subtitle()}
@@ -58,7 +69,7 @@
             {/if}
           {/if}
           {#if showTime && 'playedAt' in item}
-            <div class="track-time" title={formatDate(item.playedAt)}>{timeAgo(item.playedAt)}</div>
+            <div class="track-time" title={formatDate(item.playedAt)}>{formatHistoryStamp(item.playedAt)}</div>
           {/if}
         {/snippet}
       </TrackItem>

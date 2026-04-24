@@ -4,6 +4,7 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+data/backups/
 packages/api/static/*
 !packages/api/static/.gitkeep
 packages/web/build/

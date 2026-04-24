@@ -3,6 +3,25 @@
 
   let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
+  let errorCode = $derived(page.url.searchParams.get('error'));
+  let retryAfterSec = $derived(parseInt(page.url.searchParams.get('retryAfter') || '0', 10));
+
+  function formatRetry(s: number): string {
+    if (s <= 0) return 'shortly';
+    const h = Math.floor(s / 3600);
+    const m = Math.round((s % 3600) / 60);
+    if (h > 0) return `~${h}h ${m}m`;
+    if (m > 0) return `~${m}m`;
+    return `${s}s`;
+  }
+
+  let errorMessage = $derived.by(() => {
+    if (!errorCode) return null;
+    if (errorCode === 'rate_limited') {
+      return `Spotify is rate-limiting the app (retry in ${formatRetry(retryAfterSec)}). Recent over-polling triggered this; try again later.`;
+    }
+    return `Login failed: ${errorCode}`;
+  });
 </script>
 
 <div class="login-page">
@@ -11,6 +30,10 @@
       <div class="logo-area">
         <div class="logo-mark">SIS</div>
       </div>
+
+      {#if errorMessage}
+        <div class="login-error">{errorMessage}</div>
+      {/if}
 
       <a href={loginHref} class="login-btn">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -71,6 +94,18 @@
     color: var(--accent);
     letter-spacing: -0.02em;
     line-height: 1;
+  }
+
+  .login-error {
+    background: rgba(255, 170, 0, 0.08);
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    color: #ffaa00;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 1rem;
+    text-align: left;
   }
 
   .login-btn {

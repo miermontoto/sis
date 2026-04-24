@@ -5,7 +5,7 @@ export type { TrackInfo, FormattedArtist, FormattedAlbum } from './entities.js';
 export type { TopTrackItem, TopArtistItem, TopAlbumItem } from './top.js';
 
 // estadísticas
-export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem } from './stats.js';
+export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem } from './stats.js';
 
 // historial
 export type { HistoryItem, HistoryResponse } from './history.js';
@@ -24,7 +24,7 @@ export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } fro
 export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, ChartHistoryResponse } from './charts.js';
 
 // records
-export type { RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem } from './records.js';
+export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish } from './records.js';
 
 // accolades
 export type { Accolade, AccoladesResponse } from './accolades.js';
@@ -36,7 +36,7 @@ export type { SearchResults } from './search.js';
 export type { PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse, LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail } from './playlists.js';
 
 // merge
-export type { MergeRule, MergeSuggestionAlbum } from './merge.js';
+export type { MergeRule, MergeSuggestion } from './merge.js';
 
 // usuarios
 export type { MeResponse, UserRecord, ImportResult, HealthData } from './users.js';

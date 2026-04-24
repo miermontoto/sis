@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, createFetchController, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DateRangeParams } from '$lib/api';
+  import { api, createFetchController, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -14,7 +14,10 @@
   let heatmap = $state<HeatmapItem[]>([]);
   let genres = $state<GenreItem[]>([]);
   let streaks = $state<StreaksData | null>(null);
+  let discovery = $state<DiscoveryItem[]>([]);
+  let discoveryEntity = $state<'track' | 'album' | 'artist'>('track');
   let loading = $state(true);
+  let discoveryLoading = $state(false);
   const fetchCtrl = createFetchController();
 
   function granularityForRange(r: string): string {
@@ -39,8 +42,9 @@
     loading = true;
     try {
       const dates = getCustomDates();
+      const gran = granularityForRange(range);
       [listeningData, heatmap, genres, streaks] = await Promise.all([
-        api.listeningTime(range, granularityForRange(range), dates, signal),
+        api.listeningTime(range, gran, dates, signal),
         api.heatmap(range, dates, signal),
         api.topGenres(range, 10, dates, signal),
         api.streaks(signal),
@@ -51,6 +55,16 @@
     } finally {
       if (!signal.aborted) loading = false;
     }
+    loadDiscovery();
+  }
+
+  async function loadDiscovery() {
+    discoveryLoading = true;
+    try {
+      const dates = getCustomDates();
+      discovery = await api.discovery(range, granularityForRange(range), discoveryEntity, dates);
+    } catch { /* ignore */ }
+    discoveryLoading = false;
   }
 
   function setRange(r: string) {
@@ -157,6 +171,43 @@
     series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, h.day_of_week, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 3 } }],
   });
 
+  const entityLabels = { track: 'Tracks', album: 'Albums', artist: 'Artists' } as const;
+  const entityColors = { track: '#1db954', album: '#3498db', artist: '#e74c3c' } as const;
+
+  let discoveryOption = $derived<EChartsOption>({
+    grid: { left: 50, right: 50, top: 20, bottom: 30 },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        const ps = Array.isArray(params) ? params : [params];
+        let s = ps[0].axisValue;
+        for (const p of ps) s += `<br/>${p.seriesName}: <b>${p.value}</b>`;
+        return s;
+      },
+    },
+    xAxis: {
+      type: 'category', data: discovery.map(d => d.period),
+      axisLabel: { color: '#888', rotate: discovery.length > 14 ? 45 : 0, formatter: (v: string) => v.length > 5 ? v.slice(5) : v },
+      axisLine: { lineStyle: { color: '#2a2a2a' } },
+    },
+    yAxis: [
+      { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888' } },
+      { type: 'value', splitLine: { show: false }, axisLabel: { color: '#555' } },
+    ],
+    series: [
+      {
+        name: 'Distinct', type: 'bar', yAxisIndex: 0,
+        data: discovery.map(d => d.distinct_count),
+        itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 20,
+      },
+      {
+        name: 'Cumulative', type: 'line', yAxisIndex: 1, smooth: true, symbol: 'none',
+        data: discovery.map(d => d.cumulative),
+        lineStyle: { color: entityColors[discoveryEntity], width: 2 }, itemStyle: { color: entityColors[discoveryEntity] },
+      },
+    ],
+  });
+
   let pieOption = $derived<EChartsOption>({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     series: [{
@@ -176,7 +227,43 @@
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 {#if loading}
-  <div class="loading"><div class="spinner"></div></div>
+  <div class="stats-grid" style="margin-bottom: 1.5rem;">
+    {#each ['Total listening', 'Total plays', 'Daily average', 'Current streak'] as label}
+      <div class="card stat-card">
+        <div class="stat-value"><span class="ghost-text ghost-stat"></span></div>
+        <div class="stat-label">{label}</div>
+      </div>
+    {/each}
+  </div>
+
+  <div class="charts-row">
+    <div class="card chart-half">
+      <h3>Plays</h3>
+      <div class="ghost-chart" style="height: 220px;"></div>
+    </div>
+    <div class="card chart-half">
+      <h3>Listening time</h3>
+      <div class="ghost-chart" style="height: 220px;"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="chart-header">
+      <h3>Library growth</h3>
+      <div class="entity-toggle ghost-text" style="width: 10rem; height: 1.5rem;"></div>
+    </div>
+    <div class="ghost-chart" style="height: 220px;"></div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h3 style="margin-bottom: 0.5rem;">Listening heatmap</h3>
+    <div class="ghost-chart" style="height: 220px;"></div>
+  </div>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h3 style="margin-bottom: 0.5rem;">Genre distribution</h3>
+    <div class="ghost-chart ghost-chart--pie" style="height: 280px;"></div>
+  </div>
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
     <div class="card stat-card">
@@ -212,6 +299,27 @@
     </div>
   {/if}
 
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="chart-header">
+      <h3>Library growth</h3>
+      <div class="entity-toggle">
+        {#each (['track', 'album', 'artist'] as const) as type}
+          <button
+            class="toggle-btn"
+            class:active={discoveryEntity === type}
+            style:--btn-color={entityColors[type]}
+            onclick={() => { discoveryEntity = type; loadDiscovery(); }}
+          >{entityLabels[type]}</button>
+        {/each}
+      </div>
+    </div>
+    {#if discoveryLoading}
+      <div class="ghost-chart" style="height: 220px;"></div>
+    {:else if discovery.length > 0}
+      <BaseChart option={discoveryOption} height="220px" />
+    {/if}
+  </div>
+
   {#if heatmap.length > 0}
     <div class="card" style="margin-bottom: 1.5rem;">
       <h3 style="margin-bottom: 0.5rem;">Listening heatmap</h3>
@@ -236,6 +344,57 @@
   }
   .chart-half h3 {
     margin-bottom: 0.5rem;
+  }
+  .ghost-stat {
+    width: 3.5rem;
+    height: 1.4rem;
+    vertical-align: middle;
+  }
+  .ghost-chart {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  .ghost-chart--pie {
+    border-radius: 50%;
+    width: 220px;
+    height: 220px !important;
+    margin: 0 auto;
+  }
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    gap: 0.5rem;
+  }
+  .chart-header h3 {
+    margin: 0;
+  }
+  .entity-toggle {
+    display: flex;
+    gap: 0.25rem;
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .toggle-btn {
+    padding: 0.25rem 0.75rem;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #888;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .toggle-btn:hover {
+    color: #ccc;
+  }
+  .toggle-btn.active {
+    background: var(--btn-color);
+    color: #fff;
   }
   @media (max-width: 768px) {
     .charts-row {

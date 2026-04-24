@@ -45,6 +45,10 @@ export type TimeRange = keyof typeof TIME_RANGES;
 // tamaño del chart (cuántas posiciones tiene el billboard)
 export const CHART_SIZE = 25;
 
+// posiciones que cuentan como "record" (lo que muestra la página /records)
+// también es el tope para otorgar accolades en vistas de detalle
+export const RECORDS_LIMIT = 10;
+
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;
 
@@ -54,8 +58,11 @@ export const METADATA_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
 // intervalo de recomputo de records (6h)
 export const RECORDS_CACHE_INTERVAL_MS = 6 * 60 * 60_000;
 
-// intervalo de resolución de entidades import: (5 min)
-export const RESOLVE_INTERVAL_MS = 5 * 60_000;
+// intervalo de resolución de entidades import: (30 min)
+export const RESOLVE_INTERVAL_MS = 30 * 60_000;
+
+// intervalo de verificación de artistas/álbumes de tracks (30 min)
+export const ARTIST_FIX_INTERVAL_MS = 30 * 60_000;
 
 // intervalo de sincronización de playlists de spotify (6h)
 export const PLAYLIST_SYNC_INTERVAL_MS = 6 * 60 * 60_000;

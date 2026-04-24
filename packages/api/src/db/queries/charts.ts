@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingMetric, WeekStartOption, Granularity, EntityType } from '@sis/shared';
-import { resolvedAlbumId, mergeRulesJoin, userFilter } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, userFilter } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
 type Sort = RankingMetric;
@@ -40,20 +40,31 @@ function prevPeriod(period: string, granularity: Granularity): string | null {
 // obtener ranking para un periodo específico (raw, sin metadata)
 function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit: number, userId: number) {
   const pExpr = periodExpr(granularity, weekStart);
-  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
   const uf = userFilter(userId);
 
-  let groupCol, joinClause;
-  if (entityType === 'track') {
-    groupCol = sql`lh.track_id`;
-    joinClause = sql``;
-  } else if (entityType === 'album') {
-    groupCol = resolvedAlbumId(userId);
-    joinClause = mergeRulesJoin(userId);
-  } else {
-    groupCol = sql`ta.artist_id`;
-    joinClause = sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
+  // artistas: dedupe por play dentro de una CTE antes de agregar (evita doble count con merges)
+  if (entityType === 'artist') {
+    const mrJoin = entityMergeJoin('artist', userId);
+    const metric = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
+    return db.all(sql`
+      SELECT entity_id, count(*) as plays, sum(duration_ms) as total_ms
+      FROM (
+        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, t.duration_ms as duration_ms, ${pExpr} as p
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId} AND ${pExpr} = ${period}
+      )
+      GROUP BY entity_id
+      ORDER BY ${metric} DESC
+      LIMIT ${limit}
+    `) as { entity_id: string; plays: number; total_ms: number }[];
   }
+
+  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const groupCol = resolvedEntityId(entityType, userId);
+  const joinClause = entityMergeJoin(entityType, userId);
 
   return db.all(sql`
     SELECT ${groupCol} as entity_id, count(*) as plays, sum(t.duration_ms) as total_ms
@@ -79,58 +90,112 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
   const uf = userFilter(userId);
   const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 
-  let groupCol, joinClause, entityInFilter;
-  if (entityType === 'track') {
-    groupCol = sql`lh.track_id`;
-    joinClause = sql``;
-    entityInFilter = sql`AND lh.track_id IN (${sql.join(entityIds.map(id => sql`${id}`), sql`, `)})`;
-  } else if (entityType === 'album') {
-    groupCol = resolvedAlbumId(userId);
-    joinClause = mergeRulesJoin(userId);
-    entityInFilter = sql`AND COALESCE(mr_album.target_id, t.album_id) IN (${sql.join(entityIds.map(id => sql`${id}`), sql`, `)})`;
+  const idsIn = sql.join(entityIds.map(id => sql`${id}`), sql`, `);
+
+  let targetScores: { period: string; entity_id: string; val: number }[];
+  let dateRange: { min_date: string } | undefined;
+  let rankedRows: { period: string; entity_id: string; rank: number }[];
+
+  if (entityType === 'artist') {
+    // dedup por play antes de agregar — evita doble count cuando un track tiene 2 artists mergeados al mismo target
+    const mrJoin = entityMergeJoin('artist', userId);
+    const metricDedup = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
+
+    targetScores = db.all(sql`
+      SELECT period, entity_id, ${metricDedup} as val
+      FROM (
+        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) IN (${idsIn})
+      )
+      GROUP BY period, entity_id
+      HAVING period <= ${currentPeriod}
+      ORDER BY period
+    `) as { period: string; entity_id: string; val: number }[];
+
+    if (targetScores.length === 0) return new Map();
+
+    dateRange = db.all(sql`
+      SELECT min(lh.played_at) as min_date
+      FROM listening_history lh
+      JOIN track_artists ta ON ta.track_id = lh.track_id
+      ${mrJoin}
+      WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) IN (${idsIn})
+    `)[0] as { min_date: string } | undefined;
+
+    rankedRows = db.all(sql`
+      SELECT period, entity_id, rank FROM (
+        SELECT period, entity_id,
+               ROW_NUMBER() OVER (PARTITION BY period ORDER BY ${metricDedup} DESC) as rank
+        FROM (
+          SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, t.duration_ms as duration_ms
+          FROM listening_history lh
+          JOIN tracks t ON t.spotify_id = lh.track_id
+          JOIN track_artists ta ON ta.track_id = lh.track_id
+          ${mrJoin}
+          WHERE lh.played_at >= ${dateRange?.min_date ?? '1970-01-01'} AND lh.user_id = ${userId}
+        )
+        GROUP BY period, entity_id
+        HAVING period <= ${currentPeriod}
+      )
+      WHERE rank <= ${CHART_SIZE}
+    `) as { period: string; entity_id: string; rank: number }[];
   } else {
-    groupCol = sql`ta.artist_id`;
-    joinClause = sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
-    entityInFilter = sql`AND ta.artist_id IN (${sql.join(entityIds.map(id => sql`${id}`), sql`, `)})`;
-  }
+    let groupCol: ReturnType<typeof sql>;
+    let joinClause: ReturnType<typeof sql>;
+    let entityInFilter: ReturnType<typeof sql>;
+    if (entityType === 'track') {
+      groupCol = resolvedEntityId('track', userId);
+      joinClause = entityMergeJoin('track', userId);
+      entityInFilter = sql`AND COALESCE(mr_track.target_id, lh.track_id) IN (${idsIn})`;
+    } else {
+      // album
+      groupCol = resolvedEntityId('album', userId);
+      joinClause = entityMergeJoin('album', userId);
+      entityInFilter = sql`AND COALESCE(mr_album.target_id, t.album_id) IN (${idsIn})`;
+    }
 
-  // paso 1: scores de las entidades objetivo por periodo (rápido — filtrado por entity IDs)
-  const targetScores = db.all(sql`
-    SELECT ${pExpr} as period, ${groupCol} as entity_id, ${metric} as val
-    FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    ${joinClause}
-    WHERE 1=1 ${uf} ${entityInFilter} ${albumFilter}
-    GROUP BY period, entity_id
-    HAVING period <= ${currentPeriod}
-    ORDER BY period
-  `) as { period: string; entity_id: string; val: number }[];
-
-  if (targetScores.length === 0) return new Map();
-
-  // paso 2: una sola query con ROW_NUMBER acotada al rango de fechas de los targets
-  // — mucho más rápido que N queries por periodo o que materializar toda la historia
-  const dateRange = db.all(sql`
-    SELECT min(lh.played_at) as min_date
-    FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    ${joinClause}
-    WHERE 1=1 ${uf} ${entityInFilter} ${albumFilter}
-  `)[0] as { min_date: string } | undefined;
-
-  const rankedRows = db.all(sql`
-    SELECT period, entity_id, rank FROM (
-      SELECT ${pExpr} as period, ${groupCol} as entity_id,
-             ROW_NUMBER() OVER (PARTITION BY ${pExpr} ORDER BY ${metric} DESC) as rank
+    // paso 1: scores de las entidades objetivo por periodo (rápido — filtrado por entity IDs)
+    targetScores = db.all(sql`
+      SELECT ${pExpr} as period, ${groupCol} as entity_id, ${metric} as val
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${joinClause}
-      WHERE lh.played_at >= ${dateRange?.min_date ?? '1970-01-01'} ${uf} ${albumFilter}
+      WHERE 1=1 ${uf} ${entityInFilter} ${albumFilter}
       GROUP BY period, entity_id
       HAVING period <= ${currentPeriod}
-    )
-    WHERE rank <= ${CHART_SIZE}
-  `) as { period: string; entity_id: string; rank: number }[];
+      ORDER BY period
+    `) as { period: string; entity_id: string; val: number }[];
+
+    if (targetScores.length === 0) return new Map();
+
+    // paso 2: una sola query con ROW_NUMBER acotada al rango de fechas de los targets
+    // — mucho más rápido que N queries por periodo o que materializar toda la historia
+    dateRange = db.all(sql`
+      SELECT min(lh.played_at) as min_date
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${joinClause}
+      WHERE 1=1 ${uf} ${entityInFilter} ${albumFilter}
+    `)[0] as { min_date: string } | undefined;
+
+    rankedRows = db.all(sql`
+      SELECT period, entity_id, rank FROM (
+        SELECT ${pExpr} as period, ${groupCol} as entity_id,
+               ROW_NUMBER() OVER (PARTITION BY ${pExpr} ORDER BY ${metric} DESC) as rank
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        ${joinClause}
+        WHERE lh.played_at >= ${dateRange?.min_date ?? '1970-01-01'} ${uf} ${albumFilter}
+        GROUP BY period, entity_id
+        HAVING period <= ${currentPeriod}
+      )
+      WHERE rank <= ${CHART_SIZE}
+    `) as { period: string; entity_id: string; rank: number }[];
+  }
 
   // indexar por (entity_id, period)
   const idSet = new Set(entityIds);
@@ -298,12 +363,12 @@ export function getChartPeaks(db: Db, entityType: EntityType, granularity: Granu
     const hist = history.get(id);
     const notInPrev = prev !== null && !prevSet.has(id);
     result[id] = {
-      peakRank: hist?.peakRank ?? 1,
+      peakRank: hist?.peakRank ?? CHART_SIZE,
       peakPeriod: hist?.peakPeriod ?? period,
-      peakPeriods: hist?.peakPeriods ?? [period],
-      timesAtPeak: hist?.timesAtPeak ?? 1,
-      weeksOnChart: hist?.weeksOnChart ?? 1,
-      consecutiveWeeks: hist?.consecutiveWeeks ?? (notInPrev ? 0 : 1),
+      peakPeriods: hist?.peakPeriods ?? [],
+      timesAtPeak: hist?.timesAtPeak ?? 0,
+      weeksOnChart: hist?.weeksOnChart ?? 0,
+      consecutiveWeeks: hist?.consecutiveWeeks ?? 0,
       isReentry: notInPrev && (hist?.weeksOnChart ?? 0) > 1,
     };
   }
@@ -334,51 +399,92 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
   const uf = userFilter(userId);
   const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 
-  let groupCol, joinClause, entityFilter;
-  if (entityType === 'track') {
-    groupCol = sql`lh.track_id`;
-    joinClause = sql``;
-    entityFilter = sql`AND lh.track_id = ${entityId}`;
-  } else if (entityType === 'album') {
-    groupCol = resolvedAlbumId(userId);
-    joinClause = mergeRulesJoin(userId);
-    entityFilter = sql`AND COALESCE(mr_album.target_id, t.album_id) = ${entityId}`;
+  let myData: { period: string; val: number; min_date: string; max_date: string }[];
+  let allScores: { period: string; eid: string; val: number }[];
+  let dateMin: string;
+
+  if (entityType === 'artist') {
+    // dedupe por play — evita doble count con artists co-apareciendo en un track mergeado
+    const mrJoin = entityMergeJoin('artist', userId);
+    const metricDedup = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
+
+    myData = db.all(sql`
+      SELECT period, ${metricDedup} as val, min(played_at) as min_date, max(played_at) as max_date
+      FROM (
+        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, lh.played_at as played_at, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) = ${entityId}
+      )
+      GROUP BY period
+      ORDER BY period ASC
+    `) as { period: string; val: number; min_date: string; max_date: string }[];
+
+    if (myData.length === 0) {
+      return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
+    }
+
+    dateMin = myData[0].min_date;
+
+    allScores = db.all(sql`
+      SELECT period, eid, ${metricDedup} as val
+      FROM (
+        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.played_at >= ${dateMin} AND lh.user_id = ${userId}
+      )
+      GROUP BY period, eid
+    `) as { period: string; eid: string; val: number }[];
   } else {
-    groupCol = sql`ta.artist_id`;
-    joinClause = sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
-    entityFilter = sql`AND ta.artist_id = ${entityId}`;
-  }
+    let groupCol: ReturnType<typeof sql>;
+    let joinClause: ReturnType<typeof sql>;
+    let entityFilter: ReturnType<typeof sql>;
+    if (entityType === 'track') {
+      groupCol = resolvedEntityId('track', userId);
+      joinClause = entityMergeJoin('track', userId);
+      entityFilter = sql`AND COALESCE(mr_track.target_id, lh.track_id) = ${entityId}`;
+    } else {
+      // album
+      groupCol = resolvedEntityId('album', userId);
+      joinClause = entityMergeJoin('album', userId);
+      entityFilter = sql`AND COALESCE(mr_album.target_id, t.album_id) = ${entityId}`;
+    }
 
-  // paso 1: score del target por periodo + rango de fechas para acotar el scan global
-  const myData = db.all(sql`
-    SELECT ${pExpr} as period, ${metric} as val, min(lh.played_at) as min_date, max(lh.played_at) as max_date
-    FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    ${joinClause}
-    WHERE 1=1 ${uf} ${entityFilter} ${albumFilter}
-    GROUP BY period
-    ORDER BY period ASC
-  `) as { period: string; val: number; min_date: string; max_date: string }[];
+    // paso 1: score del target por periodo + rango de fechas para acotar el scan global
+    myData = db.all(sql`
+      SELECT ${pExpr} as period, ${metric} as val, min(lh.played_at) as min_date, max(lh.played_at) as max_date
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${joinClause}
+      WHERE 1=1 ${uf} ${entityFilter} ${albumFilter}
+      GROUP BY period
+      ORDER BY period ASC
+    `) as { period: string; val: number; min_date: string; max_date: string }[];
 
-  if (myData.length === 0) {
-    return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
+    if (myData.length === 0) {
+      return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
+    }
+
+    dateMin = myData[0].min_date;
+
+    // paso 2: obtener scores de todas las entidades desde dateMin (usa índice played_at)
+    allScores = db.all(sql`
+      SELECT ${pExpr} as period, ${groupCol} as eid, ${metric} as val
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${joinClause}
+      WHERE lh.played_at >= ${dateMin} ${uf} ${albumFilter}
+      GROUP BY period, eid
+    `) as { period: string; eid: string; val: number }[];
   }
 
   const myScoreMap = new Map(myData.map(s => [s.period, s.val]));
   const periodSet = new Set(myData.map(s => s.period));
-
-  // fecha mínima de la entidad — acotar el scan global (no upper bound: el periodo actual puede tener plays posteriores)
-  const dateMin = myData[0].min_date;
-
-  // paso 2: obtener scores de todas las entidades desde dateMin (usa índice played_at)
-  const allScores = db.all(sql`
-    SELECT ${pExpr} as period, ${groupCol} as eid, ${metric} as val
-    FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    ${joinClause}
-    WHERE lh.played_at >= ${dateMin} ${uf} ${albumFilter}
-    GROUP BY period, eid
-  `) as { period: string; eid: string; val: number }[];
 
   // agrupar por periodo y calcular rank (solo periodos donde el target tiene plays)
   const scoresByPeriod = new Map<string, { eid: string; val: number }[]>();

@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
-  import { formatDuration, formatNumber, formatDate, formatShortDate } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -10,6 +10,8 @@
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
+  import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
+  import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
 
   import type { EChartsOption } from 'echarts';
@@ -20,6 +22,7 @@
   let heroColor = $state('');
   let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
+  let showMergeModal = $state(false);
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -108,8 +111,43 @@
         {/if}
       </div>
     </div>
-    <Accolades entityType="track" entityId={$page.params.id} />
+    <div class="hero-actions">
+      {#if !data.mergedInto}
+        <Accolades entityType="track" entityId={$page.params.id} />
+      {/if}
+      <EntityActionsMenu
+        title="Actions"
+        actions={[
+          { label: 'Manage merges', onClick: () => { showMergeModal = true; } },
+        ]}
+      />
+    </div>
   </div>
+
+  {#if data.mergedInto}
+    <div class="merge-banner merge-banner--source">
+      <span>Merged into <a href="/track/{data.mergedInto.id}">{data.mergedInto.name}</a></span>
+      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(data!.mergedInto!.ruleId); loadData($page.params.id); }}>Unmerge</button>
+    </div>
+  {/if}
+
+  {#if data.mergedFrom.length > 0}
+    <div class="merge-banner merge-banner--target">
+      <div class="merge-banner-label">Includes plays from:</div>
+      <div class="merge-banner-albums">
+        {#each data.mergedFrom as merge}
+          <a href="/track/{merge.id}" class="merge-banner-album">
+            {#if merge.imageUrl}
+              <img class="merge-banner-thumb" src={merge.imageUrl} alt="" />
+            {:else}
+              <div class="merge-banner-thumb merge-banner-thumb--empty"></div>
+            {/if}
+            <span class="merge-banner-name">{merge.name}</span>
+          </a>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div class="stats-grid">
     <div class="card stat-card">
@@ -125,21 +163,23 @@
       <div class="stat-label">Duration</div>
     </div>
     {#if data.stats.first_played}
-      <a href="/history?date={data.stats.first_played.split('T')[0]}" class="card stat-card stat-card--link">
+      <a href="/history?date={localDateKey(data.stats.first_played)}&focus={encodeURIComponent(data.stats.first_played)}" class="card stat-card stat-card--link">
         <div class="stat-value">{formatShortDate(data.stats.first_played)}</div>
         <div class="stat-label">First played</div>
       </a>
     {/if}
     {#if data.stats.last_played}
-      <a href="/history?date={data.stats.last_played.split('T')[0]}" class="card stat-card stat-card--link">
+      <a href="/history?date={localDateKey(data.stats.last_played)}&focus={encodeURIComponent(data.stats.last_played)}" class="card stat-card stat-card--link">
         <div class="stat-value">{formatShortDate(data.stats.last_played)}</div>
         <div class="stat-label">Last played</div>
       </a>
     {/if}
   </div>
 
-  <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
-  <ChartStats entityType="track" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+  {#if !data.mergedInto}
+    <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
+    <ChartStats entityType="track" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+  {/if}
 
   {#if data.albumBreakdown.length > 1}
     <h2 class="section-title">Played in</h2>
@@ -178,9 +218,94 @@
   {/if}
 {/if}
 
+{#if data}
+  <MergeEntityModal
+    bind:show={showMergeModal}
+    entityType="track"
+    target={{ id: data.track.id, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null }}
+    parentId={data.track.artists[0]?.id ?? ''}
+    existingMerges={data.mergedFrom}
+    onMerged={() => loadData($page.params.id)}
+  />
+{/if}
+
 <style>
   .chart-card {
     margin-bottom: 1.5rem;
     padding: 1rem;
   }
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    align-self: center;
+  }
+  .merge-banner {
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .merge-banner a { color: var(--accent); text-decoration: none; }
+  .merge-banner a:hover { text-decoration: underline; }
+  .merge-banner--source {
+    background: rgba(255, 170, 0, 0.1);
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    color: #ffaa00;
+  }
+  .merge-banner--source a {
+    color: #ffaa00;
+    text-decoration: underline;
+  }
+  .merge-banner--target {
+    background: rgba(29, 185, 84, 0.08);
+    border: 1px solid rgba(29, 185, 84, 0.25);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .merge-banner-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .merge-banner-albums {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+  }
+  .merge-banner-album {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .merge-banner-album:hover { color: var(--accent); }
+  .merge-banner-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .merge-banner-thumb--empty { background: var(--border); }
+  .merge-banner-name { font-size: 0.85rem; }
+  .merge-banner-unmerge {
+    background: transparent;
+    border: 1px solid currentColor;
+    color: inherit;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: var(--font);
+    opacity: 0.8;
+  }
+  .merge-banner-unmerge:hover { opacity: 1; }
 </style>

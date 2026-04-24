@@ -1,21 +1,35 @@
 <script lang="ts">
-  import { api, type MergeSuggestionAlbum } from '$lib/api';
+  import { api, type MergeSuggestion } from '$lib/api';
+
+  type EntityType = 'album' | 'artist' | 'track';
 
   let {
     show = $bindable(false),
-    targetAlbum,
-    artistId = '',
+    entityType,
+    target,
+    parentId,
     existingMerges = [],
     onMerged = () => {},
   }: {
     show: boolean;
-    targetAlbum: { id: string; name: string; imageUrl: string | null };
-    artistId?: string;
+    entityType: EntityType;
+    target: { id: string; name: string; imageUrl: string | null };
+    /** Artist scope para album/track. Ignorado para artist (sugerencias son globales). */
+    parentId?: string;
     existingMerges?: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
     onMerged?: () => void;
   } = $props();
 
-  let suggestions = $state<MergeSuggestionAlbum[]>([]);
+  // Textos + estilos por tipo de entidad
+  const LABELS: Record<EntityType, { title: string; canonical: string; placeholder: string; verb: string; empty: string; noSuggested: string; round: boolean }> = {
+    album:  { title: 'Manage album merges',  canonical: 'Canonical album',  placeholder: 'Filter albums...',  verb: 'album',  empty: 'No other albums found for this artist',  noSuggested: 'No close matches — type to search',           round: false },
+    artist: { title: 'Manage artist merges', canonical: 'Canonical artist', placeholder: 'Search all artists...', verb: 'artist', empty: 'No other artists with plays available', noSuggested: 'No close matches — type to search all artists', round: true  },
+    track:  { title: 'Manage track merges',  canonical: 'Canonical track',  placeholder: 'Filter tracks...',  verb: 'track',  empty: 'No other tracks found for this artist',  noSuggested: 'No close matches — type to search',           round: false },
+  };
+
+  let labels = $derived(LABELS[entityType]);
+
+  let suggestions = $state<MergeSuggestion[]>([]);
   let selected = $state<Set<string>>(new Set());
   let loading = $state(false);
   let merging = $state(false);
@@ -24,14 +38,17 @@
 
   let existingIds = $derived(new Set(existingMerges.map(m => m.id)));
 
+  // artists: sin parent → por defecto ocultar lista, mostrar sólo similares.
+  // album/track: con parent → mostrar todos los candidatos del artista (lista corta).
+  let showOnlySimilar = $derived(entityType === 'artist');
+  const SIM_THRESHOLD = 0.3;
+
   const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-  // fuzzy filter: normalizar y buscar coincidencia parcial
   function fuzzyMatch(name: string, query: string): boolean {
     return norm(name).includes(norm(query));
   }
 
-  // similaridad entre dos strings (0-1): porcentaje de trigramas en común
   function trigrams(s: string): Set<string> {
     const t = new Set<string>();
     for (let i = 0; i <= s.length - 3; i++) t.add(s.slice(i, i + 3));
@@ -45,24 +62,31 @@
     return common / Math.max(triA.size, triB.size);
   }
 
-  // ordenar sugerencias: similares al target primero, luego por plays
-  let sortedSuggestions = $derived.by(() => {
-    const targetTri = trigrams(norm(targetAlbum.name));
-    const scored = suggestions.map(a => ({ a, sim: similarity(trigrams(norm(a.name)), targetTri) }));
-    scored.sort((x, y) => {
-      const xs = x.sim >= 0.3, ys = y.sim >= 0.3;
-      if (xs !== ys) return xs ? -1 : 1;
-      if (xs && ys) return y.sim - x.sim || y.a.plays - x.a.plays;
-      return y.a.plays - x.a.plays;
-    });
-    return scored.map(s => s.a);
+  let scored = $derived.by(() => {
+    const targetTri = trigrams(norm(target.name));
+    return suggestions.map(a => ({ a, sim: similarity(trigrams(norm(a.name)), targetTri) }));
   });
 
-  let filteredSuggestions = $derived(
-    searchQuery.length > 0
-      ? sortedSuggestions.filter(a => fuzzyMatch(a.name, searchQuery))
-      : sortedSuggestions
+  let defaultList = $derived.by(() => {
+    const base = showOnlySimilar ? scored.filter(s => s.sim >= SIM_THRESHOLD) : scored;
+    return base
+      .sort((x, y) => {
+        const xs = x.sim >= SIM_THRESHOLD, ys = y.sim >= SIM_THRESHOLD;
+        if (xs !== ys) return xs ? -1 : 1;
+        if (xs && ys) return y.sim - x.sim || y.a.plays - x.a.plays;
+        return y.a.plays - x.a.plays;
+      })
+      .map(s => s.a);
+  });
+
+  let searchResults = $derived(
+    scored
+      .filter(s => fuzzyMatch(s.a.name, searchQuery))
+      .sort((x, y) => y.sim - x.sim || y.a.plays - x.a.plays)
+      .map(s => s.a)
   );
+
+  let filteredSuggestions = $derived(searchQuery.length > 0 ? searchResults : defaultList);
 
   function close() {
     show = false;
@@ -72,11 +96,18 @@
   }
 
   async function loadSuggestions() {
-    if (!artistId) return;
     loading = true;
     try {
-      const all = await api.mergeSuggestions(artistId);
-      suggestions = all.filter(a => a.id !== targetAlbum.id && !existingIds.has(a.id));
+      const opts: { parent?: string; exclude?: string } = { exclude: target.id };
+      if (entityType !== 'artist') {
+        if (!parentId) {
+          suggestions = [];
+          return;
+        }
+        opts.parent = parentId;
+      }
+      const all = await api.mergeSuggestions(entityType, opts);
+      suggestions = all.filter(a => a.id !== target.id && !existingIds.has(a.id));
     } catch {
       suggestions = [];
     } finally {
@@ -97,9 +128,8 @@
     error = '';
     try {
       for (const sourceId of selected) {
-        await api.createMerge('album', sourceId, targetAlbum.id);
+        await api.createMerge(entityType, sourceId, target.id);
       }
-      // callback ANTES de cerrar para que el parent refresque
       onMerged();
       close();
     } catch (e: any) {
@@ -119,7 +149,7 @@
   }
 
   $effect(() => {
-    if (show && artistId) loadSuggestions();
+    if (show) loadSuggestions();
   });
 </script>
 
@@ -128,19 +158,19 @@
   <div class="merge-overlay" onmousedown={(e) => { if (e.target === e.currentTarget) close(); }}>
     <div class="merge-modal">
       <div class="merge-header">
-        <h3>Manage merges</h3>
+        <h3>{labels.title}</h3>
         <button class="merge-close" onclick={close}>&times;</button>
       </div>
 
       <div class="merge-target">
-        {#if targetAlbum.imageUrl}
-          <img class="merge-thumb" src={targetAlbum.imageUrl} alt="" />
+        {#if target.imageUrl}
+          <img class="merge-thumb" class:merge-thumb--round={labels.round} src={target.imageUrl} alt="" />
         {:else}
-          <div class="merge-thumb merge-thumb--empty"></div>
+          <div class="merge-thumb" class:merge-thumb--round={labels.round} class:merge-thumb--empty={true}></div>
         {/if}
         <div class="merge-target-info">
-          <div class="merge-target-name">{targetAlbum.name}</div>
-          <div class="merge-target-label">Canonical album</div>
+          <div class="merge-target-name">{target.name}</div>
+          <div class="merge-target-label">{labels.canonical}</div>
         </div>
       </div>
 
@@ -154,9 +184,9 @@
           {#each existingMerges as merge}
             <div class="merge-item merge-item--existing">
               {#if merge.imageUrl}
-                <img class="merge-thumb-sm" src={merge.imageUrl} alt="" />
+                <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={merge.imageUrl} alt="" />
               {:else}
-                <div class="merge-thumb-sm merge-thumb--empty"></div>
+                <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
               {/if}
               <div class="merge-item-info">
                 <div class="merge-item-name">{merge.name}</div>
@@ -170,34 +200,39 @@
       {#if loading}
         <div class="merge-loading"><div class="spinner"></div></div>
       {:else if suggestions.length > 0}
-        <div class="merge-section-title">Available to merge</div>
+        <div class="merge-section-title">{searchQuery.length > 0 ? 'Search results' : (showOnlySimilar ? 'Suggested matches' : 'Available to merge')}</div>
         <input
           class="merge-search"
           type="text"
-          placeholder="Filter albums..."
+          placeholder={labels.placeholder}
           bind:value={searchQuery}
           autocomplete="off"
           spellcheck="false"
         />
+        {#if filteredSuggestions.length === 0}
+          <div class="merge-empty">
+            {searchQuery.length > 0 ? 'No matches found' : labels.noSuggested}
+          </div>
+        {/if}
         <div class="merge-list">
-          {#each filteredSuggestions as album}
+          {#each filteredSuggestions as item}
             <button
               class="merge-item"
-              class:merge-item--selected={selected.has(album.id)}
+              class:merge-item--selected={selected.has(item.id)}
               disabled={merging}
-              onclick={() => toggleSelection(album.id)}
+              onclick={() => toggleSelection(item.id)}
             >
-              <div class="merge-check" class:merge-check--active={selected.has(album.id)}>
-                {#if selected.has(album.id)}&#10003;{/if}
+              <div class="merge-check" class:merge-check--active={selected.has(item.id)}>
+                {#if selected.has(item.id)}&#10003;{/if}
               </div>
-              {#if album.image_url}
-                <img class="merge-thumb-sm" src={album.image_url} alt="" />
+              {#if item.image_url}
+                <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={item.image_url} alt="" />
               {:else}
-                <div class="merge-thumb-sm merge-thumb--empty"></div>
+                <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
               {/if}
               <div class="merge-item-info">
-                <div class="merge-item-name">{album.name}</div>
-                <div class="merge-item-plays">{album.plays} plays</div>
+                <div class="merge-item-name">{item.name}</div>
+                <div class="merge-item-plays">{item.plays} plays</div>
               </div>
             </button>
           {/each}
@@ -206,12 +241,12 @@
         {#if selected.size > 0}
           <div class="merge-footer">
             <button class="merge-confirm" disabled={merging} onclick={doMerge}>
-              {merging ? 'Merging...' : `Merge ${selected.size} album${selected.size > 1 ? 's' : ''}`}
+              {merging ? 'Merging...' : `Merge ${selected.size} ${labels.verb}${selected.size > 1 ? 's' : ''}`}
             </button>
           </div>
         {/if}
       {:else if !loading && existingMerges.length === 0}
-        <div class="merge-empty">No other albums found for this artist</div>
+        <div class="merge-empty">{labels.empty}</div>
       {/if}
     </div>
   </div>
@@ -282,6 +317,7 @@
     object-fit: cover;
     flex-shrink: 0;
   }
+  .merge-thumb--round { border-radius: 50%; }
 
   .merge-thumb-sm {
     width: 36px;
@@ -290,6 +326,7 @@
     object-fit: cover;
     flex-shrink: 0;
   }
+  .merge-thumb-sm--round { border-radius: 50%; }
 
   .merge-thumb--empty {
     background: var(--border);
@@ -338,12 +375,8 @@
     font-family: var(--font);
     outline: none;
   }
-  .merge-search::placeholder {
-    color: var(--text-muted);
-  }
-  .merge-search:focus {
-    border-color: var(--accent);
-  }
+  .merge-search::placeholder { color: var(--text-muted); }
+  .merge-search:focus { border-color: var(--accent); }
 
   .merge-loading, .merge-empty {
     padding: 2rem;
@@ -372,18 +405,9 @@
     transition: background 0.1s;
   }
 
-  .merge-item:hover:not(:disabled) {
-    background: var(--bg-hover);
-  }
-
-  .merge-item--selected {
-    background: rgba(29, 185, 84, 0.08);
-  }
-
-  .merge-item--existing {
-    cursor: default;
-    opacity: 0.9;
-  }
+  .merge-item:hover:not(:disabled) { background: var(--bg-hover); }
+  .merge-item--selected { background: rgba(29, 185, 84, 0.08); }
+  .merge-item--existing { cursor: default; opacity: 0.9; }
 
   .merge-check {
     width: 18px;
@@ -435,9 +459,7 @@
     flex-shrink: 0;
   }
 
-  .merge-unmerge:hover {
-    color: #ff4444;
-  }
+  .merge-unmerge:hover { color: #ff4444; }
 
   .merge-footer {
     padding: 0.75rem 1.25rem;
@@ -458,12 +480,6 @@
     transition: opacity 0.15s;
   }
 
-  .merge-confirm:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  .merge-confirm:disabled {
-    opacity: 0.5;
-    cursor: wait;
-  }
+  .merge-confirm:hover:not(:disabled) { opacity: 0.9; }
+  .merge-confirm:disabled { opacity: 0.5; cursor: wait; }
 </style>

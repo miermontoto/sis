@@ -115,7 +115,7 @@ app.post('/api/covers/:albumId', async (c) => {
   if (!file || typeof file === 'string') return c.json({ error: 'file required' }, 400);
 
   const arrayBuf = await file.arrayBuffer();
-  if (arrayBuf.byteLength > 2 * 1024 * 1024) return c.json({ error: 'max 2MB' }, 400);
+  if (arrayBuf.byteLength > 10 * 1024 * 1024) return c.json({ error: 'max 10MB' }, 400);
 
   const contentType = file.type || 'image/jpeg';
   if (!contentType.startsWith('image/')) return c.json({ error: 'must be an image' }, 400);

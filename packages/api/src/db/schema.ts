@@ -149,6 +149,14 @@ export const spotifyPlaylistTracks = sqliteTable('spotify_playlist_tracks', {
   uniqueIndex('idx_spt_playlist_track').on(table.playlistId, table.trackId),
 ]);
 
+export const sessions = sqliteTable('sessions', {
+  token: text('token').primaryKey(),
+  spotifyId: text('spotify_id').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  isAdmin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const pollingState = sqliteTable('polling_state', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').references(() => users.id).unique(),

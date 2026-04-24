@@ -10,11 +10,15 @@ export { computeRankings, getRankingHistory } from './rankings.js';
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
-export { resolveAlbumIds, getAlbumArtists, getAlbumTracks } from './album.js';
+export { getAlbumArtists, getAlbumTracks } from './album.js';
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown } from './track.js';
 export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';
 export { getChart, getChartPeaks, getAvailablePeriods, getEntityChartHistory } from './charts.js';
+
+// merge (genérico para albums / artists / tracks)
+export { resolveEntityIds, getEntityMergeInfo } from './merge.js';
+export type { MergeInfo } from './merge.js';
 
 // entity formatters
 export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, formatRecentPlay, formatRecentPlays, formatArtistTrackRow, formatArtistTrackRows, formatArtistAlbumRow } from './formatters.js';
@@ -23,7 +27,7 @@ export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopTrackRows, forma
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';
 
 // inline queries extraídas de stats.ts
-export { getTopGenres, getHeatmap, getStreakDays, searchEntities, getAlbumMergeInfo, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover } from './inline.js';
+export { getTopGenres, getHeatmap, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover } from './inline.js';
 
 // playlist strategies
 export { strategyTopRange, strategyTopArtist, strategyTopGenre, strategyDeepCuts, strategyTimeVibes, strategyRediscovery } from './playlists.js';

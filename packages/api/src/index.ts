@@ -18,11 +18,13 @@ import app from './app.js';
 import { getDb, closeDb } from './db/connection.js';
 import { initReadWorker, closeReadWorker } from './db/read-pool.js';
 import { startPolling, stopPolling } from './services/polling.js';
+import { cleanupExpiredSessions } from './services/session.js';
 
 const PORT = parseInt(process.env.PORT || '3000');
 
 // inicializar db (ejecuta migraciones) y worker de lectura
 getDb();
+cleanupExpiredSessions();
 await initReadWorker();
 
 // iniciar servidor

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { api, createFetchController, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type DateRangeParams } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
@@ -9,6 +9,7 @@
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { openEntityContextMenu } from '$lib/utils/entity-context';
   import type { EChartsOption } from 'echarts';
 
   let activeTab = $state<'tracks' | 'artists' | 'albums'>('tracks');
@@ -32,6 +33,10 @@
   let visibleCount = $state(PAGE_SIZE);
   let sentinel = $state<HTMLElement | null>(null);
   let observer: IntersectionObserver | null = null;
+
+  // ID que llega vía ?focus=... para hacer scroll al item al cargar la página
+  let pendingFocusId = $state<string | null>(null);
+  let focusedId = $state<string | null>(null);
 
   async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[]) {
     let urls: (string | null)[] = [];
@@ -67,7 +72,46 @@
       throw e;
     } finally {
       if (!signal.aborted) loading = false;
+      if (!signal.aborted && pendingFocusId) {
+        const id = pendingFocusId;
+        pendingFocusId = null;
+        void focusEntity(id);
+      }
     }
+  }
+
+  function findIndex(id: string): number {
+    if (activeTab === 'tracks') return topTracks.findIndex(t => t.trackId === id);
+    if (activeTab === 'artists') return topArtists.findIndex(a => a.artistId === id);
+    return topAlbums.findIndex(a => a.albumId === id);
+  }
+
+  async function waitForElement(selector: string, timeoutMs = 2000): Promise<HTMLElement | null> {
+    const deadline = performance.now() + timeoutMs;
+    let el = document.querySelector<HTMLElement>(selector);
+    while (!el && performance.now() < deadline) {
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
+      el = document.querySelector<HTMLElement>(selector);
+    }
+    return el;
+  }
+
+  async function focusEntity(id: string) {
+    const idx = findIndex(id);
+    if (idx < 0) return;
+    if (idx >= visibleCount) visibleCount = Math.min(idx + 1, totalItems());
+    focusedId = id;
+    await tick();
+    const el = await waitForElement(`[data-focus-id="${CSS.escape(id)}"]`);
+    if (!el) return;
+    // dejar que el navegador termine cualquier scroll pendiente (p.ej. el reset
+    // de SvelteKit tras la navegación) antes de posicionar el item
+    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // limpiar el parámetro de URL después de que el scroll haya tenido tiempo de ejecutarse
+    setTimeout(() => setQueryParams({ focus: null }), 1000);
+    setTimeout(() => { if (focusedId === id) focusedId = null; }, 2000);
   }
 
   function totalItems(): number {
@@ -114,6 +158,7 @@
     endDate = getQueryParam('endDate', '');
     activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
+    pendingFocusId = getQueryParam('focus', '') || null;
     initialized = true;
 
     observer = new IntersectionObserver(
@@ -306,12 +351,18 @@
   {/if}
 
   {#if activeTab === 'tracks'}
-    <TrackList items={topTracks.slice(0, visibleCount)} showRank {metric} />
+    <TrackList items={topTracks.slice(0, visibleCount)} showRank {metric} {focusedId} />
   {:else if activeTab === 'artists'}
     <div class="track-list">
       {#each topArtists.slice(0, visibleCount) as item, i}
         {#if item.artist}
-          <a href="/artist/{item.artistId}" class="track-item">
+          <a
+            href="/artist/{item.artistId}"
+            class="track-item"
+            class:track-item--focused={focusedId === item.artistId}
+            data-focus-id={item.artistId}
+            oncontextmenu={openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist.name, imageUrl: item.artist.imageUrl })}
+          >
             <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {#if item.artist.imageUrl}
               <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
@@ -333,7 +384,13 @@
     <div class="track-list">
       {#each topAlbums.slice(0, visibleCount) as item, i}
         {#if item.album}
-          <a href="/album/{item.albumId}" class="track-item">
+          <a
+            href="/album/{item.albumId}"
+            class="track-item"
+            class:track-item--focused={focusedId === item.albumId}
+            data-focus-id={item.albumId}
+            oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl })}
+          >
             <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {#if item.album.imageUrl}
               <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />

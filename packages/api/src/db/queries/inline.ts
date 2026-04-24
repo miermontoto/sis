@@ -47,7 +47,7 @@ export function getStreakDays(db: Db, userId: number) {
 export function searchEntities(db: Db, term: string, limit: number, userId: number) {
   const artistRows = db.all(sql`
     SELECT a.spotify_id as id, a.name, a.image_url as imageUrl,
-           COALESCE(s.play_count, 0) as playCount
+           COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM artists a
     LEFT JOIN (
       SELECT ta.artist_id, COUNT(*) as play_count
@@ -56,8 +56,22 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       WHERE lh.user_id = ${userId}
       GROUP BY ta.artist_id
     ) s ON s.artist_id = a.spotify_id
+    LEFT JOIN (
+      SELECT mr.target_id, SUM(sc.play_count) as merged_count
+      FROM merge_rules mr
+      JOIN (
+        SELECT ta.artist_id, COUNT(*) as play_count
+        FROM listening_history lh
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        WHERE lh.user_id = ${userId}
+        GROUP BY ta.artist_id
+      ) sc ON sc.artist_id = mr.source_id
+      WHERE mr.entity_type = 'artist' AND mr.user_id = ${userId}
+      GROUP BY mr.target_id
+    ) ms ON ms.target_id = a.spotify_id
     WHERE unaccent(a.name) LIKE ${'%' + term + '%'}
       AND a.spotify_id NOT LIKE 'import:%'
+      AND a.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'artist' AND user_id = ${userId})
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];
@@ -87,12 +101,12 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
         WHERE t.album_id IS NOT NULL AND lh.user_id = ${userId}
         GROUP BY t.album_id
       ) sc ON sc.album_id = mr.source_id
-      WHERE mr.entity_type = 'album'
+      WHERE mr.entity_type = 'album' AND mr.user_id = ${userId}
       GROUP BY mr.target_id
     ) ms ON ms.target_id = al.spotify_id
     WHERE unaccent(al.name) LIKE ${'%' + term + '%'}
       AND al.spotify_id NOT LIKE 'import:%'
-      AND al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album')
+      AND al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId})
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];
@@ -101,7 +115,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
     SELECT t.spotify_id as id, t.name,
            al.image_url as albumImageUrl,
            ar.name as artistName,
-           COALESCE(s.play_count, 0) as playCount
+           COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM tracks t
     LEFT JOIN albums al ON al.spotify_id = t.album_id
     LEFT JOIN (
@@ -113,9 +127,20 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       SELECT track_id, COUNT(*) as play_count
       FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
     ) s ON s.track_id = t.spotify_id
+    LEFT JOIN (
+      SELECT mr.target_id, SUM(sc.play_count) as merged_count
+      FROM merge_rules mr
+      JOIN (
+        SELECT track_id, COUNT(*) as play_count
+        FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
+      ) sc ON sc.track_id = mr.source_id
+      WHERE mr.entity_type = 'track' AND mr.user_id = ${userId}
+      GROUP BY mr.target_id
+    ) ms ON ms.target_id = t.spotify_id
     WHERE (unaccent(t.name) LIKE ${'%' + term + '%'}
            OR unaccent(ar.name) LIKE ${'%' + term + '%'})
       AND t.spotify_id NOT LIKE 'import:%'
+      AND t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];
@@ -123,22 +148,44 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
   return { artists: artistRows, albums: albumRows, tracks: trackRows };
 }
 
-export function getAlbumMergeInfo(db: Db, albumId: string) {
-  const mergedFrom = db.all(sql`
-    SELECT mr.id as rule_id, mr.source_id, al.name, al.image_url
-    FROM merge_rules mr
-    JOIN albums al ON al.spotify_id = mr.source_id
-    WHERE mr.entity_type = 'album' AND mr.target_id = ${albumId}
-  `) as { rule_id: number; source_id: string; name: string; image_url: string | null }[];
+export function getDiscoverySeries(db: Db, entityType: string, granularity: string, rangeStart: string | null, rangeEnd: string | null, userId: number) {
+  const uf = userFilter(userId);
+  const rw = rangeWhere(rangeStart, rangeEnd);
+  const dateTrunc = granularity === 'month'
+    ? sql`strftime('%Y-%m', lh.played_at)`
+    : granularity === 'week'
+    ? sql`strftime('%Y-W%W', lh.played_at)`
+    : sql`date(lh.played_at)`;
 
-  const mergedInto = db.all(sql`
-    SELECT mr.id as rule_id, mr.target_id, al.name, al.image_url
-    FROM merge_rules mr
-    JOIN albums al ON al.spotify_id = mr.target_id
-    WHERE mr.entity_type = 'album' AND mr.source_id = ${albumId}
-  `)[0] as { rule_id: number; target_id: string; name: string; image_url: string | null } | undefined;
+  let rows: { period: string; distinct_count: number }[];
 
-  return { mergedFrom, mergedInto: mergedInto ?? null };
+  if (entityType === 'album') {
+    rows = db.all(sql`
+      SELECT ${dateTrunc} as period, COUNT(DISTINCT t.album_id) as distinct_count
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE t.album_id IS NOT NULL ${uf} ${rw}
+      GROUP BY period ORDER BY period
+    `) as typeof rows;
+  } else if (entityType === 'artist') {
+    rows = db.all(sql`
+      SELECT ${dateTrunc} as period, COUNT(DISTINCT ta.artist_id) as distinct_count
+      FROM listening_history lh
+      JOIN track_artists ta ON ta.track_id = lh.track_id
+      WHERE 1=1 ${uf} ${rw}
+      GROUP BY period ORDER BY period
+    `) as typeof rows;
+  } else {
+    rows = db.all(sql`
+      SELECT ${dateTrunc} as period, COUNT(DISTINCT lh.track_id) as distinct_count
+      FROM listening_history lh
+      WHERE 1=1 ${uf} ${rw}
+      GROUP BY period ORDER BY period
+    `) as typeof rows;
+  }
+
+  let cumulative = 0;
+  return rows.map(r => ({ period: r.period, distinct_count: r.distinct_count, cumulative: (cumulative += r.distinct_count) }));
 }
 
 // lookups ligeros para entidades (reemplazan drizzle select en routes)

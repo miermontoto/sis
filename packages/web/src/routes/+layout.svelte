@@ -5,9 +5,23 @@
   import type { Snippet } from 'svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { api, loadSettings, type MeResponse } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { onDestroy } from 'svelte';
+
+  // estado del modal global de merge (abierto desde el menú contextual).
+  // Sincroniza bidireccionalmente con el store: abre al set target, cierra al
+  // dismissar el modal.
+  let mergeModalShow = $state(false);
+  $effect(() => {
+    mergeModalShow = mergeModal.target !== null;
+  });
+  $effect(() => {
+    if (!mergeModalShow && mergeModal.target) mergeModal.close();
+  });
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);
@@ -76,6 +90,7 @@
     { href: '/insights', label: 'Insights', icon: '!' },
     { href: '/records', label: 'Records', icon: '^' },
     { href: '/playlists', label: 'Playlists', icon: '+' },
+    { href: '/generators', label: 'Generators', icon: '&' },
   ];
 
   let pageTitle = $derived(
@@ -165,4 +180,15 @@
     </main>
   </div>
   <SearchModal bind:show={showSearch} />
+  <ContextMenu />
+  {#if mergeModal.target}
+    <MergeEntityModal
+      bind:show={mergeModalShow}
+      entityType={mergeModal.target.entityType}
+      target={mergeModal.target.target}
+      parentId={mergeModal.target.parentId}
+      existingMerges={mergeModal.target.existingMerges}
+      onMerged={() => mergeModal.refresh()}
+    />
+  {/if}
 {/if}

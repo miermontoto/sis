@@ -1,23 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, createFetchController, getRankingMetric, getWeekStart, type EntityRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption } from '$lib/api';
-  import { formatDuration, formatNumber } from '$lib/utils/format';
+  import { api, createFetchController, getRankingMetric, getWeekStart, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
+  import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
+  import { urlEnumParam } from '$lib/utils/query-state.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
 
   type TabType = 'tracks' | 'albums' | 'artists';
+  type TabData = TrackRecords | AlbumRecords | ArtistRecordsData;
+
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
-  let activeTab = $state<TabType>('tracks');
+  const tab = urlEnumParam<TabType>('tab', ['tracks', 'albums', 'artists'], 'tracks');
   let loadingTab = $state<string | null>(null);
 
-  let cache = $state<Map<string, EntityRecords | ArtistRecordsData>>(new Map());
+  let cache = $state<Map<string, TabData>>(new Map());
 
   function cacheKey(tab: string) {
     return `${weekStart}:${metric}:${tab}`;
   }
 
-  let currentData = $derived(cache.get(cacheKey(activeTab)) ?? null);
-  let loading = $derived(loadingTab === activeTab);
+  let currentData = $derived(cache.get(cacheKey(tab.value)) ?? null);
+  let loading = $derived(loadingTab === tab.value);
 
   const fetchCtrl = createFetchController();
 
@@ -32,7 +35,7 @@
       const data = result[tab];
       if (data) {
         const next = new Map(cache);
-        next.set(key, data);
+        next.set(key, data as TabData);
         cache = next;
       }
     } catch (e: any) {
@@ -49,10 +52,9 @@
   });
 
   $effect(() => {
-    void activeTab;
     void metric;
     void weekStart;
-    loadTab(activeTab);
+    loadTab(tab.value);
   });
 
   function entityLink(type: string, id: string): string {
@@ -64,26 +66,45 @@
   function formatValue(val: number, label: string): string {
     if (label === 'weeks') return `${val} wk${val !== 1 ? 's' : ''}`;
     if (label === 'playlists') return `${val} playlist${val !== 1 ? 's' : ''}`;
-    if (metric === 'plays') return `${formatNumber(val)} plays`;
+    if (label === 'months') return `${val} mo${val !== 1 ? 's' : ''}`;
+    if (label === 'tracks') return `${val} track${val !== 1 ? 's' : ''}`;
+    if (label === 'days') return `${formatNumber(val)} day${val !== 1 ? 's' : ''}`;
+    if (label === 'count') return `${val} record${val !== 1 ? 's' : ''}`;
+    if (label === 'plays' || metric === 'plays') return `${formatNumber(val)} plays`;
     return formatDuration(val);
+  }
+
+  // "2024-01" → "Jan 2024"
+  function formatMonth(yyyymm: string): string {
+    const [y, m] = yyyymm.split('-');
+    const d = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
+    return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+
+  // "YYYY-MM-DDTHH:MM:SSZ" → "Jan 5, 2024"
+  function fmtDate(iso?: string | null): string {
+    if (!iso) return '';
+    return formatShortDate(iso);
   }
 </script>
 
 <div class="page-header">
   <h1>Records</h1>
-  <p>Weekly chart milestones and all-time bests</p>
+  <p>All-time bests, longevity, discovery and monthly milestones.</p>
 </div>
 
 <div class="records-tabs">
-  <button class="rec-tab" class:rec-tab--active={activeTab === 'tracks'} onclick={() => activeTab = 'tracks'}>Tracks</button>
-  <button class="rec-tab" class:rec-tab--active={activeTab === 'albums'} onclick={() => activeTab = 'albums'}>Albums</button>
-  <button class="rec-tab" class:rec-tab--active={activeTab === 'artists'} onclick={() => activeTab = 'artists'}>Artists</button>
+  <button class="rec-tab" class:rec-tab--active={tab.value === 'tracks'} onclick={() => tab.value = 'tracks'}>Tracks</button>
+  <button class="rec-tab" class:rec-tab--active={tab.value === 'albums'} onclick={() => tab.value = 'albums'}>Albums</button>
+  <button class="rec-tab" class:rec-tab--active={tab.value === 'artists'} onclick={() => tab.value = 'artists'}>Artists</button>
 </div>
 
 {#if loading && !currentData}
   <div class="loading"><div class="spinner"></div></div>
 {:else if currentData}
-  {#snippet recordList(title: string, items: { entityId: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null; value: number; week: string | null }[], valueType: string)}
+  <!-- ============ snippets ============ -->
+
+  {#snippet recordList(title: string, items: RecordEntry[], valueType: string)}
     {#if items.length > 0}
       <div class="record-section">
         <h3 class="record-title">{title}</h3>
@@ -92,10 +113,10 @@
             <TrackItem
               rank={i + 1}
               imageUrl={item.imageUrl}
-              imageHref={entityLink(activeTab, item.entityId)}
-              imageRound={activeTab === 'artists'}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
               name={item.name}
-              nameHref={entityLink(activeTab, item.entityId)}
+              nameHref={entityLink(tab.value, item.entityId)}
               compact
             >
               {#snippet subtitle()}
@@ -113,7 +134,7 @@
                   {#if item.week === 'active'}
                     <span class="record-active">active</span>
                   {:else if item.week}
-                    <a href="/charts?type={activeTab}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
+                    <a href="/charts?type={tab.value}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
                   {/if}
                 </div>
               {/snippet}
@@ -124,47 +145,295 @@
     {/if}
   {/snippet}
 
-  {@render recordList('Peak week', currentData.peakWeekPlays, 'peak')}
-  {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut')}
-  {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks')}
-  {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks')}
-  {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks')}
-  {#if currentData.inMostPlaylists?.length}
-    {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists')}
-  {/if}
-
-  {#if activeTab === 'artists' && 'mostNo1Tracks' in currentData}
-    {@const artistData = currentData as ArtistRecordsData}
-    {#snippet artistRecordList(title: string, items: { artistId: string; name: string; imageUrl: string | null; count: number }[])}
-      {#if items.length > 0}
-        <div class="record-section">
-          <h3 class="record-title">{title}</h3>
-          <div class="record-list">
-            {#each items as item, i}
-              <TrackItem
-                href="/artist/{item.artistId}"
-                rank={i + 1}
-                imageUrl={item.imageUrl}
-                imageRound
-                name={item.name}
-                compact
-              >
-                {#snippet meta()}
-                  <div class="record-value">
-                    <span class="record-val">{item.count}</span>
-                  </div>
-                {/snippet}
-              </TrackItem>
-            {/each}
-          </div>
+  {#snippet datedList(title: string, items: RecordEntry[], dateLabel: string, valueType: string)}
+    {#if items.length > 0}
+      <div class="record-section">
+        <h3 class="record-title">{title}</h3>
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
+              name={item.name}
+              nameHref={entityLink(tab.value, item.entityId)}
+              compact
+            >
+              {#snippet subtitle()}
+                {#if item.artistName}
+                  {#if item.artistId}
+                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
+                  {:else}
+                    {item.artistName}
+                  {/if}
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, valueType)}</span>
+                  {#if item.date}
+                    <span class="record-week">{dateLabel} {fmtDate(item.date)}</span>
+                  {/if}
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
         </div>
-      {/if}
-    {/snippet}
+      </div>
+    {/if}
+  {/snippet}
 
-    {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks)}
-    {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums)}
+  {#snippet gapList(title: string, items: RecordEntry[])}
+    {#if items.length > 0}
+      <div class="record-section">
+        <h3 class="record-title">{title}</h3>
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
+              name={item.name}
+              nameHref={entityLink(tab.value, item.entityId)}
+              compact
+            >
+              {#snippet subtitle()}
+                {#if item.artistName}
+                  {#if item.artistId}
+                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
+                  {:else}
+                    {item.artistName}
+                  {/if}
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, 'days')}</span>
+                  {#if item.ongoing}
+                    <span class="record-active">ongoing · since {fmtDate(item.date)}</span>
+                  {:else if item.date && item.endDate}
+                    <span class="record-week">{fmtDate(item.date)} → {fmtDate(item.endDate)}</span>
+                  {:else if item.date}
+                    <span class="record-week">{fmtDate(item.date)}</span>
+                  {/if}
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
+  {#snippet oneHitList(title: string, items: RecordEntry[])}
+    {#if items.length > 0}
+      <div class="record-section">
+        <h3 class="record-title">{title}</h3>
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
+              name={item.name}
+              nameHref={entityLink(tab.value, item.entityId)}
+              compact
+            >
+              {#snippet subtitle()}
+                {#if item.secondaryLabel}
+                  <span class="hit-track">“{item.secondaryLabel}”</span>
+                {/if}
+                {#if item.artistName}
+                  {#if item.artistId}
+                    · <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
+                  {:else}
+                    · {item.artistName}
+                  {/if}
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, 'plays')}</span>
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
+  {#snippet newMonthList(title: string, items: RecordEntry[])}
+    {#if items.length > 0}
+      <div class="record-section">
+        <h3 class="record-title">{title}</h3>
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
+              name={item.name}
+              nameHref={entityLink(tab.value, item.entityId)}
+              compact
+            >
+              {#snippet subtitle()}
+                {#if item.artistName}
+                  {#if item.artistId}
+                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
+                  {:else}
+                    {item.artistName}
+                  {/if}
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, 'plays')}</span>
+                  {#if item.month}
+                    <a href="/charts?type={tab.value}&granularity=month&period={item.month}" class="record-week">{formatMonth(item.month)}</a>
+                  {/if}
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
+  {#snippet monthList(title: string, items: MonthCountEntry[], entityLabel: string)}
+    {#if items.length > 0}
+      <div class="record-section">
+        <h3 class="record-title">{title}</h3>
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={null}
+              name={formatMonth(item.month)}
+              compact
+            >
+              {#snippet cover()}
+                {#if item.covers && item.covers.length > 0}
+                  <div class="month-collage month-collage--{Math.min(item.covers.length, 4)}">
+                    {#each item.covers.slice(0, 4) as url}
+                      <img src={url} alt="" loading="lazy" />
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="track-art"></div>
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatNumber(item.count)} {entityLabel}</span>
+                  <a href="/charts?type={tab.value}&granularity=month&period={item.month}" class="record-week">{item.month}</a>
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
+  {#snippet artistRecordList(title: string, items: { artistId: string; name: string; imageUrl: string | null; count: number }[])}
+    {#if items.length > 0}
+      <div class="record-section">
+        <h3 class="record-title">{title}</h3>
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              href="/artist/{item.artistId}"
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageRound
+              name={item.name}
+              compact
+            >
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{item.count}</span>
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
+  <!-- ============ sections ============ -->
+  {@const artistData = ('mostNo1Tracks' in currentData) ? currentData as ArtistRecordsData : null}
+  {@const albumData = (tab.value === 'albums') ? currentData as AlbumRecords : null}
+  {@const trackData = ('topNoAlbum' in currentData) ? currentData as TrackRecords : null}
+
+  {@const hasAllTime =
+    currentData.peakWeekPlays.length > 0 ||
+    currentData.mostWeeksAtNo1.length > 0 ||
+    (currentData.inMostPlaylists?.length ?? 0) > 0 ||
+    currentData.mostAccolades.length > 0 ||
+    (artistData ? (artistData.mostNo1Tracks.length + artistData.mostNo1Albums.length) > 0 : false)}
+  {@const hasLongevity =
+    currentData.mostWeeksInTop5.length > 0 ||
+    currentData.longestChartRun.length > 0}
+  {@const hasDiscovery =
+    currentData.biggestDebuts.length > 0 ||
+    currentData.biggestNewMonth.length > 0 ||
+    currentData.latestDiscoveries.length > 0 ||
+    currentData.latestNew.length > 0}
+  {@const hasOther =
+    currentData.longestGap.length > 0 ||
+    currentData.goldenOldies.length > 0 ||
+    currentData.mostUniquePerMonth.length > 0 ||
+    (artistData ? (artistData.mostDistinctTracks.length + artistData.oneHitWonders.length) > 0 : false) ||
+    (albumData ? albumData.mostDistinctTracks.length > 0 : false) ||
+    (trackData ? trackData.topNoAlbum.length > 0 : false)}
+
+  {#if hasAllTime}
+    <h2 class="record-group">All-time bests</h2>
+    {@render recordList('Peak week', currentData.peakWeekPlays, 'peak')}
+    {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks')}
+    {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists')}
+    {@render recordList('Most records', currentData.mostAccolades, 'count')}
+    {#if artistData}
+      {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks)}
+      {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums)}
+    {/if}
   {/if}
 
+  {#if hasLongevity}
+    <h2 class="record-group">Longevity</h2>
+    {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks')}
+    {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks')}
+  {/if}
+
+  {#if hasDiscovery}
+    <h2 class="record-group">Discovery</h2>
+    {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut')}
+    {@render newMonthList('Biggest launch month', currentData.biggestNewMonth)}
+    {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays')}
+    {@render datedList('Latest new', currentData.latestNew, 'first heard', 'plays')}
+  {/if}
+
+  {#if hasOther}
+    <h2 class="record-group">Other records</h2>
+    {@render gapList('Longest gap between plays', currentData.longestGap)}
+    {@render datedList('Golden oldies', currentData.goldenOldies, 'last heard', 'plays')}
+    {@render monthList(`Months with most ${tab.value}`, currentData.mostUniquePerMonth, tab.value)}
+    {#if artistData}
+      {@render recordList('Most distinct tracks played', artistData.mostDistinctTracks, 'tracks')}
+      {@render oneHitList('One-hit wonders', artistData.oneHitWonders)}
+    {:else if albumData}
+      {@render recordList('Most distinct tracks played', albumData.mostDistinctTracks, 'tracks')}
+    {:else if trackData}
+      {@render recordList('Top tracks without album', trackData.topNoAlbum, 'plays')}
+    {/if}
+  {/if}
 {/if}
 
 <style>
@@ -189,17 +458,25 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .rec-tab:hover:not(.rec-tab--active) {
-    color: var(--text);
-  }
+  .rec-tab:hover:not(.rec-tab--active) { color: var(--text); }
   .rec-tab--active {
     background: var(--accent);
     color: #000;
     font-weight: 500;
   }
-  .record-section {
-    margin-bottom: 1.5rem;
+
+  .record-group {
+    font-size: 1.1rem;
+    margin: 1.75rem 0 0.5rem;
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.3rem;
   }
+  .record-group:first-of-type { margin-top: 0.25rem; }
+
+  .record-section { margin-bottom: 1.5rem; }
   .record-title {
     font-size: 0.95rem;
     margin-bottom: 0.5rem;
@@ -214,9 +491,8 @@
     border-bottom: 1px solid var(--border);
     border-radius: 0;
   }
-  .record-list :global(.track-item:last-child) {
-    border-bottom: none;
-  }
+  .record-list :global(.track-item:last-child) { border-bottom: none; }
+
   .record-value {
     display: flex;
     flex-direction: column;
@@ -234,9 +510,7 @@
     color: var(--text-muted);
     text-decoration: none;
   }
-  .record-week:hover {
-    color: var(--accent);
-  }
+  .record-week:hover { color: var(--accent); }
   .record-active {
     font-size: 0.6rem;
     font-weight: 600;
@@ -244,4 +518,31 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
+
+  .hit-track {
+    font-style: italic;
+  }
+
+  /* collage de covers para los records mensuales (tracks, álbumes, artistas del mes) */
+  .month-collage {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--border);
+    display: grid;
+    gap: 1px;
+  }
+  .month-collage img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .month-collage--1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .month-collage--2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .month-collage--3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .month-collage--3 img:first-child { grid-column: 1 / span 2; }
+  .month-collage--4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 </style>

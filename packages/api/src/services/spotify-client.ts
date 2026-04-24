@@ -8,8 +8,41 @@ interface SpotifyRequestOptions {
   body?: unknown;
 }
 
+// Rate-limit global en memoria. Spotify aplica el throttle por app-client, así que
+// basta una variable de proceso: si el API devuelve un 429 con Retry-After largo,
+// evitamos más llamadas hasta que expire el castigo (en vez de seguir pegándole y
+// potencialmente extendiéndolo).
+let rateLimitedUntilMs = 0;
+let lastRateLimitLogMs = 0;
+
+export function isRateLimited(): boolean {
+  return Date.now() < rateLimitedUntilMs;
+}
+
+export function rateLimitedRemainingMs(): number {
+  return Math.max(0, rateLimitedUntilMs - Date.now());
+}
+
+export function markRateLimited(retryAfterSeconds: number) {
+  rateLimitedUntilMs = Math.max(rateLimitedUntilMs, Date.now() + retryAfterSeconds * 1000);
+}
+
+function logRateLimitSkipOccasionally(endpoint: string) {
+  const now = Date.now();
+  if (now - lastRateLimitLogMs < 60_000) return;
+  lastRateLimitLogMs = now;
+  const remainingS = Math.ceil(rateLimitedRemainingMs() / 1000);
+  console.log(`[spotify] rate limited ${remainingS}s, saltando (ej. ${endpoint})`);
+}
+
 // cliente HTTP para spotify con auto-refresh y manejo de rate limits
 export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestOptions): Promise<T | null> {
+  // si estamos en castigo global, saltar llamadas de fondo para no extenderlo
+  if (isRateLimited()) {
+    logRateLimitSkipOccasionally(endpoint);
+    return null;
+  }
+
   const { userId } = options;
   const url = new URL(`${SPOTIFY_API_BASE}${endpoint}`);
   if (options.params) {
@@ -37,11 +70,12 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
     res = await fetch(url.toString(), buildInit(accessToken));
   }
 
-  // respetar rate limit (máximo 30s de espera, si no devolver null)
+  // respetar rate limit (máximo 30s de espera, si no marcar lockout global)
   if (res.status === 429) {
     const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
     if (retryAfter > 30) {
-      console.log(`[spotify] rate limited ${retryAfter}s, saltando`);
+      markRateLimited(retryAfter);
+      console.log(`[spotify] rate limited ${retryAfter}s, marcando lockout global`);
       return null;
     }
     console.log(`[spotify] rate limited, esperando ${retryAfter}s`);

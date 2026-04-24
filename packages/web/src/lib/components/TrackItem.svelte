@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { medalColor } from '$lib/utils/medals';
+  import { openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
 
   interface Props {
     href?: string;
@@ -12,11 +13,17 @@
     nameHref?: string;
     isLive?: boolean;
     compact?: boolean;
+    focusId?: string;
+    highlighted?: boolean;
+    entity?: EntityContext;
     subtitle?: Snippet;
     meta?: Snippet;
+    cover?: Snippet;
   }
 
-  let { href, rank, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, subtitle, meta }: Props = $props();
+  let { href, rank, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, entity, subtitle, meta, cover }: Props = $props();
+
+  let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
 </script>
 
 {#snippet content()}
@@ -29,6 +36,8 @@
     </a>
   {:else if imageUrl}
     <img class="track-art" class:track-art--round={imageRound} src={imageUrl} alt="" />
+  {:else if cover}
+    {@render cover()}
   {:else}
     <div class="track-art" class:track-art--round={imageRound}></div>
   {/if}
@@ -55,11 +64,12 @@
 {/snippet}
 
 {#if href}
-  <a {href} class="track-item" class:compact>
+  <a {href} class="track-item" class:compact class:track-item--focused={highlighted} data-focus-id={focusId} oncontextmenu={onContextMenu}>
     {@render content()}
   </a>
 {:else}
-  <div class="track-item" class:compact>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="track-item" class:compact class:track-item--focused={highlighted} data-focus-id={focusId} oncontextmenu={onContextMenu}>
     {@render content()}
   </div>
 {/if}

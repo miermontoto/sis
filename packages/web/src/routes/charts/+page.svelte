@@ -6,6 +6,7 @@
   type ChartEntityType = 'tracks' | 'albums' | 'artists';
   import { formatDuration, formatNumber, formatMonthYear, formatShortDateUTC } from '$lib/utils/format';
   import { computeCurrentPeriod, getClosedCharts, dismissClosedChart, type ClosedChart } from '$lib/utils/periods';
+  import { setQueryParams } from '$lib/utils/query-state';
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import { medalColor } from '$lib/utils/medals';
@@ -241,6 +242,15 @@
     void activeType;
     void metric;
     if (initialized && selectedPeriod) loadChart();
+  });
+
+  // sincronizar tipo/granularidad/periodo con la URL
+  $effect(() => {
+    const t = activeType;
+    const g = granularity;
+    const p = selectedPeriod;
+    if (!initialized) return;
+    setQueryParams({ type: t, granularity: g, period: p || null });
   });
 </script>
 

@@ -120,10 +120,24 @@
 <div class="rankings-row">
   {#each Object.entries(rankLabels) as [key, label]}
     {@const rank = rankings?.[key as keyof Rankings] ?? null}
-    <div class="ranking-badge" class:ranking-badge--active={rank != null} class:ranking-badge--loading={rankingsLoading}>
-      <span class="ranking-label">{label}</span>
-      <span class="ranking-value" style:color={rank ? medalColor(rank) : undefined}>{rankingsLoading ? '' : (rank != null ? `#${rank}` : '—')}</span>
-    </div>
+    {@const color = rank ? medalColor(rank) : undefined}
+    {#if rank != null}
+      <a
+        class="ranking-badge ranking-badge--active ranking-badge--link"
+        class:ranking-badge--top3={rank <= 3}
+        style:border-color={color}
+        style:--medal-color={color}
+        href="/top?tab={chartType}&range={key}&focus={entityId}"
+      >
+        <span class="ranking-label">{label}</span>
+        <span class="ranking-value" style:color={color}>#{rank}</span>
+      </a>
+    {:else}
+      <div class="ranking-badge" class:ranking-badge--loading={rankingsLoading}>
+        <span class="ranking-label">{label}</span>
+        <span class="ranking-value">{rankingsLoading ? '' : '—'}</span>
+      </div>
+    {/if}
   {/each}
 </div>
 
@@ -162,9 +176,24 @@
     border-radius: 10px;
     background: var(--bg-card);
     border: 1px solid #2a2a2a;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
   }
   .ranking-badge--active {
     border-color: #1db954;
+  }
+  .ranking-badge--link {
+    cursor: pointer;
+  }
+  .ranking-badge--link:hover {
+    background: rgba(29, 185, 84, 0.06);
+  }
+  .ranking-badge--top3:hover {
+    background: color-mix(in srgb, var(--medal-color, #1db954) 10%, var(--bg-card));
+  }
+  .ranking-badge--link:active {
+    transform: translateY(1px);
   }
   .ranking-badge--loading .ranking-value {
     width: 28px;

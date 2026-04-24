@@ -42,10 +42,14 @@
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       selectedIndex = Math.max(selectedIndex - 1, -1);
-    } else if (e.key === 'Enter' && selectedIndex >= 0 && flatItems[selectedIndex]) {
-      e.preventDefault();
-      const item = flatItems[selectedIndex];
-      navigate(item.type, item.id);
+    } else if (e.key === 'Enter') {
+      // si no hay selección explícita, usar el primer resultado
+      const idx = selectedIndex >= 0 ? selectedIndex : 0;
+      const item = flatItems[idx];
+      if (item) {
+        e.preventDefault();
+        navigate(item.type, item.id);
+      }
     }
   }
 

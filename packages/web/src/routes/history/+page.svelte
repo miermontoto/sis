@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api, createFetchController, type HistoryItem } from '$lib/api';
-  import { timeAgo, formatDate, formatFullDate } from '$lib/utils/format';
+  import { formatDate, formatFullDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
 
@@ -30,6 +30,9 @@
   let lastSelectedIndex = $state<number | null>(null);
   let deleting = $state(false);
   let showConfirm = $state(false);
+  // scroll-to-focus desde /history?focus=<playedAt>
+  let pendingFocusPlayedAt = $state<string | null>(null);
+  let focusedPlayedAt = $state<string | null>(null);
   const fetchCtrl = createFetchController();
 
   function currentFilters() {
@@ -188,10 +191,12 @@
     const urlAlbum = $page.url.searchParams.get('album');
     const urlTrack = $page.url.searchParams.get('track');
     const urlArtist = $page.url.searchParams.get('artist');
+    const urlFocus = $page.url.searchParams.get('focus');
     if (urlDate) dateFilter = urlDate;
     if (urlAlbum) albumFilter = urlAlbum;
     if (urlTrack) trackFilter = urlTrack;
     if (urlArtist) artistFilter = urlArtist;
+    if (urlFocus) pendingFocusPlayedAt = urlFocus;
 
     observer = new IntersectionObserver(
       async (entries) => {
@@ -207,7 +212,14 @@
       { threshold: 0.1 },
     );
 
-    loadPage(1).finally(() => { loading = false; });
+    loadPage(1).finally(() => {
+      loading = false;
+      if (pendingFocusPlayedAt) {
+        const target = pendingFocusPlayedAt;
+        pendingFocusPlayedAt = null;
+        void focusPlay(target);
+      }
+    });
 
     const pollInterval = setInterval(pollNewItems, 15_000);
     return () => {
@@ -215,6 +227,38 @@
       observer!.disconnect();
     };
   });
+
+  async function waitForHistoryElement(selector: string, timeoutMs = 2000): Promise<HTMLElement | null> {
+    const deadline = performance.now() + timeoutMs;
+    let el = document.querySelector<HTMLElement>(selector);
+    while (!el && performance.now() < deadline) {
+      await new Promise<void>(r => requestAnimationFrame(() => r()));
+      el = document.querySelector<HTMLElement>(selector);
+    }
+    return el;
+  }
+
+  async function focusPlay(playedAt: string) {
+    // cargar más páginas hasta encontrar la reproducción (por si el día filtrado tiene >50 plays)
+    while (!items.some(i => i.playedAt === playedAt) && hasMore) {
+      await loadPage(currentPage + 1);
+    }
+    if (!items.some(i => i.playedAt === playedAt)) return;
+    focusedPlayedAt = playedAt;
+    await tick();
+    const el = await waitForHistoryElement(`[data-focus-id="${CSS.escape(playedAt)}"]`);
+    if (!el) return;
+    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // limpiar el parámetro de URL después de que el scroll haya tenido tiempo de ejecutarse
+    setTimeout(() => {
+      const params = new URLSearchParams($page.url.searchParams);
+      params.delete('focus');
+      goto(params.toString() ? `/history?${params}` : '/history', { replaceState: true, noScroll: true, keepFocus: true });
+    }, 1000);
+    setTimeout(() => { if (focusedPlayedAt === playedAt) focusedPlayedAt = null; }, 2000);
+  }
 
   // resolver nombres de entidad desde items cargados
   $effect(() => {
@@ -337,14 +381,19 @@
             </div>
           </div>
           <div class="track-meta">
-            <div class="track-time" title={formatDate(item.playedAt)}>{timeAgo(item.playedAt)}</div>
+            <div class="track-time" title={formatDate(item.playedAt)}>{formatHistoryStamp(item.playedAt)}</div>
           </div>
         </div>
       {/if}
     {/each}
   </div>
 {:else}
-  <TrackList {items} showTime />
+  <TrackList
+    {items}
+    showTime
+    focusId={focusedPlayedAt}
+    itemFocusKey={(i) => 'playedAt' in i ? i.playedAt : null}
+  />
 {/if}
 
 {#if !loading && hasMore}

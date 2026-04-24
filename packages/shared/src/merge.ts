@@ -13,7 +13,7 @@ export interface MergeRule {
   created_at: string;
 }
 
-export interface MergeSuggestionAlbum {
+export interface MergeSuggestion {
   id: string;
   name: string;
   image_url: string | null;

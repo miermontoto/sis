@@ -3,6 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES } from '../constants.js';
 import { storeTokens } from '../services/token-manager.js';
 import { restartPolling } from '../services/polling.js';
+import { markRateLimited } from '../services/spotify-client.js';
 import { createSession, deleteSession } from '../services/session.js';
 import { findOrCreateUser, isAllowedUser, migrateExistingData } from '../services/user-manager.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
@@ -94,6 +95,12 @@ auth.get('/callback', async (c) => {
   const meRes = await fetch(`${SPOTIFY_API_BASE}/me`, {
     headers: { Authorization: `Bearer ${data.access_token}` },
   });
+  if (meRes.status === 429) {
+    const retryAfter = parseInt(meRes.headers.get('Retry-After') || '60', 10);
+    markRateLimited(retryAfter);
+    console.error(`[auth] spotify rate limited ${retryAfter}s`);
+    return c.redirect(`/login?error=rate_limited&retryAfter=${retryAfter}`);
+  }
   if (!meRes.ok) {
     const meText = await meRes.text();
     console.error(`[auth] error al obtener perfil de spotify: ${meRes.status} ${meText}`);

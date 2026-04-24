@@ -1,20 +1,69 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
 import type { RankingHistoryPoint } from '@sis/shared';
-import { getRangeStart, entityJoins, entityGroupCol, mergeRulesJoin, userFilter } from './helpers.js';
+import { getRangeStart, entityJoins, entityGroupCol, entityMergeJoin, resolvedEntityId, userFilter } from './helpers.js';
 
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
  *  Optimizado: 1 scan con CASE para los 4 rangos + COUNT del target en la misma query. */
 export function computeRankings(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): Record<string, number | null> {
-  const join = entityJoins(entityType);
-  const groupCol = entityGroupCol(entityType, userId);
   const uf = userFilter(userId);
-  const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
-  const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
-
   const weekStart = getRangeStart('week')!;
   const monthStart = getRangeStart('month')!;
   const yearStart = getRangeStart('thisYear')!;
+
+  // artistas: dedupe por play para evitar doble count cuando un track tiene 2 artists mergeados al mismo target
+  if (entityType === 'artist') {
+    const mrJoin = entityMergeJoin('artist', userId);
+    const valExpr = sort === 'plays' ? sql`1` : sql`duration_ms`;
+
+    const result = db.all(sql`
+      WITH plays_dedup AS (
+        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId}
+      ),
+      entity_scores AS (
+        SELECT eid,
+               sum(${valExpr}) as val_all,
+               sum(CASE WHEN played_at >= ${weekStart} THEN ${valExpr} ELSE 0 END) as val_week,
+               sum(CASE WHEN played_at >= ${monthStart} THEN ${valExpr} ELSE 0 END) as val_month,
+               sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year
+        FROM plays_dedup
+        GROUP BY eid
+      ),
+      target AS (
+        SELECT val_all, val_week, val_month, val_year FROM entity_scores WHERE eid = ${entityId}
+      )
+      SELECT
+        (SELECT val_week FROM target) as my_week,
+        (SELECT val_month FROM target) as my_month,
+        (SELECT val_year FROM target) as my_year,
+        (SELECT val_all FROM target) as my_all,
+        sum(CASE WHEN val_week > (SELECT val_week FROM target) THEN 1 ELSE 0 END) as rank_week,
+        sum(CASE WHEN val_month > (SELECT val_month FROM target) THEN 1 ELSE 0 END) as rank_month,
+        sum(CASE WHEN val_year > (SELECT val_year FROM target) THEN 1 ELSE 0 END) as rank_year,
+        sum(CASE WHEN val_all > (SELECT val_all FROM target) THEN 1 ELSE 0 END) as rank_all
+      FROM entity_scores
+    `)[0] as { my_week: number; my_month: number; my_year: number; my_all: number; rank_week: number; rank_month: number; rank_year: number; rank_all: number } | undefined;
+
+    if (!result || !result.my_all) return { week: null, month: null, thisYear: null, all: null };
+
+    return {
+      week: result.my_week > 0 ? result.rank_week + 1 : null,
+      month: result.my_month > 0 ? result.rank_month + 1 : null,
+      thisYear: result.my_year > 0 ? result.rank_year + 1 : null,
+      all: result.rank_all + 1,
+    };
+  }
+
+  // album ó track: incluir merge join para que COALESCE tenga efecto
+  const join = entityJoins(entityType, userId);
+  const groupCol = entityGroupCol(entityType, userId);
+  const extraMergeJoin = entityMergeJoin(entityType, userId);
+  const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 
   const valExpr = sort === 'plays' ? sql`1` : sql`t.duration_ms`;
 
@@ -30,7 +79,7 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
       FROM listening_history lh
       ${join}
       JOIN tracks t ON t.spotify_id = lh.track_id
-      ${albumJoin}
+      ${extraMergeJoin}
       WHERE 1=1 ${uf} ${albumFilter}
       GROUP BY eid
     ),
@@ -62,26 +111,49 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
 /** Historial de ranking: posición acumulada de una entidad mes a mes.
  *  Optimizado: acumula mes a mes y calcula rank con COUNT. */
 export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPoint[] {
-  const join = entityJoins(entityType);
-  const groupCol = entityGroupCol(entityType, userId);
-  const albumJoin = entityType === 'album' ? mergeRulesJoin(userId) : sql``;
-  const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
   const uf = userFilter(userId);
-  const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
 
-  // un solo scan: obtener totales mensuales por entidad
-  const rows = db.all(sql`
-    SELECT strftime('%Y-%m', lh.played_at) as period,
-           ${groupCol} as eid,
-           ${metricCol} as val
-    FROM listening_history lh
-    ${join}
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    ${albumJoin}
-    WHERE 1=1 ${uf} ${albumFilter}
-    GROUP BY period, eid
-    ORDER BY period
-  `) as { period: string; eid: string; val: number }[];
+  let rows: { period: string; eid: string; val: number }[];
+
+  if (entityType === 'artist') {
+    const mrJoin = entityMergeJoin('artist', userId);
+    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
+
+    rows = db.all(sql`
+      WITH plays_dedup AS (
+        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId}
+      )
+      SELECT strftime('%Y-%m', played_at) as period, eid, ${metricCol} as val
+      FROM plays_dedup
+      GROUP BY period, eid
+      ORDER BY period
+    `) as { period: string; eid: string; val: number }[];
+  } else {
+    const join = entityJoins(entityType, userId);
+    const groupCol = entityGroupCol(entityType, userId);
+    const extraMergeJoin = entityMergeJoin(entityType, userId);
+    const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
+    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+
+    // un solo scan: obtener totales mensuales por entidad
+    rows = db.all(sql`
+      SELECT strftime('%Y-%m', lh.played_at) as period,
+             ${groupCol} as eid,
+             ${metricCol} as val
+      FROM listening_history lh
+      ${join}
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${extraMergeJoin}
+      WHERE 1=1 ${uf} ${albumFilter}
+      GROUP BY period, eid
+      ORDER BY period
+    `) as { period: string; eid: string; val: number }[];
+  }
 
   if (rows.length === 0) return [];
 

@@ -14,8 +14,15 @@ function resolveArtistId(name: string): string {
   if (artistIdCache.has(key)) return artistIdCache.get(key)!;
 
   const db = getDb();
+  // preferir IDs reales de spotify sobre sintéticos (import:/local:)
   const existing = db.get(
-    sql`SELECT spotify_id FROM artists WHERE LOWER(name) = ${key}`
+    sql`SELECT spotify_id FROM artists WHERE LOWER(name) = ${key}
+        ORDER BY CASE
+          WHEN spotify_id LIKE 'local:%' THEN 2
+          WHEN spotify_id LIKE 'import:%' THEN 1
+          ELSE 0
+        END
+        LIMIT 1`
   ) as { spotify_id: string } | undefined;
 
   const id = existing?.spotify_id ?? importId(name, name);

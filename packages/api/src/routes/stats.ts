@@ -1,12 +1,10 @@
 import { Hono } from 'hono';
 import { getDb } from '../db/connection.js';
 import { dbRead } from '../db/read-pool.js';
-import { DEFAULT_PAGE_LIMIT, CHART_SIZE } from '../constants.js';
+import { DEFAULT_PAGE_LIMIT, CHART_SIZE, RECORDS_LIMIT } from '../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../services/records-cache.js';
 import type { TimeRange } from '../constants.js';
 import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, deleteHistoryEntries } from '../db/queries/index.js';
-import type { EntityType } from '../db/queries/helpers.js';
-
 import type { AppVariables } from '../app.js';
 
 const stats = new Hono<{ Variables: AppVariables }>();
@@ -127,11 +125,14 @@ stats.get('/history', async (c) => {
   const offset = (page - 1) * limit;
   const userId = c.get('userId');
 
+  const tzRaw = c.req.query('tz');
+  const tzOffsetMinutes = tzRaw != null ? Number.parseInt(tzRaw) : 0;
   const { items: rows, total } = await dbRead<{ items: { id: number; played_at: string; track_id: string }[]; total: number }>('getHistoryPage', userId, limit, offset, {
     date: c.req.query('date'),
     albumId: c.req.query('album'),
     trackId: c.req.query('track'),
     artistId: c.req.query('artist'),
+    tzOffsetMinutes: Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0,
   });
 
   const trackMap = await dbRead<Map<string, any>>('enrichTracksBatch', rows.map(r => r.track_id));
@@ -159,6 +160,15 @@ stats.delete('/history', async (c) => {
 
   const deleted = deleteHistoryEntries(db, userId, body.ids);
   return c.json({ deleted });
+});
+
+stats.get('/discovery', async (c) => {
+  const { rangeStart, rangeEnd } = parseParams(c);
+  const userId = c.get('userId');
+  const granularity = c.req.query('granularity') || 'month';
+  const type = c.req.query('type') || 'track';
+
+  return c.json(await dbRead('getDiscoverySeries', type, granularity, rangeStart, rangeEnd, userId));
 });
 
 stats.get('/heatmap', async (c) => {
@@ -207,6 +217,16 @@ stats.get('/streaks', async (c) => {
 
 // --- detail endpoints ---
 
+// Formatea MergeInfo del worker al shape que consumen las páginas detail.
+function formatMerge(info: { mergedFrom: any[]; mergedInto: any | null }) {
+  return {
+    mergedFrom: info.mergedFrom.map((r: any) => ({ id: r.source_id, ruleId: r.rule_id, name: r.name, imageUrl: r.image_url })),
+    mergedInto: info.mergedInto
+      ? { id: info.mergedInto.target_id, ruleId: info.mergedInto.rule_id, name: info.mergedInto.name, imageUrl: info.mergedInto.image_url }
+      : null,
+  };
+}
+
 stats.get('/artist/:id', async (c) => {
   const id = c.req.param('id');
   const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
@@ -217,14 +237,17 @@ stats.get('/artist/:id', async (c) => {
   const artist = await dbRead<any>('lookupArtistById', id);
   if (!artist) return c.json({ error: 'Artist not found' }, 404);
 
+  const artistIds = await dbRead<string[]>('resolveEntityIds', 'artist', id, userId);
+
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists] = await Promise.all([
-    dbRead<any>('getEntityStats', 'artist', id, rangeStart, rangeEnd, undefined, userId),
-    dbRead<any>('getEntitySeries', 'artist', id, rangeStart, rangeKey, undefined, rangeEnd, customDays, userId),
-    dbRead<any[]>('getArtistTopTracks', id, rangeStart, sort, trackLimit, rangeEnd, userId),
-    dbRead<any[]>('getArtistTopAlbums', id, rangeStart, sort, albumLimit, rangeEnd, userId),
-    dbRead<any[]>('getRecentPlays', 'artist', id, 10, undefined, userId),
+  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo] = await Promise.all([
+    dbRead<any>('getEntityStats', 'artist', id, rangeStart, rangeEnd, artistIds, userId),
+    dbRead<any>('getEntitySeries', 'artist', id, rangeStart, rangeKey, artistIds, rangeEnd, customDays, userId),
+    dbRead<any[]>('getArtistTopTracks', id, rangeStart, sort, trackLimit, rangeEnd, userId, artistIds),
+    dbRead<any[]>('getArtistTopAlbums', id, rangeStart, sort, albumLimit, rangeEnd, userId, artistIds),
+    dbRead<any[]>('getRecentPlays', 'artist', id, 10, artistIds, userId),
     dbRead<any>('getArtistPlaylistPresence', id, userId),
+    dbRead<any>('getEntityMergeInfo', 'artist', id),
   ]);
 
   const [topTracks, topAlbums, recentPlays] = await Promise.all([
@@ -240,6 +263,7 @@ stats.get('/artist/:id', async (c) => {
     topTracks,
     topAlbums,
     recentPlays,
+    ...formatMerge(mergeInfo),
     playlists,
   });
 });
@@ -252,7 +276,7 @@ stats.get('/album/:id', async (c) => {
   const album = await dbRead<any>('lookupAlbumById', id);
   if (!album) return c.json({ error: 'Album not found' }, 404);
 
-  const albumIds = await dbRead<string[]>('resolveAlbumIds', id, userId);
+  const albumIds = await dbRead<string[]>('resolveEntityIds', 'album', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
   const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo, coversRaw] = await Promise.all([
@@ -262,7 +286,7 @@ stats.get('/album/:id', async (c) => {
     dbRead<any[]>('getAlbumTracks', id, rangeStart, sort, albumIds, rangeEnd, userId),
     dbRead<any[]>('getRecentPlays', 'album', id, 10, albumIds, userId),
     dbRead<any>('getAlbumPlaylistPresence', id, userId),
-    dbRead<any>('getAlbumMergeInfo', id),
+    dbRead<any>('getEntityMergeInfo', 'album', id),
     dbRead<any[]>('getAlbumCovers', id),
   ]);
 
@@ -291,8 +315,7 @@ stats.get('/album/:id', async (c) => {
     series,
     tracks: tracksResult,
     recentPlays,
-    mergedFrom: mergeInfo.mergedFrom.map((r: any) => ({ id: r.source_id, ruleId: r.rule_id, name: r.name, imageUrl: r.image_url })),
-    mergedInto: mergeInfo.mergedInto ? { id: mergeInfo.mergedInto.target_id, ruleId: mergeInfo.mergedInto.rule_id, name: mergeInfo.mergedInto.name, imageUrl: mergeInfo.mergedInto.image_url } : null,
+    ...formatMerge(mergeInfo),
     playlists,
     covers: coversRaw.map((r: any) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
   });
@@ -306,15 +329,18 @@ stats.get('/track/:id', async (c) => {
   const track = await dbRead<any>('lookupTrackById', id);
   if (!track) return c.json({ error: 'Track not found' }, 404);
 
+  const trackIds = await dbRead<string[]>('resolveEntityIds', 'track', id, userId);
+
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [albumRaw, arts, statsRow, series, recentRaw, albumBreakdownRaw, playlists] = await Promise.all([
+  const [albumRaw, arts, statsRow, series, recentRaw, albumBreakdownRaw, playlists, mergeInfo] = await Promise.all([
     track.album_id ? dbRead<any>('lookupAlbumById', track.album_id) : Promise.resolve(null),
     dbRead<any[]>('getTrackArtists', id),
-    dbRead<any>('getEntityStats', 'track', id, rangeStart, rangeEnd, undefined, userId),
-    dbRead<any>('getEntitySeries', 'track', id, rangeStart, rangeKey, undefined, rangeEnd, customDays, userId),
-    dbRead<any[]>('getRecentPlays', 'track', id, 10, undefined, userId),
+    dbRead<any>('getEntityStats', 'track', id, rangeStart, rangeEnd, trackIds, userId),
+    dbRead<any>('getEntitySeries', 'track', id, rangeStart, rangeKey, trackIds, rangeEnd, customDays, userId),
+    dbRead<any[]>('getRecentPlays', 'track', id, 10, trackIds, userId),
     dbRead<any[]>('getTrackAlbumBreakdown', id, rangeStart, rangeEnd, userId),
     dbRead<any>('getTrackPlaylistPresence', id, userId),
+    dbRead<any>('getEntityMergeInfo', 'track', id),
   ]);
 
   const [recentPlays, albumBreakdowns] = await Promise.all([
@@ -339,6 +365,7 @@ stats.get('/track/:id', async (c) => {
     dailySeries: series.map((s: any) => ({ day: s.period, play_count: s.play_count, total_ms: s.total_ms })),
     albumBreakdown: albumBreakdowns.filter((r: any) => r.album),
     recentPlays,
+    ...formatMerge(mergeInfo),
     playlists,
   });
 });
@@ -396,7 +423,7 @@ stats.get('/records', async (c) => {
   const userId = c.get('userId');
   const weekStart = parseWeekStart(c);
   const sort = parseSort(c);
-  const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
+  const limit = Math.min(parseInt(c.req.query('limit') || String(RECORDS_LIMIT)), 50);
   const rawType = c.req.query('type');
   const type = rawType ? toEntityType(rawType) : undefined;
 

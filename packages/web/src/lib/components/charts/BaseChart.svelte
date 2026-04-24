@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import * as echarts from 'echarts/core';
   import { CanvasRenderer } from 'echarts/renderers';
-  import { BarChart, LineChart, HeatmapChart, PieChart, RadarChart } from 'echarts/charts';
+  import { BarChart, LineChart, HeatmapChart, PieChart, RadarChart, GraphChart } from 'echarts/charts';
   import {
     GridComponent,
     TooltipComponent,
@@ -21,6 +21,7 @@
     HeatmapChart,
     PieChart,
     RadarChart,
+    GraphChart,
     GridComponent,
     TooltipComponent,
     LegendComponent,

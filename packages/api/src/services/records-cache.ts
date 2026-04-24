@@ -3,8 +3,9 @@ import { getRecords } from '../db/queries/index.js';
 import { dbRead } from '../db/read-pool.js';
 import type { RecordsResponse, Accolade, AccoladesResponse } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
+import { RECORDS_LIMIT } from '../constants.js';
 
 import type { RankingMetric, WeekStartOption, EntityType } from '@sis/shared';
 type WeekStart = WeekStartOption;
@@ -82,27 +83,49 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
   const cached = cache.get(cacheKey(userId, weekStart, sort));
   if (!cached) return null;
 
-  const sliceEntity = (e: RecordsResponse['tracks']) => ({
+  const sliceBase = (e: RecordsResponse['tracks']) => ({
     peakWeekPlays: e.peakWeekPlays.slice(0, limit),
     biggestDebuts: e.biggestDebuts.slice(0, limit),
     mostWeeksAtNo1: e.mostWeeksAtNo1.slice(0, limit),
     mostWeeksInTop5: e.mostWeeksInTop5.slice(0, limit),
     longestChartRun: e.longestChartRun.slice(0, limit),
     inMostPlaylists: e.inMostPlaylists.slice(0, limit),
+    // extensiones
+    longestGap: e.longestGap.slice(0, limit),
+    biggestNewMonth: e.biggestNewMonth.slice(0, limit),
+    goldenOldies: e.goldenOldies.slice(0, limit),
+    latestDiscoveries: e.latestDiscoveries.slice(0, limit),
+    latestNew: e.latestNew.slice(0, limit),
+    mostUniquePerMonth: e.mostUniquePerMonth.slice(0, limit),
+    // year-end finishes no se recortan por `limit` — siempre son top-10 por año
+    yearEndFinishes: e.yearEndFinishes,
+    mostAccolades: e.mostAccolades.slice(0, limit),
+  });
+
+  const sliceTrack = (e: RecordsResponse['tracks']) => ({
+    ...sliceBase(e),
+    topNoAlbum: e.topNoAlbum.slice(0, limit),
+  });
+
+  const sliceAlbum = (e: RecordsResponse['albums']) => ({
+    ...sliceBase(e),
+    mostDistinctTracks: e.mostDistinctTracks.slice(0, limit),
   });
 
   const sliceArtist = (e: RecordsResponse['artists']) => ({
-    ...sliceEntity(e),
+    ...sliceBase(e),
     mostNo1Tracks: e.mostNo1Tracks.slice(0, limit),
     mostNo1Albums: e.mostNo1Albums.slice(0, limit),
+    mostDistinctTracks: e.mostDistinctTracks.slice(0, limit),
+    oneHitWonders: e.oneHitWonders.slice(0, limit),
   });
 
-  if (type === 'tracks') return { tracks: sliceEntity(cached.tracks) };
-  if (type === 'albums') return { albums: sliceEntity(cached.albums) };
+  if (type === 'tracks') return { tracks: sliceTrack(cached.tracks) };
+  if (type === 'albums') return { albums: sliceAlbum(cached.albums) };
   if (type === 'artists') return { artists: sliceArtist(cached.artists) };
   return {
-    tracks: sliceEntity(cached.tracks),
-    albums: sliceEntity(cached.albums),
+    tracks: sliceTrack(cached.tracks),
+    albums: sliceAlbum(cached.albums),
     artists: sliceArtist(cached.artists),
   };
 }
@@ -133,11 +156,17 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ['weeksInChart', data.mostWeeksInTop5 as any[]],
     ['longestRun', data.longestChartRun as any[]],
     ['inMostPlaylists', data.inMostPlaylists as any[]],
+    ['longestGap', data.longestGap as any[]],
+    ['biggestNewMonth', data.biggestNewMonth as any[]],
+    ['goldenOldies', data.goldenOldies as any[]],
+    ['latestDiscoveries', data.latestDiscoveries as any[]],
+    ['latestNew', data.latestNew as any[]],
+    ['mostAccolades', data.mostAccolades as any[]],
   ];
 
   for (const [type, list] of checks) {
     const idx = list.findIndex((e: any) => e.entityId === entityId);
-    if (idx !== -1 && idx < 25) {
+    if (idx !== -1 && idx < RECORDS_LIMIT) {
       const entry = list[idx] as any;
       accolades.push({ type, rank: idx + 1, value: entry.value, week: entry.week ?? null });
     }
@@ -151,54 +180,43 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ];
     for (const [type, list] of artistChecks) {
       const idx = list.findIndex((e: any) => e.artistId === entityId);
-      if (idx !== -1 && idx < 25) {
+      if (idx !== -1 && idx < RECORDS_LIMIT) {
         accolades.push({ type, rank: idx + 1, value: list[idx].count, week: null });
       }
     }
   }
 
-  // playlist presence: posición en el ranking de "entity in most playlists"
-  const db = getDb();
-  if (entityType === 'track') {
-    const rows = db.all(sql`
-      SELECT spt.track_id as eid, COUNT(DISTINCT spt.playlist_id) as cnt
-      FROM spotify_playlist_tracks spt
-      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-      GROUP BY spt.track_id
-      HAVING cnt > 1
-      ORDER BY cnt DESC
-    `) as { eid: string; cnt: number }[];
-    const idx = rows.findIndex(r => r.eid === entityId);
-    if (idx !== -1 && idx < 25) {
-      accolades.push({ type: 'inPlaylists', rank: idx + 1, value: rows[idx].cnt, week: null });
+  // mostDistinctTracks aplica a albums y artists
+  if ((entityType === 'artist' || entityType === 'album') && 'mostDistinctTracks' in data) {
+    const extData = data as RecordsResponse['albums'];
+    const idx = extData.mostDistinctTracks.findIndex((e: any) => e.entityId === entityId);
+    if (idx !== -1 && idx < RECORDS_LIMIT) {
+      accolades.push({ type: 'mostDistinctTracks', rank: idx + 1, value: extData.mostDistinctTracks[idx].value, week: null });
     }
-  } else if (entityType === 'artist') {
-    const rows = db.all(sql`
-      SELECT ta.artist_id as eid, COUNT(DISTINCT spt.playlist_id) as cnt
-      FROM spotify_playlist_tracks spt
-      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-      JOIN track_artists ta ON ta.track_id = spt.track_id AND ta.position = 0
-      GROUP BY ta.artist_id
-      ORDER BY cnt DESC
-    `) as { eid: string; cnt: number }[];
-    const idx = rows.findIndex(r => r.eid === entityId);
-    if (idx !== -1 && idx < 25) {
-      accolades.push({ type: 'inPlaylists', rank: idx + 1, value: rows[idx].cnt, week: null });
+  }
+
+  // oneHitWonders exclusivo de artists (tras quitarlo de albums)
+  if (entityType === 'artist' && 'oneHitWonders' in data) {
+    const artistData = data as RecordsResponse['artists'];
+    const idx = artistData.oneHitWonders.findIndex((e: any) => e.entityId === entityId);
+    if (idx !== -1 && idx < RECORDS_LIMIT) {
+      accolades.push({ type: 'oneHitWonders', rank: idx + 1, value: artistData.oneHitWonders[idx].value, week: null });
     }
-  } else if (entityType === 'album') {
-    const rows = db.all(sql`
-      SELECT t.album_id as eid, COUNT(DISTINCT spt.playlist_id) as cnt
-      FROM spotify_playlist_tracks spt
-      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-      JOIN tracks t ON t.spotify_id = spt.track_id
-      WHERE t.album_id IS NOT NULL
-      GROUP BY t.album_id
-      HAVING cnt > 1
-      ORDER BY cnt DESC
-    `) as { eid: string; cnt: number }[];
-    const idx = rows.findIndex(r => r.eid === entityId);
-    if (idx !== -1 && idx < 25) {
-      accolades.push({ type: 'inPlaylists', rank: idx + 1, value: rows[idx].cnt, week: null });
+  }
+
+  // accolades exclusivos de tracks
+  if (entityType === 'track' && 'topNoAlbum' in data) {
+    const trackData = data as RecordsResponse['tracks'];
+    const idx = trackData.topNoAlbum.findIndex((e: any) => e.entityId === entityId);
+    if (idx !== -1 && idx < RECORDS_LIMIT) {
+      accolades.push({ type: 'topNoAlbum', rank: idx + 1, value: trackData.topNoAlbum[idx].value, week: null });
+    }
+  }
+
+  // year-end finishes (todos los años completos en los que la entidad entró en top-10)
+  for (const f of data.yearEndFinishes) {
+    if (f.entityId === entityId) {
+      accolades.push({ type: 'yearEnd', rank: f.rank, value: f.value, week: null, year: f.year });
     }
   }
 

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
-import { spotifyFetch } from './spotify-client.js';
+import { spotifyFetch, isRateLimited } from './spotify-client.js';
 import { syntheticId } from './ids.js';
 import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse, SpotifyArtistFull, SpotifyImage } from '../types/spotify.js';
 
@@ -31,10 +31,17 @@ export function resolveLocalFileIds(track: SpotifyTrack) {
   const db = getDb();
   const primaryArtist = track.artists[0]?.name ?? 'Unknown Artist';
 
-  // resolver artistas
+  // resolver artistas: preferir IDs reales de spotify sobre sintéticos (import:/local:)
+  // para evitar vincular el local a un placeholder pendiente de resolver
   for (const artist of track.artists) {
     const existing = db.get(
-      sql`SELECT spotify_id FROM artists WHERE LOWER(name) = LOWER(${artist.name})`
+      sql`SELECT spotify_id FROM artists WHERE LOWER(name) = LOWER(${artist.name})
+          ORDER BY CASE
+            WHEN spotify_id LIKE 'local:%' THEN 2
+            WHEN spotify_id LIKE 'import:%' THEN 1
+            ELSE 0
+          END
+          LIMIT 1`
     ) as { spotify_id: string } | undefined;
 
     artist.id = existing?.spotify_id ?? syntheticId(LOCAL_PREFIX, artist.name, artist.name);
@@ -205,16 +212,33 @@ export async function enrichArtistMetadata(userId: number) {
   console.log(`[metadata] ${updated} artistas actualizados con imagen`);
 }
 
-// resolver artistas con ID import: buscándolos en la API de Spotify
-// actualiza el ID, imagen, géneros y popularidad; re-apunta track_artists
-const RESOLVE_BATCH_LIMIT = 500; // máximo por ejecución
-const SEARCH_DELAY_MS = 100; // pausa entre búsquedas para respetar rate limits
+// eliminar entidades import: huérfanas (tracks/track_artists ya re-apuntados)
+export function cleanOrphanImports() {
+  const db = getDb();
+  const orphanArtists = db.run(
+    sql`DELETE FROM artists WHERE spotify_id LIKE 'import:%'
+      AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)`
+  );
+  const orphanAlbums = db.run(
+    sql`DELETE FROM albums WHERE spotify_id LIKE 'import:%'
+      AND spotify_id NOT IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)`
+  );
+  if (orphanArtists.changes || orphanAlbums.changes) {
+    console.log(`[cleanup] eliminados ${orphanArtists.changes} artistas y ${orphanAlbums.changes} álbumes import: huérfanos`);
+  }
+}
+
+const RESOLVE_BATCH_LIMIT = 50;
+const SEARCH_DELAY_MS = 500;
 
 export async function resolveImportArtists(userId: number) {
+  if (isRateLimited()) return;
+
   const db = getDb();
   const pending = db.all(
-    sql`SELECT spotify_id, name FROM artists WHERE spotify_id LIKE 'import:%' ORDER BY
-      (SELECT count(*) FROM track_artists WHERE artist_id = artists.spotify_id) DESC
+    sql`SELECT spotify_id, name FROM artists WHERE spotify_id LIKE 'import:%'
+      AND spotify_id IN (SELECT DISTINCT artist_id FROM track_artists)
+    ORDER BY (SELECT count(*) FROM track_artists WHERE artist_id = artists.spotify_id) DESC
     LIMIT ${RESOLVE_BATCH_LIMIT}`
   ) as { spotify_id: string; name: string }[];
 
@@ -228,19 +252,25 @@ export async function resolveImportArtists(userId: number) {
       userId, params: { q: row.name, type: 'artist', limit: '1' },
     });
 
-    if (!data?.artists?.items?.length) {
-      // marcar como no resoluble cambiando prefijo
-      db.update(artists)
-        .set({ updatedAt: now() })
-        .where(sql`spotify_id = ${row.spotify_id}`)
-        .run();
+    if (!data) {
+      if (isRateLimited()) break;
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    if (!data.artists?.items?.length) {
+      const newId = row.spotify_id.replace('import:', 'unresolved:');
+      db.run(sql`UPDATE artists SET spotify_id = ${newId}, updated_at = ${now()} WHERE spotify_id = ${row.spotify_id}`);
+      db.run(sql`UPDATE track_artists SET artist_id = ${newId} WHERE artist_id = ${row.spotify_id}`);
       await sleep(SEARCH_DELAY_MS);
       continue;
     }
 
     const found = data.artists.items[0];
-    // verificar que el nombre coincida razonablemente
     if (found.name.toLowerCase() !== row.name.toLowerCase()) {
+      const newId = row.spotify_id.replace('import:', 'unresolved:');
+      db.run(sql`UPDATE artists SET spotify_id = ${newId}, updated_at = ${now()} WHERE spotify_id = ${row.spotify_id}`);
+      db.run(sql`UPDATE track_artists SET artist_id = ${newId} WHERE artist_id = ${row.spotify_id}`);
       await sleep(SEARCH_DELAY_MS);
       continue;
     }
@@ -294,12 +324,15 @@ export async function resolveImportArtists(userId: number) {
 
 // resolver álbumes con ID import: buscándolos en la API de Spotify
 export async function resolveImportAlbums(userId: number) {
+  if (isRateLimited()) return;
+
   const db = getDb();
   const pending = db.all(
     sql`SELECT a.spotify_id, a.name,
       (SELECT ar.name FROM artists ar JOIN track_artists ta ON ta.artist_id = ar.spotify_id
        JOIN tracks t ON t.spotify_id = ta.track_id WHERE t.album_id = a.spotify_id LIMIT 1) as artist_name
     FROM albums a WHERE a.spotify_id LIKE 'import:%' AND a.image_url IS NULL
+      AND a.spotify_id IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)
     ORDER BY (SELECT count(*) FROM tracks WHERE album_id = a.spotify_id) DESC
     LIMIT ${RESOLVE_BATCH_LIMIT}`
   ) as { spotify_id: string; name: string; artist_name: string | null }[];
@@ -324,8 +357,13 @@ export async function resolveImportAlbums(userId: number) {
       userId, params: { q: query, type: 'album', limit: '1' },
     });
 
-    if (!data?.albums?.items?.length) {
-      // marcar como buscado sin resultado
+    if (!data) {
+      if (isRateLimited()) break;
+      await sleep(SEARCH_DELAY_MS);
+      continue;
+    }
+
+    if (!data.albums?.items?.length) {
       db.update(albums)
         .set({ imageUrl: '', updatedAt: now() })
         .where(sql`spotify_id = ${row.spotify_id}`)
@@ -395,6 +433,8 @@ export async function resolveImportAlbums(userId: number) {
 // corregir tracks con Spotify ID real que están asignados al álbum incorrecto
 // (ocurre cuando el import agrupa versiones distintas bajo el mismo álbum)
 export async function fixTrackAlbumAssignments(userId: number) {
+  if (isRateLimited()) return;
+
   const db = getDb();
 
   // buscar tracks con ID real de Spotify cuyo álbum podría ser incorrecto
@@ -462,6 +502,8 @@ export async function fixTrackAlbumAssignments(userId: number) {
 // corregir track_artists para tracks con Spotify ID real que solo tienen 1 artista
 // (ocurre cuando el import solo almacena el artista principal del álbum)
 export async function fixTrackArtistAssociations(userId: number) {
+  if (isRateLimited()) return;
+
   const db = getDb();
 
   const candidates = db.all(sql`

@@ -227,6 +227,14 @@ a.track-item {
   background: var(--bg-hover);
 }
 
+.track-item--focused {
+  animation: track-item-highlight 1.8s ease-out;
+}
+@keyframes track-item-highlight {
+  0%   { background: rgba(29, 185, 84, 0.25); box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.45); }
+  100% { background: transparent; box-shadow: 0 0 0 1px transparent; }
+}
+
 .rank-cell {
   display: flex;
   flex-direction: column;

@@ -72,45 +72,87 @@ export function getDateTrunc(range: TimeRange): SqlChunk {
   return getDateTruncForDays(TIME_RANGES[range]);
 }
 
+// --- merge rules: primitivas genéricas ---
+
+// Alias SQL único por tipo de entidad para el LEFT JOIN a merge_rules
+const MERGE_ALIAS: Record<EntityType, string> = {
+  album: 'mr_album',
+  artist: 'mr_artist',
+  track: 'mr_track',
+};
+
+// Columna origen que se redirige al target del merge
+function sourceCol(type: EntityType): SqlChunk {
+  if (type === 'album') return sql`t.album_id`;
+  if (type === 'artist') return sql`ta.artist_id`;
+  return sql`lh.track_id`;
+}
+
+/** Ensambla el nombre de la tabla de origen para lookups directos por spotifyId. */
+export function entityTableName(type: EntityType): 'albums' | 'artists' | 'tracks' {
+  if (type === 'album') return 'albums';
+  if (type === 'artist') return 'artists';
+  return 'tracks';
+}
+
+/** LEFT JOIN a merge_rules para un tipo de entidad, filtrado por usuario. */
+export function entityMergeJoin(type: EntityType, userId?: number): SqlChunk {
+  const alias = sql.raw(MERGE_ALIAS[type]);
+  const src = sourceCol(type);
+  if (userId != null) {
+    return sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src} AND ${alias}.user_id = ${userId}`;
+  }
+  return sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src}`;
+}
+
+/** COALESCE(mr_X.target_id, <source_col>) — expresa el ID canónico tras merges. */
+export function resolvedEntityId(type: EntityType, _userId?: number): SqlChunk {
+  const alias = sql.raw(MERGE_ALIAS[type]);
+  return sql`COALESCE(${alias}.target_id, ${sourceCol(type)})`;
+}
+
 // --- helpers de SQL dinámico según tipo de entidad ---
 
 export function orderByCol(sort: Sort): SqlChunk {
   return sort === 'plays' ? sql`play_count` : sql`total_ms`;
 }
 
-export function entityJoins(entityType: EntityType): SqlChunk {
-  if (entityType === 'artist') return sql`JOIN track_artists ta ON ta.track_id = lh.track_id`;
+/** Joins necesarios para agregar por entidad. Para artist: track_artists + merge_rules.
+ *  Para album/track: vacío (los callers añaden entityMergeJoin cuando agregan por entidad). */
+export function entityJoins(entityType: EntityType, userId?: number): SqlChunk {
+  if (entityType === 'artist') {
+    return sql`JOIN track_artists ta ON ta.track_id = lh.track_id ${entityMergeJoin('artist', userId)}`;
+  }
   return sql``;
 }
 
 export function entityGroupCol(entityType: EntityType, userId?: number): SqlChunk {
-  if (entityType === 'artist') return sql`ta.artist_id`;
-  if (entityType === 'track') return sql`lh.track_id`;
-  return resolvedAlbumId(userId);
+  return resolvedEntityId(entityType, userId);
 }
 
-export function entityWhereCol(entityType: EntityType, id: string, albumIds?: string[]): SqlChunk {
+export function entityWhereCol(entityType: EntityType, id: string, ids?: string[]): SqlChunk {
   if (entityType === 'artist') return sql`ta.artist_id = ${id}`;
-  if (entityType === 'track') return sql`lh.track_id = ${id}`;
-  // para álbumes, usar IDs pre-resueltos si están disponibles
-  if (albumIds && albumIds.length > 1) {
-    const placeholders = sql.join(albumIds.map(aid => sql`${aid}`), sql`, `);
+  if (entityType === 'track') {
+    if (ids && ids.length > 1) {
+      const placeholders = sql.join(ids.map(tid => sql`${tid}`), sql`, `);
+      return sql`lh.track_id IN (${placeholders})`;
+    }
+    return sql`lh.track_id = ${id}`;
+  }
+  // album
+  if (ids && ids.length > 1) {
+    const placeholders = sql.join(ids.map(aid => sql`${aid}`), sql`, `);
     return sql`t.album_id IN (${placeholders})`;
   }
   return sql`t.album_id = ${id}`;
 }
 
-// fragmento SQL que resuelve album_id a través de merge_rules (via LEFT JOIN, no subquery)
-export function resolvedAlbumId(userId?: number): SqlChunk {
-  return sql`COALESCE(mr_album.target_id, t.album_id)`;
-}
-
-// JOIN para resolver merge_rules de álbumes — filtrado por usuario
-export function mergeRulesJoin(userId?: number): SqlChunk {
-  if (userId != null) {
-    return sql`LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id AND mr_album.user_id = ${userId}`;
-  }
-  return sql`LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id`;
+/** Filtro por track_id usando la tabla track_artists — una fila por play,
+ *  evita duplicados cuando varias artist_ids de la misma track acaban en el mismo target */
+export function tracksWithArtistIn(ids: string[]): SqlChunk {
+  const placeholders = ids.length === 1 ? sql`${ids[0]}` : sql.join(ids.map(id => sql`${id}`), sql`, `);
+  const cmp = ids.length === 1 ? sql`= ${ids[0]}` : sql`IN (${placeholders})`;
+  return sql`t.spotify_id IN (SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${cmp})`;
 }
 
 // filtro de usuario para listening_history

@@ -6,27 +6,27 @@ export type {
   RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting,
   HistoryItem, HistoryResponse,
   NowPlayingResponse,
-  ListeningTimeItem, HeatmapItem, StreaksData, GenreItem,
+  ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem,
   HealthData, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, Rankings,
   ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint,
-  RecordEntry, ArtistRecordEntry, EntityRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem,
+  RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,
-  MergeRule, MergeSuggestionAlbum,
+  MergeRule, MergeSuggestion,
 } from '@sis/shared';
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
   RankingMetric, WeekStartOption, LocaleSetting, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  GenreItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
+  GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
   NowPlayingResponse, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPoint, HealthData,
-  MergeRule, MergeSuggestionAlbum, MeResponse, UserRecord, ImportResult,
+  MergeRule, MergeSuggestion, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
 } from '@sis/shared';
@@ -249,8 +249,11 @@ export const api = {
 
   history: (page = 1, limit = 50, filters?: { date?: string; album?: string; track?: string; artist?: string }, signal?: AbortSignal) => {
     const f = filters ?? {};
+    // minutos al este de UTC (inverso del valor de getTimezoneOffset)
+    const tz = -new Date().getTimezoneOffset();
     return apiFetch<HistoryResponse>('/stats/history', {
       page: String(page), limit: String(limit),
+      tz: String(tz),
       ...(f.date ? { date: f.date } : {}),
       ...(f.album ? { album: f.album } : {}),
       ...(f.track ? { track: f.track } : {}),
@@ -263,6 +266,9 @@ export const api = {
 
   listeningTime: (range = 'month', granularity = 'day', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<ListeningTimeItem[]>('/stats/listening-time', { ...rangeParams(range, dates), granularity }, signal),
+
+  discovery: (range = 'month', granularity = 'month', type = 'track', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<DiscoveryItem[]>('/stats/discovery', { ...rangeParams(range, dates), granularity, type }, signal),
 
   heatmap: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<HeatmapItem[]>('/stats/heatmap', { ...rangeParams(range, dates) }, signal),
@@ -317,7 +323,7 @@ export const api = {
 
   health: () => apiFetch<HealthData>('/health'),
 
-  // merge API
+  // merge API (genérico para albums/artists/tracks)
   createMerge: (entityType: string, sourceId: string, targetId: string) =>
     apiMutate<MergeRule>('POST', '/admin/merge', { entityType, sourceId, targetId }),
 
@@ -326,8 +332,14 @@ export const api = {
 
   listMerges: () => apiFetch<MergeRule[]>('/admin/merges'),
 
-  mergeSuggestions: (artistId: string) =>
-    apiFetch<MergeSuggestionAlbum[]>(`/admin/merge-suggestions/${encodeURIComponent(artistId)}`),
+  // opts.parent — artistId (requerido para album/track, ignorado para artist)
+  // opts.exclude — id a excluir (normalmente el propio target)
+  mergeSuggestions: (entityType: 'album' | 'artist' | 'track', opts: { parent?: string; exclude?: string } = {}) => {
+    const params: Record<string, string> = { entityType };
+    if (opts.parent) params.parent = opts.parent;
+    if (opts.exclude) params.exclude = opts.exclude;
+    return apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', params);
+  },
 
   // user management (admin)
   me: () => apiFetch<MeResponse>('/me'),
