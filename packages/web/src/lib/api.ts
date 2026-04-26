@@ -336,6 +336,7 @@ export const api = {
     apiFetch<RankingHistoryPoint[]>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort }, signal),
 
   health: () => apiFetch<HealthData>('/health'),
+  version: () => apiFetch<{ version: string }>('/version'),
 
   // merge API (genérico para albums/artists/tracks)
   createMerge: (entityType: string, sourceId: string, targetId: string) =>

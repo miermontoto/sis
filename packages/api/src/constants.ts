@@ -1,3 +1,6 @@
+// versión snapshot (formato minecraft: YYwWWx)
+export const VERSION = '26w17b';
+
 // intervalos de polling en ms
 export const CURRENTLY_PLAYING_INTERVAL_MS = 30_000;
 export const RECENTLY_PLAYED_INTERVAL_MS = 5 * 60_000;

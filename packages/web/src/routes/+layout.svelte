@@ -28,6 +28,7 @@
   let authCheckDone = false;
   let showSearch = $state(false);
   let user = $state<MeResponse | null>(null);
+  let appVersion = $state('');
   let showUserMenu = $state(false);
   let expandedGroup = $state<string | null>(null);
   let userMenuRef = $state<HTMLElement | null>(null);
@@ -65,7 +66,7 @@
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
         else {
-          Promise.all([loadSettings(), api.me().then(m => { user = m; })]).finally(() => {
+          Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
             nowPlayingStore.startPolling();
           });
@@ -230,7 +231,7 @@
           {/if}
         </div>
       {/if}
-      <div class="sidebar-footer">SIS · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
+      <div class="sidebar-footer">SIS{#if appVersion} <span class="sidebar-version">{appVersion}</span>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content">
       <div class="mobile-header">

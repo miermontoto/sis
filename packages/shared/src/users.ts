@@ -28,6 +28,7 @@ export interface ImportResult {
 
 export interface HealthData {
   status: string;
+  version: string;
   database: string;
   authenticated: boolean;
   totalPlays: number;

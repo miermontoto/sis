@@ -645,6 +645,11 @@ a.track-item {
   opacity: 0.5;
 }
 
+.sidebar-version {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  opacity: 0.8;
+}
+
 .sidebar-footer a {
   color: var(--text-muted);
   text-decoration: none;

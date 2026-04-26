@@ -19,6 +19,7 @@ import { validateSession } from './services/session.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
+import { VERSION } from './constants.js';
 
 export type AppVariables = {
   userId: number;
@@ -31,10 +32,10 @@ const app = new Hono<{ Variables: AppVariables }>();
 app.use('*', logger());
 app.use('/api/*', cors());
 
-// auth gate: proteger todas las rutas /api/* excepto health
+// auth gate: proteger todas las rutas /api/* excepto health y version
 app.use('/api/*', async (c, next) => {
   // health check público (usado por el frontend para verificar auth)
-  if (c.req.path === '/api/health') return next();
+  if (c.req.path === '/api/health' || c.req.path === '/api/version') return next();
 
   // si no hay usuarios, permitir acceso sin auth (bootstrap)
   if (!hasAnyUsers()) return next();
@@ -134,6 +135,9 @@ app.post('/api/covers/:albumId', async (c) => {
   return c.json({ imageUrl });
 });
 
+// versión — público
+app.get('/api/version', (c) => c.json({ version: VERSION }));
+
 // health check — público pero retorna 401 si hay usuarios y no hay sesión válida
 app.get('/api/health', (c) => {
   if (hasAnyUsers()) {
@@ -159,6 +163,7 @@ app.get('/api/health', (c) => {
 
   return c.json({
     status: 'ok',
+    version: VERSION,
     database: 'connected',
     authenticated: !!tokens,
     totalPlays: historyCount.count,

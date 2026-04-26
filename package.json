@@ -9,7 +9,8 @@
     "start": "pnpm --filter @sis/api start",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:pull": "latest=$(ls -t data/backups/recent/sis-*.db 2>/dev/null | head -n1); if [ -z \"$latest\" ]; then echo '[db:pull] no hay backups en data/backups/recent/' >&2; exit 1; fi; cp \"$latest\" data/local.db && echo \"[db:pull] $(basename \"$latest\") -> data/local.db ($(du -h data/local.db | cut -f1))\""
+    "db:pull": "latest=$(ls -t data/backups/recent/sis-*.db 2>/dev/null | head -n1); if [ -z \"$latest\" ]; then echo '[db:pull] no hay backups en data/backups/recent/' >&2; exit 1; fi; cp \"$latest\" data/local.db && echo \"[db:pull] $(basename \"$latest\") -> data/local.db ($(du -h data/local.db | cut -f1))\"",
+    "version:bump": "pnpm --filter @sis/api exec tsx ../../scripts/bump-version.ts"
   },
   "pnpm": {
     "neverBuiltDependencies": []
