@@ -84,13 +84,15 @@ export function cumulativeLineSeries(data: number[], overrides?: Record<string, 
 }
 
 export function areaGradient(color = GREEN, opacityTop = 0.4, opacityBottom = 0.02) {
+  const hex = color.replace('#', '');
+  const [r, g, b] = [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map(h => parseInt(h, 16));
   return {
     color: {
       type: 'linear' as const,
       x: 0, y: 0, x2: 0, y2: 1,
       colorStops: [
-        { offset: 0, color: color.replace('#', 'rgba(').replace(/(..)(..)(..)/, (_, r, g, b) => `${parseInt(r, 16)},${parseInt(g, 16)},${parseInt(b, 16)}`) + `,${opacityTop})` },
-        { offset: 1, color: color.replace('#', 'rgba(').replace(/(..)(..)(..)/, (_, r, g, b) => `${parseInt(r, 16)},${parseInt(g, 16)},${parseInt(b, 16)}`) + `,${opacityBottom})` },
+        { offset: 0, color: `rgba(${r},${g},${b},${opacityTop})` },
+        { offset: 1, color: `rgba(${r},${g},${b},${opacityBottom})` },
       ],
     },
   };
