@@ -9,7 +9,7 @@
   // paleta fija de colores asignados por orden de selección
   const PALETTE = [
     '#1db954', '#ff1493', '#ff8c42', '#3b9bd9', '#a88bff',
-    '#ffd166', '#ef476f', '#06d6a0', '#e5e5e5', '#f95738',
+    '#ffd166', '#ef476f', '#06d6a0', '#e0e8e8', '#f95738',
   ];
 
   // cada punto: [periodo ISO, acumulado metric]
@@ -269,7 +269,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.75rem;
-    font-family: var(--font);
   }
 
   .mode-btn.active {
@@ -294,7 +293,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.8rem;
-    font-family: var(--font);
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;

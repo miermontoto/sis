@@ -260,7 +260,7 @@
   .palette-dot {
     width: 100%;
     height: 100%;
-    border-radius: 3px;
+    border-radius: var(--radius);
   }
 
   .chart-card {
@@ -286,9 +286,9 @@
     position: fixed;
     z-index: 100;
     pointer-events: none;
-    background: #1a1a1a;
+    background: var(--bg-hover);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     font-size: 0.85rem;

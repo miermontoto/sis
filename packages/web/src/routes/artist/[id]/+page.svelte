@@ -207,10 +207,9 @@
     border: 1px solid var(--border);
     color: var(--text-muted);
     font-size: 0.7rem;
-    font-family: var(--font);
     cursor: pointer;
     padding: 0.2rem 0.5rem;
-    border-radius: 5px;
+    border-radius: var(--radius);
     opacity: 0;
     transition: opacity 0.15s, color 0.15s, border-color 0.15s;
     flex-shrink: 0;

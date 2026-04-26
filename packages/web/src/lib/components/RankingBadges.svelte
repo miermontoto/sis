@@ -153,8 +153,11 @@
   .rankings-row {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     flex-wrap: wrap;
+  }
+  .rankings-row:last-child {
+    margin-bottom: 1.5rem;
   }
   .ranking-badge {
     display: flex;
@@ -164,9 +167,9 @@
     flex: 1;
     min-width: 60px;
     padding: 0.5rem 0.75rem;
-    border-radius: 10px;
+    border-radius: var(--radius);
     background: var(--bg-card);
-    border: 1px solid #2a2a2a;
+    border: 1px solid var(--border);
     text-decoration: none;
     color: inherit;
     transition: background 0.15s, border-color 0.15s, transform 0.15s;
@@ -189,38 +192,41 @@
   .ranking-badge--loading .ranking-value {
     width: 28px;
     height: 1.1rem;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
     display: inline-block;
   }
   .ranking-label {
-    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
   .ranking-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text);
+    color: var(--accent);
   }
   .ranking-badge--active .ranking-value {
     color: #1db954;
   }
   .chart-wrap {
     background: var(--bg-card);
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
     margin-bottom: 1.5rem;
   }
   .chart-ghost {
     background: var(--bg-card);
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
     margin-bottom: 1.5rem;
     height: 180px;
     overflow: hidden;
@@ -228,8 +234,8 @@
   .chart-ghost-inner {
     width: 100%;
     height: 100%;
-    border-radius: 6px;
-    background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%);
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, #161a1d 25%, #1e2a2a 50%, #161a1d 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }

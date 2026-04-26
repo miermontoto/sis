@@ -244,7 +244,7 @@
 
     // rich styles para imágenes en las labels del eje Y
     const rich: Record<string, any> = {
-      name: { fontSize: 12, color: '#e5e5e5', width: 100, overflow: 'truncate', align: 'left' },
+      name: { fontSize: 12, color: '#e0e8e8', width: 100, overflow: 'truncate', align: 'left' },
     };
     images.forEach((url, i) => {
       if (url) {
@@ -252,15 +252,15 @@
           backgroundColor: { image: url },
           width: 26,
           height: 26,
-          borderRadius: activeTab === 'artists' ? 13 : 3,
+          borderRadius: activeTab === 'artists' ? 13 : 2,
           align: 'left',
         };
       } else {
         rich[`img${i}`] = {
-          backgroundColor: '#2a2a2a',
+          backgroundColor: '#1e2a2a',
           width: 26,
           height: 26,
-          borderRadius: activeTab === 'artists' ? 13 : 3,
+          borderRadius: activeTab === 'artists' ? 13 : 2,
           align: 'left',
         };
       }
@@ -315,7 +315,7 @@
                   { offset: 1, color: `rgba(${r},${g},${b},0.3)` },
                 ],
               },
-              borderRadius: [0, 4, 4, 0],
+              borderRadius: [0, 2, 2, 0],
             },
           };
         }),
@@ -324,8 +324,9 @@
         label: {
           show: true,
           position: 'right',
-          color: '#888',
+          color: '#6a7a7a',
           fontSize: 11,
+          fontFamily: 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
           formatter: (p: any) => metric === 'plays' ? `${p.value}` : formatChartValue(p.value),
         },
       }],
@@ -388,7 +389,7 @@
 </script>
 
 <div class="page-header">
-  <h1>Top</h1>
+  <h1>Rankings</h1>
 </div>
 
 <div class="tabs">

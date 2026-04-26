@@ -2,19 +2,21 @@ import type { EChartsOption } from 'echarts';
 
 // --- Shared defaults ---
 
-export const GRID = { top: 10, bottom: 5, left: 5, right: 5, containLabel: true };
+const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
 
-export const AXIS_LINE = { lineStyle: { color: '#2a2a2a' } } as const;
+export const GRID = { top: 10, bottom: 5, left: 5, right: 0, containLabel: true };
 
-export const AXIS_LABEL = { color: '#888', fontSize: 11 } as const;
+export const AXIS_LINE = { lineStyle: { color: '#1e2a2a' } } as const;
 
-export const SPLIT_LINE = { lineStyle: { color: '#2a2a2a' } } as const;
+export const AXIS_LABEL = { color: '#6a7a7a', fontSize: 11, fontFamily: MONO_STACK } as const;
+
+export const SPLIT_LINE = { lineStyle: { color: '#1e2a2a', type: 'dashed' } } as const;
 
 export const TOOLTIP_BASE = {
   trigger: 'axis' as const,
-  backgroundColor: '#1a1a1a',
-  borderColor: '#2a2a2a',
-  textStyle: { color: '#e5e5e5' },
+  backgroundColor: '#0f1214',
+  borderColor: '#1e2a2a',
+  textStyle: { color: '#e0e8e8', fontFamily: MONO_STACK },
 };
 
 export const GREEN = '#1db954';
@@ -44,7 +46,7 @@ export function secondaryValueAxis(overrides?: Record<string, any>): EChartsOpti
   return {
     type: 'value',
     splitLine: { show: false },
-    axisLabel: { color: '#555', fontSize: 11 },
+    axisLabel: { color: '#4a5a5a', fontSize: 11, fontFamily: MONO_STACK },
     ...overrides,
   };
 }
@@ -55,7 +57,7 @@ export function barSeries(data: number[], overrides?: Record<string, any>) {
   return {
     type: 'bar' as const,
     data,
-    itemStyle: { color: GREEN, borderRadius: [3, 3, 0, 0] },
+    itemStyle: { color: GREEN, borderRadius: [1, 1, 0, 0], borderColor: '#0f1214', borderWidth: 1 },
     barMaxWidth: 24,
     ...overrides,
   };
@@ -65,7 +67,7 @@ export function lineSeries(data: number[], overrides?: Record<string, any>) {
   return {
     type: 'line' as const,
     data,
-    smooth: true,
+    smooth: false,
     symbol: 'none',
     lineStyle: { color: GREEN, width: 2 },
     itemStyle: { color: GREEN },

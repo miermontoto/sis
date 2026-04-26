@@ -594,8 +594,9 @@
   }
 
   .pref-label {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     font-weight: 500;
+    letter-spacing: 0.02em;
   }
 
   .pref-desc {
@@ -623,13 +624,12 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.4rem 0.85rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     border: none;
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: var(--font);
     transition: all 0.15s;
     white-space: nowrap;
   }
@@ -651,7 +651,6 @@
     border-radius: var(--radius);
     color: var(--text);
     font-size: 0.85rem;
-    font-family: var(--font);
     padding: 0.4rem 0.7rem;
     outline: none;
     cursor: pointer;
@@ -685,7 +684,7 @@
     padding: 0.3rem 0.7rem;
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-size: 0.85rem;
     color: var(--text);
     font-family: 'SF Mono', 'Fira Code', monospace;
@@ -704,7 +703,6 @@
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
-    font-family: var(--font);
     text-decoration: none;
     transition: background 0.15s;
     white-space: nowrap;
@@ -744,7 +742,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: var(--font);
     transition: all 0.15s;
     white-space: nowrap;
   }
@@ -822,10 +819,9 @@
   .merge-search {
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--text);
     font-size: 0.85rem;
-    font-family: var(--font);
     padding: 0.35rem 0.7rem;
     outline: none;
     width: 180px;
@@ -858,7 +854,6 @@
     background: transparent;
     border: none;
     color: var(--text);
-    font-family: var(--font);
     cursor: pointer;
     text-align: left;
   }
@@ -918,7 +913,7 @@
     justify-content: center;
     width: 18px;
     height: 18px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-size: 0.65rem;
     font-weight: 700;
     color: var(--text);
@@ -945,7 +940,7 @@
   .merge-flat-thumb {
     width: 20px;
     height: 20px;
-    border-radius: 3px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
   }
@@ -982,7 +977,7 @@
   .admin-badge, .inactive-badge {
     display: inline-block;
     padding: 0.1rem 0.45rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;

@@ -288,7 +288,7 @@
   .search-modal {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--radius);
     width: 500px;
     max-width: calc(100% - 2rem);
     max-height: 70vh;
@@ -307,7 +307,7 @@
     border-bottom: 1px solid var(--border);
     color: var(--text);
     font-size: 1rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     outline: none;
   }
 
@@ -343,7 +343,7 @@
     color: var(--text);
     cursor: pointer;
     text-align: left;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     transition: none;
   }
 
@@ -355,7 +355,7 @@
   .search-thumb {
     width: 40px;
     height: 40px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
     background: var(--border);
@@ -457,9 +457,8 @@
   .search-hint kbd {
     background: var(--bg-hover);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius);
     padding: 0 0.3rem;
     font-size: 0.7rem;
-    font-family: var(--font);
   }
 </style>

@@ -44,7 +44,7 @@
 <style>
   .merge-banner {
     padding: 0.6rem 1rem;
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-size: 0.85rem;
     margin-bottom: 1rem;
     display: flex;
@@ -95,7 +95,7 @@
   .merge-banner-thumb {
     width: 22px;
     height: 22px;
-    border-radius: 3px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
   }
@@ -109,10 +109,9 @@
     border: 1px solid currentColor;
     color: inherit;
     padding: 0.2rem 0.6rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-size: 0.75rem;
     cursor: pointer;
-    font-family: var(--font);
     opacity: 0.8;
   }
   .merge-banner-unmerge:hover { opacity: 1; }

@@ -6,12 +6,12 @@
 
   // presets: bg + 5 escalones de intensidad (0=empty, 4=max)
   const PRESETS = [
-    { name: 'Rosa',    bg: '#000000', empty: '#1a1a1a', scale: ['#2d1b3d', '#5c2a5c', '#9b3a8f', '#d84ba8', '#ff1493'] },
-    { name: 'Verde',   bg: '#000000', empty: '#1a1a1a', scale: ['#0e3f1f', '#186e2e', '#22a63f', '#1db954', '#7df097'] },
-    { name: 'Naranja', bg: '#000000', empty: '#1a1a1a', scale: ['#3d1a05', '#6e2f0e', '#a14b16', '#d96d1e', '#ff8c42'] },
-    { name: 'Azul',    bg: '#000000', empty: '#1a1a1a', scale: ['#0a2340', '#13406e', '#2166a6', '#3b9bd9', '#6fd0ff'] },
-    { name: 'Violeta', bg: '#000000', empty: '#1a1a1a', scale: ['#1a0a3d', '#2d156e', '#4a28a1', '#6e44d9', '#a88bff'] },
-    { name: 'Claro',   bg: '#f5f5f5', empty: '#e5e5e5', scale: ['#c9dfd3', '#9ac4a7', '#6aa87a', '#3f8c53', '#1db954'] },
+    { name: 'Rosa',    bg: '#080a0c', empty: '#161a1d', scale: ['#2d1b3d', '#5c2a5c', '#9b3a8f', '#d84ba8', '#ff1493'] },
+    { name: 'Verde',   bg: '#080a0c', empty: '#161a1d', scale: ['#0e3f1f', '#186e2e', '#22a63f', '#1db954', '#7df097'] },
+    { name: 'Naranja', bg: '#080a0c', empty: '#161a1d', scale: ['#3d1a05', '#6e2f0e', '#a14b16', '#d96d1e', '#ff8c42'] },
+    { name: 'Azul',    bg: '#080a0c', empty: '#161a1d', scale: ['#0a2340', '#13406e', '#2166a6', '#3b9bd9', '#6fd0ff'] },
+    { name: 'Violeta', bg: '#080a0c', empty: '#161a1d', scale: ['#1a0a3d', '#2d156e', '#4a28a1', '#6e44d9', '#a88bff'] },
+    { name: 'Claro',   bg: '#f5f5f5', empty: '#e0e8e8', scale: ['#c9dfd3', '#9ac4a7', '#6aa87a', '#3f8c53', '#1db954'] },
   ] as const;
 
   // layout: cuadrícula casi-cuadrada en orden cronológico (fila por fila)
@@ -149,7 +149,7 @@
     const uname = me?.displayName ?? me?.spotifyId ?? 'sis';
     const activeDays = daily.length;
     ctx.font = '600 14px sans-serif';
-    ctx.fillStyle = p.bg === '#f5f5f5' ? '#444' : '#888';
+    ctx.fillStyle = p.bg === '#f5f5f5' ? '#444' : '#6a7a7a';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
     ctx.fillText(`${activeDays} active days · ${uname}`, MARGIN, height - FOOTER_H / 2);
@@ -282,7 +282,6 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 

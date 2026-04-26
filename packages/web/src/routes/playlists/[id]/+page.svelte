@@ -102,7 +102,7 @@
       frameborder="0"
       allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
       loading="lazy"
-      style="border-radius: 12px;"
+      style="border-radius: var(--radius);"
     ></iframe>
   </div>
 
@@ -269,13 +269,13 @@
   .coverage-bar-lg {
     height: 6px;
     background: var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius);
     overflow: hidden;
   }
   .coverage-fill-lg {
     height: 100%;
     background: var(--accent);
-    border-radius: 3px;
+    border-radius: var(--radius);
     transition: width 0.3s;
   }
 
@@ -298,7 +298,7 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.4rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     transition: background 0.1s;
   }
   .track-row:hover { background: var(--bg-hover); }
@@ -312,7 +312,7 @@
   .track-art {
     width: 36px;
     height: 36px;
-    border-radius: 3px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
     background: var(--bg-hover);

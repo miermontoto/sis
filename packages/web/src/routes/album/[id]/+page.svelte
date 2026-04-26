@@ -321,14 +321,14 @@
     padding: 0.5rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     z-index: 20;
   }
   .cover-thumb {
     width: 40px;
     height: 40px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     border: 2px solid transparent;
     padding: 0;
     cursor: pointer;
@@ -365,7 +365,7 @@
     gap: 2px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 2px;
   }
   .track-sort-toggle button {
@@ -373,7 +373,7 @@
     border: none;
     color: var(--text-muted);
     padding: 0.2rem 0.6rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     cursor: pointer;
     font-size: 0.78rem;
     font-weight: 500;

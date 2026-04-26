@@ -559,7 +559,6 @@
     padding: 0.6rem 1.2rem;
     color: var(--text-muted);
     font-size: 0.95rem;
-    font-family: var(--font);
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -581,8 +580,9 @@
   }
 
   .library-count {
+    font-variant-numeric: tabular-nums;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
 
   .library-grid {
@@ -610,7 +610,7 @@
   .library-img {
     width: 64px;
     height: 64px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
   }
@@ -719,7 +719,6 @@
     gap: 0.3rem;
     transition: border-color 0.15s;
     color: var(--text);
-    font-family: var(--font);
   }
 
   .strategy-card:hover {
@@ -758,7 +757,9 @@
   }
 
   .filter-row .filter-label {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
     color: var(--text-muted);
   }
 
@@ -776,7 +777,6 @@
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
     font-size: 0.9rem;
-    font-family: var(--font);
     outline: none;
     max-width: 300px;
   }
@@ -808,7 +808,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 
@@ -831,7 +830,6 @@
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
     font-size: 0.9rem;
-    font-family: var(--font);
     outline: none;
     width: 200px;
   }
@@ -874,7 +872,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.8rem;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 
@@ -897,7 +894,6 @@
     border-radius: var(--radius);
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
-    font-family: var(--font);
     width: 60px;
     outline: none;
   }
@@ -920,7 +916,6 @@
     padding: 0.55rem 1.2rem;
     border-radius: var(--radius);
     font-size: 0.9rem;
-    font-family: var(--font);
     cursor: pointer;
     border: none;
     transition: all 0.15s;
@@ -1000,7 +995,6 @@
     cursor: pointer;
     width: 100%;
     text-align: left;
-    font-family: var(--font);
     font-size: 0.9rem;
     transition: background 0.15s;
   }
@@ -1063,7 +1057,7 @@
   }
 
   .playlist-embed iframe {
-    border-radius: 12px;
+    border-radius: var(--radius);
   }
 
   .playlist-tracks {

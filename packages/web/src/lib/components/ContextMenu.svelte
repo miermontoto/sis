@@ -86,7 +86,7 @@
     min-width: 180px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     padding: 0.25rem 0;
     z-index: 500;
@@ -100,7 +100,6 @@
     background: transparent;
     color: var(--text);
     font-size: 0.85rem;
-    font-family: var(--font);
     cursor: pointer;
   }
   .ctx-item:hover:not(:disabled) { background: var(--bg-hover); }

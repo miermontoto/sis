@@ -44,15 +44,16 @@
   let chart: echarts.ECharts | null = null;
 
   // tema oscuro consistente con el CSS
+  const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
   const darkTheme = {
     backgroundColor: 'transparent',
-    textStyle: { color: '#888' },
-    title: { textStyle: { color: '#e5e5e5' } },
-    legend: { textStyle: { color: '#888' } },
+    textStyle: { color: '#6a7a7a', fontFamily: MONO_STACK },
+    title: { textStyle: { color: '#e0e8e8' } },
+    legend: { textStyle: { color: '#6a7a7a', fontFamily: MONO_STACK } },
     tooltip: {
-      backgroundColor: '#1a1a1a',
-      borderColor: '#2a2a2a',
-      textStyle: { color: '#e5e5e5' },
+      backgroundColor: '#0f1214',
+      borderColor: '#1e2a2a',
+      textStyle: { color: '#e0e8e8', fontFamily: MONO_STACK },
     },
   };
 

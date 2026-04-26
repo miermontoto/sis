@@ -52,13 +52,15 @@
     color: var(--accent);
   }
   .cover-rank {
+    font-family: var(--font-mono);
     position: absolute;
     top: 2px;
     left: 2px;
+    font-variant-numeric: tabular-nums;
     font-size: 0.65rem;
     font-weight: 700;
     background: rgba(0, 0, 0, 0.6);
-    border-radius: 4px;
+    border-radius: var(--radius);
     padding: 0 4px;
     z-index: 1;
   }
@@ -66,7 +68,7 @@
     width: 100%;
     aspect-ratio: 1;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: var(--radius);
   }
   .cover-img--empty {
     background: var(--border);
@@ -89,6 +91,8 @@
     vertical-align: middle;
   }
   .cover-stat {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 0.65rem;
     color: var(--text-dim);
     text-align: center;

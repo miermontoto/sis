@@ -77,13 +77,12 @@
   }
 
   .date-input {
-    background: #1a1a1a;
-    color: #e5e5e5;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
+    background: var(--bg-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
-    font-family: var(--font);
     outline: none;
     transition: border-color 0.15s;
   }

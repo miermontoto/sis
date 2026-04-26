@@ -6,12 +6,12 @@
 
   // presets de color: { bg, fg, name }
   const PRESETS = [
-    { name: 'Clásico',   bg: '#0a0a0a', fg: '#e5e5e5' },
+    { name: 'Clásico',   bg: '#080a0c', fg: '#e0e8e8' },
     { name: 'Amarillo',  bg: '#fff200', fg: '#ff1493' },
     { name: 'Rojo',      bg: '#c8102e', fg: '#000000' },
     { name: 'Verde',     bg: '#1db954', fg: '#000000' },
     { name: 'Violeta',   bg: '#2d1b69', fg: '#ffffff' },
-    { name: 'Mier',      bg: '#ff6b35', fg: '#1a1a1a' },
+    { name: 'Mier',      bg: '#ff6b35', fg: '#161a1d' },
   ] as const;
 
   const SEP = ' · ';
@@ -267,7 +267,6 @@
     border: 2px solid var(--border);
     cursor: pointer;
     font-weight: 700;
-    font-family: var(--font);
     transition: transform 0.15s, border-color 0.15s;
   }
 
@@ -283,7 +282,6 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 

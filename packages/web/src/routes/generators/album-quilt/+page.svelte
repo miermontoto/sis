@@ -83,7 +83,7 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    ctx.fillStyle = '#0a0a0a';
+    ctx.fillStyle = '#080a0c';
     ctx.fillRect(0, 0, width, height);
 
     // cargar covers en paralelo (null si falla)
@@ -105,7 +105,7 @@
           ctx.drawImage(img, x, y, CELL_SIZE, CELL_SIZE);
         } else {
           // placeholder con primera letra del álbum
-          ctx.fillStyle = '#1a1a1a';
+          ctx.fillStyle = '#161a1d';
           ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
           ctx.fillStyle = '#444';
           ctx.font = 'bold 120px sans-serif';
@@ -116,7 +116,7 @@
         }
 
         if (showTitles) {
-          ctx.fillStyle = '#e5e5e5';
+          ctx.fillStyle = '#e0e8e8';
           ctx.font = '600 18px sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
@@ -129,7 +129,7 @@
           }
           if (txt !== name) txt = txt.slice(0, -1) + '…';
           ctx.fillText(txt, x + 4, y + CELL_SIZE + 6);
-          ctx.fillStyle = '#888';
+          ctx.fillStyle = '#6a7a7a';
           ctx.font = '14px sans-serif';
           const subtitle = metric === 'plays'
             ? `${formatNumber(album.playCount)} plays`
@@ -146,7 +146,7 @@
 
     if (showUsername) {
       const footerY = height - footerHeight;
-      ctx.fillStyle = '#888';
+      ctx.fillStyle = '#6a7a7a';
       ctx.font = '600 20px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -295,7 +295,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 
@@ -319,7 +318,6 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 

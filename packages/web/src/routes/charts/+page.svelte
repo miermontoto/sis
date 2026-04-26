@@ -497,11 +497,10 @@
     background: var(--accent);
     color: #000;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 0.25rem 0.7rem;
     font-size: 0.8rem;
     font-weight: 600;
-    font-family: var(--font);
     cursor: pointer;
     transition: background 0.15s;
   }
@@ -539,18 +538,17 @@
     gap: 0.25rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 3px;
     width: fit-content;
   }
   .ch-tab {
     padding: 0.4rem 1rem;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius);
     background: transparent;
     color: var(--text-muted);
     font-size: 0.85rem;
-    font-family: var(--font);
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -582,10 +580,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: var(--radius);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
-    font-family: var(--font);
     padding: 0;
   }
   .period-arrow:hover:not(:disabled) {
@@ -601,9 +598,8 @@
     border: 1px solid var(--border);
     color: var(--text);
     font-size: 0.85rem;
-    font-family: var(--font);
     padding: 0.35rem 0.6rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     cursor: pointer;
     outline: none;
   }
@@ -621,7 +617,7 @@
   }
   .chart-list {
     background: var(--bg-card);
-    border-radius: 10px;
+    border-radius: var(--radius);
     overflow: hidden;
   }
   .chart-item {
@@ -649,6 +645,7 @@
     flex-shrink: 0;
   }
   .chart-rank {
+    font-variant-numeric: tabular-nums;
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text);
@@ -656,7 +653,7 @@
   .chart-art {
     width: 40px;
     height: 40px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
     background: var(--border);
@@ -705,6 +702,7 @@
     height: 2.2rem;
   }
   .chart-stat-val {
+    font-variant-numeric: tabular-nums;
     font-size: 0.85rem;
     font-weight: 700;
     color: var(--text);
@@ -727,8 +725,7 @@
     border: none;
     cursor: pointer;
     padding: 0;
-    border-radius: 6px;
-    font-family: var(--font);
+    border-radius: var(--radius);
     transition: background 0.15s;
   }
   .chart-stat--peak:hover {
@@ -745,7 +742,7 @@
     background: rgba(240, 192, 64, 0.12);
     border: 1px solid rgba(240, 192, 64, 0.3);
     padding: 0;
-    border-radius: 5px;
+    border-radius: var(--radius);
     min-width: 2.5rem;
     width: 2.5rem;
     height: 2.2rem;

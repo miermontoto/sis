@@ -267,7 +267,7 @@
   .merge-modal {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--radius);
     width: 440px;
     max-width: calc(100% - 2rem);
     max-height: 75vh;
@@ -313,7 +313,7 @@
   .merge-thumb {
     width: 48px;
     height: 48px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
   }
@@ -322,7 +322,7 @@
   .merge-thumb-sm {
     width: 36px;
     height: 36px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
   }
@@ -369,10 +369,10 @@
     padding: 0.45rem 0.7rem;
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--text);
     font-size: 0.85rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     outline: none;
   }
   .merge-search::placeholder { color: var(--text-muted); }
@@ -401,7 +401,7 @@
     color: var(--text);
     cursor: pointer;
     text-align: left;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     transition: background 0.1s;
   }
 
@@ -413,7 +413,7 @@
     width: 18px;
     height: 18px;
     border: 2px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -454,7 +454,7 @@
     font-size: 1.2rem;
     cursor: pointer;
     padding: 0.2rem 0.4rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     line-height: 1;
     flex-shrink: 0;
   }
@@ -472,11 +472,10 @@
     background: var(--accent);
     color: #000;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
-    font-family: var(--font);
     transition: opacity 0.15s;
   }
 

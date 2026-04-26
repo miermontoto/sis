@@ -231,7 +231,7 @@
           {/if}
         </div>
       {/if}
-      <div class="sidebar-footer">SIS{#if appVersion} <span class="sidebar-version">{appVersion}</span>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
+      <div class="sidebar-footer">{#if appVersion} <span class="sidebar-version">{appVersion}</span>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content">
       <div class="mobile-header">

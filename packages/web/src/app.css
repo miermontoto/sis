@@ -1,18 +1,19 @@
 :root {
-  --bg: #0a0a0a;
-  --bg-card: #141414;
-  --bg-hover: #1a1a1a;
-  --border: #2a2a2a;
-  --text: #e5e5e5;
-  --text-muted: #888;
+  --bg: #080a0c;
+  --bg-card: #0f1214;
+  --bg-hover: #161a1d;
+  --border: #1e2a2a;
+  --text: #e0e8e8;
+  --text-muted: #6a7a7a;
   --accent: #1db954;
   --accent-hover: #1ed760;
   --danger: #e74c3c;
   --gold: #f0c040;
   --silver: #c0c0c0;
   --bronze: #cd7f32;
-  --radius: 8px;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius: 2px;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   color-scheme: dark;
 }
@@ -34,11 +35,37 @@ html {
 }
 
 body {
-  font-family: var(--font);
+  font-family: var(--font-sans);
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
   overscroll-behavior: none;
+}
+
+button, select, kbd, input[type="date"], input[type="number"], input[type="range"] {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* utilidades de diseño: valores numéricos, etiquetas, contadores */
+.data-val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.data-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.data-count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 a {
@@ -84,14 +111,17 @@ a:hover {
 }
 
 .sidebar-logo-mark {
+  font-family: var(--font-mono);
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   line-height: 1.1;
+  text-shadow: 0 0 10px rgba(29, 185, 84, 0.4);
 }
 
 .sidebar-logo-subtitle {
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--text-muted);
   line-height: 1.2;
@@ -111,7 +141,7 @@ a:hover {
   background: var(--bg);
   color: var(--text-muted);
   font-size: 0.85rem;
-  font-family: var(--font);
+  font-family: var(--font-mono);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -126,7 +156,7 @@ a:hover {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 5px;
+  border-radius: var(--radius);
   background: var(--bg-hover);
   color: var(--text);
   font-size: 0.75rem;
@@ -139,9 +169,9 @@ a:hover {
   font-size: 0.7rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius);
   padding: 0.1rem 0.35rem;
-  font-family: var(--font);
+  font-family: var(--font-mono);
 }
 
 .sidebar-nav {
@@ -175,7 +205,10 @@ a:hover {
   padding: 0.55rem 0.75rem;
   border-radius: var(--radius);
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   transition: all 0.15s;
 }
 
@@ -184,7 +217,7 @@ a:hover {
   place-items: center;
   width: 1.45rem;
   height: 1.45rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -236,7 +269,7 @@ a:hover {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
+  gap: 0.5rem;
   margin-bottom: 1.5rem;
   align-items: stretch;
 }
@@ -251,8 +284,11 @@ a:hover {
 }
 
 .stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: clamp(0.95rem, 2.5vw, 1.8rem);
   font-weight: 700;
+  letter-spacing: 0.05em;
   color: var(--accent);
   max-width: 100%;
   overflow-wrap: break-word;
@@ -260,7 +296,10 @@ a:hover {
 }
 
 .stat-label {
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   margin-top: 0.25rem;
 }
@@ -322,6 +361,8 @@ a.track-item {
 }
 
 .track-rank {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 0.85rem;
   color: var(--text-muted);
   text-align: center;
@@ -332,7 +373,7 @@ a.track-item {
 .track-art {
   width: 48px;
   height: 48px;
-  border-radius: 4px;
+  border-radius: var(--radius);
   object-fit: cover;
   flex-shrink: 0;
   background: var(--border);
@@ -374,11 +415,15 @@ a.track-item {
 }
 
 .track-plays {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--accent);
 }
 
 .track-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 0.8rem;
   color: var(--text-muted);
 }
@@ -451,8 +496,10 @@ a.track-item {
   border-top: none;
   border-left: none;
   border-right: none;
-  font-size: 0.9rem;
-  font-family: var(--font);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .tab:hover {
@@ -478,8 +525,10 @@ a.track-item {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.85rem;
-  font-family: var(--font);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   transition: all 0.15s;
 }
 
@@ -531,13 +580,13 @@ a.track-item {
   gap: 0.5rem;
   padding: 0.5rem;
   width: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius);
   text-decoration: none;
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-family: var(--font);
+  font-family: var(--font-sans);
   transition: border-color 0.15s;
 }
 
@@ -563,7 +612,7 @@ a.track-item {
   right: 0;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.25rem;
   z-index: 50;
 }
@@ -571,7 +620,7 @@ a.track-item {
 .user-menu-item {
   display: block;
   padding: 0.45rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 0.8rem;
   color: var(--text);
   text-decoration: none;
@@ -632,7 +681,7 @@ a.track-item {
   color: var(--accent);
   background: var(--bg-card);
   border: 1px solid rgba(29, 185, 84, 0.3);
-  border-radius: 4px;
+  border-radius: var(--radius);
   padding: 0.05rem 0.3rem;
   line-height: 1.3;
 }
@@ -646,7 +695,7 @@ a.track-item {
 }
 
 .sidebar-version {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   opacity: 0.8;
 }
 
@@ -688,11 +737,11 @@ a.track-item {
   margin-left: auto;
   padding: 0.2rem 0.55rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius, 6px);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--text-muted);
   font-size: 0.7rem;
-  font-family: var(--font);
+  font-family: var(--font-mono);
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
@@ -749,7 +798,7 @@ a.track-item {
   height: 320px;
   pointer-events: none;
   z-index: 0;
-  border-radius: 0 0 24px 24px;
+  border-radius: 0;
 }
 
 .detail-hero-row {
@@ -830,10 +879,10 @@ a.track-item {
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 0.8rem;
   font-weight: 600;
-  font-family: var(--font);
+  font-family: var(--font-sans);
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s;
 }
@@ -851,17 +900,20 @@ a.track-item {
   border: 1px solid var(--border);
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius);
   transition: color 0.15s, border-color 0.15s, background 0.15s;
-  font-family: var(--font);
+  font-family: var(--font-sans);
 }
 .like-btn:hover:not(:disabled) { color: #ff4b7a; border-color: #ff4b7a; background: rgba(255, 75, 122, 0.08); }
 .like-btn:disabled { opacity: 0.5; cursor: default; }
 .like-btn--liked { color: #ff4b7a; border-color: #ff4b7a; }
 
 .section-title {
-  font-size: 1.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin: 1.5rem 0 0.75rem;
 }
 
@@ -880,9 +932,12 @@ a.track-item {
   border: 1px solid var(--border);
   color: var(--text-secondary);
   padding: 0.25rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
@@ -906,6 +961,7 @@ a.track-item {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -914,7 +970,7 @@ a.track-item {
   background: rgba(29, 185, 84, 0.12);
   border: 1px solid rgba(29, 185, 84, 0.3);
   padding: 0.15rem 0.5rem;
-  border-radius: 5px;
+  border-radius: var(--radius);
   white-space: nowrap;
   vertical-align: middle;
   position: relative;
@@ -941,8 +997,8 @@ a.track-item {
   display: inline-block;
   width: 1.5rem;
   height: 0.85rem;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -1004,10 +1060,12 @@ a.track-item {
     border-radius: var(--radius);
     background: transparent;
     color: var(--text-muted);
-    font-size: 0.66rem;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
     line-height: 1;
     text-align: center;
-    font-family: var(--font);
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -1022,7 +1080,7 @@ a.track-item {
   .mobile-tabbar .sidebar-nav-icon {
     width: 1.55rem;
     height: 1.55rem;
-    border-radius: 7px;
+    border-radius: var(--radius);
     background: var(--bg);
     font-size: 0.75rem;
   }
@@ -1072,7 +1130,7 @@ a.track-item {
   .mobile-tab-popup a .sidebar-nav-icon {
     width: 1.4rem;
     height: 1.4rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-size: 0.7rem;
   }
 
@@ -1118,7 +1176,7 @@ a.track-item {
     padding: 0.5rem 0.75rem;
     text-align: left;
     cursor: pointer;
-    font-family: var(--font);
+    font-family: var(--font-mono);
   }
 
   .mobile-user-wrap {

@@ -208,14 +208,13 @@
     align-items: center;
     gap: 0.1rem;
     padding: 0.5rem 0.75rem;
-    border-radius: 10px;
+    border-radius: var(--radius);
     background: var(--bg-card);
-    border: 1px solid #2a2a2a;
+    border: 1px solid var(--border);
     transition: border-color 0.2s, background 0.2s;
   }
   button.cs-badge--clickable {
     cursor: pointer;
-    font-family: var(--font);
     font-size: inherit;
     line-height: inherit;
     color: inherit;
@@ -242,14 +241,16 @@
   .cs-shimmer {
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
   .cs-val {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text);
+    color: var(--accent);
   }
   .cs-val--muted {
     color: var(--text-muted);
@@ -261,6 +262,7 @@
     margin-left: 0.15em;
   }
   .cs-label {
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -269,8 +271,8 @@
 
   /* chart-run grid */
   .chart-run {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(2rem, 1fr));
     gap: 3px;
     margin-top: 0.5rem;
   }
@@ -279,15 +281,14 @@
     align-items: center;
     justify-content: center;
     gap: 1px;
-    min-width: 2rem;
     height: 2rem;
     padding: 0 0.3rem;
-    border-radius: 5px;
+    border-radius: var(--radius);
     background: var(--bg-card);
-    border: 1px solid #2a2a2a;
+    border: 1px solid var(--border);
     font-size: 0.75rem;
     font-weight: 700;
-    font-family: var(--font);
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s, opacity 0.15s;
     -webkit-appearance: none;
@@ -318,7 +319,7 @@
     content: '';
     position: absolute;
     inset: -2px;
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 2px;
     background: repeating-conic-gradient(from var(--border-angle, 0deg), currentColor 0deg 17deg, transparent 17deg 28deg);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);

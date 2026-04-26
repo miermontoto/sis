@@ -219,7 +219,7 @@
     gap: 0.25rem;
     height: 32px;
     padding: 0 0.45rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     background: none;
     border: 1px solid var(--border);
     color: var(--text-muted);
@@ -240,10 +240,12 @@
     align-items: center;
   }
   .trigger-medal--text {
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     font-weight: 700;
   }
   .trigger-times {
+    font-family: var(--font-mono);
     font-size: 0.55rem;
     font-weight: 700;
     opacity: 0.7;
@@ -264,8 +266,8 @@
     min-width: 260px;
     max-width: min(320px, 90vw);
     padding: 0.5rem;
-    border-radius: 10px;
-    background: var(--bg-card, #141414);
+    border-radius: var(--radius);
+    background: var(--bg-card);
     border: 1px solid rgba(29, 185, 84, 0.25);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     animation: accolades-pop 0.14s ease-out;
@@ -285,6 +287,7 @@
   }
 
   .popover-title {
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -327,10 +330,12 @@
     line-height: 1;
   }
   .pill-count {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 0.65rem;
     font-weight: 700;
     color: var(--text);
-    background: #2a2a2a;
+    background: var(--border);
     border-radius: 999px;
     padding: 0 0.35rem;
     min-width: 1rem;
@@ -364,7 +369,7 @@
     align-items: center;
     gap: 0.55rem;
     padding: 0.35rem 0.4rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--text);
     text-decoration: none;
   }

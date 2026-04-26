@@ -77,7 +77,7 @@
     text-align: center;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--radius);
     padding: 2.5rem 2rem 2rem;
     width: 100%;
   }

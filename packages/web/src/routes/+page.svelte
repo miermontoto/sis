@@ -295,13 +295,19 @@
     gap: 0.4rem;
   }
   .stats-bar-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 1.25rem;
     font-weight: 700;
+    letter-spacing: 0.05em;
     color: var(--accent);
   }
   .stats-bar-label {
-    font-size: 0.8rem;
-    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
   }
   .stats-bar-sep {
     width: 1px;
@@ -314,12 +320,15 @@
     background: rgba(29, 185, 84, 0.04);
   }
   .closed-charts-header {
+    font-family: var(--font-mono);
     display: flex;
     align-items: center;
     gap: 0.5rem;
     color: var(--accent);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     margin-bottom: 0.5rem;
   }
   .closed-charts-dismiss {
@@ -341,12 +350,13 @@
     gap: 0.25rem;
   }
   .closed-chart-link {
+    font-family: var(--font-mono);
     display: flex;
     align-items: center;
     gap: 0.4rem;
     color: var(--text);
     text-decoration: none;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     padding: 0.3rem 0;
     transition: color 0.15s;
   }
@@ -362,6 +372,13 @@
     opacity: 1;
   }
 
+  h3 {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
   .section-link {
     color: inherit;
     text-decoration: none;
@@ -383,14 +400,14 @@
     opacity: 0.35;
   }
   .ghost-shimmer {
-    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
   .ghost-line {
     display: block;
-    border-radius: 3px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
@@ -423,7 +440,7 @@
   .cover-img-ghost {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 6px;
+    border-radius: var(--radius);
   }
   .cover-img-ghost--round {
     border-radius: 50%;

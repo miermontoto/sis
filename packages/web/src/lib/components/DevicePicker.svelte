@@ -138,7 +138,7 @@
     color: var(--text-muted);
     cursor: pointer;
     padding: 0.35rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     transition: color 0.15s, background 0.15s;
     min-width: 30px;
     min-height: 30px;
@@ -159,7 +159,7 @@
     max-width: 300px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     overflow: hidden;
     z-index: 200;
@@ -187,7 +187,6 @@
     color: var(--text);
     cursor: pointer;
     text-align: left;
-    font-family: var(--font);
     transition: background 0.1s;
   }
 

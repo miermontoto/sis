@@ -429,9 +429,8 @@
     border: 1px solid var(--border);
     color: var(--text);
     font-size: 0.8rem;
-    font-family: var(--font);
     padding: 0.3rem 0.6rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     cursor: pointer;
     outline: none;
     color-scheme: dark;
@@ -454,7 +453,7 @@
     padding: 0.35rem 0.6rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-size: 0.8rem;
     color: var(--text);
   }
@@ -466,7 +465,6 @@
     cursor: pointer;
     padding: 0 0.15rem;
     line-height: 1;
-    font-family: var(--font);
   }
   .filter-chip-clear:hover {
     color: var(--text);
@@ -477,7 +475,6 @@
     color: var(--text-muted);
     font-size: 0.75rem;
     cursor: pointer;
-    font-family: var(--font);
     text-decoration: underline;
   }
   .filter-clear-all:hover {
@@ -489,9 +486,8 @@
     border: 1px solid var(--border);
     color: var(--text-muted);
     font-size: 0.8rem;
-    font-family: var(--font);
     padding: 0.3rem 0.75rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
   }
@@ -508,9 +504,8 @@
     border: 1px solid var(--border);
     color: var(--text-muted);
     font-size: 0.75rem;
-    font-family: var(--font);
     padding: 0.25rem 0.6rem;
-    border-radius: 5px;
+    border-radius: var(--radius);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
   }

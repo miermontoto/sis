@@ -80,13 +80,12 @@
     border: none;
     cursor: pointer;
     padding: 0;
-    border-radius: 6px;
-    font-family: var(--font);
+    border-radius: var(--radius);
     transition: background 0.15s;
     width: 100%;
   }
   .peak-trigger:hover {
-    background: color-mix(in srgb, var(--peak-tint) 12%, transparent);
+    background: transparent;
   }
   .peak-top {
     display: flex;
@@ -127,7 +126,7 @@
     margin-top: 0.25rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 0.25rem;
     display: flex;
     flex-direction: column;
@@ -141,11 +140,10 @@
     text-align: left;
     padding: 0.4rem 0.6rem;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--radius);
     background: none;
     color: var(--text);
     font-size: 0.8rem;
-    font-family: var(--font);
     cursor: pointer;
     transition: background 0.1s;
     white-space: nowrap;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { dualAxisGrid, TOOLTIP_BASE, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries } from '$lib/utils/chart';
+  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
@@ -69,11 +69,11 @@
     const durFmt = isPlays ? undefined : (v: number) => formatDuration(v);
     return {
       grid: dualAxisGrid(),
-      tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const pp = Array.isArray(params) ? params : [params]; return pp.map((p: any) => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:#888">${pp[0].name}</span>`; } },
+      tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const pp = Array.isArray(params) ? params : [params]; return pp.map((p: any) => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:#6a7a7a">${pp[0].name}</span>`; } },
       xAxis: categoryAxis(filled.map(d => d.period)),
       yAxis: [
-        valueAxis({ axisLabel: { color: '#888', fontSize: 11, formatter: durFmt } }),
-        secondaryValueAxis({ axisLabel: { color: '#555', fontSize: 11, formatter: durFmt } }),
+        valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: durFmt } }),
+        secondaryValueAxis({ axisLabel: { color: '#4a5a5a', fontSize: 11, formatter: durFmt } }),
       ],
       series: [
         barSeries(values),

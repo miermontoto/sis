@@ -152,8 +152,8 @@
     grid: { ...GRID },
     xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     yAxis: { type: 'category', data: dayNames, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
-    visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#141414', '#0d3320', '#1a6b3f', '#1db954'] } },
-    series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, h.day_of_week, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 3 } }],
+    visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#0f1214', '#0d3320', '#1a6b3f', '#1db954'] } },
+    series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, h.day_of_week, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 1 } }],
   });
 
   const entityLabels = { track: 'Tracks', album: 'Albums', artist: 'Artists' } as const;
@@ -175,7 +175,7 @@
     series: [
       barSeries(discovery.map(d => d.distinct_count), {
         name: 'Distinct', yAxisIndex: 0,
-        itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [3, 3, 0, 0] },
+        itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [1, 1, 0, 0] },
       }),
       cumulativeLineSeries(discovery.map(d => d.cumulative), {
         name: 'Cumulative',
@@ -189,7 +189,7 @@
     tooltip: { ...PIE_TOOLTIP },
     series: [{
       type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: '#141414', borderWidth: 2 },
+      itemStyle: { borderRadius: 2, borderColor: '#0f1214', borderWidth: 2 },
       label: { ...AXIS_LABEL },
       data: genres.map((g, i) => ({ name: g.genre, value: g.play_count, itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] } })),
     }],
@@ -328,8 +328,8 @@
     vertical-align: middle;
   }
   .ghost-chart {
-    border-radius: 6px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
@@ -352,17 +352,19 @@
   .entity-toggle {
     display: flex;
     gap: 0.25rem;
-    background: #1a1a1a;
-    border-radius: 6px;
+    background: var(--bg-hover);
+    border-radius: var(--radius);
     padding: 2px;
   }
   .toggle-btn {
     padding: 0.25rem 0.75rem;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--radius);
     background: transparent;
-    color: #888;
+    color: var(--text-muted);
     font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
     cursor: pointer;
     transition: all 0.15s;
   }

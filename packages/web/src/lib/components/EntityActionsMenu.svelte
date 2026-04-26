@@ -89,7 +89,7 @@
     justify-content: center;
     border: 1px solid var(--border);
     background: transparent;
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--text-muted);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s, background 0.15s;
@@ -107,7 +107,7 @@
     min-width: 170px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     overflow: hidden;
     z-index: 50;
@@ -122,7 +122,6 @@
     background: transparent;
     color: var(--text);
     font-size: 0.85rem;
-    font-family: var(--font);
     cursor: pointer;
     transition: background 0.1s, color 0.1s;
   }

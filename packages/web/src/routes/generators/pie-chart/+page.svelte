@@ -26,7 +26,7 @@
     {
       name: 'Pastel',
       colors: ['#ffadad', '#ffd6a5', '#fdffb6', '#caffbf', '#9bf6ff', '#a0c4ff', '#bdb2ff', '#ffc6ff', '#fffffc', '#e4c1f9'],
-      others: '#888',
+      others: '#6a7a7a',
     },
     {
       name: 'Mono',
@@ -132,16 +132,16 @@
     if (!ctx) return null;
 
     // fondo
-    ctx.fillStyle = '#0a0a0a';
+    ctx.fillStyle = '#080a0c';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
     // título y subtítulo
-    ctx.fillStyle = '#e5e5e5';
+    ctx.fillStyle = '#e0e8e8';
     ctx.font = 'bold 56px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText('Top artists', MARGIN, MARGIN);
-    ctx.fillStyle = '#888';
+    ctx.fillStyle = '#6a7a7a';
     ctx.font = '500 26px sans-serif';
     ctx.fillText(`${rangeLabel()} · by ${metric === 'plays' ? 'play count' : 'listening time'}`, MARGIN, MARGIN + 72);
 
@@ -155,7 +155,7 @@
       ctx.closePath();
       ctx.fillStyle = s.color;
       ctx.fill();
-      ctx.strokeStyle = '#0a0a0a';
+      ctx.strokeStyle = '#080a0c';
       ctx.lineWidth = 3;
       ctx.stroke();
 
@@ -165,7 +165,7 @@
         const mid = angle + delta / 2;
         const lx = PIE_CX + Math.cos(mid) * PIE_R * 0.65;
         const ly = PIE_CY + Math.sin(mid) * PIE_R * 0.65;
-        ctx.fillStyle = '#0a0a0a';
+        ctx.fillStyle = '#080a0c';
         ctx.font = 'bold 28px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -188,7 +188,7 @@
       ctx.fillStyle = s.color;
       ctx.fillRect(LEGEND_X, y - 14, 28, 28);
       // nombre (truncado)
-      ctx.fillStyle = '#e5e5e5';
+      ctx.fillStyle = '#e0e8e8';
       ctx.font = '600 22px sans-serif';
       let name = s.label;
       const maxNameW = LEGEND_W - 40 - 120; // espacio reservado para el valor
@@ -196,7 +196,7 @@
       if (name !== s.label) name = name.slice(0, -1) + '…';
       ctx.fillText(name, LEGEND_X + 44, y);
       // valor a la derecha
-      ctx.fillStyle = '#888';
+      ctx.fillStyle = '#6a7a7a';
       ctx.font = '500 20px sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(valueLabel(s.value), LEGEND_X + LEGEND_W, y);
@@ -339,7 +339,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: var(--font);
     transition: all 0.15s;
   }
 
@@ -366,7 +365,6 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-family: var(--font);
     transition: all 0.15s;
   }
   .download-btn:disabled { opacity: 0.5; cursor: not-allowed; }

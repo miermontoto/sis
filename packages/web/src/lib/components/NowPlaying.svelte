@@ -118,7 +118,7 @@
     padding: 0.75rem;
     background: linear-gradient(135deg, rgba(29, 185, 84, 0.08), rgba(29, 185, 84, 0.02));
     border: 1px solid rgba(29, 185, 84, 0.15);
-    border-radius: var(--radius, 8px);
+    border-radius: var(--radius);
   }
 
   .np--compact {
@@ -132,7 +132,7 @@
     width: 100%;
     height: auto;
     aspect-ratio: 1;
-    border-radius: 6px;
+    border-radius: var(--radius);
   }
 
   .np-art-link {
@@ -143,7 +143,7 @@
   .np-art {
     width: 48px;
     height: 48px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     object-fit: cover;
     background: var(--border);
     display: block;
@@ -253,7 +253,7 @@
     color: var(--text-muted);
     cursor: pointer;
     padding: 0.35rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     transition: color 0.15s, background 0.15s;
     min-width: 30px;
     min-height: 30px;

@@ -513,18 +513,19 @@
     margin-bottom: 1.25rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 3px;
     width: fit-content;
   }
   .rec-tab {
     padding: 0.4rem 1rem;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius);
     background: transparent;
     color: var(--text-muted);
-    font-size: 0.85rem;
-    font-family: var(--font);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -536,11 +537,12 @@
   }
 
   .record-group {
-    font-size: 1.1rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     margin: 1.75rem 0 0.5rem;
     color: var(--text);
     font-weight: 600;
-    letter-spacing: 0.01em;
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.3rem;
   }
@@ -558,7 +560,7 @@
   }
   .record-list {
     background: var(--bg-card);
-    border-radius: 10px;
+    border-radius: var(--radius);
     overflow: hidden;
   }
   .record-list :global(.track-item) {
@@ -575,6 +577,7 @@
     gap: 0.1rem;
   }
   .record-val {
+    font-variant-numeric: tabular-nums;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--accent);
@@ -601,7 +604,7 @@
   .month-collage {
     width: 36px;
     height: 36px;
-    border-radius: 4px;
+    border-radius: var(--radius);
     overflow: hidden;
     flex-shrink: 0;
     background: var(--border);

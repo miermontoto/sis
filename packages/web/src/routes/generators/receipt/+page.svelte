@@ -447,7 +447,6 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    font-family: var(--font);
     transition: all 0.15s;
   }
   .chip:hover { border-color: var(--text-muted); color: var(--text); }
@@ -462,7 +461,6 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-family: var(--font);
     transition: all 0.15s;
   }
   .download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
