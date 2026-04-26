@@ -44,7 +44,7 @@
   });
 </script>
 
-<span class="peak-selector" class:peak-selector--lg={size === 'lg'} bind:this={container}>
+<span class="peak-selector" class:peak-selector--lg={size === 'lg'} style:--peak-tint={medalColor(peakRank) ?? 'var(--accent)'} bind:this={container}>
   <button class="peak-trigger" onclick={toggle} title="View peak weeks">
     <span class="peak-top">
       <span class="peak-val" style:color={medalColor(peakRank) ?? 'var(--accent)'}>#{peakRank}</span>
@@ -86,7 +86,7 @@
     width: 100%;
   }
   .peak-trigger:hover {
-    background: rgba(29, 185, 84, 0.12);
+    background: color-mix(in srgb, var(--peak-tint) 12%, transparent);
   }
   .peak-top {
     display: flex;
@@ -151,7 +151,7 @@
     white-space: nowrap;
   }
   .peak-option:hover {
-    background: rgba(29, 185, 84, 0.15);
-    color: var(--accent);
+    background: color-mix(in srgb, var(--peak-tint) 15%, transparent);
+    color: var(--peak-tint);
   }
 </style>

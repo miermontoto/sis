@@ -180,4 +180,40 @@ nowPlaying.put('/device', async (c) => {
   return c.json({ success: true });
 });
 
+// --- liked songs (Spotify library) ---
+
+nowPlaying.get('/like/:trackId', async (c) => {
+  const userId = c.get('userId');
+  const trackId = c.req.param('trackId');
+  const data = await spotifyFetch<boolean[]>('/me/tracks/contains', {
+    userId,
+    params: { ids: trackId },
+  });
+  return c.json({ isLiked: data?.[0] ?? false });
+});
+
+nowPlaying.put('/like/:trackId', async (c) => {
+  const userId = c.get('userId');
+  const trackId = c.req.param('trackId');
+  const res = await spotifyFetchRaw('/me/tracks', {
+    userId,
+    method: 'PUT',
+    body: { ids: [trackId] },
+  });
+  if (!res) return c.json({ success: false, error: 'rate_limited' });
+  return c.json({ success: res.ok });
+});
+
+nowPlaying.delete('/like/:trackId', async (c) => {
+  const userId = c.get('userId');
+  const trackId = c.req.param('trackId');
+  const res = await spotifyFetchRaw('/me/tracks', {
+    userId,
+    method: 'DELETE',
+    body: { ids: [trackId] },
+  });
+  if (!res) return c.json({ success: false, error: 'rate_limited' });
+  return c.json({ success: res.ok });
+});
+
 export default nowPlaying;

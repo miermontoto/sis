@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
-import { spotifyPlaylists, spotifyPlaylistTracks } from '../db/schema.js';
+import { spotifyPlaylists } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
 import { upsertTrack } from './ingestion.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
@@ -8,6 +8,65 @@ import type { SpotifyPlaylistsResponse, SpotifyPlaylistTracksResponse } from '..
 
 function isAlgorithmic(ownerId: string): boolean {
   return ownerId === 'spotify';
+}
+
+export function syncCreatedPlaylistToLibrary(input: {
+  userId: number;
+  spotifyPlaylistId: string;
+  name: string;
+  ownerName: string | null;
+  imageUrl?: string | null;
+  snapshotId?: string | null;
+  trackIds: string[];
+}): number {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = db.all(sql`
+    SELECT id FROM spotify_playlists
+    WHERE user_id = ${input.userId} AND spotify_id = ${input.spotifyPlaylistId}
+  `)[0] as { id: number } | undefined;
+
+  let playlistId: number;
+  if (existing) {
+    playlistId = existing.id;
+    db.run(sql`
+      UPDATE spotify_playlists SET
+        name = ${input.name},
+        image_url = ${input.imageUrl ?? null},
+        owner_name = ${input.ownerName},
+        is_owned = 1,
+        is_algorithmic = 0,
+        track_count = ${input.trackIds.length},
+        snapshot_id = ${input.snapshotId ?? null},
+        last_synced_at = ${now},
+        updated_at = ${now}
+      WHERE id = ${playlistId}
+    `);
+  } else {
+    const row = db.insert(spotifyPlaylists).values({
+      userId: input.userId,
+      spotifyId: input.spotifyPlaylistId,
+      name: input.name,
+      imageUrl: input.imageUrl ?? null,
+      ownerName: input.ownerName,
+      isOwned: true,
+      isAlgorithmic: false,
+      trackCount: input.trackIds.length,
+      snapshotId: input.snapshotId ?? null,
+      lastSyncedAt: now,
+    }).returning().get();
+    playlistId = row.id;
+  }
+
+  db.run(sql`DELETE FROM spotify_playlist_tracks WHERE playlist_id = ${playlistId}`);
+  for (let i = 0; i < input.trackIds.length; i++) {
+    db.run(sql`
+      INSERT OR IGNORE INTO spotify_playlist_tracks (playlist_id, track_id, position, added_at)
+      VALUES (${playlistId}, ${input.trackIds[i]}, ${i}, ${now})
+    `);
+  }
+
+  return playlistId;
 }
 
 async function syncPlaylistTracks(userId: number, spotifyPlaylistId: string, dbPlaylistId: number): Promise<number> {

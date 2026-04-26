@@ -1,7 +1,10 @@
 import { sql } from 'drizzle-orm';
-import type { Db, Sort } from './helpers.js';
+import type { Db, Sort, EntityType } from './helpers.js';
 import { getRangeStart, orderByCol, userFilter, rangeWhere } from './helpers.js';
+import { getTopEntities } from './entity.js';
+import { getRawRanking } from './charts.js';
 import type { TimeRange } from '../../constants.js';
+import type { Granularity, WeekStartOption } from '@sis/shared';
 
 export interface PlaylistStrategyParams {
   limit: number;
@@ -193,6 +196,61 @@ export function strategyTimeVibes(db: Db, userId: number, params: TimeVibesParam
   return shuffleAndTake(rows.map(r => r.track_id), params.limit);
 }
 
+/** Resuelve entidades de records a track IDs para crear playlists.
+ *  - track: usa IDs directamente
+ *  - album: top tracksPerEntity tracks por álbum del historial del usuario
+ *  - artist: top tracksPerEntity tracks por artista del historial del usuario
+ */
+export function resolveEntitiesToTracks(
+  db: Db, userId: number,
+  entityType: 'track' | 'album' | 'artist',
+  entityIds: string[],
+  tracksPerEntity: number,
+): string[] {
+  if (entityIds.length === 0) return [];
+
+  if (entityType === 'track') {
+    return entityIds.filter(id => !id.startsWith('local:'));
+  }
+
+  const idList = sql.join(entityIds.map(id => sql`${id}`), sql`, `);
+
+  if (entityType === 'album') {
+    const rows = db.all(sql`
+      WITH ranked AS (
+        SELECT lh.track_id, t.album_id, COUNT(*) as plays,
+               ROW_NUMBER() OVER (PARTITION BY t.album_id ORDER BY COUNT(*) DESC) as rn
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        WHERE lh.user_id = ${userId}
+          AND t.album_id IN (${idList})
+          AND lh.track_id NOT LIKE 'local:%'
+        GROUP BY lh.track_id, t.album_id
+      )
+      SELECT track_id FROM ranked WHERE rn <= ${tracksPerEntity}
+      ORDER BY plays DESC
+    `) as { track_id: string }[];
+    return rows.map(r => r.track_id);
+  }
+
+  // artist
+  const rows = db.all(sql`
+    WITH ranked AS (
+      SELECT lh.track_id, ta.artist_id, COUNT(*) as plays,
+             ROW_NUMBER() OVER (PARTITION BY ta.artist_id ORDER BY COUNT(*) DESC) as rn
+      FROM listening_history lh
+      JOIN track_artists ta ON ta.track_id = lh.track_id AND ta.position = 0
+      WHERE lh.user_id = ${userId}
+        AND ta.artist_id IN (${idList})
+        AND lh.track_id NOT LIKE 'local:%'
+      GROUP BY lh.track_id, ta.artist_id
+    )
+    SELECT track_id FROM ranked WHERE rn <= ${tracksPerEntity}
+    ORDER BY plays DESC
+  `) as { track_id: string }[];
+  return rows.map(r => r.track_id);
+}
+
 /** Tracks olvidados: muchas escuchas históricas pero sin actividad reciente */
 export function strategyRediscovery(db: Db, userId: number, params: RediscoveryParams): string[] {
   const cutoff = new Date(Date.now() - params.recencyDays * 86_400_000).toISOString();
@@ -211,4 +269,54 @@ export function strategyRediscovery(db: Db, userId: number, params: RediscoveryP
   `) as { track_id: string }[];
 
   return shuffleAndTake(rows.map(r => r.track_id), params.limit);
+}
+
+export interface TopParams extends PlaylistStrategyParams, RangeParams {
+  entityType: 'track' | 'album' | 'artist';
+}
+
+/** Top entities → tracks playlist, preservando el orden de ranking */
+export function strategyTop(db: Db, userId: number, params: TopParams): string[] {
+  const { rangeStart, rangeEnd } = resolveRange(params);
+  const limit = Math.min(params.limit || 50, 50);
+
+  if (params.entityType === 'track') {
+    const ob = orderByCol(params.sort);
+    const uf = userFilter(userId);
+    const whereClause = rangeStart
+      ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
+      : sql`WHERE 1=1`;
+    const rows = db.all(sql`
+      SELECT lh.track_id as entity_id
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${whereClause} ${uf} ${NO_LOCAL}
+      GROUP BY lh.track_id
+      ORDER BY ${ob} DESC
+      LIMIT ${limit}
+    `) as { entity_id: string }[];
+    return rows.map(r => r.entity_id);
+  }
+
+  const rows = getTopEntities(db, params.entityType, rangeStart, params.sort, limit, rangeEnd, userId);
+  const entityIds = rows.map(r => r.entity_id);
+  return resolveEntitiesToTracks(db, userId, params.entityType, entityIds, 3);
+}
+
+export interface ChartParams extends PlaylistStrategyParams {
+  entityType: 'track' | 'album' | 'artist';
+  granularity: Granularity;
+  period: string;
+  weekStart: WeekStartOption;
+}
+
+/** Chart entries → tracks playlist */
+export function strategyChart(db: Db, userId: number, params: ChartParams): string[] {
+  const limit = Math.min(params.limit || 25, 50);
+  const entries = getRawRanking(db, params.entityType as EntityType, params.granularity, params.weekStart, params.period, params.sort, limit, userId);
+  const entityIds = entries.map(e => e.entity_id);
+  if (params.entityType === 'track') {
+    return entityIds.filter(id => !id.startsWith('local:'));
+  }
+  return resolveEntitiesToTracks(db, userId, params.entityType, entityIds, 3);
 }

@@ -7,7 +7,7 @@ import type { EntityType, RankingMetric } from '@sis/shared';
 export type Db = ReturnType<typeof getDb>;
 export type SqlChunk = ReturnType<typeof sql>;
 export type { EntityType };
-export type Sort = RankingMetric;
+export type Sort = RankingMetric | 'natural';
 
 // --- tipos de resultado ---
 

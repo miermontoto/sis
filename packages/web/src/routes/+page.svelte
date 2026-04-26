@@ -7,6 +7,8 @@
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { getClosedCharts, dismissAllClosedCharts, type ClosedChart } from '$lib/utils/periods';
+  import IconChart from '$lib/icons/IconChart.svelte';
+  import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
 
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
@@ -113,7 +115,7 @@
 {#if closedCharts.length > 0}
   <div class="card closed-charts-card">
     <div class="closed-charts-header">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <IconChart />
       <span>Charts ready to view</span>
       <button class="closed-charts-dismiss" onclick={handleDismissCharts} title="Dismiss">&times;</button>
     </div>
@@ -121,7 +123,7 @@
       {#each closedCharts as chart}
         <a href="/charts?granularity={chart.granularity}&period={chart.period}" class="closed-chart-link">
           {chart.label}
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <IconChevronRight />
         </a>
       {/each}
     </div>

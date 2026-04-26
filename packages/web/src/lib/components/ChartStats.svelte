@@ -34,6 +34,7 @@
 
   let loading = $state(true);
   let hoveredWeek = $state('');
+  let hoveredBadge = $state<'' | 'current' | 'peak'>('');
   const fetchCtrl = createFetchController();
 
   $effect(() => {
@@ -47,6 +48,14 @@
   });
 
   let data = $derived(chartData);
+
+  let currentMonth = $derived(data?.currentPeriod ? periodToMonth(data.currentPeriod) : '');
+  let peakMonths = $derived.by(() => {
+    if (!data?.peakPeriods?.length) return new Set<string>();
+    return new Set(data.peakPeriods.map(periodToMonth));
+  });
+  let currentBadgeGlow = $derived(highlightedMonth !== '' && highlightedMonth === currentMonth);
+  let peakBadgeGlow = $derived(highlightedMonth !== '' && peakMonths.has(highlightedMonth));
 
   // racha consecutiva actual: contar hacia atrás desde el final mientras rank != null
   let consecutiveWeeks = $derived.by(() => {
@@ -74,12 +83,14 @@
     count: number;
     period: string; // primer periodo de la racha
     isPeak: boolean;
+    isCurrent: boolean;
   }
 
   let runCells = $derived.by<RunCell[]>(() => {
     if (!data?.history.length) return [];
     const cells: RunCell[] = [];
     let gapCell: RunCell | null = null;
+    const curPeriod = data.currentPeriod;
 
     for (const h of data.history) {
       if (h.rank == null) {
@@ -87,13 +98,13 @@
         if (gapCell) {
           gapCell.count++;
         } else {
-          gapCell = { rank: null, count: 1, period: h.period, isPeak: false };
+          gapCell = { rank: null, count: 1, period: h.period, isPeak: false, isCurrent: false };
           cells.push(gapCell);
         }
       } else {
         // semana con chart: siempre celda individual
         gapCell = null;
-        cells.push({ rank: h.rank, count: 1, period: h.period, isPeak: h.rank === data!.peakRank });
+        cells.push({ rank: h.rank, count: 1, period: h.period, isPeak: h.rank === data!.peakRank && h.period !== curPeriod, isCurrent: h.period === curPeriod });
       }
     }
     return cells;
@@ -106,22 +117,48 @@
     <div class="cs-badge cs-badge--loading"><div class="cs-shimmer"></div></div>
     <div class="cs-badge cs-badge--loading"><div class="cs-shimmer"></div></div>
   </div>
-{:else if data && data.weeksOnChart > 0}
+{:else if data && (data.weeksOnChart > 0 || data.currentRank != null)}
   <div class="chart-stats-section">
     <div class="chart-stats-row">
-      <div class="cs-badge">
-        <span class="cs-val" class:cs-val--muted={data.currentRank == null} style:color={data.currentRank ? medalColor(data.currentRank) : undefined}>{data.currentRank != null ? `#${data.currentRank}` : '—'}</span>
-        <span class="cs-label">Current</span>
-      </div>
-      {#if data.timesAtPeak > 1 && data.peakPeriods?.length > 1}
-        <div class="cs-badge">
-          <PeakSelector peakRank={data.peakRank} peakPeriods={data.peakPeriods} onselect={(p) => goToWeek(p)} size="lg" />
-        </div>
-      {:else}
-        <button class="cs-badge cs-badge--clickable" onclick={goToPeak} title="View peak chart ({data.peakPeriod})">
-          <span class="cs-val" style:color={medalColor(data.peakRank) ?? 'var(--accent)'}>#{data.peakRank}</span>
-          <span class="cs-label">Peak</span>
+      {#if data.currentRank != null}
+        <button class="cs-badge cs-badge--clickable" class:cs-badge--glow={currentBadgeGlow}
+          style:--glow-color={medalColor(data.currentRank) ?? 'var(--accent)'}
+          onclick={() => goToWeek(data!.currentPeriod)} title="View current chart ({data.currentPeriod})"
+          onmouseenter={() => { hoveredBadge = 'current'; highlightedMonth = currentMonth; }}
+          onmouseleave={() => { hoveredBadge = ''; highlightedMonth = ''; }}>
+          <span class="cs-val" style:color={medalColor(data.currentRank) ?? undefined}>#{data.currentRank}</span>
+          <span class="cs-label">Current</span>
         </button>
+      {:else}
+        <div class="cs-badge">
+          <span class="cs-val cs-val--muted">—</span>
+          <span class="cs-label">Current</span>
+        </div>
+      {/if}
+      {#if data.peakRank > 0}
+        {#if data.timesAtPeak > 1 && data.peakPeriods?.length > 1}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="cs-badge cs-badge--interactive" class:cs-badge--glow={peakBadgeGlow}
+            style:--glow-color={medalColor(data.peakRank) ?? 'var(--accent)'}
+            onmouseenter={() => { hoveredBadge = 'peak'; highlightedMonth = periodToMonth(data!.peakPeriod); }}
+            onmouseleave={() => { hoveredBadge = ''; highlightedMonth = ''; }}>
+            <PeakSelector peakRank={data.peakRank} peakPeriods={data.peakPeriods} onselect={(p) => goToWeek(p)} size="lg" />
+          </div>
+        {:else}
+          <button class="cs-badge cs-badge--clickable" class:cs-badge--glow={peakBadgeGlow}
+            style:--glow-color={medalColor(data.peakRank) ?? 'var(--accent)'}
+            onclick={goToPeak} title="View peak chart ({data.peakPeriod})"
+            onmouseenter={() => { hoveredBadge = 'peak'; highlightedMonth = periodToMonth(data!.peakPeriod); }}
+            onmouseleave={() => { hoveredBadge = ''; highlightedMonth = ''; }}>
+            <span class="cs-val" style:color={medalColor(data.peakRank) ?? 'var(--accent)'}>#{data.peakRank}</span>
+            <span class="cs-label">Peak</span>
+          </button>
+        {/if}
+      {:else}
+        <div class="cs-badge">
+          <span class="cs-val cs-val--muted">—</span>
+          <span class="cs-label">Peak</span>
+        </div>
       {/if}
       <div class="cs-badge" title="{data.weeksOnChart} total, {consecutiveWeeks} consecutive">
         <span class="cs-val">{data.weeksOnChart}{#if consecutiveWeeks > 0} <span class="cs-total">({consecutiveWeeks})</span>{/if}</span>
@@ -131,16 +168,18 @@
 
     {#if runCells.length > 0}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="chart-run" onmouseleave={() => { hoveredWeek = ''; highlightedMonth = ''; }}>
+      <div class="chart-run" onmouseleave={() => { hoveredWeek = ''; hoveredBadge = ''; highlightedMonth = ''; }}>
         {#each runCells as cell}
           {#if cell.rank != null}
             <button
               class="run-cell"
               class:run-cell--peak={cell.isPeak}
-              class:run-cell--highlighted={hoveredWeek ? cell.period === hoveredWeek : (highlightedMonth && periodToMonth(cell.period) === highlightedMonth)}
+              class:run-cell--current={cell.isCurrent}
+              class:run-cell--highlighted={hoveredWeek ? cell.period === hoveredWeek : false}
+              class:run-cell--badge-pulse={!hoveredWeek && ((hoveredBadge === 'current' && cell.isCurrent) || (hoveredBadge === 'peak' && cell.isPeak) || (!hoveredBadge && highlightedMonth && periodToMonth(cell.period) === highlightedMonth))}
               style:color={medalColor(cell.rank) ?? 'var(--accent)'}
-              style:border-color={cell.isPeak ? (medalColor(cell.rank) ?? 'var(--accent)') : undefined}
-              title="{cell.period}: #{cell.rank}"
+              style:border-color={(cell.isPeak || cell.isCurrent) ? (medalColor(cell.rank) ?? 'var(--accent)') : undefined}
+              title="{cell.period}: #{cell.rank}{cell.isCurrent ? ' (current)' : ''}"
               onclick={() => goToWeek(cell.period)}
               onmouseenter={() => { hoveredWeek = cell.period; highlightedMonth = periodToMonth(cell.period); }}
             >{cell.rank}{#if cell.count > 1}<span class="run-times">×{cell.count}</span>{/if}</button>
@@ -172,6 +211,7 @@
     border-radius: 10px;
     background: var(--bg-card);
     border: 1px solid #2a2a2a;
+    transition: border-color 0.2s, background 0.2s;
   }
   button.cs-badge--clickable {
     cursor: pointer;
@@ -183,10 +223,16 @@
     appearance: none;
     text-align: center;
     margin: 0;
-    transition: border-color 0.15s;
+    transition: border-color 0.2s, background 0.2s;
   }
-  button.cs-badge--clickable:hover {
-    border-color: var(--accent);
+  button.cs-badge--clickable:hover,
+  .cs-badge--interactive:hover {
+    border-color: var(--glow-color, var(--accent));
+    background: color-mix(in srgb, var(--glow-color, var(--accent)) 10%, var(--bg-card));
+  }
+  .cs-badge--glow {
+    border-color: var(--glow-color, var(--accent));
+    background: color-mix(in srgb, var(--glow-color, var(--accent)) 10%, var(--bg-card));
   }
   .cs-badge--loading {
     height: 3rem;
@@ -243,7 +289,7 @@
     font-weight: 700;
     font-family: var(--font);
     cursor: pointer;
-    transition: background 0.1s;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
     -webkit-appearance: none;
     appearance: none;
   }
@@ -254,6 +300,49 @@
   }
   .run-cell--peak {
     border-width: 2px;
+  }
+  .run-cell--current {
+    border: 2px dashed currentColor;
+    opacity: 0.7;
+    position: relative;
+  }
+  .run-cell.run-cell--current:hover,
+  .run-cell--current.run-cell--badge-pulse,
+  .run-cell--current.run-cell--highlighted {
+    border-color: transparent !important;
+    opacity: 1;
+  }
+  .run-cell.run-cell--current:hover::before,
+  .run-cell--current.run-cell--badge-pulse::before,
+  .run-cell--current.run-cell--highlighted::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 6px;
+    padding: 2px;
+    background: repeating-conic-gradient(from var(--border-angle, 0deg), currentColor 0deg 17deg, transparent 17deg 28deg);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: rotate-border 10s linear infinite;
+    pointer-events: none;
+  }
+  @property --border-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+  @keyframes rotate-border {
+    to { --border-angle: 360deg; }
+  }
+  .run-cell--badge-pulse {
+    animation: badge-pulse 0.8s ease-in-out infinite alternate;
+    opacity: 1;
+  }
+  @keyframes badge-pulse {
+    from { background: var(--bg-card); }
+    to { background: var(--bg-hover); border-color: currentColor; }
   }
   .run-cell--gap {
     color: #333;

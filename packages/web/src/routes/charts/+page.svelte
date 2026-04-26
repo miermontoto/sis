@@ -11,6 +11,9 @@
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import IconChart from '$lib/icons/IconChart.svelte';
+  import IconPlus from '$lib/icons/IconPlus.svelte';
+  import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
 
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
@@ -252,6 +255,49 @@
     if (!initialized) return;
     setQueryParams({ type: t, granularity: g, period: p || null });
   });
+
+  // --- playlist creation ---
+  let creatingPlaylist = $state(false);
+  let createdPlaylistId = $state<number | null>(null);
+  let playlistKey = $state('');
+
+  function chartPlaylistKey() {
+    return `${activeType}:${granularity}:${selectedPeriod}`;
+  }
+
+  $effect(() => {
+    const key = chartPlaylistKey();
+    if (key !== playlistKey) {
+      createdPlaylistId = null;
+      playlistKey = key;
+    }
+  });
+
+  function singularType(t: ChartEntityType): 'track' | 'album' | 'artist' {
+    if (t === 'tracks') return 'track';
+    if (t === 'albums') return 'album';
+    return 'artist';
+  }
+
+  async function createChartPlaylist() {
+    if (creatingPlaylist) return;
+    creatingPlaylist = true;
+    try {
+      const result = await api.generatePlaylist({
+        strategy: 'chart',
+        params: {
+          entityType: singularType(activeType),
+          granularity,
+          period: selectedPeriod,
+          weekStart,
+          sort: metric,
+          limit: 25,
+        },
+      });
+      if ('id' in result) createdPlaylistId = result.libraryPlaylistId ?? result.id;
+    } catch { /* silently fail */ }
+    finally { creatingPlaylist = false; }
+  }
 </script>
 
 <div class="page-header">
@@ -261,7 +307,7 @@
 
 {#if closedChart}
   <div class="closed-chart-banner">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <IconChart size={14} />
     <span>{closedChart.label}</span>
     <button class="banner-action" onclick={viewClosedChart}>View</button>
     <button class="banner-dismiss" onclick={handleDismissBanner}>&times;</button>
@@ -269,7 +315,33 @@
 {/if}
 
 {#if dateRangeLabel}
-  <div class="period-date-range">{dateRangeLabel}</div>
+  <div class="period-date-range">
+    <span>{dateRangeLabel}</span>
+    {#if currentData && currentData.entries.length > 0}
+      {#if createdPlaylistId}
+        <a href="/playlists/{createdPlaylistId}" class="playlist-btn playlist-btn--ok">
+          <IconCheckSmall />
+          Created
+        </a>
+      {:else}
+        <button
+          class="playlist-btn"
+          class:playlist-btn--busy={creatingPlaylist}
+          onclick={createChartPlaylist}
+          disabled={creatingPlaylist}
+          title="Create Spotify playlist from this chart"
+        >
+          {#if creatingPlaylist}
+            <span class="btn-spinner"></span>
+            Creating…
+          {:else}
+            <IconPlus />
+            Playlist
+          {/if}
+        </button>
+      {/if}
+    {/if}
+  </div>
 {/if}
 
 <div class="charts-controls">
@@ -539,10 +611,13 @@
     border-color: var(--accent);
   }
   .period-date-range {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
     font-size: 0.85rem;
     color: var(--text-muted);
     margin-bottom: 0.75rem;
-    text-align: right;
   }
   .chart-list {
     background: var(--bg-card);

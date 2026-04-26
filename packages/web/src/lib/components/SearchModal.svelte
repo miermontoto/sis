@@ -2,6 +2,8 @@
   import { goto } from '$app/navigation';
   import { api, type SearchResults } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { isSpotifyId } from '$lib/utils/entity-context';
+  import IconPlay from '$lib/icons/IconPlay.svelte';
 
   let { show = $bindable(false) }: { show: boolean } = $props();
 
@@ -43,8 +45,14 @@
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       selectedIndex = Math.max(selectedIndex - 1, -1);
+    } else if (e.key === 'Enter' && e.shiftKey) {
+      const idx = selectedIndex >= 0 ? selectedIndex : 0;
+      const item = flatItems[idx];
+      if (item && isSpotifyId(item.id)) {
+        e.preventDefault();
+        playItem(e, item.type, item.id);
+      }
     } else if (e.key === 'Enter') {
-      // si no hay selección explícita, usar el primer resultado
       const idx = selectedIndex >= 0 ? selectedIndex : 0;
       const item = flatItems[idx];
       if (item) {
@@ -167,9 +175,11 @@
                     <div class="search-result-name">{artist.name}</div>
                     <div class="search-result-sub">Artist</div>
                   </div>
-                  <button class="search-play-btn" title="Play" disabled={playingId === artist.id} onmousedown={(e) => playItem(e, 'artist', artist.id)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  </button>
+                  {#if isSpotifyId(artist.id)}
+                    <button class="search-play-btn" title="Play" disabled={playingId === artist.id} onmousedown={(e) => playItem(e, 'artist', artist.id)}>
+                      <IconPlay size={14} />
+                    </button>
+                  {/if}
                   {#if artist.playCount > 0}
                     <div class="search-result-plays">{artist.playCount} plays</div>
                   {/if}
@@ -198,9 +208,11 @@
                     <div class="search-result-name">{album.name}</div>
                     <div class="search-result-sub">{album.artistName || 'Album'}</div>
                   </div>
-                  <button class="search-play-btn" title="Play" disabled={playingId === album.id} onmousedown={(e) => playItem(e, 'album', album.id)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  </button>
+                  {#if isSpotifyId(album.id)}
+                    <button class="search-play-btn" title="Play" disabled={playingId === album.id} onmousedown={(e) => playItem(e, 'album', album.id)}>
+                      <IconPlay size={14} />
+                    </button>
+                  {/if}
                   {#if album.playCount > 0}
                     <div class="search-result-plays">{album.playCount} plays</div>
                   {/if}
@@ -229,9 +241,11 @@
                     <div class="search-result-name">{track.name}</div>
                     <div class="search-result-sub">{track.artistName || 'Track'}</div>
                   </div>
-                  <button class="search-play-btn" title="Play" disabled={playingId === track.id} onmousedown={(e) => playItem(e, 'track', track.id)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  </button>
+                  {#if isSpotifyId(track.id)}
+                    <button class="search-play-btn" title="Play" disabled={playingId === track.id} onmousedown={(e) => playItem(e, 'track', track.id)}>
+                      <IconPlay size={14} />
+                    </button>
+                  {/if}
                   {#if track.playCount > 0}
                     <div class="search-result-plays">{track.playCount} plays</div>
                   {/if}
@@ -252,6 +266,7 @@
         {:else}
           <span><kbd>↑↓</kbd> navigate</span>
           <span><kbd>↵</kbd> select</span>
+          <span><kbd>⇧↵</kbd> play</span>
           <span><kbd>esc</kbd> close</span>
         {/if}
       </div>

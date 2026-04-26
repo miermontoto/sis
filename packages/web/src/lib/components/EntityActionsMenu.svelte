@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
+
   export interface MenuAction {
     label: string;
     onClick: () => void;
@@ -54,11 +56,7 @@
 
 <div class="actions-root" bind:this={rootEl}>
   <button class="actions-trigger" {title} onclick={toggle} class:actions-trigger--open={open}>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
-    </svg>
+    <IconMenuDots />
   </button>
   {#if open}
     <div class="actions-menu" role="menu">

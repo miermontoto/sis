@@ -12,9 +12,11 @@
     compact?: boolean;
     focusId?: string | null;
     itemFocusKey?: (item: TopTrackItem | HistoryItem) => string | null;
+    ranks?: (number | null | undefined)[];
+    dimUnplayed?: boolean;
   }
 
-  let { items, showRank = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey }: Props = $props();
+  let { items, showRank = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, dimUnplayed = false }: Props = $props();
 
   function resolveFocusKey(item: TopTrackItem | HistoryItem): string | null {
     return itemFocusKey ? itemFocusKey(item) : getTrackId(item);
@@ -43,7 +45,7 @@
     {@const focusKey = resolveFocusKey(item)}
     {#if track}
       <TrackItem
-        rank={showRank ? i + 1 : undefined}
+        rank={showRank ? (ranks ? (ranks[i] ?? undefined) : i + 1) : undefined}
         imageUrl={track.album?.imageUrl}
         imageHref={track.album ? `/album/${track.album.id}` : undefined}
         name={track.name}
@@ -51,6 +53,7 @@
         isLive={trackId === nowPlayingStore.trackId}
         focusId={focusKey ?? undefined}
         highlighted={focusId != null && focusKey === focusId}
+        dimmed={dimUnplayed && isTopTrack(item) && item.playCount === 0}
         entity={trackId ? { type: 'track', id: trackId, name: track.name, imageUrl: track.album?.imageUrl ?? null, parentArtistId: track.artists[0]?.id } : undefined}
         {compact}
       >

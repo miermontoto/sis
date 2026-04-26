@@ -6,15 +6,22 @@
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
-  import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
+  import MergeBanners from '$lib/components/MergeBanners.svelte';
+  import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { isSpotifyId } from '$lib/utils/entity-context';
+  import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import IconPlay from '$lib/icons/IconPlay.svelte';
+  import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
+  import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
 
-  import type { EChartsOption } from 'echarts';
+
 
   let data = $state<TrackDetail | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
@@ -24,6 +31,8 @@
   let metric = $state<RankingMetric>('time');
   let showMergeModal = $state(false);
   let playActing = $state(false);
+  let isLiked = $state(false);
+  let likeActing = $state(false);
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -59,6 +68,7 @@
 
   $effect(() => {
     const id = $page.params.id;
+    void mergeModal.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
       data = null;
@@ -66,20 +76,28 @@
       prevId = id;
     }
     loadData(id);
+    if (isSpotifyId(id)) {
+      api.checkTrackLiked(id).then(r => { isLiked = r.isLiked; }).catch(() => { isLiked = false; });
+    }
   });
 
-  let chartOption = $derived.by<EChartsOption>(() => {
-    if (!data?.series.length) return {};
-    const s = data.series;
-    const isPlays = metric === 'plays';
-    return {
-      grid: { left: 50, right: 20, top: 20, bottom: 30 },
-      tooltip: { trigger: 'axis', formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
-      xAxis: { type: 'category', data: s.map(d => d.period), axisLabel: { color: '#888', fontSize: 11 }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888', formatter: isPlays ? undefined : (v: number) => formatDuration(v) } },
-      series: [{ type: 'bar', data: s.map(d => isPlays ? d.play_count : d.total_ms), itemStyle: { color: '#1db954', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 20 }],
-    };
-  });
+  async function toggleLike() {
+    const id = $page.params.id;
+    if (!id || likeActing) return;
+    likeActing = true;
+    const wasLiked = isLiked;
+    isLiked = !wasLiked;
+    try {
+      if (wasLiked) await api.unlikeTrack(id);
+      else await api.likeTrack(id);
+      nowPlayingStore.isLiked = isLiked;
+    } catch {
+      isLiked = wasLiked;
+    } finally {
+      likeActing = false;
+    }
+  }
+
 </script>
 
 {#if loading && !data}
@@ -108,87 +126,56 @@
             {#if data.track.album.releaseDate}
               <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
             {/if}
+            <span class="detail-meta"> &middot; {formatDuration(data.track.durationMs)}</span>
           </p>
+        {:else}
+          <p class="detail-album"><span class="detail-meta">{formatDuration(data.track.durationMs)}</span></p>
         {/if}
       </div>
     </div>
     <div class="hero-actions">
-      <button
-        class="play-entity-btn"
-        title="Play on Spotify"
-        disabled={playActing}
-        onclick={async () => {
-          playActing = true;
-          await nowPlayingStore.playContext({ uris: [`spotify:track:${$page.params.id}`] });
-          playActing = false;
-        }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        Play
-      </button>
+      {#if isSpotifyId($page.params.id)}
+        <button
+          class="play-entity-btn"
+          title="Play on Spotify"
+          disabled={playActing}
+          onclick={async () => {
+            playActing = true;
+            await nowPlayingStore.playContext({ uris: [`spotify:track:${$page.params.id}`] });
+            playActing = false;
+          }}
+        >
+          <IconPlay />
+        </button>
+        <button
+          class="like-btn"
+          class:like-btn--liked={isLiked}
+          title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+          disabled={likeActing}
+          onclick={toggleLike}
+        >
+          {#if isLiked}
+            <IconHeartFilled />
+          {:else}
+            <IconHeartOutline />
+          {/if}
+        </button>
+      {/if}
       {#if !data.mergedInto}
         <Accolades entityType="track" entityId={$page.params.id} />
       {/if}
       <EntityActionsMenu
         title="Actions"
         actions={[
+          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', onClick: () => window.open(`https://open.spotify.com/track/${$page.params.id}`, '_blank') }] : []),
           { label: 'Manage merges', onClick: () => { showMergeModal = true; } },
         ]}
       />
     </div>
   </div>
 
-  {#if data.mergedInto}
-    <div class="merge-banner merge-banner--source">
-      <span>Merged into <a href="/track/{data.mergedInto.id}">{data.mergedInto.name}</a></span>
-      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(data!.mergedInto!.ruleId); loadData($page.params.id); }}>Unmerge</button>
-    </div>
-  {/if}
-
-  {#if data.mergedFrom.length > 0}
-    <div class="merge-banner merge-banner--target">
-      <div class="merge-banner-label">Includes plays from:</div>
-      <div class="merge-banner-albums">
-        {#each data.mergedFrom as merge}
-          <a href="/track/{merge.id}" class="merge-banner-album">
-            {#if merge.imageUrl}
-              <img class="merge-banner-thumb" src={merge.imageUrl} alt="" />
-            {:else}
-              <div class="merge-banner-thumb merge-banner-thumb--empty"></div>
-            {/if}
-            <span class="merge-banner-name">{merge.name}</span>
-          </a>
-        {/each}
-      </div>
-    </div>
-  {/if}
-
-  <div class="stats-grid">
-    <div class="card stat-card">
-      <div class="stat-value">{formatNumber(data.stats.play_count)}</div>
-      <div class="stat-label">Plays</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatDuration(data.stats.total_ms)}</div>
-      <div class="stat-label">Total listening time</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatDuration(data.track.durationMs)}</div>
-      <div class="stat-label">Duration</div>
-    </div>
-    {#if data.stats.first_played}
-      <a href="/history?date={localDateKey(data.stats.first_played)}&focus={encodeURIComponent(data.stats.first_played)}" class="card stat-card stat-card--link">
-        <div class="stat-value">{formatShortDate(data.stats.first_played)}</div>
-        <div class="stat-label">First played</div>
-      </a>
-    {/if}
-    {#if data.stats.last_played}
-      <a href="/history?date={localDateKey(data.stats.last_played)}&focus={encodeURIComponent(data.stats.last_played)}" class="card stat-card stat-card--link">
-        <div class="stat-value">{formatShortDate(data.stats.last_played)}</div>
-        <div class="stat-label">Last played</div>
-      </a>
-    {/if}
-  </div>
+  <MergeBanners entityType="track" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  <StatsGrid stats={data.stats} />
 
   {#if !data.mergedInto}
     <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
@@ -221,10 +208,8 @@
 
   {#if data.series.length > 1}
     <h2 class="section-title">Listening history</h2>
-    <div class="card chart-card">
-      <BaseChart option={chartOption} height="260px" />
-    </div>
   {/if}
+  <ActivityChart series={data.series} {metric} height="260px" />
 
   {#if data.recentPlays.length > 0}
     <h2 class="section-title"><a href="/history?track={$page.params.id}" class="section-link">Recent plays</a></h2>
@@ -243,101 +228,3 @@
   />
 {/if}
 
-<style>
-  .chart-card {
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-  }
-  .play-entity-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.85rem;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
-  }
-  .play-entity-btn:hover:not(:disabled) { background: var(--accent-hover); }
-  .play-entity-btn:disabled { opacity: 0.5; cursor: default; }
-
-  .hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    align-self: center;
-  }
-  .merge-banner {
-    padding: 0.6rem 1rem;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-  .merge-banner a { color: var(--accent); text-decoration: none; }
-  .merge-banner a:hover { text-decoration: underline; }
-  .merge-banner--source {
-    background: rgba(255, 170, 0, 0.1);
-    border: 1px solid rgba(255, 170, 0, 0.3);
-    color: #ffaa00;
-  }
-  .merge-banner--source a {
-    color: #ffaa00;
-    text-decoration: underline;
-  }
-  .merge-banner--target {
-    background: rgba(29, 185, 84, 0.08);
-    border: 1px solid rgba(29, 185, 84, 0.25);
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-  }
-  .merge-banner-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .merge-banner-albums {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 0.75rem;
-  }
-  .merge-banner-album {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    color: var(--text);
-    text-decoration: none;
-  }
-  .merge-banner-album:hover { color: var(--accent); }
-  .merge-banner-thumb {
-    width: 22px;
-    height: 22px;
-    border-radius: 3px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .merge-banner-thumb--empty { background: var(--border); }
-  .merge-banner-name { font-size: 0.85rem; }
-  .merge-banner-unmerge {
-    background: transparent;
-    border: 1px solid currentColor;
-    color: inherit;
-    padding: 0.2rem 0.6rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    cursor: pointer;
-    font-family: var(--font);
-    opacity: 0.8;
-  }
-  .merge-banner-unmerge:hover { opacity: 1; }
-</style>

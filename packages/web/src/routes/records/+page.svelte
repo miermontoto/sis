@@ -4,6 +4,8 @@
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { urlEnumParam } from '$lib/utils/query-state.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
+  import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
+  import IconPlus from '$lib/icons/IconPlus.svelte';
 
   type TabType = 'tracks' | 'albums' | 'artists';
   type TabData = TrackRecords | AlbumRecords | ArtistRecordsData;
@@ -86,6 +88,40 @@
     if (!iso) return '';
     return formatShortDate(iso);
   }
+
+  // --- playlist creation from records ---
+  let creatingPlaylist = $state<string | null>(null);
+  let createdPlaylists = $state<Map<string, number>>(new Map());
+
+  function singularTab(t: TabType): 'track' | 'album' | 'artist' {
+    if (t === 'tracks') return 'track';
+    if (t === 'albums') return 'album';
+    return 'artist';
+  }
+
+  async function createRecordPlaylist(recordKey: string) {
+    if (creatingPlaylist) return;
+    creatingPlaylist = recordKey;
+    try {
+      const result = await api.generatePlaylist({
+        strategy: 'record',
+        params: {
+          recordKey,
+          entityType: singularTab(tab.value),
+          weekStart,
+          sort: metric,
+          limit: 50,
+        },
+      });
+      if ('id' in result) {
+        createdPlaylists = new Map(createdPlaylists).set(recordKey, result.libraryPlaylistId ?? result.id);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      creatingPlaylist = null;
+    }
+  }
 </script>
 
 <div class="page-header">
@@ -104,10 +140,38 @@
 {:else if currentData}
   <!-- ============ snippets ============ -->
 
-  {#snippet recordList(title: string, items: RecordEntry[], valueType: string)}
+  {#snippet sectionHeader(title: string, recordKey: string)}
+    <div class="record-header">
+      <h3 class="record-title">{title}</h3>
+      {#if createdPlaylists.has(recordKey)}
+        <a href="/playlists/{createdPlaylists.get(recordKey)}" class="playlist-btn playlist-btn--ok">
+          <IconCheckSmall />
+          Created
+        </a>
+      {:else}
+        <button
+          class="playlist-btn"
+          class:playlist-btn--busy={creatingPlaylist === recordKey}
+          onclick={() => createRecordPlaylist(recordKey)}
+          disabled={!!creatingPlaylist}
+          title="Create Spotify playlist"
+        >
+          {#if creatingPlaylist === recordKey}
+            <span class="btn-spinner"></span>
+            Creating…
+          {:else}
+            <IconPlus />
+            Playlist
+          {/if}
+        </button>
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet recordList(title: string, items: RecordEntry[], valueType: string, recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
-        <h3 class="record-title">{title}</h3>
+        {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
             <TrackItem
@@ -145,10 +209,10 @@
     {/if}
   {/snippet}
 
-  {#snippet datedList(title: string, items: RecordEntry[], dateLabel: string, valueType: string)}
+  {#snippet datedList(title: string, items: RecordEntry[], dateLabel: string, valueType: string, recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
-        <h3 class="record-title">{title}</h3>
+        {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
             <TrackItem
@@ -184,10 +248,10 @@
     {/if}
   {/snippet}
 
-  {#snippet gapList(title: string, items: RecordEntry[])}
+  {#snippet gapList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
-        <h3 class="record-title">{title}</h3>
+        {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
             <TrackItem
@@ -227,10 +291,10 @@
     {/if}
   {/snippet}
 
-  {#snippet oneHitList(title: string, items: RecordEntry[])}
+  {#snippet oneHitList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
-        <h3 class="record-title">{title}</h3>
+        {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
             <TrackItem
@@ -266,10 +330,10 @@
     {/if}
   {/snippet}
 
-  {#snippet newMonthList(title: string, items: RecordEntry[])}
+  {#snippet newMonthList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
-        <h3 class="record-title">{title}</h3>
+        {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
             <TrackItem
@@ -341,10 +405,10 @@
     {/if}
   {/snippet}
 
-  {#snippet artistRecordList(title: string, items: { artistId: string; name: string; imageUrl: string | null; count: number }[])}
+  {#snippet artistRecordList(title: string, items: { artistId: string; name: string; imageUrl: string | null; count: number }[], recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
-        <h3 class="record-title">{title}</h3>
+        {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
             <TrackItem
@@ -396,42 +460,42 @@
 
   {#if hasAllTime}
     <h2 class="record-group">All-time bests</h2>
-    {@render recordList('Peak week', currentData.peakWeekPlays, 'peak')}
-    {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks')}
-    {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists')}
-    {@render recordList('Most records', currentData.mostAccolades, 'count')}
+    {@render recordList('Peak week', currentData.peakWeekPlays, 'peak', 'peakWeekPlays')}
+    {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks', 'mostWeeksAtNo1')}
+    {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists', 'inMostPlaylists')}
+    {@render recordList('Most records', currentData.mostAccolades, 'count', 'mostAccolades')}
     {#if artistData}
-      {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks)}
-      {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums)}
+      {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks, 'mostNo1Tracks')}
+      {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums, 'mostNo1Albums')}
     {/if}
   {/if}
 
   {#if hasLongevity}
     <h2 class="record-group">Longevity</h2>
-    {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks')}
-    {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks')}
+    {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks', 'mostWeeksInTop5')}
+    {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks', 'longestChartRun')}
   {/if}
 
   {#if hasDiscovery}
     <h2 class="record-group">Discovery</h2>
-    {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut')}
-    {@render newMonthList('Biggest launch month', currentData.biggestNewMonth)}
-    {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays')}
-    {@render datedList('Latest new', currentData.latestNew, 'first heard', 'plays')}
+    {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut', 'biggestDebuts')}
+    {@render newMonthList('Biggest launch month', currentData.biggestNewMonth, 'biggestNewMonth')}
+    {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays', 'latestDiscoveries')}
+    {@render datedList('Latest new', currentData.latestNew, 'first heard', 'plays', 'latestNew')}
   {/if}
 
   {#if hasOther}
     <h2 class="record-group">Other records</h2>
-    {@render gapList('Longest gap between plays', currentData.longestGap)}
-    {@render datedList('Golden oldies', currentData.goldenOldies, 'last heard', 'plays')}
+    {@render gapList('Longest gap between plays', currentData.longestGap, 'longestGap')}
+    {@render datedList('Golden oldies', currentData.goldenOldies, 'last heard', 'plays', 'goldenOldies')}
     {@render monthList(`Months with most ${tab.value}`, currentData.mostUniquePerMonth, tab.value)}
     {#if artistData}
-      {@render recordList('Most distinct tracks played', artistData.mostDistinctTracks, 'tracks')}
-      {@render oneHitList('One-hit wonders', artistData.oneHitWonders)}
+      {@render recordList('Most distinct tracks played', artistData.mostDistinctTracks, 'tracks', 'mostDistinctTracks')}
+      {@render oneHitList('One-hit wonders', artistData.oneHitWonders, 'oneHitWonders')}
     {:else if albumData}
-      {@render recordList('Most distinct tracks played', albumData.mostDistinctTracks, 'tracks')}
+      {@render recordList('Most distinct tracks played', albumData.mostDistinctTracks, 'tracks', 'mostDistinctTracks')}
     {:else if trackData}
-      {@render recordList('Top tracks without album', trackData.topNoAlbum, 'plays')}
+      {@render recordList('Top tracks without album', trackData.topNoAlbum, 'plays', 'topNoAlbum')}
     {/if}
   {/if}
 {/if}
@@ -477,9 +541,13 @@
   .record-group:first-of-type { margin-top: 0.25rem; }
 
   .record-section { margin-bottom: 1.5rem; }
+  .record-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
   .record-title {
     font-size: 0.95rem;
-    margin-bottom: 0.5rem;
     color: var(--text);
   }
   .record-list {

@@ -230,6 +230,9 @@ a.track-item {
 .track-item--focused {
   animation: track-item-highlight 1.8s ease-out;
 }
+.track-item--dimmed {
+  opacity: 0.4;
+}
 @keyframes track-item-highlight {
   0%   { background: rgba(29, 185, 84, 0.25); box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.45); }
   100% { background: transparent; box-shadow: 0 0 0 1px transparent; }
@@ -430,6 +433,7 @@ a.track-item {
 }
 
 .sidebar-user {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -454,7 +458,7 @@ a.track-item {
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  line-height: 0;
+  line-height: 1;
   flex-shrink: 0;
   margin-left: auto;
   align-self: center;
@@ -525,6 +529,40 @@ a.track-item {
   text-overflow: ellipsis;
 }
 
+.sidebar-admin-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.2rem;
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--bg-card);
+  border: 1px solid rgba(29, 185, 84, 0.3);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  line-height: 1.3;
+}
+
+.sidebar-footer {
+  padding: 0.15rem 0.75rem 0;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-align: center;
+  opacity: 0.5;
+}
+
+.sidebar-footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.sidebar-footer a:hover {
+  color: var(--text);
+}
+
 .mobile-only-np {
   display: none;
   margin-bottom: 1rem;
@@ -544,6 +582,45 @@ a.track-item {
   color: var(--text-muted);
   margin-top: 0.25rem;
 }
+
+/* playlist generation button (used on Records, Top, Charts) */
+.playlist-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.playlist-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.playlist-btn:disabled { opacity: 0.5; cursor: default; }
+.playlist-btn--busy { opacity: 1; color: var(--text-muted); }
+.playlist-btn--ok {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
+.btn-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: block;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* loading y empty states */
 .loading, .empty-state {
@@ -638,6 +715,52 @@ a.track-item {
   color: var(--text-muted);
   margin: 0.15rem 0 0;
 }
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: center;
+}
+
+.play-entity-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.play-entity-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.play-entity-btn:disabled { opacity: 0.5; cursor: default; }
+
+.like-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  font-family: var(--font);
+}
+.like-btn:hover:not(:disabled) { color: #ff4b7a; border-color: #ff4b7a; background: rgba(255, 75, 122, 0.08); }
+.like-btn:disabled { opacity: 0.5; cursor: default; }
+.like-btn--liked { color: #ff4b7a; border-color: #ff4b7a; }
 
 .section-title {
   font-size: 1.1rem;
@@ -747,7 +870,8 @@ a.track-item {
   .sidebar-logo,
   .sidebar-search,
   .sidebar-now-playing,
-  .sidebar-user-wrap {
+  .sidebar-user-wrap,
+  .sidebar-footer {
     display: none;
   }
 

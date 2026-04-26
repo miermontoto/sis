@@ -13,6 +13,13 @@ const envPath = existsSync(monorepoEnv) ? monorepoEnv : cwdEnv;
 if (existsSync(envPath)) {
   dotenv.config({ path: envPath });
 }
+
+// .env.local sobrescribe .env (solo para dev local; debe estar excluido de syncthing)
+const envLocalPath = envPath.replace(/\.env$/, '.env.local');
+if (existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath, override: true });
+  console.log(`[env] override desde ${envLocalPath}`);
+}
 import { serve } from '@hono/node-server';
 import app from './app.js';
 import { getDb, closeDb } from './db/connection.js';
@@ -32,8 +39,12 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[sis] servidor escuchando en http://localhost:${info.port}`);
 });
 
-// iniciar polling en background
-startPolling();
+// iniciar polling en background (DISABLE_POLLING=1 para dev local con snapshot de prod)
+if (process.env.DISABLE_POLLING === '1') {
+  console.log('[sis] polling deshabilitado (DISABLE_POLLING=1)');
+} else {
+  startPolling();
+}
 
 // shutdown graceful
 const shutdown = () => {

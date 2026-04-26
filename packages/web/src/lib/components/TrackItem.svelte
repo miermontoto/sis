@@ -15,13 +15,14 @@
     compact?: boolean;
     focusId?: string;
     highlighted?: boolean;
+    dimmed?: boolean;
     entity?: EntityContext;
     subtitle?: Snippet;
     meta?: Snippet;
     cover?: Snippet;
   }
 
-  let { href, rank, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, entity, subtitle, meta, cover }: Props = $props();
+  let { href, rank, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, entity, subtitle, meta, cover }: Props = $props();
 
   let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
 </script>
@@ -64,12 +65,12 @@
 {/snippet}
 
 {#if href}
-  <a {href} class="track-item" class:compact class:track-item--focused={highlighted} data-focus-id={focusId} oncontextmenu={onContextMenu}>
+  <a {href} class="track-item" class:compact class:track-item--focused={highlighted} class:track-item--dimmed={dimmed} data-focus-id={focusId} oncontextmenu={onContextMenu}>
     {@render content()}
   </a>
 {:else}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="track-item" class:compact class:track-item--focused={highlighted} data-focus-id={focusId} oncontextmenu={onContextMenu}>
+  <div class="track-item" class:compact class:track-item--focused={highlighted} class:track-item--dimmed={dimmed} data-focus-id={focusId} oncontextmenu={onContextMenu}>
     {@render content()}
   </div>
 {/if}

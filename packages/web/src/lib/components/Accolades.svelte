@@ -152,17 +152,16 @@
       class:accolades-trigger--open={open}
       aria-expanded={open}
       aria-haspopup="true"
+      aria-label="{accolades.length} records"
+      title="{accolades.length} records"
       onclick={() => open = !open}
     >
-      <span class="trigger-medals">
-        {#each triggerPreview as g}
-          <span class="trigger-medal" class:trigger-medal--text={g.rank > 3}>
-            {medal(g.rank)}
-            {#if g.count > 1}<span class="trigger-count-badge">×{g.count}</span>{/if}
-          </span>
-        {/each}
-        {#if triggerOverflow > 0}<span class="trigger-more">+{triggerOverflow}</span>{/if}
-      </span>
+      {#each triggerPreview as g}
+        <span class="trigger-medal" class:trigger-medal--text={g.rank > 3}>
+          {medal(g.rank)}{#if g.count > 1}<span class="trigger-times">×{g.count}</span>{/if}
+        </span>
+      {/each}
+      {#if triggerOverflow > 0}<span class="trigger-more">+{triggerOverflow}</span>{/if}
     </button>
 
     {#if open}
@@ -217,80 +216,44 @@
   .accolades-trigger {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.75rem 0.4rem 0.55rem;
-    border-radius: 999px;
-    background: rgba(29, 185, 84, 0.08);
-    border: 1px solid rgba(29, 185, 84, 0.2);
-    color: var(--text);
+    gap: 0.25rem;
+    height: 32px;
+    padding: 0 0.45rem;
+    border-radius: 6px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
     font: inherit;
     cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
   .accolades-trigger:hover,
   .accolades-trigger--open {
-    background: rgba(29, 185, 84, 0.15);
-    border-color: rgba(29, 185, 84, 0.45);
-  }
-  .accolades-trigger:active {
-    transform: translateY(1px);
-  }
-  .trigger-medals {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
+    color: #f5a623;
+    border-color: #f5a623;
+    background: rgba(245, 166, 35, 0.08);
   }
   .trigger-medal {
-    position: relative;
+    font-size: 0.9rem;
+    line-height: 1;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 1.35rem;
-    height: 1.35rem;
-    border-radius: 50%;
-    background: var(--bg-card, #141414);
-    box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.25);
-    font-size: 0.85rem;
-    line-height: 1;
   }
   .trigger-medal--text {
     font-size: 0.65rem;
     font-weight: 700;
-    color: var(--text-muted);
   }
-  .trigger-count-badge {
-    position: absolute;
-    top: -0.45rem;
-    right: -0.4rem;
-    min-width: 0.95rem;
-    height: 0.95rem;
-    padding: 0 0.3rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    background: #2a2a2a;
-    color: var(--text);
-    font-size: 0.6rem;
+  .trigger-times {
+    font-size: 0.55rem;
     font-weight: 700;
-    line-height: 1;
-    box-shadow: 0 0 0 2px var(--bg-card, #141414);
-  }
-  .trigger-count {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
+    opacity: 0.7;
+    margin-left: 0.05rem;
   }
   .trigger-more {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    background: rgba(29, 185, 84, 0.12);
-    padding: 0.05rem 0.35rem;
-    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    opacity: 0.7;
+    margin-left: 0.1rem;
   }
 
   .accolades-popover {

@@ -5,6 +5,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatHours, getLocalizedDayNames } from '$lib/utils/format';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, PIE_TOOLTIP, PIE_COLORS, GREEN } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
 
   let range = $state('all');
@@ -125,48 +126,32 @@
   let maxHeatmapValue = $derived(Math.max(...heatmap.map(h => h.play_count), 1));
   let dayNames = $derived(getLocalizedDayNames());
 
+  const periodLabel = (data: typeof listeningData) => ({
+    rotate: data.length > 14 ? 45 : 0,
+    formatter: (v: string) => v.length > 5 ? v.slice(5) : v,
+  });
+
   let lineChartOption = $derived<EChartsOption>({
-    grid: { left: 50, right: 20, top: 20, bottom: 30 },
-    tooltip: {
-      trigger: 'axis',
-      formatter: (params: any) => {
-        const p = Array.isArray(params) ? params[0] : params;
-        return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`;
-      },
-    },
-    xAxis: {
-      type: 'category', data: listeningData.map(d => d.period),
-      axisLabel: { color: '#888', rotate: listeningData.length > 14 ? 45 : 0, formatter: (v: string) => v.length > 5 ? v.slice(5) : v },
-      axisLine: { lineStyle: { color: '#2a2a2a' } },
-    },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888' } },
-    series: [{
-      type: 'line', data: listeningData.map(d => d.play_count), smooth: true, symbol: 'none',
-      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29, 185, 84, 0.4)' }, { offset: 1, color: 'rgba(29, 185, 84, 0.02)' }] } },
-      lineStyle: { color: '#1db954', width: 2 }, itemStyle: { color: '#1db954' },
-    }],
+    grid: { ...GRID },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
+    xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
+    yAxis: valueAxis(),
+    series: [lineSeries(listeningData.map(d => d.play_count), { areaStyle: areaGradient() })],
   });
 
   let barChartOption = $derived<EChartsOption>({
-    grid: { left: 60, right: 20, top: 20, bottom: 30 },
-    tooltip: {
-      trigger: 'axis',
-      formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; },
-    },
-    xAxis: {
-      type: 'category', data: listeningData.map(d => d.period),
-      axisLabel: { color: '#888', rotate: listeningData.length > 14 ? 45 : 0, formatter: (v: string) => v.length > 5 ? v.slice(5) : v },
-      axisLine: { lineStyle: { color: '#2a2a2a' } },
-    },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888', formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } },
-    series: [{ type: 'bar', data: listeningData.map(d => d.total_ms), itemStyle: { color: '#1db954', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 30 }],
+    grid: { ...GRID },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
+    xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
+    yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
+    series: [barSeries(listeningData.map(d => d.total_ms))],
   });
 
   let heatmapOption = $derived<EChartsOption>({
-    tooltip: { formatter: (params: any) => { const [hour, day] = params.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
-    grid: { left: 50, right: 20, top: 10, bottom: 30 },
-    xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { color: '#888' }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
-    yAxis: { type: 'category', data: dayNames, splitArea: { show: true }, axisLabel: { color: '#888' }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
+    tooltip: { ...TOOLTIP_BASE, trigger: 'item', formatter: (params: any) => { const [hour, day] = params.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
+    grid: { ...GRID },
+    xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
+    yAxis: { type: 'category', data: dayNames, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#141414', '#0d3320', '#1a6b3f', '#1db954'] } },
     series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, h.day_of_week, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 3 } }],
   });
@@ -175,9 +160,9 @@
   const entityColors = { track: '#1db954', album: '#3498db', artist: '#e74c3c' } as const;
 
   let discoveryOption = $derived<EChartsOption>({
-    grid: { left: 50, right: 50, top: 20, bottom: 30 },
+    grid: dualAxisGrid(),
     tooltip: {
-      trigger: 'axis',
+      ...TOOLTIP_BASE,
       formatter: (params: any) => {
         const ps = Array.isArray(params) ? params : [params];
         let s = ps[0].axisValue;
@@ -185,36 +170,28 @@
         return s;
       },
     },
-    xAxis: {
-      type: 'category', data: discovery.map(d => d.period),
-      axisLabel: { color: '#888', rotate: discovery.length > 14 ? 45 : 0, formatter: (v: string) => v.length > 5 ? v.slice(5) : v },
-      axisLine: { lineStyle: { color: '#2a2a2a' } },
-    },
-    yAxis: [
-      { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888' } },
-      { type: 'value', splitLine: { show: false }, axisLabel: { color: '#555' } },
-    ],
+    xAxis: categoryAxis(discovery.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(discovery as any) } }),
+    yAxis: [valueAxis(), secondaryValueAxis()],
     series: [
-      {
-        name: 'Distinct', type: 'bar', yAxisIndex: 0,
-        data: discovery.map(d => d.distinct_count),
-        itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 20,
-      },
-      {
-        name: 'Cumulative', type: 'line', yAxisIndex: 1, smooth: true, symbol: 'none',
-        data: discovery.map(d => d.cumulative),
-        lineStyle: { color: entityColors[discoveryEntity], width: 2 }, itemStyle: { color: entityColors[discoveryEntity] },
-      },
+      barSeries(discovery.map(d => d.distinct_count), {
+        name: 'Distinct', yAxisIndex: 0,
+        itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [3, 3, 0, 0] },
+      }),
+      cumulativeLineSeries(discovery.map(d => d.cumulative), {
+        name: 'Cumulative',
+        lineStyle: { color: entityColors[discoveryEntity], width: 2 },
+        itemStyle: { color: entityColors[discoveryEntity] },
+      }),
     ],
   });
 
   let pieOption = $derived<EChartsOption>({
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    tooltip: { ...PIE_TOOLTIP },
     series: [{
       type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: true,
       itemStyle: { borderRadius: 6, borderColor: '#141414', borderWidth: 2 },
-      label: { color: '#888', fontSize: 12 },
-      data: genres.map((g, i) => ({ name: g.genre, value: g.play_count, itemStyle: { color: ['#1db954', '#1ed760', '#2ecc71', '#27ae60', '#16a085', '#1abc9c', '#3498db', '#2980b9', '#9b59b6', '#8e44ad'][i % 10] } })),
+      label: { ...AXIS_LABEL },
+      data: genres.map((g, i) => ({ name: g.genre, value: g.play_count, itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] } })),
     }],
   });
 </script>

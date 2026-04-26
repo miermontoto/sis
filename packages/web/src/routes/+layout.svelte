@@ -136,6 +136,7 @@
               <span class="sidebar-user-id">{user.spotifyId}</span>
             </div>
             <span class="sidebar-user-dots">...</span>
+            {#if user.isAdmin}<span class="sidebar-admin-badge">admin</span>{/if}
           </button>
           {#if showUserMenu}
             <div class="user-menu">
@@ -145,6 +146,7 @@
           {/if}
         </div>
       {/if}
+      <div class="sidebar-footer">SIS · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content">
       <div class="mobile-header">
@@ -188,7 +190,7 @@
       target={mergeModal.target.target}
       parentId={mergeModal.target.parentId}
       existingMerges={mergeModal.target.existingMerges}
-      onMerged={() => mergeModal.refresh()}
+      onMerged={() => { mergeModal.refresh(); mergeModal.notifyChange(); }}
     />
   {/if}
 {/if}

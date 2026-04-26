@@ -66,6 +66,8 @@
     if (onmouseover) chart.on('mouseover', onmouseover);
     if (onmouseout) chart.on('mouseout', onmouseout);
 
+    requestAnimationFrame(() => chart?.resize());
+
     const resizeObserver = new ResizeObserver(() => chart?.resize());
     resizeObserver.observe(container);
 

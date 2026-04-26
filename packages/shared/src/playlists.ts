@@ -1,10 +1,11 @@
 import type { TrackInfo } from './entities.js';
 
-export type PlaylistStrategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery';
+export type PlaylistStrategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery' | 'record' | 'top' | 'chart';
 
 export interface GeneratedPlaylist {
   id: number;
   spotifyPlaylistId: string | null;
+  libraryPlaylistId?: number | null;
   spotifyUrl?: string;
   name: string;
   strategy: PlaylistStrategy;

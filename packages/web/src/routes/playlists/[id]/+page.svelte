@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { api, type LibraryPlaylistDetail, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
+  import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, PIE_TOOLTIP, PIE_COLORS, AXIS_LABEL } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
 
@@ -33,42 +34,35 @@
     loadData(id);
   });
 
-  // time series chart
   let seriesChart = $derived.by<EChartsOption>(() => {
     if (!data?.series.length) return {};
     const s = data.series;
     const isPlays = metric === 'plays';
     return {
-      grid: { left: 50, right: 20, top: 20, bottom: 30 },
-      tooltip: { trigger: 'axis', formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
-      xAxis: { type: 'category', data: s.map(d => d.period), axisLabel: { color: '#888', fontSize: 11 }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888', formatter: isPlays ? undefined : (v: number) => formatDuration(v) } },
-      series: [{
-        type: 'line',
-        data: s.map(d => isPlays ? d.play_count : d.total_ms),
-        smooth: true,
+      grid: { ...GRID },
+      tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
+      xAxis: categoryAxis(s.map(d => d.period)),
+      yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: isPlays ? undefined : (v: number) => formatDuration(v) } }),
+      series: [lineSeries(s.map(d => isPlays ? d.play_count : d.total_ms), {
         showSymbol: false,
-        lineStyle: { color: '#1db954', width: 2 },
         areaStyle: { color: 'rgba(29, 185, 84, 0.1)' },
-      }],
+      })],
     };
   });
 
-  // genre pie chart
   let genreChart = $derived.by<EChartsOption>(() => {
     if (!data?.genres.length) return {};
-    const colors = ['#1db954', '#1ed760', '#2ecc71', '#27ae60', '#16a085', '#3498db', '#2980b9', '#9b59b6', '#e67e22', '#e74c3c'];
     return {
-      tooltip: { trigger: 'item', formatter: '{b}: {c} plays ({d}%)' },
+      tooltip: { ...PIE_TOOLTIP, formatter: '{b}: {c} plays ({d}%)' },
       series: [{
         type: 'pie',
         radius: ['40%', '70%'],
         data: data.genres.slice(0, 10).map((g, i) => ({
           name: g.genre,
           value: g.play_count,
-          itemStyle: { color: colors[i % colors.length] },
+          itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] },
         })),
-        label: { color: '#888', fontSize: 11 },
+        label: { ...AXIS_LABEL },
         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },
       }],
     };

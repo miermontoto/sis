@@ -96,6 +96,22 @@ export interface SpotifyPlaylistsResponse {
   next: string | null;
 }
 
+export interface SpotifyAlbumTracksResponse {
+  items: {
+    id: string;
+    name: string;
+    artists: SpotifyArtistSimple[];
+    duration_ms: number;
+    track_number: number;
+    disc_number: number;
+    explicit: boolean;
+  }[];
+  total: number;
+  limit: number;
+  offset: number;
+  next: string | null;
+}
+
 export interface SpotifyPlaylistTracksResponse {
   items: {
     added_at: string;

@@ -1,18 +1,23 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type TopTrackItem, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
-  import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
+  import MergeBanners from '$lib/components/MergeBanners.svelte';
+  import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import type { EChartsOption } from 'echarts';
+  import { isSpotifyId } from '$lib/utils/entity-context';
+  import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import IconPlay from '$lib/icons/IconPlay.svelte';
+
 
   let data = $state<AlbumDetail | null>(null);
   let loading = $state(true);
@@ -24,8 +29,13 @@
   let uploadingCover = $state(false);
   let showMergeModal = $state(false);
   let playActing = $state(false);
+  let trackSort = $state<'ranked' | 'natural'>('ranked');
+  let naturalTracks = $state<TopTrackItem[] | null>(null);
+  let loadingNatural = $state(false);
   let coverContainerEl: HTMLDivElement | undefined = $state();
   const fetchCtrl = createFetchController();
+
+  let displayTracks = $derived(trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []);
 
   function handleCoverOutside(e: PointerEvent) {
     if (coverContainerEl && !coverContainerEl.contains(e.target as Node)) {
@@ -77,6 +87,23 @@
     }
   }
 
+  async function loadNaturalTracks(id: string) {
+    if (naturalTracks || loadingNatural) return;
+    loadingNatural = true;
+    try {
+      const result = await api.albumDetail(id, 'all', 'natural');
+      naturalTracks = result.tracks;
+    } catch {}
+    loadingNatural = false;
+  }
+
+  function toggleTrackSort(mode: 'ranked' | 'natural') {
+    trackSort = mode;
+    if (mode === 'natural' && !naturalTracks) {
+      loadNaturalTracks($page.params.id);
+    }
+  }
+
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
     loading = true;
@@ -110,28 +137,19 @@
   $effect(() => {
     const id = $page.params.id;
     void metric;
+    void mergeModal.changeVersion;
     if (!initialized || !id) return;
     // resetear al cambiar de álbum para mostrar spinner
     if (id !== prevId) {
       data = null;
       chartHistoryData = null;
+      naturalTracks = null;
+      trackSort = 'ranked';
       prevId = id;
     }
     loadData(id);
   });
 
-  let chartOption = $derived.by<EChartsOption>(() => {
-    if (!data?.series.length) return {};
-    const s = data.series;
-    const isPlays = metric === 'plays';
-    return {
-      grid: { left: 50, right: 20, top: 20, bottom: 30 },
-      tooltip: { trigger: 'axis', formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
-      xAxis: { type: 'category', data: s.map(d => d.period), axisLabel: { color: '#888', fontSize: 11 }, axisLine: { lineStyle: { color: '#2a2a2a' } } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#2a2a2a' } }, axisLabel: { color: '#888', formatter: isPlays ? undefined : (v: number) => formatDuration(v) } },
-      series: [{ type: 'bar', data: s.map(d => isPlays ? d.play_count : d.total_ms), itemStyle: { color: '#1db954', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 20 }],
-    };
-  });
 </script>
 
 {#if loading && !data}
@@ -190,25 +208,27 @@
       </div>
     </div>
     <div class="hero-actions">
-      <button
-        class="play-entity-btn"
-        title="Play on Spotify"
-        disabled={playActing}
-        onclick={async () => {
-          playActing = true;
-          await nowPlayingStore.playContext({ context_uri: `spotify:album:${$page.params.id}` });
-          playActing = false;
-        }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-        Play
-      </button>
+      {#if isSpotifyId($page.params.id)}
+        <button
+          class="play-entity-btn"
+          title="Play on Spotify"
+          disabled={playActing}
+          onclick={async () => {
+            playActing = true;
+            await nowPlayingStore.playContext({ context_uri: `spotify:album:${$page.params.id}` });
+            playActing = false;
+          }}
+        >
+          <IconPlay />
+        </button>
+      {/if}
       {#if !data.mergedInto}
         <Accolades entityType="album" entityId={$page.params.id} />
       {/if}
       <EntityActionsMenu
         title="Actions"
         actions={[
+          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
           { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', onClick: () => { showCoverPicker = true; } },
           { label: 'Manage merges', onClick: () => { showMergeModal = true; } },
         ]}
@@ -216,68 +236,31 @@
     </div>
   </div>
 
-  {#if data.mergedInto}
-    <div class="merge-banner merge-banner--source">
-      <span>Merged into <a href="/album/{data.mergedInto.id}">{data.mergedInto.name}</a></span>
-      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(data!.mergedInto!.ruleId); loadData($page.params.id); }}>Unmerge</button>
-    </div>
-  {/if}
-
-  {#if data.mergedFrom.length > 0}
-    <div class="merge-banner merge-banner--target">
-      <div class="merge-banner-label">Includes plays from:</div>
-      <div class="merge-banner-albums">
-        {#each data.mergedFrom as merge}
-          <a href="/album/{merge.id}" class="merge-banner-album">
-            {#if merge.imageUrl}
-              <img class="merge-banner-thumb" src={merge.imageUrl} alt="" />
-            {:else}
-              <div class="merge-banner-thumb merge-banner-thumb--empty"></div>
-            {/if}
-            <span class="merge-banner-name">{merge.name}</span>
-          </a>
-        {/each}
-      </div>
-    </div>
-  {/if}
-
-  <div class="stats-grid">
-    <div class="card stat-card">
-      <div class="stat-value">{formatNumber(data.stats.play_count)}</div>
-      <div class="stat-label">Plays</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatDuration(data.stats.total_ms)}</div>
-      <div class="stat-label">Listening time</div>
-    </div>
-    {#if data.stats.first_played}
-      <a href="/history?date={localDateKey(data.stats.first_played)}&focus={encodeURIComponent(data.stats.first_played)}" class="card stat-card stat-card--link">
-        <div class="stat-value">{formatShortDate(data.stats.first_played)}</div>
-        <div class="stat-label">First played</div>
-      </a>
-    {/if}
-    {#if data.stats.last_played}
-      <a href="/history?date={localDateKey(data.stats.last_played)}&focus={encodeURIComponent(data.stats.last_played)}" class="card stat-card stat-card--link">
-        <div class="stat-value">{formatShortDate(data.stats.last_played)}</div>
-        <div class="stat-label">Last played</div>
-      </a>
-    {/if}
-  </div>
+  <MergeBanners entityType="album" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  <StatsGrid stats={data.stats} />
 
   {#if !data.mergedInto}
     <RankingBadges entityType="album" entityId={$page.params.id} bind:highlightedMonth />
     <ChartStats entityType="album" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
   {/if}
 
-  {#if data.series.length > 1}
-    <div class="card chart-card">
-      <BaseChart option={chartOption} height="250px" />
-    </div>
-  {/if}
+  <ActivityChart series={data.series} {metric} />
 
   {#if data.tracks.length > 0}
-    <h2 class="section-title">Tracks</h2>
-    <TrackList items={data.tracks} showRank {metric} />
+    <div class="section-header">
+      <h2 class="section-title">Tracks</h2>
+      <div class="track-sort-toggle">
+        <button class:active={trackSort === 'ranked'} onclick={() => toggleTrackSort('ranked')}>Ranked</button>
+        <button class:active={trackSort === 'natural'} onclick={() => toggleTrackSort('natural')}># Order</button>
+      </div>
+    </div>
+    {#if trackSort === 'natural' && loadingNatural}
+      <div class="loading"><div class="spinner"></div></div>
+    {:else if trackSort === 'natural'}
+      <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} dimUnplayed />
+    {:else}
+      <TrackList items={displayTracks} showRank {metric} />
+    {/if}
   {/if}
 
   {#if data.recentPlays.length > 0}
@@ -298,118 +281,6 @@
 {/if}
 
 <style>
-  .play-entity-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.85rem;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
-  }
-  .play-entity-btn:hover:not(:disabled) { background: var(--accent-hover); }
-  .play-entity-btn:disabled { opacity: 0.5; cursor: default; }
-
-  .hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    align-self: center;
-  }
-  .merge-banner {
-    padding: 0.6rem 1rem;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-  .merge-banner a {
-    color: var(--accent);
-    text-decoration: none;
-  }
-  .merge-banner a:hover {
-    text-decoration: underline;
-  }
-  .merge-banner--source {
-    background: rgba(255, 170, 0, 0.1);
-    border: 1px solid rgba(255, 170, 0, 0.3);
-    color: #ffaa00;
-  }
-  .merge-banner--target {
-    background: rgba(29, 185, 84, 0.08);
-    border: 1px solid rgba(29, 185, 84, 0.2);
-    color: var(--text-muted);
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.4rem;
-  }
-  .merge-banner-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-  }
-  .merge-banner-albums {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .merge-banner-album {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    text-decoration: none;
-    color: var(--text);
-    padding: 0.2rem 0.5rem 0.2rem 0.2rem;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
-    transition: background 0.15s;
-  }
-  .merge-banner-album:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  .merge-banner-thumb {
-    width: 24px;
-    height: 24px;
-    border-radius: 3px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .merge-banner-thumb--empty {
-    background: var(--border);
-  }
-  .merge-banner-name {
-    font-size: 0.8rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
-  }
-  .merge-banner-unmerge {
-    background: none;
-    border: 1px solid rgba(255, 170, 0, 0.4);
-    color: #ffaa00;
-    font-size: 0.75rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: var(--font);
-    flex-shrink: 0;
-  }
-  .merge-banner-unmerge:hover {
-    background: rgba(255, 170, 0, 0.15);
-  }
-  .chart-card {
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-  }
   .cover-container {
     position: relative;
     flex-shrink: 0;
@@ -488,5 +359,31 @@
   .cover-thumb--upload:hover {
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .track-sort-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .track-sort-toggle button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .track-sort-toggle button:hover {
+    color: var(--text);
+  }
+  .track-sort-toggle button.active {
+    background: var(--accent);
+    color: #fff;
   }
 </style>

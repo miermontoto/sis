@@ -9,19 +9,24 @@ import {
   enrichTrack,
   strategyTopRange, strategyTopArtist, strategyTopGenre,
   strategyDeepCuts, strategyTimeVibes, strategyRediscovery,
+  strategyTop, strategyChart,
+  resolveEntitiesToTracks,
   getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries,
 } from '../db/queries/index.js';
-import { syncUserPlaylists } from '../services/playlist-sync.js';
+import { syncCreatedPlaylistToLibrary, syncUserPlaylists } from '../services/playlist-sync.js';
+import { getCachedRecords } from '../services/records-cache.js';
 import type {
   TopRangeParams, TopArtistParams, TopGenreParams,
   DeepCutsParams, TimeVibesParams, RediscoveryParams,
+  TopParams, ChartParams,
 } from '../db/queries/index.js';
 import type { Sort } from '../db/queries/helpers.js';
+import type { RecordEntry, ArtistRecordEntry, WeekStartOption } from '@sis/shared';
 import type { AppVariables } from '../app.js';
 
 const playlists = new Hono<{ Variables: AppVariables }>();
 
-type Strategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery';
+type Strategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery' | 'record' | 'top' | 'chart';
 
 const STRATEGY_LABELS: Record<Strategy, string> = {
   top_range: 'Top Tracks',
@@ -30,7 +35,33 @@ const STRATEGY_LABELS: Record<Strategy, string> = {
   deep_cuts: 'Deep Cuts',
   time_vibes: 'Time Vibes',
   rediscovery: 'Rediscovery',
+  record: 'Record',
+  top: 'Top',
+  chart: 'Chart',
 };
+
+const RECORD_KEY_TITLES: Record<string, string> = {
+  peakWeekPlays: 'Peak Week',
+  biggestDebuts: 'Biggest Debuts',
+  mostWeeksAtNo1: 'Most Weeks at #1',
+  mostWeeksInTop5: 'Most Charted',
+  longestChartRun: 'Longest Chart Run',
+  inMostPlaylists: 'In Most Playlists',
+  longestGap: 'Longest Gap',
+  goldenOldies: 'Golden Oldies',
+  biggestNewMonth: 'Biggest Launch Month',
+  latestDiscoveries: 'Latest Discoveries',
+  latestNew: 'Latest New',
+  mostAccolades: 'Most Records',
+  topNoAlbum: 'Top No Album',
+  mostDistinctTracks: 'Most Distinct Tracks',
+  oneHitWonders: 'One-Hit Wonders',
+  mostNo1Tracks: 'Most #1 Tracks',
+  mostNo1Albums: 'Most #1 Albums',
+};
+
+const ARTIST_RECORD_KEYS = new Set(['mostNo1Tracks', 'mostNo1Albums']);
+const UNSUPPORTED_RECORD_KEYS = new Set(['mostUniquePerMonth', 'yearEndFinishes']);
 
 // leer la preferencia de ranking metric del usuario (time o plays)
 function getUserSort(db: ReturnType<typeof getDb>, userId: number): Sort {
@@ -57,14 +88,37 @@ function runStrategy(db: ReturnType<typeof getDb>, userId: number, strategy: Str
       return strategyTimeVibes(db, userId, p as unknown as TimeVibesParams);
     case 'rediscovery':
       return strategyRediscovery(db, userId, p as unknown as RediscoveryParams);
+    case 'top':
+      return strategyTop(db, userId, p as unknown as TopParams);
+    case 'chart':
+      return strategyChart(db, userId, p as unknown as ChartParams);
     default:
       return [];
   }
 }
 
-function autoName(strategy: Strategy): string {
+const ENTITY_LABELS: Record<string, string> = { track: 'Tracks', album: 'Albums', artist: 'Artists' };
+const RANGE_LABELS: Record<string, string> = {
+  week: 'Week', month: 'Month', '3months': '3 Months', '6months': '6 Months',
+  year: 'Year', thisYear: 'This Year', all: 'All Time', custom: 'Custom',
+};
+
+function autoName(strategy: Strategy, params?: Record<string, unknown>): string {
   const now = new Date();
   const month = now.toLocaleString('en', { month: 'short', year: 'numeric' });
+  if (strategy === 'record' && params?.recordKey) {
+    const title = RECORD_KEY_TITLES[params.recordKey as string] || 'Record';
+    return `SIS — ${title} — ${month}`;
+  }
+  if (strategy === 'top' && params?.entityType) {
+    const entity = ENTITY_LABELS[params.entityType as string] || 'Tracks';
+    const range = RANGE_LABELS[params.range as string] || '';
+    return `SIS — Top ${entity}${range ? ` (${range})` : ''} — ${month}`;
+  }
+  if (strategy === 'chart' && params?.period) {
+    const entity = ENTITY_LABELS[params.entityType as string] || 'Tracks';
+    return `SIS — Chart ${entity} (${params.period}) — ${month}`;
+  }
   return `SIS — ${STRATEGY_LABELS[strategy]} — ${month}`;
 }
 
@@ -88,7 +142,43 @@ playlists.post('/generate', async (c) => {
   }
 
   // ejecutar estrategia
-  const trackIds = runStrategy(db, userId, strategy, params);
+  let trackIds: string[];
+
+  if (strategy === 'record') {
+    const recordKey = params.recordKey as string;
+    const entityType = params.entityType as 'track' | 'album' | 'artist';
+    const ws = (params.weekStart as WeekStartOption) || 'monday';
+    const sort = (params.sort as Sort) || 'time';
+    const limit = Math.min(Number(params.limit) || 50, 50);
+    const tracksPerEntity = entityType === 'track' ? 1 : 3;
+
+    if (!recordKey || UNSUPPORTED_RECORD_KEYS.has(recordKey)) {
+      return c.json({ error: 'record key no soportado' }, 400);
+    }
+
+    const pluralTab = entityType === 'track' ? 'tracks' : entityType === 'album' ? 'albums' : 'artists';
+    const cached = getCachedRecords(userId, ws, sort, limit, pluralTab as 'tracks' | 'albums' | 'artists');
+    const tabData = cached?.[pluralTab as keyof typeof cached] as Record<string, unknown> | undefined;
+
+    if (!tabData || !tabData[recordKey]) {
+      return c.json({ error: 'records no disponibles en cache' }, 404);
+    }
+
+    const list = tabData[recordKey] as unknown[];
+    let entityIds: string[];
+    let resolveAs = entityType;
+
+    if (ARTIST_RECORD_KEYS.has(recordKey)) {
+      entityIds = (list as ArtistRecordEntry[]).map(e => e.artistId);
+      resolveAs = 'artist';
+    } else {
+      entityIds = (list as RecordEntry[]).map(e => e.entityId);
+    }
+
+    trackIds = resolveEntitiesToTracks(db, userId, resolveAs, entityIds, tracksPerEntity);
+  } else {
+    trackIds = runStrategy(db, userId, strategy, params);
+  }
 
   if (trackIds.length === 0) {
     return c.json({ error: 'no se encontraron tracks con estos criterios' }, 404);
@@ -110,10 +200,16 @@ playlists.post('/generate', async (c) => {
     return c.json({ error: 'missing_scopes', scopes: PLAYLIST_SCOPES }, 403);
   }
 
-  const playlistName = body.name || autoName(strategy);
+  const playlistName = body.name || autoName(strategy, params);
 
   // crear playlist en spotify
-  const created = await spotifyFetch<{ id: string; external_urls: { spotify: string } }>(
+  const created = await spotifyFetch<{
+    id: string;
+    external_urls: { spotify: string };
+    images?: { url: string }[];
+    owner?: { display_name: string | null };
+    snapshot_id?: string;
+  }>(
     `/users/${spotifyId}/playlists`,
     { userId, method: 'POST', body: { name: playlistName, description: '', public: false } },
   );
@@ -126,6 +222,7 @@ playlists.post('/generate', async (c) => {
 
   // agregar tracks (máx 100 por request)
   const uris = trackIds.map(id => `spotify:track:${id}`);
+  let snapshotId = created.snapshot_id ?? null;
   for (let i = 0; i < uris.length; i += 100) {
     const batch = uris.slice(i, i + 100);
     const addResult = await spotifyFetch<{ snapshot_id: string }>(`/playlists/${created.id}/tracks`, {
@@ -133,6 +230,7 @@ playlists.post('/generate', async (c) => {
       method: 'POST',
       body: { uris: batch },
     });
+    snapshotId = addResult?.snapshot_id ?? snapshotId;
     console.log(`[playlists] añadidos ${batch.length} tracks, snapshot: ${addResult?.snapshot_id ?? 'ERROR'}`);
   }
 
@@ -155,9 +253,20 @@ playlists.post('/generate', async (c) => {
     }).run();
   }
 
+  const libraryPlaylistId = syncCreatedPlaylistToLibrary({
+    userId,
+    spotifyPlaylistId: created.id,
+    name: playlistName,
+    ownerName: created.owner?.display_name ?? spotifyId,
+    imageUrl: created.images?.[0]?.url ?? null,
+    snapshotId,
+    trackIds,
+  });
+
   return c.json({
     id: row.id,
     spotifyPlaylistId: created.id,
+    libraryPlaylistId,
     spotifyUrl: created.external_urls.spotify,
     name: playlistName,
     strategy,

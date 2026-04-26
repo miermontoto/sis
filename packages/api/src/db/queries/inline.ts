@@ -44,11 +44,21 @@ export function getStreakDays(db: Db, userId: number) {
   `) as { day: string }[];
 }
 
+function toFtsQuery(term: string): string {
+  const words = term.replace(/[""]/g, '').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '""';
+  return words.map(w => `"${w}"*`).join(' ');
+}
+
 export function searchEntities(db: Db, term: string, limit: number, userId: number) {
+  const ftsQuery = toFtsQuery(term);
+
   const artistRows = db.all(sql`
     SELECT a.spotify_id as id, a.name, a.image_url as imageUrl,
            COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM artists a
+    JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'artist') si
+      ON si.entity_id = a.spotify_id
     LEFT JOIN (
       SELECT ta.artist_id, COUNT(*) as play_count
       FROM listening_history lh
@@ -69,9 +79,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       WHERE mr.entity_type = 'artist' AND mr.user_id = ${userId}
       GROUP BY mr.target_id
     ) ms ON ms.target_id = a.spotify_id
-    WHERE unaccent(a.name) LIKE ${'%' + term + '%'}
-      AND a.spotify_id NOT LIKE 'import:%'
-      AND a.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'artist' AND user_id = ${userId})
+    WHERE a.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'artist' AND user_id = ${userId})
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];
@@ -84,6 +92,8 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
             WHERE t2.album_id = al.spotify_id LIMIT 1) as artistName,
            COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM albums al
+    JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'album') si
+      ON si.entity_id = al.spotify_id
     LEFT JOIN (
       SELECT t.album_id, COUNT(*) as play_count
       FROM listening_history lh
@@ -104,9 +114,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       WHERE mr.entity_type = 'album' AND mr.user_id = ${userId}
       GROUP BY mr.target_id
     ) ms ON ms.target_id = al.spotify_id
-    WHERE unaccent(al.name) LIKE ${'%' + term + '%'}
-      AND al.spotify_id NOT LIKE 'import:%'
-      AND al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId})
+    WHERE al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId})
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];
@@ -117,6 +125,8 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
            ar.name as artistName,
            COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM tracks t
+    JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'track') si
+      ON si.entity_id = t.spotify_id
     LEFT JOIN albums al ON al.spotify_id = t.album_id
     LEFT JOIN (
       SELECT track_id, MIN(artist_id) as artist_id
@@ -137,10 +147,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       WHERE mr.entity_type = 'track' AND mr.user_id = ${userId}
       GROUP BY mr.target_id
     ) ms ON ms.target_id = t.spotify_id
-    WHERE (unaccent(t.name) LIKE ${'%' + term + '%'}
-           OR unaccent(ar.name) LIKE ${'%' + term + '%'})
-      AND t.spotify_id NOT LIKE 'import:%'
-      AND t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
+    WHERE t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
     ORDER BY playCount DESC
     LIMIT ${limit}
   `) as any[];

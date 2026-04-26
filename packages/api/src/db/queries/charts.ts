@@ -38,7 +38,7 @@ function prevPeriod(period: string, granularity: Granularity): string | null {
 }
 
 // obtener ranking para un periodo específico (raw, sin metadata)
-function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit: number, userId: number) {
+export function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit: number, userId: number) {
   const pExpr = periodExpr(granularity, weekStart);
   const uf = userFilter(userId);
 
@@ -93,7 +93,6 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
   const idsIn = sql.join(entityIds.map(id => sql`${id}`), sql`, `);
 
   let targetScores: { period: string; entity_id: string; val: number }[];
-  let dateRange: { min_date: string } | undefined;
   let rankedRows: { period: string; entity_id: string; rank: number }[];
 
   if (entityType === 'artist') {
@@ -118,13 +117,7 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 
     if (targetScores.length === 0) return new Map();
 
-    dateRange = db.all(sql`
-      SELECT min(lh.played_at) as min_date
-      FROM listening_history lh
-      JOIN track_artists ta ON ta.track_id = lh.track_id
-      ${mrJoin}
-      WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) IN (${idsIn})
-    `)[0] as { min_date: string } | undefined;
+    const firstPeriod = targetScores[0].period;
 
     rankedRows = db.all(sql`
       SELECT period, entity_id, rank FROM (
@@ -136,10 +129,10 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
           JOIN tracks t ON t.spotify_id = lh.track_id
           JOIN track_artists ta ON ta.track_id = lh.track_id
           ${mrJoin}
-          WHERE lh.played_at >= ${dateRange?.min_date ?? '1970-01-01'} AND lh.user_id = ${userId}
+          WHERE lh.user_id = ${userId}
         )
         GROUP BY period, entity_id
-        HAVING period <= ${currentPeriod}
+        HAVING period >= ${firstPeriod} AND period <= ${currentPeriod}
       )
       WHERE rank <= ${CHART_SIZE}
     `) as { period: string; entity_id: string; rank: number }[];
@@ -172,15 +165,7 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 
     if (targetScores.length === 0) return new Map();
 
-    // paso 2: una sola query con ROW_NUMBER acotada al rango de fechas de los targets
-    // — mucho más rápido que N queries por periodo o que materializar toda la historia
-    dateRange = db.all(sql`
-      SELECT min(lh.played_at) as min_date
-      FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
-      ${joinClause}
-      WHERE 1=1 ${uf} ${entityInFilter} ${albumFilter}
-    `)[0] as { min_date: string } | undefined;
+    const firstPeriod = targetScores[0].period;
 
     rankedRows = db.all(sql`
       SELECT period, entity_id, rank FROM (
@@ -189,9 +174,9 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         ${joinClause}
-        WHERE lh.played_at >= ${dateRange?.min_date ?? '1970-01-01'} ${uf} ${albumFilter}
+        WHERE 1=1 ${uf} ${albumFilter}
         GROUP BY period, entity_id
-        HAVING period <= ${currentPeriod}
+        HAVING period >= ${firstPeriod} AND period <= ${currentPeriod}
       )
       WHERE rank <= ${CHART_SIZE}
     `) as { period: string; entity_id: string; rank: number }[];
@@ -399,9 +384,9 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
   const uf = userFilter(userId);
   const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 
-  let myData: { period: string; val: number; min_date: string; max_date: string }[];
+  let myData: { period: string; val: number }[];
   let allScores: { period: string; eid: string; val: number }[];
-  let dateMin: string;
+  let firstPeriod: string;
 
   if (entityType === 'artist') {
     // dedupe por play — evita doble count con artists co-apareciendo en un track mergeado
@@ -409,7 +394,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     const metricDedup = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
 
     myData = db.all(sql`
-      SELECT period, ${metricDedup} as val, min(played_at) as min_date, max(played_at) as max_date
+      SELECT period, ${metricDedup} as val
       FROM (
         SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, lh.played_at as played_at, t.duration_ms as duration_ms
         FROM listening_history lh
@@ -420,13 +405,13 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
       )
       GROUP BY period
       ORDER BY period ASC
-    `) as { period: string; val: number; min_date: string; max_date: string }[];
+    `) as { period: string; val: number }[];
 
     if (myData.length === 0) {
       return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
     }
 
-    dateMin = myData[0].min_date;
+    firstPeriod = myData[0].period;
 
     allScores = db.all(sql`
       SELECT period, eid, ${metricDedup} as val
@@ -436,9 +421,10 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
         ${mrJoin}
-        WHERE lh.played_at >= ${dateMin} AND lh.user_id = ${userId}
+        WHERE lh.user_id = ${userId}
       )
       GROUP BY period, eid
+      HAVING period >= ${firstPeriod}
     `) as { period: string; eid: string; val: number }[];
   } else {
     let groupCol: ReturnType<typeof sql>;
@@ -455,31 +441,30 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
       entityFilter = sql`AND COALESCE(mr_album.target_id, t.album_id) = ${entityId}`;
     }
 
-    // paso 1: score del target por periodo + rango de fechas para acotar el scan global
     myData = db.all(sql`
-      SELECT ${pExpr} as period, ${metric} as val, min(lh.played_at) as min_date, max(lh.played_at) as max_date
+      SELECT ${pExpr} as period, ${metric} as val
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${joinClause}
       WHERE 1=1 ${uf} ${entityFilter} ${albumFilter}
       GROUP BY period
       ORDER BY period ASC
-    `) as { period: string; val: number; min_date: string; max_date: string }[];
+    `) as { period: string; val: number }[];
 
     if (myData.length === 0) {
       return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
     }
 
-    dateMin = myData[0].min_date;
+    firstPeriod = myData[0].period;
 
-    // paso 2: obtener scores de todas las entidades desde dateMin (usa índice played_at)
     allScores = db.all(sql`
       SELECT ${pExpr} as period, ${groupCol} as eid, ${metric} as val
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${joinClause}
-      WHERE lh.played_at >= ${dateMin} ${uf} ${albumFilter}
+      WHERE 1=1 ${uf} ${albumFilter}
       GROUP BY period, eid
+      HAVING period >= ${firstPeriod}
     `) as { period: string; eid: string; val: number }[];
   }
 
@@ -512,32 +497,42 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
   }
 
-  const lastRow = rows[rows.length - 1];
-  let peakRank = rows[0].rank;
-  let peakPeriod = rows[0].period;
-  for (const r of rows) {
-    if (r.rank < peakRank) {
-      peakRank = r.rank;
-      peakPeriod = r.period;
-    }
-  }
-  const peakPeriods = rows.filter(r => r.rank === peakRank).map(r => r.period);
-  const timesAtPeak = peakPeriods.length;
-
-  // determinar si está en el chart actual
+  // determinar periodo actual (no cerrado)
   const latestPeriod = db.all(sql`
     SELECT ${pExpr} as period FROM listening_history lh WHERE 1=1 ${uf} ORDER BY lh.played_at DESC LIMIT 1
   `)[0] as { period: string } | undefined;
 
+  const lastRow = rows[rows.length - 1];
   const currentRank = latestPeriod && lastRow.period === latestPeriod.period ? lastRow.rank : null;
 
+  // excluir semana actual (no cerrada) de peaks y weeksOnChart
+  const closedRows = latestPeriod ? rows.filter(r => r.period !== latestPeriod.period) : rows;
+
+  let peakRank = 0;
+  let peakPeriod = '';
+  let peakPeriods: string[] = [];
+  let timesAtPeak = 0;
+
+  if (closedRows.length > 0) {
+    peakRank = closedRows[0].rank;
+    peakPeriod = closedRows[0].period;
+    for (const r of closedRows) {
+      if (r.rank < peakRank) {
+        peakRank = r.rank;
+        peakPeriod = r.period;
+      }
+    }
+    peakPeriods = closedRows.filter(r => r.rank === peakRank).map(r => r.period);
+    timesAtPeak = peakPeriods.length;
+  }
+
   // llenar gaps entre primer y último periodo
-  const firstPeriod = rows[0].period;
+  const firstOnChart = rows[0].period;
   const lastPeriod = latestPeriod?.period ?? lastRow.period;
 
   const allPeriods = db.all(sql`
     SELECT DISTINCT ${pExpr} as period FROM listening_history lh
-    WHERE lh.played_at >= ${dateMin} ${uf}
+    WHERE 1=1 ${uf} AND ${pExpr} >= ${firstPeriod}
     ORDER BY period ASC
   `) as { period: string }[];
 
@@ -545,7 +540,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
   const fullHistory: { period: string; rank: number | null }[] = [];
   let inRange = false;
   for (const p of allPeriods) {
-    if (p.period === firstPeriod) inRange = true;
+    if (p.period === firstOnChart) inRange = true;
     if (inRange) fullHistory.push({ period: p.period, rank: rankMap.get(p.period) ?? null });
     if (p.period === lastPeriod) break;
   }
@@ -557,7 +552,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     peakPeriod,
     peakPeriods,
     timesAtPeak,
-    weeksOnChart: rows.length,
+    weeksOnChart: closedRows.length,
     history: fullHistory,
   };
 }

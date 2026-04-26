@@ -108,6 +108,73 @@ export function getDb() {
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_polling_state_user_id ON polling_state(user_id)'); } catch {}
 
+  // FTS5: índice de búsqueda full-text para artistas, álbumes y tracks
+  try {
+    sqlite.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+      entity_id UNINDEXED,
+      entity_type UNINDEXED,
+      name,
+      extra_text,
+      tokenize='unicode61 remove_diacritics 2'
+    )`);
+
+    sqlite.exec('BEGIN');
+    sqlite.exec('DELETE FROM search_index');
+    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+      SELECT spotify_id, 'artist', name, '' FROM artists WHERE spotify_id NOT LIKE 'import:%'`);
+    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+      SELECT spotify_id, 'album', name, '' FROM albums WHERE spotify_id NOT LIKE 'import:%'`);
+    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+      SELECT t.spotify_id, 'track', t.name, COALESCE(ar.name, '')
+      FROM tracks t
+      LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+      LEFT JOIN artists ar ON ar.spotify_id = ta.artist_id
+      WHERE t.spotify_id NOT LIKE 'import:%'`);
+    sqlite.exec('COMMIT');
+
+    // triggers para mantener el índice sincronizado con inserts/updates
+    sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_artists_ai AFTER INSERT ON artists
+      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+        DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'artist';
+        INSERT INTO search_index(entity_id, entity_type, name, extra_text)
+        VALUES (NEW.spotify_id, 'artist', NEW.name, '');
+      END`);
+    sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_artists_au AFTER UPDATE OF name ON artists
+      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+        DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'artist';
+        INSERT INTO search_index(entity_id, entity_type, name, extra_text)
+        VALUES (NEW.spotify_id, 'artist', NEW.name, '');
+      END`);
+    sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_albums_ai AFTER INSERT ON albums
+      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+        DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'album';
+        INSERT INTO search_index(entity_id, entity_type, name, extra_text)
+        VALUES (NEW.spotify_id, 'album', NEW.name, '');
+      END`);
+    sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_albums_au AFTER UPDATE OF name ON albums
+      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+        DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'album';
+        INSERT INTO search_index(entity_id, entity_type, name, extra_text)
+        VALUES (NEW.spotify_id, 'album', NEW.name, '');
+      END`);
+    sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_tracks_ai AFTER INSERT ON tracks
+      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+        DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'track';
+        INSERT INTO search_index(entity_id, entity_type, name, extra_text)
+        VALUES (NEW.spotify_id, 'track', NEW.name, '');
+      END`);
+    sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_tracks_au AFTER UPDATE OF name ON tracks
+      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+        DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'track';
+        INSERT INTO search_index(entity_id, entity_type, name, extra_text)
+        VALUES (NEW.spotify_id, 'track', NEW.name, '');
+      END`);
+
+    console.log('[db] índice FTS5 creado y poblado');
+  } catch (err) {
+    console.error('[db] error creando índice FTS5:', err);
+  }
+
   console.log(`[db] conectado a ${dbPath} (WAL mode)`);
   return db;
 }

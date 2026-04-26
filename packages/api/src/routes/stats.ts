@@ -3,6 +3,7 @@ import { getDb } from '../db/connection.js';
 import { dbRead } from '../db/read-pool.js';
 import { DEFAULT_PAGE_LIMIT, CHART_SIZE, RECORDS_LIMIT } from '../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../services/records-cache.js';
+import { ensureFullAlbumTracks } from '../services/ingestion.js';
 import type { TimeRange } from '../constants.js';
 import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, deleteHistoryEntries } from '../db/queries/index.js';
 import type { AppVariables } from '../app.js';
@@ -39,7 +40,8 @@ function periodMatchesGranularity(period: string, granularity: 'week' | 'month' 
 
 function parseParams(c: any) {
   const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 200);
-  const sort = (c.req.query('sort') === 'plays' ? 'plays' : 'time') as Sort;
+  const sortRaw = c.req.query('sort');
+  const sort = (sortRaw === 'plays' ? 'plays' : sortRaw === 'natural' ? 'natural' : 'time') as Sort;
 
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
@@ -275,6 +277,10 @@ stats.get('/album/:id', async (c) => {
 
   const album = await dbRead<any>('lookupAlbumById', id);
   if (!album) return c.json({ error: 'Album not found' }, 404);
+
+  if (sort === 'natural') {
+    try { await ensureFullAlbumTracks(id, album.total_tracks, userId); } catch {}
+  }
 
   const albumIds = await dbRead<string[]>('resolveEntityIds', 'album', id, userId);
 

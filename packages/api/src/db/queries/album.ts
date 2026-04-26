@@ -63,6 +63,6 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
       GROUP BY lh.track_id
     ) s ON s.track_id = t.spotify_id
     WHERE ${albumIdIn(albumIds)}
-    ORDER BY ${sort === 'plays' ? sql`play_count` : sql`total_ms`} DESC, t.track_number ASC
+    ORDER BY ${sort === 'natural' ? sql`t.track_number ASC, t.name ASC` : sort === 'plays' ? sql`play_count DESC, t.track_number ASC` : sql`total_ms DESC, t.track_number ASC`}
   `) as { track_id: string; name: string; duration_ms: number; track_number: number | null; play_count: number; total_ms: number }[];
 }

@@ -319,6 +319,13 @@ export const api = {
   playbackTransfer: (deviceId: string, play?: boolean) =>
     apiMutate<{ success: boolean }>('PUT', '/now-playing/device', { device_id: deviceId, play }),
 
+  checkTrackLiked: (trackId: string) =>
+    apiFetch<{ isLiked: boolean }>(`/now-playing/like/${encodeURIComponent(trackId)}`),
+  likeTrack: (trackId: string) =>
+    apiMutate<{ success: boolean }>('PUT', `/now-playing/like/${encodeURIComponent(trackId)}`),
+  unlikeTrack: (trackId: string) =>
+    apiMutate<{ success: boolean }>('DELETE', `/now-playing/like/${encodeURIComponent(trackId)}`),
+
   accolades: (type: 'artist' | 'track' | 'album', id: string, signal?: AbortSignal) =>
     apiFetch<AccoladesResponse>(`/stats/accolades/${type}/${encodeURIComponent(id)}`, undefined, signal),
 

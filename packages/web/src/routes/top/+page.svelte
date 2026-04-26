@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { goto } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type DateRangeParams } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
@@ -8,8 +9,11 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
+  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL } from '$lib/utils/chart';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
+  import IconPlus from '$lib/icons/IconPlus.svelte';
+  import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import type { EChartsOption } from 'echarts';
 
   let activeTab = $state<'tracks' | 'artists' | 'albums'>('tracks');
@@ -197,6 +201,12 @@
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
+  let chartEntityIds = $derived.by(() => {
+    if (activeTab === 'tracks') return topTracks.slice(0, 10).map(t => t.trackId).reverse();
+    if (activeTab === 'artists') return topArtists.slice(0, 10).map(a => a.artistId).reverse();
+    return topAlbums.slice(0, 10).map(a => a.albumId).reverse();
+  });
+
   let chartOption = $derived.by<EChartsOption>(() => {
     let names: string[] = [];
     let values: number[] = [];
@@ -234,7 +244,7 @@
 
     // rich styles para imágenes en las labels del eje Y
     const rich: Record<string, any> = {
-      name: { fontSize: 12, color: '#e5e5e5', width: 130, overflow: 'truncate', align: 'left' },
+      name: { fontSize: 12, color: '#e5e5e5', width: 100, overflow: 'truncate', align: 'left' },
     };
     images.forEach((url, i) => {
       if (url) {
@@ -257,9 +267,9 @@
     });
 
     return {
-      grid: { left: 190, right: 55, top: 10, bottom: 20 },
+      grid: { top: 10, bottom: 5, right: 55, containLabel: false, left: 160 },
       tooltip: {
-        trigger: 'axis',
+        ...TOOLTIP_BASE,
         axisPointer: { type: 'shadow' },
         formatter: (params: any) => {
           const p = Array.isArray(params) ? params[0] : params;
@@ -268,26 +278,27 @@
       },
       xAxis: {
         type: 'value',
-        splitLine: { lineStyle: { color: '#2a2a2a' } },
+        splitLine: { ...SPLIT_LINE },
         axisLabel: {
-          color: '#888',
+          ...AXIS_LABEL,
           formatter: (v: number) => metric === 'plays' ? String(v) : formatChartValue(v),
         },
       },
       yAxis: {
         type: 'category',
         data: names,
-        axisLine: { lineStyle: { color: '#2a2a2a' } },
+        axisLine: { ...AXIS_LINE },
         axisTick: { show: false },
         axisLabel: {
           rich,
           align: 'left',
-          margin: 180,
+          margin: 155,
           formatter: (name: string) => {
             const idx = names.indexOf(name);
             return `{img${idx}|}  {name|${name}}`;
           },
         },
+        triggerEvent: true,
       },
       series: [{
         type: 'bar',
@@ -309,6 +320,7 @@
           };
         }),
         barMaxWidth: 28,
+        cursor: 'pointer',
         label: {
           show: true,
           position: 'right',
@@ -319,6 +331,60 @@
       }],
     };
   });
+
+  function handleChartClick(params: any) {
+    const idx = params.dataIndex ?? (params.componentType === 'yAxis' ? chartEntityIds.length - 1 - (params.value ? chartEntityIds.indexOf(params.value) : -1) : -1);
+    let dataIdx: number;
+    if (params.componentType === 'yAxis') {
+      const names = (chartOption as any)?.yAxis?.data as string[] | undefined;
+      dataIdx = names ? names.indexOf(params.value) : -1;
+    } else {
+      dataIdx = params.dataIndex;
+    }
+    if (dataIdx == null || dataIdx < 0 || dataIdx >= chartEntityIds.length) return;
+    const id = chartEntityIds[dataIdx];
+    const prefix = activeTab === 'tracks' ? 'track' : activeTab === 'artists' ? 'artist' : 'album';
+    goto(`/${prefix}/${id}`);
+  }
+
+  // --- playlist creation ---
+  let creatingPlaylist = $state(false);
+  let createdPlaylistId = $state<number | null>(null);
+
+  // reset cuando cambia tab/range
+  $effect(() => {
+    void activeTab;
+    void range;
+    void startDate;
+    void endDate;
+    createdPlaylistId = null;
+  });
+
+  function singularTab(t: 'tracks' | 'artists' | 'albums'): 'track' | 'album' | 'artist' {
+    if (t === 'tracks') return 'track';
+    if (t === 'albums') return 'album';
+    return 'artist';
+  }
+
+  async function createTopPlaylist() {
+    if (creatingPlaylist) return;
+    creatingPlaylist = true;
+    try {
+      const params: Record<string, unknown> = {
+        entityType: singularTab(activeTab),
+        range,
+        sort: metric,
+        limit: 50,
+      };
+      if (range === 'custom' && startDate && endDate) {
+        params.startDate = startDate;
+        params.endDate = endDate;
+      }
+      const result = await api.generatePlaylist({ strategy: 'top', params });
+      if ('id' in result) createdPlaylistId = result.libraryPlaylistId ?? result.id;
+    } catch { /* silently fail */ }
+    finally { creatingPlaylist = false; }
+  }
 </script>
 
 <div class="page-header">
@@ -337,7 +403,33 @@
   </button>
 </div>
 
-<TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
+<div class="range-row">
+  <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
+  {#if !loading}
+    {#if createdPlaylistId}
+      <a href="/playlists/{createdPlaylistId}" class="playlist-btn playlist-btn--ok">
+        <IconCheckSmall />
+        Created
+      </a>
+    {:else}
+      <button
+        class="playlist-btn"
+        class:playlist-btn--busy={creatingPlaylist}
+        onclick={createTopPlaylist}
+        disabled={creatingPlaylist}
+        title="Create Spotify playlist from current top"
+      >
+        {#if creatingPlaylist}
+          <span class="btn-spinner"></span>
+          Creating…
+        {:else}
+          <IconPlus />
+          Playlist
+        {/if}
+      </button>
+    {/if}
+  {/if}
+</div>
 
 {#if loading}
   <div class="loading">
@@ -346,7 +438,7 @@
 {:else}
   {#if (activeTab === 'tracks' && topTracks.length > 0) || (activeTab === 'artists' && topArtists.length > 0) || (activeTab === 'albums' && topAlbums.length > 0)}
     <div class="card" style="margin-bottom: 1.5rem;">
-      <BaseChart option={chartOption} height="380px" />
+      <BaseChart option={chartOption} height="380px" onclick={handleChartClick} />
     </div>
   {/if}
 
@@ -417,3 +509,15 @@
     </div>
   {/if}
 {/if}
+
+<style>
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .range-row :global(.time-range-selector) {
+    margin-bottom: 0;
+  }
+</style>

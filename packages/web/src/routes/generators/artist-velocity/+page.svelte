@@ -3,6 +3,7 @@
   import { api, createFetchController, getRankingMetric, type TopArtistItem, type ArtistDetail, type RankingMetric } from '$lib/api';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
 
   // paleta fija de colores asignados por orden de selección
@@ -122,9 +123,9 @@
       });
 
     return {
-      grid: { left: 70, right: 120, top: 20, bottom: 40 },
+      grid: { ...GRID, right: 120, bottom: 40 },
       tooltip: {
-        trigger: 'axis',
+        ...TOOLTIP_BASE,
         formatter: (params: any) => {
           const list = Array.isArray(params) ? params : [params];
           if (list.length === 0) return '';
@@ -142,8 +143,8 @@
       xAxis: mode === 'absolute'
         ? {
           type: 'time',
-          axisLine: { lineStyle: { color: '#2a2a2a' } },
-          axisLabel: { color: '#888' },
+          axisLine: { ...AXIS_LINE },
+          axisLabel: { ...AXIS_LABEL },
           splitLine: { show: false },
         }
         : {
@@ -152,18 +153,15 @@
           nameLocation: 'middle',
           nameGap: 28,
           nameTextStyle: { color: '#666', fontSize: 11 },
-          axisLine: { lineStyle: { color: '#2a2a2a' } },
-          axisLabel: { color: '#888' },
+          axisLine: { ...AXIS_LINE },
+          axisLabel: { ...AXIS_LABEL },
           splitLine: { show: false },
         },
       yAxis: {
         type: 'value',
-        axisLine: { lineStyle: { color: '#2a2a2a' } },
-        axisLabel: {
-          color: '#888',
-          formatter: (v: number) => formatMetricValue(v),
-        },
-        splitLine: { lineStyle: { color: '#1f1f1f' } },
+        axisLine: { ...AXIS_LINE },
+        axisLabel: { ...AXIS_LABEL, formatter: (v: number) => formatMetricValue(v) },
+        splitLine: { ...SPLIT_LINE },
       },
       series,
     };

@@ -1,7 +1,9 @@
-// Helper para menús contextuales por entidad. Devuelve un handler `oncontextmenu`
-// listo para colgar en cualquier fila de track/album/artist.
 import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
 import { mergeModal } from '$lib/stores/merge-modal.svelte';
+
+export function isSpotifyId(id: string): boolean {
+  return !id.startsWith('local:') && !id.startsWith('import:');
+}
 
 export type EntityType = 'album' | 'artist' | 'track';
 
@@ -15,8 +17,9 @@ export interface EntityContext {
 }
 
 function buildActions(entity: EntityContext): ContextMenuAction[] {
-  const actions: ContextMenuAction[] = [
-    {
+  const actions: ContextMenuAction[] = [];
+  if (isSpotifyId(entity.id)) {
+    actions.push({
       label: 'Play',
       onClick: async () => {
         const { nowPlayingStore } = await import('$lib/stores/now-playing.svelte');
@@ -25,8 +28,9 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
           : { context_uri: `spotify:${entity.type}:${entity.id}` };
         nowPlayingStore.playContext(opts);
       },
-    },
-    {
+    });
+  }
+  actions.push({
       label: 'Manage merges',
       disabled: entity.type !== 'artist' && !entity.parentArtistId,
       onClick: () => mergeModal.open({
@@ -35,7 +39,7 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
         parentId: entity.parentArtistId,
       }),
     },
-  ];
+  );
   return actions;
 }
 

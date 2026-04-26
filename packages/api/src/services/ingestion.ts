@@ -5,7 +5,7 @@ import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
 import { spotifyFetch, isRateLimited } from './spotify-client.js';
 import { syntheticId } from './ids.js';
-import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse, SpotifyArtistFull, SpotifyImage } from '../types/spotify.js';
+import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyArtistsBatchResponse, SpotifyArtistFull, SpotifyImage, SpotifyAlbumTracksResponse } from '../types/spotify.js';
 
 interface SpotifySearchArtistResult {
   artists: { items: SpotifyArtistFull[] };
@@ -171,6 +171,84 @@ export function upsertTrack(track: SpotifyTrack) {
       .onConflictDoNothing()
       .run();
   });
+}
+
+// asegurar que todos los tracks de un álbum están en la DB (fetch de Spotify si faltan)
+export async function ensureFullAlbumTracks(albumId: string, totalTracks: number | null, userId: number): Promise<void> {
+  if (!totalTracks || albumId.startsWith('local:') || albumId.startsWith('import:')) return;
+
+  const db = getDb();
+  const row = db.all(sql`SELECT count(*) as c FROM tracks WHERE album_id = ${albumId}`)[0] as { c: number };
+  if (row.c >= totalTracks) return;
+
+  const data = await spotifyFetch<SpotifyAlbumTracksResponse>(`/albums/${albumId}/tracks`, {
+    userId, params: { limit: '50' },
+  });
+  if (!data?.items) return;
+
+  for (const item of data.items) {
+    for (const artist of item.artists) {
+      if (!artist.name) continue;
+      db.insert(artists)
+        .values({ spotifyId: artist.id, name: artist.name, updatedAt: now() })
+        .onConflictDoUpdate({ target: artists.spotifyId, set: { name: artist.name, updatedAt: now() } })
+        .run();
+    }
+
+    db.insert(tracks)
+      .values({
+        spotifyId: item.id, name: item.name, albumId,
+        durationMs: item.duration_ms, trackNumber: item.track_number,
+        explicit: item.explicit, updatedAt: now(),
+      })
+      .onConflictDoUpdate({
+        target: tracks.spotifyId,
+        set: { name: item.name, trackNumber: item.track_number, durationMs: item.duration_ms, updatedAt: now() },
+      })
+      .run();
+
+    item.artists.forEach((artist, i) => {
+      db.insert(trackArtists)
+        .values({ trackId: item.id, artistId: artist.id, position: i })
+        .onConflictDoNothing()
+        .run();
+    });
+  }
+
+  let next = data.next;
+  while (next) {
+    const url = new URL(next);
+    const path = url.pathname.replace(/^\/v1/, '') + url.search;
+    const page = await spotifyFetch<SpotifyAlbumTracksResponse>(path, { userId });
+    if (!page?.items) break;
+    for (const item of page.items) {
+      for (const artist of item.artists) {
+        if (!artist.name) continue;
+        db.insert(artists)
+          .values({ spotifyId: artist.id, name: artist.name, updatedAt: now() })
+          .onConflictDoUpdate({ target: artists.spotifyId, set: { name: artist.name, updatedAt: now() } })
+          .run();
+      }
+      db.insert(tracks)
+        .values({
+          spotifyId: item.id, name: item.name, albumId,
+          durationMs: item.duration_ms, trackNumber: item.track_number,
+          explicit: item.explicit, updatedAt: now(),
+        })
+        .onConflictDoUpdate({
+          target: tracks.spotifyId,
+          set: { name: item.name, trackNumber: item.track_number, durationMs: item.duration_ms, updatedAt: now() },
+        })
+        .run();
+      item.artists.forEach((artist, i) => {
+        db.insert(trackArtists)
+          .values({ trackId: item.id, artistId: artist.id, position: i })
+          .onConflictDoNothing()
+          .run();
+      });
+    }
+    next = page.next;
+  }
 }
 
 // enriquecer artistas sin imagen consultando la API de spotify en lotes de 50

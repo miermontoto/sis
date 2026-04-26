@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPoint, type RankingMetric, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
+  import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption, ECharts } from 'echarts';
 
@@ -70,9 +71,9 @@
   let chartOption = $derived.by<EChartsOption>(() => {
     if (history.length < 2) return {};
     return {
-      grid: { left: 45, right: 20, top: 10, bottom: 30 },
+      grid: { ...GRID },
       tooltip: {
-        trigger: 'axis',
+        ...TOOLTIP_BASE,
         formatter: (params: any) => {
           const p = Array.isArray(params) ? params[0] : params;
           const period = history[p.dataIndex]?.period;
@@ -80,28 +81,18 @@
           return `${p.axisValue}<br/>#${p.value}`;
         },
       },
-      xAxis: {
-        type: 'category',
-        data: history.map(d => d.period),
-        axisLabel: { color: '#888', fontSize: 11 },
-        axisLine: { lineStyle: { color: '#2a2a2a' } },
-      },
+      xAxis: categoryAxis(history.map(d => d.period)),
       yAxis: {
         type: 'log',
         inverse: true,
         min: 1,
-        splitLine: { lineStyle: { color: '#2a2a2a' } },
-        axisLabel: { color: '#888', formatter: (v: number) => `#${Math.round(v)}` },
+        splitLine: { ...SPLIT_LINE },
+        axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `#${Math.round(v)}` },
       },
-      series: [{
-        type: 'line',
-        data: history.map(d => d.rank),
-        smooth: true,
+      series: [lineSeries(history.map(d => d.rank), {
         symbol: 'circle',
         symbolSize: 4,
         cursor: 'pointer',
-        lineStyle: { color: '#1db954', width: 2 },
-        itemStyle: { color: '#1db954' },
         areaStyle: {
           color: {
             type: 'linear',
@@ -112,7 +103,7 @@
             ],
           },
         },
-      }],
+      })],
     };
   });
 </script>

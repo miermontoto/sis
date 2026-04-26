@@ -14,6 +14,7 @@ export interface MergeModalTarget {
 }
 
 let target = $state<MergeModalTarget | null>(null);
+let changeVersion = $state(0);
 
 async function resolveExistingMerges(entityType: EntityType, targetId: string) {
   // cargamos todas las reglas y filtramos. Evita añadir un endpoint nuevo y es ligero en tamaño.
@@ -29,6 +30,7 @@ async function resolveExistingMerges(entityType: EntityType, targetId: string) {
 
 export const mergeModal = {
   get target() { return target; },
+  get changeVersion() { return changeVersion; },
   async open(opts: { entityType: EntityType; target: { id: string; name: string; imageUrl: string | null }; parentId?: string; onChanged?: () => void }) {
     const existingMerges = await resolveExistingMerges(opts.entityType, opts.target.id);
     target = { ...opts, existingMerges };
@@ -39,4 +41,5 @@ export const mergeModal = {
     if (!target) return;
     target = { ...target, existingMerges: await resolveExistingMerges(target.entityType, target.target.id) };
   },
+  notifyChange() { changeVersion++; },
 };

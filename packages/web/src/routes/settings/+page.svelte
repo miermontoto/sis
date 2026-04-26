@@ -2,6 +2,11 @@
   import { onMount } from 'svelte';
   import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption, type LocaleSetting, type UserRecord, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
+  import IconClock from '$lib/icons/IconClock.svelte';
+  import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
+  import IconCheck from '$lib/icons/IconCheck.svelte';
+  import IconUpload from '$lib/icons/IconUpload.svelte';
+  import IconDownload from '$lib/icons/IconDownload.svelte';
 
   let health = $state<HealthData | null>(null);
   let streaks = $state<StreaksData | null>(null);
@@ -230,7 +235,7 @@
               class:segmented-active={rankingMetric === 'time'}
               onclick={() => handleMetricChange('time')}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <IconClock />
               Minutes
             </button>
             <button
@@ -238,7 +243,7 @@
               class:segmented-active={rankingMetric === 'plays'}
               onclick={() => handleMetricChange('plays')}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <IconPlayOutline />
               Plays
             </button>
           </div>
@@ -296,7 +301,7 @@
         <div class="pref-control">
           {#if health?.authenticated}
             <span class="status-badge status-connected">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <IconCheck />
               Connected
             </span>
           {:else}
@@ -359,7 +364,7 @@
         </div>
         <div class="pref-control import-control">
           <label class="file-input-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <IconUpload />
             {importFiles?.length ? `${importFiles.length} file${importFiles.length > 1 ? 's' : ''}` : 'Choose files'}
             <input
               type="file"
@@ -384,7 +389,7 @@
       {#if importResult}
         <div class="import-results">
           <div class="import-results-header">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <IconCheck color="var(--accent)" />
             Import complete
           </div>
           <div class="import-stats">
@@ -423,11 +428,11 @@
         </div>
         <div class="pref-control export-control">
           <a href="/api/export?format=json" class="action-btn action-btn--secondary" download>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <IconDownload />
             JSON
           </a>
           <a href="/api/export?format=csv" class="action-btn action-btn--secondary" download>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <IconDownload />
             CSV
           </a>
         </div>

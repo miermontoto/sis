@@ -2,6 +2,7 @@ export interface TrackInfo {
   id: string;
   name: string;
   durationMs: number;
+  trackNumber?: number | null;
   album: { id: string; name: string; imageUrl: string | null } | null;
   artists: { id: string; name: string }[];
 }

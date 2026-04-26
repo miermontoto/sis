@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, type SpotifyDevice } from '$lib/api';
+  import IconWifi from '$lib/icons/IconWifi.svelte';
 
   let { show = $bindable(false) }: { show: boolean } = $props();
 
@@ -7,6 +8,8 @@
   let loading = $state(false);
   let error = $state('');
   let rootEl: HTMLDivElement;
+  let triggerEl: HTMLButtonElement;
+  let menuStyle = $state('');
 
   async function fetchDevices() {
     loading = true;
@@ -43,14 +46,26 @@
     if (e.key === 'Escape' && show) close();
   }
 
+  function updatePosition() {
+    if (!triggerEl) return;
+    const rect = triggerEl.getBoundingClientRect();
+    const menuWidth = 260;
+    let left = rect.right - menuWidth;
+    if (left < 8) left = 8;
+    menuStyle = `left:${left}px;bottom:${window.innerHeight - rect.top + 6}px`;
+  }
+
   $effect(() => {
     if (show) {
       fetchDevices();
+      updatePosition();
       document.addEventListener('mousedown', onDocClick);
       document.addEventListener('keydown', onKey);
+      window.addEventListener('resize', updatePosition);
       return () => {
         document.removeEventListener('mousedown', onDocClick);
         document.removeEventListener('keydown', onKey);
+        window.removeEventListener('resize', updatePosition);
       };
     }
   });
@@ -68,19 +83,16 @@
 
 <div class="dp-root" bind:this={rootEl}>
   <button
+    bind:this={triggerEl}
     class="dp-trigger"
     class:dp-trigger--open={show}
     title="Devices"
     onclick={() => show = !show}
   >
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 10s3-3 10-3 10 3 10 3"/>
-      <path d="M6 14s2-2 6-2 6 2 6 2"/>
-      <circle cx="12" cy="18" r="1" fill="currentColor"/>
-    </svg>
+    <IconWifi />
   </button>
   {#if show}
-    <div class="dp-menu" role="listbox">
+    <div class="dp-menu" role="listbox" style={menuStyle}>
       {#if loading}
         <div class="dp-status"><div class="spinner spinner--sm"></div></div>
       {:else if error}
@@ -125,11 +137,15 @@
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 50%;
-    transition: color 0.15s;
-    min-width: 36px;
-    min-height: 36px;
+    padding: 0.35rem;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  .dp-trigger:hover {
+    background: var(--bg-hover);
   }
 
   .dp-trigger:hover,
@@ -138,9 +154,7 @@
   }
 
   .dp-menu {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    right: 0;
+    position: fixed;
     min-width: 220px;
     max-width: 300px;
     background: var(--bg-card);
@@ -148,7 +162,7 @@
     border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     overflow: hidden;
-    z-index: 100;
+    z-index: 200;
   }
 
   .dp-status {

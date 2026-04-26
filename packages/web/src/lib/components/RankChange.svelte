@@ -1,4 +1,7 @@
 <script lang="ts">
+  import IconRankUp from '$lib/icons/IconRankUp.svelte';
+  import IconRankDown from '$lib/icons/IconRankDown.svelte';
+
   interface Props {
     rankChange: number | null;
     isNew: boolean;
@@ -14,12 +17,12 @@
   <span class="rank-change re">RE</span>
 {:else if rankChange !== null && rankChange > 0}
   <span class="rank-change up" title="Subió {rankChange} {rankChange === 1 ? 'posición' : 'posiciones'}">
-    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 1 L9 6 H1 Z" fill="currentColor"/></svg>
+    <IconRankUp />
     {rankChange}
   </span>
 {:else if rankChange !== null && rankChange < 0}
   <span class="rank-change down" title="Bajó {Math.abs(rankChange)} {Math.abs(rankChange) === 1 ? 'posición' : 'posiciones'}">
-    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M5 9 L9 4 H1 Z" fill="currentColor"/></svg>
+    <IconRankDown />
     {Math.abs(rankChange)}
   </span>
 {:else if rankChange === 0}
