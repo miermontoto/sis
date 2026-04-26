@@ -287,7 +287,7 @@ export function strategyTop(db: Db, userId: number, params: TopParams): string[]
       ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
       : sql`WHERE 1=1`;
     const rows = db.all(sql`
-      SELECT lh.track_id as entity_id
+      SELECT lh.track_id as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${whereClause} ${uf} ${NO_LOCAL}

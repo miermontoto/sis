@@ -407,14 +407,14 @@
   <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
   {#if !loading}
     {#if createdPlaylistId}
-      <a href="/playlists/{createdPlaylistId}" class="playlist-btn playlist-btn--ok">
+      <a href="/playlists/{createdPlaylistId}" class="range-btn range-btn--playlist range-btn--ok">
         <IconCheckSmall />
         Created
       </a>
     {:else}
       <button
-        class="playlist-btn"
-        class:playlist-btn--busy={creatingPlaylist}
+        class="range-btn range-btn--playlist"
+        class:range-btn--busy={creatingPlaylist}
         onclick={createTopPlaylist}
         disabled={creatingPlaylist}
         title="Create Spotify playlist from current top"
@@ -513,11 +513,12 @@
 <style>
   .range-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
     margin-bottom: 1.25rem;
   }
   .range-row :global(.time-range-selector) {
-    margin-bottom: 0;
+    display: contents;
   }
 </style>

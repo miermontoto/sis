@@ -494,6 +494,24 @@ a.track-item {
   color: #000;
 }
 
+.range-btn--playlist {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+.range-btn--playlist:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.range-btn--playlist:disabled { opacity: 0.5; cursor: default; }
+.range-btn--busy { opacity: 1; color: var(--text-muted); }
+.range-btn--ok {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
+
 /* sidebar now playing */
 .sidebar-now-playing {
   margin-top: auto;
