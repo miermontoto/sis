@@ -3,7 +3,7 @@ import { getRecords } from '../db/queries/index.js';
 import { dbRead } from '../db/read-pool.js';
 import type { RecordsResponse, Accolade, AccoladesResponse } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 import { RECORDS_LIMIT } from '../constants.js';
 
@@ -14,9 +14,27 @@ type EntityTypeFilter = EntityType;
 
 // cache: "userId:weekStart:sort" → resultado completo (all types, limit 50)
 const cache = new Map<string, RecordsResponse>();
+// marca de agua: MAX(played_at) en el momento de la última computación por usuario
+const lastDataTs = new Map<number, string>();
 
 function cacheKey(userId: number, ws: WeekStart, sort: Sort) {
   return `${userId}:${ws}:${sort}`;
+}
+
+function getLatestPlayedAt(db: ReturnType<typeof getDb>, userId: number): string | null {
+  const row = db.all(sql`SELECT MAX(played_at) as latest FROM listening_history WHERE user_id = ${userId}`);
+  return (row[0] as any)?.latest ?? null;
+}
+
+function hasNewData(db: ReturnType<typeof getDb>, userId: number): boolean {
+  const latest = getLatestPlayedAt(db, userId);
+  if (!latest) return false;
+  return latest !== lastDataTs.get(userId);
+}
+
+function updateDataTimestamp(db: ReturnType<typeof getDb>, userId: number) {
+  const latest = getLatestPlayedAt(db, userId);
+  if (latest) lastDataTs.set(userId, latest);
 }
 
 function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; sort: Sort } {
@@ -47,30 +65,49 @@ export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: num
   const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
   const k = cacheKey(userId, weekStart, sort);
 
+  if (cache.has(k) && !hasNewData(db, userId)) {
+    console.log(`[records-cache] skip user ${userId} — no new data`);
+    return;
+  }
+
   console.log(`[records-cache] computing records for user ${userId} (${k})...`);
   const start = performance.now();
   const result = getRecords(db, weekStart, sort, 50, undefined, userId) as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
   console.log(`[records-cache] done in ${ms}ms`);
 
-  // limpiar cache anterior de este usuario
+  updateDataTimestamp(db, userId);
+
   for (const [key] of cache) {
     if (key.startsWith(`${userId}:`)) cache.delete(key);
   }
   cache.set(k, result);
 }
 
-/** Computa records en un worker thread (prod) para no bloquear el event loop principal. */
+/** Computa records en worker threads (prod) para no bloquear el event loop principal.
+ *  Lanza tracks/albums/artists en paralelo sobre el pool de workers. */
 export async function computeAndCacheForUserAsync(userId: number, spotifyId: string) {
   const db = getDb();
   const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
   const k = cacheKey(userId, weekStart, sort);
 
+  if (cache.has(k) && !hasNewData(db, userId)) {
+    console.log(`[records-cache] skip user ${userId} — no new data`);
+    return;
+  }
+
   console.log(`[records-cache] computing records for user ${userId} (${k}) [worker]...`);
   const start = performance.now();
-  const result = await dbRead<RecordsResponse>('getRecords', weekStart, sort, 50, undefined, userId);
+  const [trackResult, albumResult, artistResult] = await Promise.all([
+    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'track', userId),
+    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'album', userId),
+    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'artist', userId),
+  ]);
+  const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
   console.log(`[records-cache] done in ${ms}ms`);
+
+  updateDataTimestamp(db, userId);
 
   for (const [key] of cache) {
     if (key.startsWith(`${userId}:`)) cache.delete(key);
@@ -223,7 +260,8 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   return { metric, accolades };
 }
 
-/** Invalida la cache de todos los usuarios */
+/** Invalida la cache de todos los usuarios (fuerza recomputo en el siguiente ciclo) */
 export function invalidateRecordsCache() {
   cache.clear();
+  lastDataTs.clear();
 }

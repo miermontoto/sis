@@ -37,6 +37,7 @@ export const tracks = sqliteTable('tracks', {
   albumId: text('album_id').references(() => albums.spotifyId),
   durationMs: integer('duration_ms').notNull(),
   trackNumber: integer('track_number'),
+  discNumber: integer('disc_number'),
   explicit: integer('explicit', { mode: 'boolean' }).default(false),
   popularity: integer('popularity'),
   verifiedAlbum: integer('verified_album'),

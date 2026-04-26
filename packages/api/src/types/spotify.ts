@@ -35,6 +35,7 @@ export interface SpotifyTrack {
   artists: SpotifyArtistSimple[];
   duration_ms: number;
   track_number: number;
+  disc_number: number;
   explicit: boolean;
   popularity: number;
   is_local?: boolean;

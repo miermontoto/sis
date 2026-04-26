@@ -71,11 +71,61 @@ function getUserSort(db: ReturnType<typeof getDb>, userId: number): Sort {
   return (row?.value === 'plays' ? 'plays' : 'time') as Sort;
 }
 
+type RecordEntityType = 'track' | 'album' | 'artist';
+type RecordResolveResult = { trackIds: string[] } | { error: string; status: 400 | 404 };
+
+function resolveRecordTracks(db: ReturnType<typeof getDb>, userId: number, params: Record<string, unknown>): RecordResolveResult {
+  const recordKey = typeof params.recordKey === 'string' ? params.recordKey : '';
+  const entityType = params.entityType as RecordEntityType;
+  const ws = (['monday', 'sunday', 'friday'].includes(params.weekStart as string)
+    ? params.weekStart
+    : 'monday') as WeekStartOption;
+  const sort = (params.sort === 'plays' ? 'plays' : 'time') as Sort;
+  const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 50);
+
+  if (!recordKey || UNSUPPORTED_RECORD_KEYS.has(recordKey)) {
+    return { error: 'record key no soportado', status: 400 };
+  }
+  if (!['track', 'album', 'artist'].includes(entityType)) {
+    return { error: 'entity type no soportado', status: 400 };
+  }
+
+  const pluralTab = entityType === 'track' ? 'tracks' : entityType === 'album' ? 'albums' : 'artists';
+  const cached = getCachedRecords(userId, ws, sort, limit, pluralTab);
+  const tabData = cached?.[pluralTab] as Record<string, unknown> | undefined;
+  const list = tabData?.[recordKey];
+
+  if (!Array.isArray(list)) {
+    return { error: 'records no disponibles en cache', status: 404 };
+  }
+
+  const tracksPerEntity = entityType === 'track' ? 1 : 3;
+  let entityIds: string[];
+  let resolveAs: RecordEntityType = entityType;
+
+  if (ARTIST_RECORD_KEYS.has(recordKey)) {
+    entityIds = (list as ArtistRecordEntry[])
+      .map(e => e.artistId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    resolveAs = 'artist';
+  } else {
+    entityIds = (list as RecordEntry[])
+      .map(e => e.entityId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  }
+
+  return { trackIds: resolveEntitiesToTracks(db, userId, resolveAs, entityIds, tracksPerEntity) };
+}
+
 function runStrategy(db: ReturnType<typeof getDb>, userId: number, strategy: Strategy, params: Record<string, unknown>): string[] {
   const sort = getUserSort(db, userId);
   const p = { ...params, sort };
 
   switch (strategy) {
+    case 'record': {
+      const result = resolveRecordTracks(db, userId, params);
+      return 'trackIds' in result ? result.trackIds : [];
+    }
     case 'top_range':
       return strategyTopRange(db, userId, p as unknown as TopRangeParams);
     case 'top_artist':
@@ -145,37 +195,9 @@ playlists.post('/generate', async (c) => {
   let trackIds: string[];
 
   if (strategy === 'record') {
-    const recordKey = params.recordKey as string;
-    const entityType = params.entityType as 'track' | 'album' | 'artist';
-    const ws = (params.weekStart as WeekStartOption) || 'monday';
-    const sort = (params.sort as Sort) || 'time';
-    const limit = Math.min(Number(params.limit) || 50, 50);
-    const tracksPerEntity = entityType === 'track' ? 1 : 3;
-
-    if (!recordKey || UNSUPPORTED_RECORD_KEYS.has(recordKey)) {
-      return c.json({ error: 'record key no soportado' }, 400);
-    }
-
-    const pluralTab = entityType === 'track' ? 'tracks' : entityType === 'album' ? 'albums' : 'artists';
-    const cached = getCachedRecords(userId, ws, sort, limit, pluralTab as 'tracks' | 'albums' | 'artists');
-    const tabData = cached?.[pluralTab as keyof typeof cached] as Record<string, unknown> | undefined;
-
-    if (!tabData || !tabData[recordKey]) {
-      return c.json({ error: 'records no disponibles en cache' }, 404);
-    }
-
-    const list = tabData[recordKey] as unknown[];
-    let entityIds: string[];
-    let resolveAs = entityType;
-
-    if (ARTIST_RECORD_KEYS.has(recordKey)) {
-      entityIds = (list as ArtistRecordEntry[]).map(e => e.artistId);
-      resolveAs = 'artist';
-    } else {
-      entityIds = (list as RecordEntry[]).map(e => e.entityId);
-    }
-
-    trackIds = resolveEntitiesToTracks(db, userId, resolveAs, entityIds, tracksPerEntity);
+    const result = resolveRecordTracks(db, userId, params);
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    trackIds = result.trackIds;
   } else {
     trackIds = runStrategy(db, userId, strategy, params);
   }
@@ -475,7 +497,12 @@ playlists.post('/:id/regenerate', async (c) => {
   if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
 
   const params = typeof row.params === 'string' ? JSON.parse(row.params) : row.params;
-  const trackIds = runStrategy(db, userId, row.strategy as Strategy, params);
+  const strategy = row.strategy as Strategy;
+  const resolved = strategy === 'record'
+    ? resolveRecordTracks(db, userId, params)
+    : { trackIds: runStrategy(db, userId, strategy, params) };
+  if ('error' in resolved) return c.json({ error: resolved.error }, resolved.status);
+  const trackIds = resolved.trackIds;
 
   if (trackIds.length === 0) {
     return c.json({ error: 'no se encontraron tracks con estos criterios' }, 404);

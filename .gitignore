@@ -12,3 +12,4 @@ packages/web/build/
 packages/web/.svelte-kit/
 .DS_Store
 .claude/settings.local.json
+.codex

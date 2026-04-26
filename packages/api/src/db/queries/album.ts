@@ -52,7 +52,7 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
   const uf = userFilter(userId);
 
   return db.all(sql`
-    SELECT t.spotify_id as track_id, t.name, t.duration_ms, t.track_number,
+    SELECT t.spotify_id as track_id, t.name, t.duration_ms, t.track_number, t.disc_number,
            coalesce(s.play_count, 0) as play_count, coalesce(s.total_ms, 0) as total_ms
     FROM tracks t
     LEFT JOIN (
@@ -63,6 +63,6 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
       GROUP BY lh.track_id
     ) s ON s.track_id = t.spotify_id
     WHERE ${albumIdIn(albumIds)}
-    ORDER BY ${sort === 'natural' ? sql`t.track_number ASC, t.name ASC` : sort === 'plays' ? sql`play_count DESC, t.track_number ASC` : sql`total_ms DESC, t.track_number ASC`}
-  `) as { track_id: string; name: string; duration_ms: number; track_number: number | null; play_count: number; total_ms: number }[];
+    ORDER BY ${sort === 'natural' ? sql`COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC` : sort === 'plays' ? sql`play_count DESC, COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC` : sql`total_ms DESC, COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC`}
+  `) as { track_id: string; name: string; duration_ms: number; track_number: number | null; disc_number: number | null; play_count: number; total_ms: number }[];
 }

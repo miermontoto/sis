@@ -146,6 +146,7 @@ export function upsertTrack(track: SpotifyTrack) {
       albumId: track.album.id,
       durationMs: track.duration_ms,
       trackNumber: track.track_number,
+      discNumber: track.disc_number ?? 1,
       explicit: track.explicit,
       popularity: track.popularity,
       updatedAt: now(),
@@ -154,6 +155,10 @@ export function upsertTrack(track: SpotifyTrack) {
       target: tracks.spotifyId,
       set: {
         name: track.name,
+        durationMs: track.duration_ms,
+        trackNumber: track.track_number,
+        discNumber: track.disc_number ?? 1,
+        explicit: track.explicit,
         popularity: track.popularity,
         updatedAt: now(),
       },
@@ -178,8 +183,13 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
   if (!totalTracks || albumId.startsWith('local:') || albumId.startsWith('import:')) return;
 
   const db = getDb();
-  const row = db.all(sql`SELECT count(*) as c FROM tracks WHERE album_id = ${albumId}`)[0] as { c: number };
-  if (row.c >= totalTracks) return;
+  const row = db.all(sql`
+    SELECT count(*) as c,
+           sum(CASE WHEN disc_number IS NULL THEN 1 ELSE 0 END) as missing_disc
+    FROM tracks
+    WHERE album_id = ${albumId}
+  `)[0] as { c: number; missing_disc: number | null };
+  if (row.c >= totalTracks && (row.missing_disc ?? 0) === 0) return;
 
   const data = await spotifyFetch<SpotifyAlbumTracksResponse>(`/albums/${albumId}/tracks`, {
     userId, params: { limit: '50' },
@@ -198,12 +208,12 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
     db.insert(tracks)
       .values({
         spotifyId: item.id, name: item.name, albumId,
-        durationMs: item.duration_ms, trackNumber: item.track_number,
+        durationMs: item.duration_ms, trackNumber: item.track_number, discNumber: item.disc_number,
         explicit: item.explicit, updatedAt: now(),
       })
       .onConflictDoUpdate({
         target: tracks.spotifyId,
-        set: { name: item.name, trackNumber: item.track_number, durationMs: item.duration_ms, updatedAt: now() },
+        set: { name: item.name, trackNumber: item.track_number, discNumber: item.disc_number, durationMs: item.duration_ms, updatedAt: now() },
       })
       .run();
 
@@ -232,12 +242,12 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
       db.insert(tracks)
         .values({
           spotifyId: item.id, name: item.name, albumId,
-          durationMs: item.duration_ms, trackNumber: item.track_number,
+          durationMs: item.duration_ms, trackNumber: item.track_number, discNumber: item.disc_number,
           explicit: item.explicit, updatedAt: now(),
         })
         .onConflictDoUpdate({
           target: tracks.spotifyId,
-          set: { name: item.name, trackNumber: item.track_number, durationMs: item.duration_ms, updatedAt: now() },
+          set: { name: item.name, trackNumber: item.track_number, discNumber: item.disc_number, durationMs: item.duration_ms, updatedAt: now() },
         })
         .run();
       item.artists.forEach((artist, i) => {
@@ -563,11 +573,11 @@ export async function fixTrackAlbumAssignments(userId: number) {
           .onConflictDoNothing()
           .run();
 
-        db.run(sql`UPDATE tracks SET album_id = ${apiTrack.album.id}, verified_album = 1 WHERE spotify_id = ${apiTrack.id}`);
+        db.run(sql`UPDATE tracks SET album_id = ${apiTrack.album.id}, track_number = ${apiTrack.track_number}, disc_number = ${apiTrack.disc_number ?? 1}, verified_album = 1 WHERE spotify_id = ${apiTrack.id}`);
         fixed++;
       } else {
         // álbum correcto → marcar como verificado
-        db.run(sql`UPDATE tracks SET verified_album = 1 WHERE spotify_id = ${apiTrack.id}`);
+        db.run(sql`UPDATE tracks SET track_number = ${apiTrack.track_number}, disc_number = ${apiTrack.disc_number ?? 1}, verified_album = 1 WHERE spotify_id = ${apiTrack.id}`);
       }
     }
 

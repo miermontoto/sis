@@ -200,8 +200,12 @@ nowPlaying.put('/like/:trackId', async (c) => {
     method: 'PUT',
     body: { ids: [trackId] },
   });
-  if (!res) return c.json({ success: false, error: 'rate_limited' });
-  return c.json({ success: res.ok });
+  if (!res) return c.json({ success: false, error: 'rate_limited' }, 429);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    return c.json({ success: false, error: 'spotify_rejected', status: res.status, detail }, res.status as 400);
+  }
+  return c.json({ success: true });
 });
 
 nowPlaying.delete('/like/:trackId', async (c) => {
@@ -212,8 +216,12 @@ nowPlaying.delete('/like/:trackId', async (c) => {
     method: 'DELETE',
     body: { ids: [trackId] },
   });
-  if (!res) return c.json({ success: false, error: 'rate_limited' });
-  return c.json({ success: res.ok });
+  if (!res) return c.json({ success: false, error: 'rate_limited' }, 429);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    return c.json({ success: false, error: 'spotify_rejected', status: res.status, detail }, res.status as 400);
+  }
+  return c.json({ success: true });
 });
 
 export default nowPlaying;

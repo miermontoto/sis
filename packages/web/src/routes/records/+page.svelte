@@ -99,9 +99,14 @@
     return 'artist';
   }
 
+  function recordPlaylistStateKey(recordKey: string): string {
+    return `${tab.value}:${weekStart}:${metric}:${recordKey}`;
+  }
+
   async function createRecordPlaylist(recordKey: string) {
     if (creatingPlaylist) return;
-    creatingPlaylist = recordKey;
+    const stateKey = recordPlaylistStateKey(recordKey);
+    creatingPlaylist = stateKey;
     try {
       const result = await api.generatePlaylist({
         strategy: 'record',
@@ -114,7 +119,7 @@
         },
       });
       if ('id' in result) {
-        createdPlaylists = new Map(createdPlaylists).set(recordKey, result.libraryPlaylistId ?? result.id);
+        createdPlaylists = new Map(createdPlaylists).set(stateKey, result.libraryPlaylistId ?? result.id);
       }
     } catch {
       // silently fail
@@ -141,22 +146,23 @@
   <!-- ============ snippets ============ -->
 
   {#snippet sectionHeader(title: string, recordKey: string)}
+    {@const stateKey = recordPlaylistStateKey(recordKey)}
     <div class="record-header">
       <h3 class="record-title">{title}</h3>
-      {#if createdPlaylists.has(recordKey)}
-        <a href="/playlists/{createdPlaylists.get(recordKey)}" class="playlist-btn playlist-btn--ok">
+      {#if createdPlaylists.has(stateKey)}
+        <a href="/playlists/{createdPlaylists.get(stateKey)}" class="playlist-btn playlist-btn--ok">
           <IconCheckSmall />
           Created
         </a>
       {:else}
         <button
           class="playlist-btn"
-          class:playlist-btn--busy={creatingPlaylist === recordKey}
+          class:playlist-btn--busy={creatingPlaylist === stateKey}
           onclick={() => createRecordPlaylist(recordKey)}
           disabled={!!creatingPlaylist}
           title="Create Spotify playlist"
         >
-          {#if creatingPlaylist === recordKey}
+          {#if creatingPlaylist === stateKey}
             <span class="btn-spinner"></span>
             Creating…
           {:else}

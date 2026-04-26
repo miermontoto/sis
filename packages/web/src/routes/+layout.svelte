@@ -29,8 +29,10 @@
   let showSearch = $state(false);
   let user = $state<MeResponse | null>(null);
   let showUserMenu = $state(false);
+  let expandedGroup = $state<string | null>(null);
   let userMenuRef = $state<HTMLElement | null>(null);
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
+  let tabbarRef = $state<HTMLElement | null>(null);
 
   onDestroy(() => nowPlayingStore.stopPolling());
 
@@ -40,10 +42,13 @@
       const inMobile = mobileUserMenuRef?.contains(e.target as Node);
       if (!inDesktop && !inMobile) showUserMenu = false;
     }
+    if (expandedGroup && !tabbarRef?.contains(e.target as Node)) {
+      expandedGroup = null;
+    }
   }
 
   $effect(() => {
-    if (showUserMenu) {
+    if (showUserMenu || expandedGroup) {
       document.addEventListener('click', handleClickOutside, true);
       return () => document.removeEventListener('click', handleClickOutside, true);
     }
@@ -82,20 +87,63 @@
     return () => window.removeEventListener('keydown', handleKeydown);
   });
 
-  const nav = [
-    { href: '/', label: 'Dashboard', icon: '~' },
-    { href: '/history', label: 'History', icon: '#' },
-    { href: '/top', label: 'Top', icon: '*' },
-    { href: '/charts', label: 'Charts', icon: '%' },
-    { href: '/insights', label: 'Insights', icon: '!' },
-    { href: '/records', label: 'Records', icon: '^' },
-    { href: '/playlists', label: 'Playlists', icon: '+' },
-    { href: '/generators', label: 'Generators', icon: '&' },
+  const navGroups = [
+    {
+      label: 'Listen',
+      items: [
+        { href: '/', label: 'Dashboard', icon: '~' },
+        { href: '/history', label: 'History', icon: '#', mobileHidden: true },
+      ],
+    },
+    {
+      label: 'Stats',
+      items: [
+        { href: '/top', label: 'Rankings', icon: '*' },
+        { href: '/charts', label: 'Charts', icon: '%' },
+      ],
+    },
+    {
+      label: 'Highlights',
+      items: [
+        { href: '/insights', label: 'Insights', icon: '!' },
+        { href: '/records', label: 'Records', icon: '^' },
+      ],
+    },
+    {
+      label: 'Library',
+      items: [
+        { href: '/playlists', label: 'Playlists', icon: '+' },
+        { href: '/generators', label: 'Generators', icon: '&' },
+      ],
+    },
   ];
 
+  const nav = navGroups.flatMap(group => group.items);
+  const mobileNavGroups = navGroups
+    .map(g => ({ label: g.label, items: g.items.filter(i => !('mobileHidden' in i)) }))
+    .filter(g => g.items.length > 0);
+
+  function isNavActive(href: string) {
+    return page.url.pathname === href || (href !== '/' && page.url.pathname.startsWith(href));
+  }
+
+  function isGroupActive(group: typeof mobileNavGroups[number]) {
+    return group.items.some(i => isNavActive(i.href));
+  }
+
+  function handleGroupTap(group: typeof mobileNavGroups[number]) {
+    if (group.items.length === 1) {
+      goto(group.items[0].href);
+      expandedGroup = null;
+    } else {
+      expandedGroup = expandedGroup === group.label ? null : group.label;
+    }
+  }
+
   let pageTitle = $derived(
-    nav.find(n => n.href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(n.href))?.label ?? null
+    nav.find(n => isNavActive(n.href))?.label ?? null
   );
+
 </script>
 
 {#if page.url.pathname === '/login'}
@@ -103,21 +151,57 @@
 {:else if authChecked}
   <div class="app-layout">
     <aside class="sidebar">
-      <div class="sidebar-logo">SIS</div>
-      <button class="sidebar-search" onclick={() => showSearch = true}>
-        <span>?</span>
-        <span>Search</span>
-        <kbd>⌘K</kbd>
-      </button>
-      <nav>
-        {#each nav as item}
-          <a
-            href={item.href}
-            class:active={page.url.pathname === item.href || (item.href !== '/' && page.url.pathname.startsWith(item.href))}
-          >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
-          </a>
+      <div class="sidebar-top">
+        <div class="sidebar-logo">
+          <span class="sidebar-logo-mark">SIS</span>
+          <span class="sidebar-logo-subtitle">listening stats</span>
+        </div>
+        <button class="sidebar-search" onclick={() => showSearch = true}>
+          <span class="sidebar-search-icon">?</span>
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
+      </div>
+      <nav class="sidebar-nav sidebar-nav--desktop" aria-label="Primary navigation">
+        {#each navGroups as group}
+          <div class="sidebar-nav-section">
+            <span class="sidebar-nav-heading">{group.label}</span>
+            {#each group.items as item}
+              <a href={item.href} class:active={isNavActive(item.href)}>
+                <span class="sidebar-nav-icon" aria-hidden="true">{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            {/each}
+          </div>
+        {/each}
+      </nav>
+      <nav class="mobile-tabbar" bind:this={tabbarRef} aria-label="Primary navigation">
+        {#each mobileNavGroups as group}
+          <div class="mobile-tab-group">
+            <button
+              type="button"
+              class="mobile-tab-btn"
+              class:active={isGroupActive(group)}
+              onclick={() => handleGroupTap(group)}
+            >
+              <span class="sidebar-nav-icon" aria-hidden="true">{group.items[0].icon}</span>
+              <span>{group.label}</span>
+            </button>
+            {#if expandedGroup === group.label && group.items.length > 1}
+              <div class="mobile-tab-popup">
+                {#each group.items as item}
+                  <a
+                    href={item.href}
+                    class:active={isNavActive(item.href)}
+                    onclick={() => expandedGroup = null}
+                  >
+                    <span class="sidebar-nav-icon" aria-hidden="true">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </a>
+                {/each}
+              </div>
+            {/if}
+          </div>
         {/each}
       </nav>
       <div class="sidebar-now-playing">
