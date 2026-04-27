@@ -7,6 +7,11 @@ import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
+  CURRENTLY_PLAYING_MIN_MS,
+  CURRENTLY_PLAYING_MAX_MS,
+  CURRENTLY_PLAYING_BUFFER_MS,
+  CURRENTLY_PLAYING_PAUSED_MS,
+  CURRENTLY_PLAYING_IDLE_MS,
   RECENTLY_PLAYED_INTERVAL_MS,
   RECENTLY_PLAYED_LIMIT,
   METADATA_REFRESH_INTERVAL_MS,
@@ -25,7 +30,7 @@ import type {
 
 // timers por usuario
 interface UserTimers {
-  currentlyPlaying: ReturnType<typeof setInterval>;
+  currentlyPlaying: ReturnType<typeof setTimeout> | null;
   recentlyPlayed: ReturnType<typeof setInterval>;
 }
 
@@ -56,7 +61,15 @@ function updatePollingStateForUser(userId: number, data: Partial<typeof pollingS
   }
 }
 
-async function pollCurrentlyPlaying(userId: number) {
+function computeNextPollDelay(data: SpotifyCurrentlyPlayingResponse | null): number {
+  if (!data || !data.item) return CURRENTLY_PLAYING_IDLE_MS;
+  if (!data.is_playing) return CURRENTLY_PLAYING_PAUSED_MS;
+
+  const remaining = data.item.duration_ms - (data.progress_ms ?? 0);
+  return Math.max(CURRENTLY_PLAYING_MIN_MS, Math.min(remaining + CURRENTLY_PLAYING_BUFFER_MS, CURRENTLY_PLAYING_MAX_MS));
+}
+
+async function pollCurrentlyPlaying(userId: number): Promise<number> {
   try {
     const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
@@ -74,7 +87,7 @@ async function pollCurrentlyPlaying(userId: number) {
       });
       const db = getDb();
       db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
-      return;
+      return CURRENTLY_PLAYING_IDLE_MS;
     }
 
     // resolver IDs sintéticos para archivos locales antes de comparar
@@ -100,7 +113,8 @@ async function pollCurrentlyPlaying(userId: number) {
 
       if (trackChanged) {
         upsertTrack(data.item);
-        console.log(`[poll:${userId}] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name}`);
+        const nextDelay = computeNextPollDelay(data);
+        console.log(`[poll:${userId}] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name} (siguiente poll en ${Math.round(nextDelay / 1000)}s)`);
       }
 
       // trackear si el track actual es local
@@ -120,9 +134,20 @@ async function pollCurrentlyPlaying(userId: number) {
     });
     const db = getDb();
     db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0} WHERE user_id = ${userId}`);
+    return computeNextPollDelay(data);
   } catch (err) {
     console.error(`[poll:${userId}] error en currently playing:`, err);
+    return CURRENTLY_PLAYING_INTERVAL_MS;
   }
+}
+
+function scheduleNextCurrentlyPlaying(userId: number, delayMs: number) {
+  const timers = userTimers.get(userId);
+  if (!timers) return;
+  timers.currentlyPlaying = setTimeout(async () => {
+    const delay = await pollCurrentlyPlaying(userId);
+    scheduleNextCurrentlyPlaying(userId, delay);
+  }, delayMs);
 }
 
 async function pollRecentlyPlayed(userId: number) {
@@ -176,22 +201,23 @@ function startPollingForUser(userId: number) {
 
   console.log(`[poll:${userId}] iniciando polling...`);
 
-  // ejecutar inmediatamente
-  pollCurrentlyPlaying(userId);
-  pollRecentlyPlayed(userId);
-
   const timers: UserTimers = {
-    currentlyPlaying: setInterval(() => pollCurrentlyPlaying(userId), CURRENTLY_PLAYING_INTERVAL_MS),
+    currentlyPlaying: null,
     recentlyPlayed: setInterval(() => pollRecentlyPlayed(userId), RECENTLY_PLAYED_INTERVAL_MS),
   };
-
   userTimers.set(userId, timers);
+
+  // ejecutar inmediatamente y encadenar con scheduling dinámico
+  pollRecentlyPlayed(userId);
+  pollCurrentlyPlaying(userId).then(delay => {
+    scheduleNextCurrentlyPlaying(userId, delay);
+  });
 }
 
 function stopPollingForUser(userId: number) {
   const timers = userTimers.get(userId);
   if (!timers) return;
-  clearInterval(timers.currentlyPlaying);
+  if (timers.currentlyPlaying) clearTimeout(timers.currentlyPlaying);
   clearInterval(timers.recentlyPlayed);
   userTimers.delete(userId);
   userLocalTracks.delete(userId);
@@ -269,7 +295,7 @@ export function startPolling() {
       .catch(err => console.error('[playlist-sync] error:', err));
   }, PLAYLIST_SYNC_INTERVAL_MS);
 
-  console.log(`[poll] currently playing cada ${CURRENTLY_PLAYING_INTERVAL_MS / 1000}s`);
+  console.log(`[poll] currently playing con scheduling dinámico (${CURRENTLY_PLAYING_MIN_MS / 1000}s–${CURRENTLY_PLAYING_MAX_MS / 1000}s)`);
   console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
 }
 
