@@ -27,7 +27,7 @@ export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopTrackRows, forma
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';
 
 // inline queries extraídas de stats.ts
-export { getTopGenres, getHeatmap, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover } from './inline.js';
+export { getTopGenres, getHeatmap, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, rebuildPlaylistSearchIndex } from './inline.js';
 
 // playlist strategies
 export { strategyTopRange, strategyTopArtist, strategyTopGenre, strategyDeepCuts, strategyTimeVibes, strategyRediscovery, strategyTop, strategyChart, resolveEntitiesToTracks } from './playlists.js';

@@ -153,7 +153,39 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
     LIMIT ${limit}
   `) as any[];
 
-  return { artists: artistRows, albums: albumRows, tracks: trackRows };
+  const libraryRows = db.all(sql`
+    SELECT sp.id, sp.name, sp.image_url as imageUrl,
+           COALESCE(sp.owner_name, 'Playlist') as subtitle,
+           sp.track_count as trackCount,
+           sp.spotify_id as spotifyId,
+           'library' as source
+    FROM spotify_playlists sp
+    JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'playlist_library') si
+      ON CAST(sp.id AS TEXT) = si.entity_id
+    WHERE sp.user_id = ${userId}
+    ORDER BY sp.track_count DESC
+    LIMIT ${limit}
+  `) as any[];
+
+  const generatedRows = db.all(sql`
+    SELECT gp.id, gp.name, NULL as imageUrl,
+           REPLACE(gp.strategy, '_', ' ') as subtitle,
+           gp.track_count as trackCount,
+           gp.spotify_playlist_id as spotifyId,
+           'generated' as source
+    FROM generated_playlists gp
+    JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'playlist_generated') si
+      ON CAST(gp.id AS TEXT) = si.entity_id
+    WHERE gp.user_id = ${userId}
+    ORDER BY gp.track_count DESC
+    LIMIT ${limit}
+  `) as any[];
+
+  const playlistRows = [...libraryRows, ...generatedRows]
+    .sort((a, b) => b.trackCount - a.trackCount)
+    .slice(0, limit);
+
+  return { artists: artistRows, albums: albumRows, tracks: trackRows, playlists: playlistRows };
 }
 
 export function getDiscoverySeries(db: Db, entityType: string, granularity: string, rangeStart: string | null, rangeEnd: string | null, userId: number) {
@@ -245,4 +277,19 @@ export function setAlbumCover(db: Db, albumId: string, imageUrl: string) {
 
 export function insertAlbumCover(db: Db, albumId: string, imageUrl: string, source: string) {
   db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${albumId}, ${imageUrl}, ${source})`);
+}
+
+export function rebuildPlaylistSearchIndex(db: Db, userId: number) {
+  db.run(sql`DELETE FROM search_index WHERE entity_type = 'playlist_library' AND entity_id IN (
+    SELECT CAST(id AS TEXT) FROM spotify_playlists WHERE user_id = ${userId}
+  )`);
+  db.run(sql`DELETE FROM search_index WHERE entity_type = 'playlist_generated' AND entity_id IN (
+    SELECT CAST(id AS TEXT) FROM generated_playlists WHERE user_id = ${userId}
+  )`);
+  db.run(sql`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+    SELECT CAST(id AS TEXT), 'playlist_library', name, COALESCE(owner_name, '')
+    FROM spotify_playlists WHERE user_id = ${userId}`);
+  db.run(sql`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+    SELECT CAST(id AS TEXT), 'playlist_generated', name, strategy
+    FROM generated_playlists WHERE user_id = ${userId}`);
 }

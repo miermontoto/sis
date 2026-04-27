@@ -7,10 +7,13 @@
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import IconPlay from '$lib/icons/IconPlay.svelte';
 
   let data = $state<LibraryPlaylistDetail | null>(null);
   let loading = $state(true);
   let metric = $state<RankingMetric>('time');
+  let playActing = $state(false);
 
   async function loadData(id: string) {
     loading = true;
@@ -90,6 +93,20 @@
         <span>{pl.trackCount} tracks</span>
         {#if pl.isAlgorithmic}<span class="badge algo">Algorithmic</span>{/if}
       </div>
+    </div>
+    <div class="hero-actions">
+      <button
+        class="play-entity-btn"
+        title="Play on Spotify"
+        disabled={playActing}
+        onclick={async () => {
+          playActing = true;
+          await nowPlayingStore.playContext({ context_uri: `spotify:playlist:${pl.spotifyId}` });
+          playActing = false;
+        }}
+      >
+        <IconPlay />
+      </button>
     </div>
   </div>
 

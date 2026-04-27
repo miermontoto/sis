@@ -131,6 +131,10 @@ export function getDb() {
       LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
       LEFT JOIN artists ar ON ar.spotify_id = ta.artist_id
       WHERE t.spotify_id NOT LIKE 'import:%'`);
+    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+      SELECT CAST(id AS TEXT), 'playlist_library', name, COALESCE(owner_name, '') FROM spotify_playlists`);
+    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+      SELECT CAST(id AS TEXT), 'playlist_generated', name, strategy FROM generated_playlists`);
     sqlite.exec('COMMIT');
 
     // triggers para mantener el índice sincronizado con inserts/updates

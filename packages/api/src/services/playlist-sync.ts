@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { spotifyPlaylists } from '../db/schema.js';
+import { rebuildPlaylistSearchIndex } from '../db/queries/index.js';
 import { spotifyFetch } from './spotify-client.js';
 import { upsertTrack } from './ingestion.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
@@ -201,6 +202,7 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
     }
   }
 
+  rebuildPlaylistSearchIndex(db, userId);
   console.log(`[playlist-sync] usuario ${userId}: ${seenSpotifyIds.size} playlists sincronizadas`);
 }
 

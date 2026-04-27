@@ -17,7 +17,8 @@
   // items planos para navegación con teclado
   let flatItems = $derived.by(() => {
     if (!results) return [];
-    const items: { type: 'artist' | 'album' | 'track'; id: string }[] = [];
+    const items: { type: 'artist' | 'album' | 'track' | 'playlist'; id: string }[] = [];
+    for (const p of results.playlists) items.push({ type: 'playlist', id: String(p.id) });
     for (const a of results.artists) items.push({ type: 'artist', id: a.id });
     for (const a of results.albums) items.push({ type: 'album', id: a.id });
     for (const t of results.tracks) items.push({ type: 'track', id: t.id });
@@ -33,7 +34,11 @@
 
   function navigate(type: string, id: string) {
     close();
-    goto(`/${type}/${encodeURIComponent(id)}`);
+    if (type === 'playlist') {
+      goto(`/playlists/${id}`);
+    } else {
+      goto(`/${type}/${encodeURIComponent(id)}`);
+    }
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -48,9 +53,17 @@
     } else if (e.key === 'Enter' && e.shiftKey) {
       const idx = selectedIndex >= 0 ? selectedIndex : 0;
       const item = flatItems[idx];
-      if (item && isSpotifyId(item.id)) {
-        e.preventDefault();
-        playItem(e, item.type, item.id);
+      if (item) {
+        if (item.type === 'playlist') {
+          const pl = results?.playlists.find(p => String(p.id) === item.id);
+          if (pl?.spotifyId) {
+            e.preventDefault();
+            playItem(e, 'playlist', item.id, pl.spotifyId);
+          }
+        } else if (isSpotifyId(item.id)) {
+          e.preventDefault();
+          playItem(e, item.type, item.id);
+        }
       }
     } else if (e.key === 'Enter') {
       const idx = selectedIndex >= 0 ? selectedIndex : 0;
@@ -100,25 +113,26 @@
   });
 
   // índice flat acumulado para mapear a selectedIndex
-  function flatIndex(section: 'artists' | 'albums' | 'tracks', i: number): number {
+  function flatIndex(section: 'playlists' | 'artists' | 'albums' | 'tracks', i: number): number {
     if (!results) return -1;
-    if (section === 'artists') return i;
-    if (section === 'albums') return results.artists.length + i;
-    return results.artists.length + results.albums.length + i;
+    if (section === 'playlists') return i;
+    if (section === 'artists') return results.playlists.length + i;
+    if (section === 'albums') return results.playlists.length + results.artists.length + i;
+    return results.playlists.length + results.artists.length + results.albums.length + i;
   }
 
   let hasResults = $derived(
-    results && (results.artists.length > 0 || results.albums.length > 0 || results.tracks.length > 0)
+    results && (results.artists.length > 0 || results.albums.length > 0 || results.tracks.length > 0 || results.playlists.length > 0)
   );
 
   let noResults = $derived(
-    results && results.artists.length === 0 && results.albums.length === 0 && results.tracks.length === 0
+    results && results.artists.length === 0 && results.albums.length === 0 && results.tracks.length === 0 && results.playlists.length === 0
   );
 
   let playingId = $state<string | null>(null);
   let playError = $state('');
 
-  async function playItem(e: MouseEvent, type: 'artist' | 'album' | 'track', id: string) {
+  async function playItem(e: MouseEvent | KeyboardEvent, type: 'artist' | 'album' | 'track' | 'playlist', id: string, spotifyId?: string) {
     e.stopPropagation();
     e.preventDefault();
     if (playingId) return;
@@ -126,6 +140,8 @@
     playError = '';
     const opts = type === 'track'
       ? { uris: [`spotify:track:${id}`] }
+      : type === 'playlist'
+      ? { context_uri: `spotify:playlist:${spotifyId}` }
       : { context_uri: `spotify:${type}:${id}` };
     const result = await nowPlayingStore.playContext(opts);
     if (result && !result.success && result.error === 'no_active_device') {
@@ -144,7 +160,7 @@
         bind:value={query}
         type="text"
         class="search-input"
-        placeholder="Search artists, albums, tracks..."
+        placeholder="Search artists, albums, tracks, playlists..."
         autocomplete="off"
         spellcheck="false"
       />
@@ -155,6 +171,37 @@
 
       {#if hasResults}
         <div class="search-results">
+          {#if results!.playlists.length > 0}
+            <div class="search-section">
+              <div class="search-section-title">Playlists</div>
+              {#each results!.playlists as playlist, i}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  class="search-result"
+                  class:selected={selectedIndex === flatIndex('playlists', i)}
+                  onmousedown={() => navigate('playlist', String(playlist.id))}
+                  onmouseenter={() => selectedIndex = flatIndex('playlists', i)}
+                >
+                  {#if playlist.imageUrl}
+                    <img src={playlist.imageUrl} alt="" class="search-thumb" loading="lazy" width="40" height="40" />
+                  {:else}
+                    <div class="search-thumb search-thumb--empty"></div>
+                  {/if}
+                  <div class="search-result-info">
+                    <div class="search-result-name">{playlist.name}</div>
+                    <div class="search-result-sub">{playlist.subtitle}</div>
+                  </div>
+                  {#if playlist.spotifyId}
+                    <button class="search-play-btn" title="Play" disabled={playingId === String(playlist.id)} onmousedown={(e) => playItem(e, 'playlist', String(playlist.id), playlist.spotifyId!)}>
+                      <IconPlay size={14} />
+                    </button>
+                  {/if}
+                  <div class="search-result-plays">{playlist.trackCount} tracks</div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
           {#if results!.artists.length > 0}
             <div class="search-section">
               <div class="search-section-title">Artists</div>
@@ -253,6 +300,7 @@
               {/each}
             </div>
           {/if}
+
         </div>
       {/if}
 
