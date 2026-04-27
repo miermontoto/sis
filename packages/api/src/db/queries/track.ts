@@ -62,16 +62,20 @@ export function enrichTracksBatch(db: Db, trackIds: string[]): Map<string, Enric
   return result;
 }
 
-/** Desglose por álbum (en qué álbumes se escuchó un track) */
-export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: string | null, rangeEnd: string | null | undefined, userId: number) {
+/** Desglose por álbum (en qué álbumes se escuchó un track). Usa IDs pre-resueltos para incluir merges. */
+export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: string | null, rangeEnd: string | null | undefined, userId: number, trackIds?: string[]) {
   const wr = rangeWhere(rangeStart, rangeEnd);
   const uf = userFilter(userId);
+  const ids = trackIds ?? [trackId];
+  const trackFilter = ids.length === 1
+    ? sql`lh.track_id = ${ids[0]}`
+    : sql`lh.track_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`;
 
   return db.all(sql`
     SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    WHERE lh.track_id = ${trackId} ${wr} ${uf}
+    WHERE ${trackFilter} ${wr} ${uf}
       AND t.album_id IS NOT NULL
     GROUP BY t.album_id
     ORDER BY play_count DESC

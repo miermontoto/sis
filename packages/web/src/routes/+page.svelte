@@ -9,6 +9,7 @@
   import { getClosedCharts, dismissAllClosedCharts, type ClosedChart } from '$lib/utils/periods';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
+  import { openEntityContextMenu } from '$lib/utils/entity-context';
 
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
@@ -222,6 +223,7 @@
       name: item.album?.name ?? '',
       stat: metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs),
       isLive: item.albumId === nowPlayingStore.albumId,
+      oncontextmenu: openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album?.name ?? '', imageUrl: item.album?.imageUrl ?? null }),
     }))} />
   {:else}
     <p class="empty-inline">No data yet.</p>
@@ -249,6 +251,7 @@
       stat: metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs),
       isLive: nowPlayingStore.artistIds.includes(item.artistId),
       round: true,
+      oncontextmenu: openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist?.name ?? '', imageUrl: item.artist?.imageUrl ?? null }),
     }))} />
   {:else}
     <p class="empty-inline">No data yet.</p>

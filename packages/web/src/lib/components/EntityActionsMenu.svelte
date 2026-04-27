@@ -1,9 +1,11 @@
 <script lang="ts">
+  import type { Component } from 'svelte';
   import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
 
   export interface MenuAction {
     label: string;
     onClick: () => void;
+    icon?: Component<{ size?: number }>;
     danger?: boolean;
     disabled?: boolean;
   }
@@ -68,6 +70,9 @@
           onclick={() => runAction(action)}
           role="menuitem"
         >
+          {#if action.icon}
+            <action.icon size={14} />
+          {/if}
           {action.label}
         </button>
       {/each}
@@ -114,13 +119,16 @@
   }
 
   .actions-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
     text-align: left;
     padding: 0.55rem 0.85rem;
     border: none;
     background: transparent;
     color: var(--text);
+    font-family: var(--font-sans);
     font-size: 0.85rem;
     cursor: pointer;
     transition: background 0.1s, color 0.1s;

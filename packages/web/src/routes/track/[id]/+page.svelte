@@ -20,6 +20,9 @@
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
+  import IconQueue from '$lib/icons/IconQueue.svelte';
+  import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
+  import IconMerge from '$lib/icons/IconMerge.svelte';
 
 
 
@@ -167,8 +170,11 @@
       <EntityActionsMenu
         title="Actions"
         actions={[
-          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', onClick: () => window.open(`https://open.spotify.com/track/${$page.params.id}`, '_blank') }] : []),
-          { label: 'Manage merges', onClick: () => { showMergeModal = true; } },
+          ...(isSpotifyId($page.params.id) ? [
+            { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack($page.params.id) },
+            { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${$page.params.id}`, '_blank') },
+          ] : []),
+          { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
         ]}
       />
     </div>

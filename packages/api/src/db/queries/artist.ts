@@ -2,21 +2,22 @@ import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
 import { rangeWhere, orderByCol, resolvedEntityId, entityMergeJoin, userFilter, tracksWithArtistIn } from './helpers.js';
 
-/** Top tracks de un artista. Usa IDs pre-resueltos para incluir plays mergeados. */
+/** Top tracks de un artista. Usa IDs pre-resueltos para incluir plays mergeados. Agrupa por track canónico (merge-aware). */
 export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number, artistIds?: string[]) {
   const wr = rangeWhere(rangeStart, rangeEnd);
   const ob = orderByCol(sort);
   const uf = userFilter(userId);
   const ids = artistIds ?? [artistId];
   const tracksFilter = tracksWithArtistIn(ids);
+  const trackMrJoin = entityMergeJoin('track', userId);
 
-  // una fila por play (sin duplicar cuando varios artists de la track están mergeados al mismo target)
   return db.all(sql`
-    SELECT lh.track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT ${resolvedEntityId('track', userId)} as track_id, count(*) as play_count, sum(t.duration_ms) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
+    ${trackMrJoin}
     WHERE ${tracksFilter} ${wr} ${uf}
-    GROUP BY lh.track_id
+    GROUP BY track_id
     ORDER BY ${ob} DESC
     LIMIT ${limit}
   `) as { track_id: string; play_count: number; total_ms: number }[];

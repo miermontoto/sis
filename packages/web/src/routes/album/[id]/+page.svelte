@@ -17,6 +17,9 @@
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
+  import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
+  import IconImage from '$lib/icons/IconImage.svelte';
+  import IconMerge from '$lib/icons/IconMerge.svelte';
 
 
   let data = $state<AlbumDetail | null>(null);
@@ -228,9 +231,9 @@
       <EntityActionsMenu
         title="Actions"
         actions={[
-          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
-          { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', onClick: () => { showCoverPicker = true; } },
-          { label: 'Manage merges', onClick: () => { showMergeModal = true; } },
+          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
+          { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
+          { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
         ]}
       />
     </div>

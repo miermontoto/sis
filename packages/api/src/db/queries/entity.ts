@@ -260,20 +260,30 @@ export interface HistoryPageResult {
   total: number;
 }
 
-/** Historial paginado, con filtros opcionales. */
-export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; albumId?: string; trackId?: string; artistId?: string; tzOffsetMinutes?: number }): HistoryPageResult {
-  const { date, albumId, trackId, artistId, tzOffsetMinutes = 0 } = filters ?? {};
-  // tzOffsetMinutes: minutos al este de UTC (p.ej. UTC+2 → 120). Desplazamos
-  // el timestamp UTC almacenado antes de extraer la fecha, para que el filtro
-  // respete la zona horaria local del usuario en lugar de la del servidor.
+/** Historial paginado, con filtros opcionales. Acepta arrays de IDs pre-resueltos (merge-aware). */
+export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; albumIds?: string[]; trackIds?: string[]; artistIds?: string[]; tzOffsetMinutes?: number }): HistoryPageResult {
+  const { date, albumIds, trackIds, artistIds, tzOffsetMinutes = 0 } = filters ?? {};
   const tzModifier = (tzOffsetMinutes >= 0 ? '+' : '') + tzOffsetMinutes + ' minutes';
   const dateFilter = date ? sql` AND date(lh.played_at, ${tzModifier}) = ${date}` : sql``;
-  const needsTrackJoin = albumId || artistId;
+  const needsTrackJoin = albumIds || artistIds;
   const trackJoin = needsTrackJoin ? sql`JOIN tracks t ON t.spotify_id = lh.track_id` : sql``;
-  const artistJoin = artistId ? sql`JOIN track_artists ta ON ta.track_id = lh.track_id` : sql``;
-  const albumWhere = albumId ? sql` AND t.album_id = ${albumId}` : sql``;
-  const trackWhere = trackId ? sql` AND lh.track_id = ${trackId}` : sql``;
-  const artistWhere = artistId ? sql` AND ta.artist_id = ${artistId}` : sql``;
+  const artistJoin = artistIds ? sql`JOIN track_artists ta ON ta.track_id = lh.track_id` : sql``;
+
+  const albumWhere = albumIds
+    ? (albumIds.length === 1
+      ? sql` AND t.album_id = ${albumIds[0]}`
+      : sql` AND t.album_id IN (${sql.join(albumIds.map(id => sql`${id}`), sql`, `)})`)
+    : sql``;
+  const trackWhere = trackIds
+    ? (trackIds.length === 1
+      ? sql` AND lh.track_id = ${trackIds[0]}`
+      : sql` AND lh.track_id IN (${sql.join(trackIds.map(id => sql`${id}`), sql`, `)})`)
+    : sql``;
+  const artistWhere = artistIds
+    ? (artistIds.length === 1
+      ? sql` AND ta.artist_id = ${artistIds[0]}`
+      : sql` AND ta.artist_id IN (${sql.join(artistIds.map(id => sql`${id}`), sql`, `)})`)
+    : sql``;
 
   const items = db.all(sql`
     SELECT lh.id, lh.played_at, lh.track_id

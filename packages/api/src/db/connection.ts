@@ -247,6 +247,7 @@ export function getDb() {
 
     console.log('[db] índice FTS5 creado y poblado');
   } catch (err) {
+    try { sqlite.exec('ROLLBACK'); } catch {}
     console.error('[db] error creando índice FTS5:', err);
   }
 

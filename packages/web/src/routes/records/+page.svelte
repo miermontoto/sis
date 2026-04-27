@@ -6,6 +6,7 @@
   import TrackItem from '$lib/components/TrackItem.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
+  import type { EntityContext } from '$lib/utils/entity-context';
 
   type TabType = 'tracks' | 'albums' | 'artists';
   type TabData = TrackRecords | AlbumRecords | ArtistRecordsData;
@@ -187,6 +188,7 @@
               imageRound={tab.value === 'artists'}
               name={item.name}
               nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
               compact
             >
               {#snippet subtitle()}
@@ -228,6 +230,7 @@
               imageRound={tab.value === 'artists'}
               name={item.name}
               nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
               compact
             >
               {#snippet subtitle()}
@@ -267,6 +270,7 @@
               imageRound={tab.value === 'artists'}
               name={item.name}
               nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
               compact
             >
               {#snippet subtitle()}
@@ -310,6 +314,7 @@
               imageRound={tab.value === 'artists'}
               name={item.name}
               nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
               compact
             >
               {#snippet subtitle()}
@@ -349,6 +354,7 @@
               imageRound={tab.value === 'artists'}
               name={item.name}
               nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
               compact
             >
               {#snippet subtitle()}
@@ -423,6 +429,7 @@
               imageUrl={item.imageUrl}
               imageRound
               name={item.name}
+              entity={{ type: 'artist', id: item.artistId, name: item.name, imageUrl: item.imageUrl } as EntityContext}
               compact
             >
               {#snippet meta()}

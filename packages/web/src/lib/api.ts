@@ -318,6 +318,8 @@ export const api = {
     apiFetch<DevicesResponse>('/now-playing/devices'),
   playbackTransfer: (deviceId: string, play?: boolean) =>
     apiMutate<{ success: boolean }>('PUT', '/now-playing/device', { device_id: deviceId, play }),
+  queueTrack: (trackId: string) =>
+    apiMutate<{ success: boolean }>('POST', '/now-playing/queue', { uri: `spotify:track:${trackId}` }),
 
   checkTrackLiked: (trackId: string) =>
     apiFetch<{ isLiked: boolean }>(`/now-playing/like/${encodeURIComponent(trackId)}`),

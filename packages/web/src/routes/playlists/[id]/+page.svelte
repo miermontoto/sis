@@ -6,6 +6,7 @@
   import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, PIE_TOOLTIP, PIE_COLORS, AXIS_LABEL } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
+  import { openEntityContextMenu } from '$lib/utils/entity-context';
 
   let data = $state<LibraryPlaylistDetail | null>(null);
   let loading = $state(true);
@@ -155,7 +156,8 @@
     <div class="track-list-detail">
       {#each data.tracks as t, i}
         {#if t.track}
-          <div class="track-row">
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="track-row" oncontextmenu={openEntityContextMenu({ type: 'track', id: t.trackId, name: t.track.name, imageUrl: t.track.album?.imageUrl ?? null, parentArtistId: t.track.artists[0]?.id })}>
             <span class="track-pos">{i + 1}</span>
             {#if t.track.album?.imageUrl}
               <a href="/album/{t.track.album.id}">

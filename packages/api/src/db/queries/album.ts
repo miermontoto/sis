@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, userFilter, albumIdIn } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn, entityMergeJoin, resolvedEntityId } from './helpers.js';
 
 /** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists */
 export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
@@ -45,24 +45,27 @@ export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
   `) as { artist_id: string; name: string; image_url: string | null }[];
 }
 
-/** Tracks de un ��lbum con play counts, incluye mergeados */
+/** Tracks de un álbum con play counts (merge-aware: agrupa plays por track canónico, excluye tracks source) */
 export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | null, sort: Sort, ids: string[] | undefined, rangeEnd: string | null | undefined, userId: number) {
   const albumIds = ids ?? [albumId];
   const wr = rangeWhere(rangeStart, rangeEnd);
   const uf = userFilter(userId);
+  const trackMrJoin = entityMergeJoin('track', userId);
 
   return db.all(sql`
     SELECT t.spotify_id as track_id, t.name, t.duration_ms, t.track_number, t.disc_number,
            coalesce(s.play_count, 0) as play_count, coalesce(s.total_ms, 0) as total_ms
     FROM tracks t
     LEFT JOIN (
-      SELECT lh.track_id, count(*) as play_count, sum(tr.duration_ms) as total_ms
+      SELECT ${resolvedEntityId('track', userId)} as resolved_track_id, count(*) as play_count, sum(tr.duration_ms) as total_ms
       FROM listening_history lh
       JOIN tracks tr ON tr.spotify_id = lh.track_id
+      ${trackMrJoin}
       WHERE ${albumIdIn(albumIds, 'tr')} ${wr} ${uf}
-      GROUP BY lh.track_id
-    ) s ON s.track_id = t.spotify_id
+      GROUP BY resolved_track_id
+    ) s ON s.resolved_track_id = t.spotify_id
     WHERE ${albumIdIn(albumIds)}
+      AND t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
     ORDER BY ${sort === 'natural' ? sql`COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC` : sort === 'plays' ? sql`play_count DESC, COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC` : sql`total_ms DESC, COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC`}
   `) as { track_id: string; name: string; duration_ms: number; track_number: number | null; disc_number: number | null; play_count: number; total_ms: number }[];
 }

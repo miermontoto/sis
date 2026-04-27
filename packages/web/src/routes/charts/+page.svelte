@@ -14,6 +14,7 @@
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
+  import { openEntityContextMenu } from '$lib/utils/entity-context';
 
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
@@ -375,7 +376,7 @@
 {:else if currentData && currentData.entries.length > 0}
   <div class="chart-list">
     {#each currentData.entries as entry}
-      <a href={entityLink(entry.entityId)} class="chart-item">
+      <a href={entityLink(entry.entityId)} class="chart-item" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId })}>
         <div class="chart-rank-col">
           <span class="chart-rank" style:color={medalColor(entry.rank)}>{entry.rank}</span>
           <RankChange rankChange={entry.rankChange} isNew={entry.isNew} isReentry={entry.isReentry} />
@@ -433,7 +434,7 @@
     <div class="dropouts-header">Dropped off</div>
     <div class="chart-list">
       {#each currentData.dropouts as d}
-        <a href={entityLink(d.entityId)} class="chart-item chart-item--dropout">
+        <a href={entityLink(d.entityId)} class="chart-item chart-item--dropout" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: d.entityId, name: d.name, imageUrl: d.imageUrl, parentArtistId: d.artistId })}>
           <div class="chart-rank-col">
             <span class="chart-rank" style:color={medalColor(d.previousRank)}>{d.previousRank}</span>
             <span class="dropout-arrow">OUT</span>

@@ -74,6 +74,9 @@
         onclick={() => runAction(action)}
         role="menuitem"
       >
+        {#if action.icon}
+          <action.icon size={14} />
+        {/if}
         {action.label}
       </button>
     {/each}
@@ -92,13 +95,16 @@
     z-index: 500;
   }
   .ctx-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     width: 100%;
     text-align: left;
     padding: 0.45rem 0.85rem;
     border: none;
     background: transparent;
     color: var(--text);
+    font-family: var(--font-sans);
     font-size: 0.85rem;
     cursor: pointer;
   }

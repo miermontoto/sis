@@ -11,7 +11,8 @@ export function getTopGenres(db: Db, rangeStart: string | null, rangeEnd: string
     SELECT genre.value as genre, count(*) as play_count
     FROM listening_history lh
     JOIN track_artists ta ON ta.track_id = lh.track_id
-    JOIN artists a ON a.spotify_id = ta.artist_id
+    LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
+    JOIN artists a ON a.spotify_id = COALESCE(mr_artist.target_id, ta.artist_id)
     JOIN json_each(a.genres) genre
     WHERE 1=1 ${uf} ${rw}
     GROUP BY genre.value
@@ -168,24 +169,27 @@ export function getDiscoverySeries(db: Db, entityType: string, granularity: stri
 
   if (entityType === 'album') {
     rows = db.all(sql`
-      SELECT ${dateTrunc} as period, COUNT(DISTINCT t.album_id) as distinct_count
+      SELECT ${dateTrunc} as period, COUNT(DISTINCT COALESCE(mr_album.target_id, t.album_id)) as distinct_count
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
+      LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id AND mr_album.user_id = ${userId}
       WHERE t.album_id IS NOT NULL ${uf} ${rw}
       GROUP BY period ORDER BY period
     `) as typeof rows;
   } else if (entityType === 'artist') {
     rows = db.all(sql`
-      SELECT ${dateTrunc} as period, COUNT(DISTINCT ta.artist_id) as distinct_count
+      SELECT ${dateTrunc} as period, COUNT(DISTINCT COALESCE(mr_artist.target_id, ta.artist_id)) as distinct_count
       FROM listening_history lh
       JOIN track_artists ta ON ta.track_id = lh.track_id
+      LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
       WHERE 1=1 ${uf} ${rw}
       GROUP BY period ORDER BY period
     `) as typeof rows;
   } else {
     rows = db.all(sql`
-      SELECT ${dateTrunc} as period, COUNT(DISTINCT lh.track_id) as distinct_count
+      SELECT ${dateTrunc} as period, COUNT(DISTINCT COALESCE(mr_track.target_id, lh.track_id)) as distinct_count
       FROM listening_history lh
+      LEFT JOIN merge_rules mr_track ON mr_track.entity_type = 'track' AND mr_track.source_id = lh.track_id AND mr_track.user_id = ${userId}
       WHERE 1=1 ${uf} ${rw}
       GROUP BY period ORDER BY period
     `) as typeof rows;

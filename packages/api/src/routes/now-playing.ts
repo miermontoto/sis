@@ -224,4 +224,37 @@ nowPlaying.delete('/like/:trackId', async (c) => {
   return c.json({ success: true });
 });
 
+// --- add to queue ---
+
+nowPlaying.post('/queue', async (c) => {
+  const userId = c.get('userId');
+  const { uri } = await c.req.json<{ uri: string }>();
+
+  if (!uri?.startsWith('spotify:')) {
+    return c.json({ success: false, error: 'invalid_uri' }, 400);
+  }
+
+  const res = await spotifyFetchRaw('/me/player/queue', {
+    userId,
+    method: 'POST',
+    params: { uri },
+  });
+
+  if (!res) return c.json({ success: false, error: 'rate_limited' }, 429);
+
+  if (res.status === 404) {
+    const text = await res.text();
+    if (text.includes('NO_ACTIVE_DEVICE')) {
+      return c.json({ success: false, error: 'no_active_device' });
+    }
+    return c.json({ success: false, error: 'not_found' });
+  }
+
+  if (res.status === 204 || res.ok) {
+    return c.json({ success: true });
+  }
+
+  return c.json({ success: false, error: 'spotify_error' });
+});
+
 export default nowPlaying;

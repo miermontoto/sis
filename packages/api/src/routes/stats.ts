@@ -127,13 +127,23 @@ stats.get('/history', async (c) => {
   const offset = (page - 1) * limit;
   const userId = c.get('userId');
 
+  const rawTrackId = c.req.query('track');
+  const rawAlbumId = c.req.query('album');
+  const rawArtistId = c.req.query('artist');
+
+  const [trackIds, albumIds, artistIds] = await Promise.all([
+    rawTrackId ? dbRead<string[]>('resolveEntityIds', 'track', rawTrackId, userId) : Promise.resolve(undefined),
+    rawAlbumId ? dbRead<string[]>('resolveEntityIds', 'album', rawAlbumId, userId) : Promise.resolve(undefined),
+    rawArtistId ? dbRead<string[]>('resolveEntityIds', 'artist', rawArtistId, userId) : Promise.resolve(undefined),
+  ]);
+
   const tzRaw = c.req.query('tz');
   const tzOffsetMinutes = tzRaw != null ? Number.parseInt(tzRaw) : 0;
   const { items: rows, total } = await dbRead<{ items: { id: number; played_at: string; track_id: string }[]; total: number }>('getHistoryPage', userId, limit, offset, {
     date: c.req.query('date'),
-    albumId: c.req.query('album'),
-    trackId: c.req.query('track'),
-    artistId: c.req.query('artist'),
+    trackIds,
+    albumIds,
+    artistIds,
     tzOffsetMinutes: Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0,
   });
 
@@ -344,7 +354,7 @@ stats.get('/track/:id', async (c) => {
     dbRead<any>('getEntityStats', 'track', id, rangeStart, rangeEnd, trackIds, userId),
     dbRead<any>('getEntitySeries', 'track', id, rangeStart, rangeKey, trackIds, rangeEnd, customDays, userId),
     dbRead<any[]>('getRecentPlays', 'track', id, 10, trackIds, userId),
-    dbRead<any[]>('getTrackAlbumBreakdown', id, rangeStart, rangeEnd, userId),
+    dbRead<any[]>('getTrackAlbumBreakdown', id, rangeStart, rangeEnd, userId, trackIds),
     dbRead<any>('getTrackPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'track', id),
   ]);

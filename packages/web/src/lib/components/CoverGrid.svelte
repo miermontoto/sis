@@ -9,6 +9,7 @@
     stat: string;
     isLive?: boolean;
     round?: boolean;
+    oncontextmenu?: (e: MouseEvent) => void;
   }
 
   let { items }: { items: CoverItem[] } = $props();
@@ -16,7 +17,7 @@
 
 <div class="cover-row">
   {#each items as item, i}
-    <a href={item.href} class="cover-item" title="{item.name} — {item.stat}">
+    <a href={item.href} class="cover-item" title="{item.name} — {item.stat}" oncontextmenu={item.oncontextmenu}>
       {#if item.rank != null}
         <span class="cover-rank" style:color={medalColor(item.rank)}>{item.rank}</span>
       {/if}

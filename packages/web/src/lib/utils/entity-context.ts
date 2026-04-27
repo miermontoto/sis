@@ -1,5 +1,8 @@
 import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
 import { mergeModal } from '$lib/stores/merge-modal.svelte';
+import IconPlay from '$lib/icons/IconPlay.svelte';
+import IconQueue from '$lib/icons/IconQueue.svelte';
+import IconMerge from '$lib/icons/IconMerge.svelte';
 
 export function isSpotifyId(id: string): boolean {
   return !id.startsWith('local:') && !id.startsWith('import:');
@@ -21,6 +24,7 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
   if (isSpotifyId(entity.id)) {
     actions.push({
       label: 'Play',
+      icon: IconPlay,
       onClick: async () => {
         const { nowPlayingStore } = await import('$lib/stores/now-playing.svelte');
         const opts = entity.type === 'track'
@@ -29,9 +33,20 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
         nowPlayingStore.playContext(opts);
       },
     });
+    if (entity.type === 'track') {
+      actions.push({
+        label: 'Add to queue',
+        icon: IconQueue,
+        onClick: async () => {
+          const { api } = await import('$lib/api');
+          api.queueTrack(entity.id);
+        },
+      });
+    }
   }
   actions.push({
       label: 'Manage merges',
+      icon: IconMerge,
       disabled: entity.type !== 'artist' && !entity.parentArtistId,
       onClick: () => mergeModal.open({
         entityType: entity.type,
