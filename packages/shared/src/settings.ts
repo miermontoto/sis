@@ -5,6 +5,8 @@ export type EntityType = 'artist' | 'track' | 'album';
 
 /** 'auto' = browser default, otherwise a BCP 47 tag like 'en-US', 'es-ES' */
 export type LocaleSetting = 'auto' | string;
+export type RankChangeLookback = 'disabled' | '7d' | '30d';
+export type AlbumTrackDisplay = 'off' | 'fill' | 'percent';
 
 export const LOCALE_OPTIONS: { value: string; label: string }[] = [
   { value: 'auto', label: 'Browser default' },

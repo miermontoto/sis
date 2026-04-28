@@ -3,10 +3,12 @@
   import { formatDuration, formatDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import TrackItem from './TrackItem.svelte';
+  import Accolades from './Accolades.svelte';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
     showRank?: boolean;
+    showRankChanges?: boolean;
     showTime?: boolean;
     metric?: RankingMetric;
     compact?: boolean;
@@ -14,9 +16,13 @@
     itemFocusKey?: (item: TopTrackItem | HistoryItem) => string | null;
     ranks?: (number | null | undefined)[];
     dimUnplayed?: boolean;
+    fillPercents?: number[];
+    percentLabels?: number[];
+    showDuration?: boolean;
+    showAccolades?: boolean;
   }
 
-  let { items, showRank = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, dimUnplayed = false }: Props = $props();
+  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false }: Props = $props();
 
   function resolveFocusKey(item: TopTrackItem | HistoryItem): string | null {
     return itemFocusKey ? itemFocusKey(item) : getTrackId(item);
@@ -46,6 +52,8 @@
     {#if track}
       <TrackItem
         rank={showRank ? (ranks ? (ranks[i] ?? undefined) : i + 1) : undefined}
+        rankChange={showRankChanges && isTopTrack(item) ? item.rankChange : undefined}
+        isNew={showRankChanges && isTopTrack(item) ? item.isNew : undefined}
         imageUrl={track.album?.imageUrl}
         imageHref={track.album ? `/album/${track.album.id}` : undefined}
         name={track.name}
@@ -54,6 +62,7 @@
         focusId={focusKey ?? undefined}
         highlighted={focusId != null && focusKey === focusId}
         dimmed={dimUnplayed && isTopTrack(item) && item.playCount === 0}
+        fillPercent={fillPercents?.[i]}
         entity={trackId ? { type: 'track', id: trackId, name: track.name, imageUrl: track.album?.imageUrl ?? null, parentArtistId: track.artists[0]?.id } : undefined}
         {compact}
       >
@@ -61,6 +70,17 @@
           {#each track.artists as artist, ai}
             <a href="/artist/{artist.id}" class="artist-link">{artist.name}</a>{#if ai < track.artists.length - 1}{', '}{/if}
           {/each}
+          {#if showDuration && track.durationMs}
+            <span class="track-duration-label">{formatDuration(track.durationMs)}</span>
+          {/if}
+          {#if percentLabels?.[i] != null}
+            <span class="track-share">{percentLabels[i].toFixed(1)}%</span>
+          {/if}
+        {/snippet}
+        {#snippet extra()}
+          {#if showAccolades && trackId}
+            <Accolades entityType="track" entityId={trackId} />
+          {/if}
         {/snippet}
         {#snippet meta()}
           {#if isTopTrack(item)}

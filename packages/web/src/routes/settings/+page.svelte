@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type MergeRule, type WeekStartOption, type LocaleSetting, type UserRecord, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type MergeRule, type WeekStartOption, type LocaleSetting, type UserRecord, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -15,8 +15,12 @@
 
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
+  let lookbackPref = $state<RankChangeLookback>('disabled');
   let weekStartPref = $state<WeekStartOption>('monday');
   let localePref = $state<LocaleSetting>('auto');
+  let albumTrackDisplayPref = $state<AlbumTrackDisplay>('fill');
+  let albumShowDurationPref = $state(true);
+  let albumShowAccoladesPref = $state(true);
 
   // admin
   let me = $state<MeResponse | null>(null);
@@ -165,8 +169,12 @@
 
   onMount(async () => {
     rankingMetric = getRankingMetric();
+    lookbackPref = getRankChangeLookback();
     weekStartPref = getWeekStart();
     localePref = getRawLocale();
+    albumTrackDisplayPref = getAlbumTrackDisplay();
+    albumShowDurationPref = getAlbumShowDuration();
+    albumShowAccoladesPref = getAlbumShowAccolades();
     try {
       [health, streaks, me] = await Promise.all([
         api.health(),
@@ -251,6 +259,19 @@
       </div>
       <div class="pref-row row-border">
         <div class="pref-info">
+          <div class="pref-label">Ranking changes</div>
+          <div class="pref-desc">Compare rankings to a previous snapshot (3M+ ranges only)</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={lookbackPref === 'disabled'} onclick={() => { lookbackPref = 'disabled'; setRankChangeLookback('disabled'); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={lookbackPref === '7d'} onclick={() => { lookbackPref = '7d'; setRankChangeLookback('7d'); }}>7 days</button>
+            <button class="segmented-btn" class:segmented-active={lookbackPref === '30d'} onclick={() => { lookbackPref = '30d'; setRankChangeLookback('30d'); }}>30 days</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
           <div class="pref-label">Chart week start</div>
           <div class="pref-desc">Defines how weekly charts are calculated in the Records page</div>
         </div>
@@ -279,6 +300,43 @@
               </option>
             {/each}
           </select>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">Album track share</div>
+          <div class="pref-desc">Show each track's share of total album plays in the album detail view</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'off'} onclick={() => { albumTrackDisplayPref = 'off'; setAlbumTrackDisplay('off'); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'fill'} onclick={() => { albumTrackDisplayPref = 'fill'; setAlbumTrackDisplay('fill'); }}>Fill</button>
+            <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'percent'} onclick={() => { albumTrackDisplayPref = 'percent'; setAlbumTrackDisplay('percent'); }}>%</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">Album track duration</div>
+          <div class="pref-desc">Show individual track length in the album track list</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!albumShowDurationPref} onclick={() => { albumShowDurationPref = false; setAlbumShowDuration(false); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={albumShowDurationPref} onclick={() => { albumShowDurationPref = true; setAlbumShowDuration(true); }}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">Album track accolades</div>
+          <div class="pref-desc">Show record badges next to tracks in the album detail view</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = false; setAlbumShowAccolades(false); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = true; setAlbumShowAccolades(true); }}>On</button>
+          </div>
         </div>
       </div>
     </div>

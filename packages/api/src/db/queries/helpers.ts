@@ -68,6 +68,28 @@ export function getPreviousPeriodRange(range: TimeRange): { prevStart: string; p
   return { prevStart: prevStart.toISOString(), prevEnd: prevEnd.toISOString() };
 }
 
+export function getLookbackPreviousPeriodRange(
+  range: TimeRange,
+  lookbackDays: number,
+): { prevStart: string; prevEnd: string } | null {
+  const days = TIME_RANGES[range];
+  const now = new Date();
+  const prevEnd = new Date(now.getTime() - lookbackDays * 86_400_000);
+
+  if (days === 0) {
+    return { prevStart: '1970-01-01T00:00:00.000Z', prevEnd: prevEnd.toISOString() };
+  }
+  if (days === -1) {
+    return {
+      prevStart: new Date(Date.UTC(now.getFullYear(), 0, 1)).toISOString(),
+      prevEnd: prevEnd.toISOString(),
+    };
+  }
+
+  const prevStart = new Date(prevEnd.getTime() - days * 86_400_000);
+  return { prevStart: prevStart.toISOString(), prevEnd: prevEnd.toISOString() };
+}
+
 export function getDateTrunc(range: TimeRange): SqlChunk {
   return getDateTruncForDays(TIME_RANGES[range]);
 }

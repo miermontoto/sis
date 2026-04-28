@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { api, type PlaylistStrategy, type GeneratedPlaylist, type PlaylistPreviewResponse, type TrackInfo, type GenreItem, type MeResponse, type LibraryPlaylist } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -7,6 +7,7 @@
   import { formatDate, formatDuration, formatNumber } from '$lib/utils/format';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
   // tabs
   let activeTab = $state<'library' | 'generate'>('library');
@@ -114,6 +115,19 @@
     } catch {}
     loadLibrary();
   });
+
+  shortcutStore.registerPageShortcuts(
+    [
+      { key: '1', description: 'Library', category: 'page' },
+      { key: '2', description: 'Generate', category: 'page' },
+    ],
+    (e) => {
+      if (e.key === '1') { e.preventDefault(); activeTab = 'library'; return true; }
+      if (e.key === '2') { e.preventDefault(); activeTab = 'generate'; return true; }
+      return false;
+    },
+  );
+  onDestroy(() => shortcutStore.unregisterPageShortcuts());
 
   // sincronizar filtros de alto nivel con la URL (tab, strategy, range, startDate, endDate)
   $effect(() => {

@@ -5,7 +5,7 @@ import { DEFAULT_PAGE_LIMIT, CHART_SIZE, RECORDS_LIMIT } from '../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../services/records-cache.js';
 import { ensureFullAlbumTracks } from '../services/ingestion.js';
 import type { TimeRange } from '../constants.js';
-import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, deleteHistoryEntries } from '../db/queries/index.js';
+import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getLookbackPreviousPeriodRange, deleteHistoryEntries } from '../db/queries/index.js';
 import type { AppVariables } from '../app.js';
 
 const stats = new Hono<{ Variables: AppVariables }>();
@@ -75,15 +75,21 @@ function rankChangeFields(prev: ReturnType<typeof getPreviousPeriodRange>, prevR
 }
 
 // helper genérico: top-* endpoint con rank changes
+const LOOKBACK_QUALIFYING_RANGES = new Set<string>(['3months', '6months', 'year', 'thisYear', 'all']);
+
 async function handleTopEntities(c: any, entityType: EntityType, formatFn: string, batchFormatFn?: string) {
   const { range, limit, rangeStart, rangeEnd, sort } = parseParams(c);
   const userId = c.get('userId');
 
   const rows = await dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>('getTopEntities', entityType, rangeStart, sort, limit, rangeEnd, userId);
 
-  const prev = range === 'custom' && rangeStart && rangeEnd
-    ? getPreviousPeriodRangeCustom(rangeStart, rangeEnd)
-    : range !== 'custom' ? getPreviousPeriodRange(range as TimeRange) : null;
+  const lookbackParam = c.req.query('lookback');
+  const lookbackDays = lookbackParam === '7d' ? 7 : lookbackParam === '30d' ? 30 : null;
+  const qualifies = range !== 'custom' && LOOKBACK_QUALIFYING_RANGES.has(range);
+
+  const prev = (lookbackDays && qualifies)
+    ? getLookbackPreviousPeriodRange(range as TimeRange, lookbackDays)
+    : null;
   const prevRankMap = prev
     ? buildRankChangeMap(await dbRead<{ entity_id: string }[]>('getPrevPeriodEntities', entityType, prev.prevStart, prev.prevEnd, sort, userId))
     : new Map<string, number>();

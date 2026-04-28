@@ -13,8 +13,18 @@
 
   let acting = $state(false);
   let showDevices = $state(false);
+  let trackEl = $state<HTMLElement | null>(null);
+  let overflows = $state(false);
 
   let data = $derived(nowPlayingStore.data);
+
+  $effect(() => {
+    void data?.track?.name;
+    if (!trackEl) { overflows = false; return; }
+    requestAnimationFrame(() => {
+      if (trackEl) overflows = trackEl.scrollWidth > trackEl.clientWidth;
+    });
+  });
 
   async function togglePlay() {
     if (!data || acting) return;
@@ -70,7 +80,7 @@
       <div class="np-art"></div>
     {/if}
     <div class="np-info">
-      <a href="/track/{data.track.id}" class="np-track">{data.track.name}</a>
+      <a href="/track/{data.track.id}" class="np-track" bind:this={trackEl} class:np-track--marquee={overflows}><span class="np-track-text">{data.track.name}</span></a>
       <div class="np-artist">
         {#each data.track.artists as artist, i}
           <a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
@@ -208,6 +218,22 @@
 
   .np-track:hover {
     color: var(--accent);
+  }
+
+  .np-track--marquee {
+    text-overflow: clip;
+    mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%);
+  }
+
+  .np-track--marquee .np-track-text {
+    display: inline-block;
+    padding-left: 100%;
+    animation: marquee 10s linear infinite;
+  }
+
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
   }
 
   .np-artist {

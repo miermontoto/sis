@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api, createFetchController, getRankingMetric, getWeekStart, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { urlEnumParam } from '$lib/utils/query-state.svelte';
@@ -7,6 +7,7 @@
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import type { EntityContext } from '$lib/utils/entity-context';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
   type TabType = 'tracks' | 'albums' | 'artists';
   type TabData = TrackRecords | AlbumRecords | ArtistRecordsData;
@@ -53,6 +54,24 @@
     metric = getRankingMetric();
     weekStart = getWeekStart();
   });
+
+  const REC_TABS: TabType[] = ['tracks', 'albums', 'artists'];
+  shortcutStore.registerPageShortcuts(
+    [
+      { key: '1', description: 'Tracks', category: 'page' },
+      { key: '2', description: 'Albums', category: 'page' },
+      { key: '3', description: 'Artists', category: 'page' },
+    ],
+    (e) => {
+      if (e.key === '1' || e.key === '2' || e.key === '3') {
+        e.preventDefault();
+        tab.value = REC_TABS[+e.key - 1];
+        return true;
+      }
+      return false;
+    },
+  );
+  onDestroy(() => shortcutStore.unregisterPageShortcuts());
 
   $effect(() => {
     void metric;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api, createFetchController, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption, type Granularity } from '$lib/api';
 
@@ -15,6 +15,7 @@
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
@@ -221,6 +222,35 @@
     updateClosedChart();
     initialized = true;
   });
+
+  const CHART_TYPES: ChartEntityType[] = ['tracks', 'albums', 'artists'];
+  shortcutStore.registerPageShortcuts(
+    [
+      { key: '1', description: 'Tracks', category: 'page' },
+      { key: '2', description: 'Albums', category: 'page' },
+      { key: '3', description: 'Artists', category: 'page' },
+      { key: '[', description: 'Previous period', category: 'page' },
+      { key: ']', description: 'Next period', category: 'page' },
+      { key: 'W', description: 'Weekly', category: 'page' },
+      { key: 'M', description: 'Monthly', category: 'page' },
+      { key: 'Y', description: 'Yearly', category: 'page' },
+    ],
+    (e) => {
+      if (e.key === '1' || e.key === '2' || e.key === '3') {
+        e.preventDefault();
+        activeType = CHART_TYPES[+e.key - 1];
+        return true;
+      }
+      if (e.key === '[') { e.preventDefault(); goPrev(); return true; }
+      if (e.key === ']') { e.preventDefault(); goNext(); return true; }
+      const key = e.key.toLowerCase();
+      if (key === 'w') { e.preventDefault(); granularity = 'week'; return true; }
+      if (key === 'm') { e.preventDefault(); granularity = 'month'; return true; }
+      if (key === 'y') { e.preventDefault(); granularity = 'year'; return true; }
+      return false;
+    },
+  );
+  onDestroy(() => shortcutStore.unregisterPageShortcuts());
 
   // cuando cambia granularidad o weekStart, recalcular periodo actual y cargar periodos
   $effect(() => {

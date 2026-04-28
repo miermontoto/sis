@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type TopTrackItem, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades } from '$lib/api';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -33,12 +33,22 @@
   let showMergeModal = $state(false);
   let playActing = $state(false);
   let trackSort = $state<'ranked' | 'natural'>('ranked');
+  let albumTrackDisplay = $state<AlbumTrackDisplay>('fill');
+  let albumShowDuration = $state(true);
+  let albumShowAccolades = $state(true);
   let naturalTracks = $state<TopTrackItem[] | null>(null);
   let loadingNatural = $state(false);
   let coverContainerEl: HTMLDivElement | undefined = $state();
   const fetchCtrl = createFetchController();
 
   let displayTracks = $derived(trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []);
+  let trackSharePercents = $derived.by(() => {
+    if (albumTrackDisplay === 'off') return undefined;
+    const value = (t: TopTrackItem) => metric === 'plays' ? t.playCount : t.totalMs;
+    const total = displayTracks.reduce((sum, t) => sum + value(t), 0);
+    if (total === 0) return undefined;
+    return displayTracks.map(t => (value(t) / total) * 100);
+  });
 
   function handleCoverOutside(e: PointerEvent) {
     if (coverContainerEl && !coverContainerEl.contains(e.target as Node)) {
@@ -134,6 +144,9 @@
 
   onMount(() => {
     metric = getRankingMetric();
+    albumTrackDisplay = getAlbumTrackDisplay();
+    albumShowDuration = getAlbumShowDuration();
+    albumShowAccolades = getAlbumShowAccolades();
     initialized = true;
   });
 
@@ -260,9 +273,9 @@
     {#if trackSort === 'natural' && loadingNatural}
       <div class="loading"><div class="spinner"></div></div>
     {:else if trackSort === 'natural'}
-      <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} dimUnplayed />
+      <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} dimUnplayed fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
     {:else}
-      <TrackList items={displayTracks} showRank {metric} />
+      <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
     {/if}
   {/if}
 

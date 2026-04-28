@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api, createFetchController, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -7,6 +7,7 @@
   import { formatHours, getLocalizedDayNames } from '$lib/utils/format';
   import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, PIE_TOOLTIP, PIE_COLORS, GREEN } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
   let range = $state('all');
   let startDate = $state('');
@@ -100,6 +101,25 @@
     endDate = getQueryParam('endDate', '');
     initialized = true;
   });
+
+  const RANGES = ['week', 'month', '3months', '6months', 'year', 'thisYear', 'all'];
+  shortcutStore.registerPageShortcuts(
+    [
+      { key: '[', description: 'Previous range', category: 'page' },
+      { key: ']', description: 'Next range', category: 'page' },
+    ],
+    (e) => {
+      if (e.key === '[' || e.key === ']') {
+        const idx = RANGES.indexOf(range);
+        if (idx < 0) return false;
+        const next = e.key === '[' ? idx - 1 : idx + 1;
+        if (next >= 0 && next < RANGES.length) { e.preventDefault(); setRange(RANGES[next]); }
+        return true;
+      }
+      return false;
+    },
+  );
+  onDestroy(() => shortcutStore.unregisterPageShortcuts());
 
   $effect(() => {
     void range;

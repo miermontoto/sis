@@ -3,7 +3,7 @@
 export type {
   TrackInfo, FormattedArtist, FormattedAlbum,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting,
+  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay,
   HistoryItem, HistoryResponse,
   NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem,
@@ -20,7 +20,7 @@ export type {
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
-  RankingMetric, WeekStartOption, LocaleSetting, DateRangeParams,
+  RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse,
@@ -111,14 +111,22 @@ export function createFetchController() {
 
 interface SettingsData {
   rankingMetric: RankingMetric;
+  rankChangeLookback: RankChangeLookback;
   weekStart: WeekStartOption;
   locale: LocaleSetting;
+  albumTrackDisplay: AlbumTrackDisplay;
+  albumShowDuration: boolean;
+  albumShowAccolades: boolean;
 }
 
 const SETTINGS_DEFAULTS: SettingsData = {
   rankingMetric: 'time',
+  rankChangeLookback: 'disabled',
   weekStart: 'friday',
   locale: 'auto',
+  albumTrackDisplay: 'fill',
+  albumShowDuration: true,
+  albumShowAccolades: true,
 };
 
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
@@ -129,19 +137,31 @@ export async function loadSettings(): Promise<void> {
     const data = await apiFetch<Record<string, string>>('/settings');
     settingsCache = {
       rankingMetric: (data.rankingMetric as RankingMetric) || 'time',
+      rankChangeLookback: (data.rankChangeLookback as RankChangeLookback) || 'disabled',
       weekStart: (data.weekStart as WeekStartOption) || 'friday',
       locale: (data.locale as LocaleSetting) || 'auto',
+      albumTrackDisplay: (data.albumTrackDisplay as AlbumTrackDisplay) || 'fill',
+      albumShowDuration: data.albumShowDuration !== 'false',
+      albumShowAccolades: data.albumShowAccolades !== 'false',
     };
     // sync to localStorage as fallback
     localStorage.setItem('sis:rankingMetric', settingsCache.rankingMetric);
+    localStorage.setItem('sis:rankChangeLookback', settingsCache.rankChangeLookback);
     localStorage.setItem('sis:weekStart', settingsCache.weekStart);
     localStorage.setItem('sis:locale', settingsCache.locale);
+    localStorage.setItem('sis:albumTrackDisplay', settingsCache.albumTrackDisplay);
+    localStorage.setItem('sis:albumShowDuration', String(settingsCache.albumShowDuration));
+    localStorage.setItem('sis:albumShowAccolades', String(settingsCache.albumShowAccolades));
   } catch {
     // fallback: read from localStorage
     settingsCache = {
       rankingMetric: (localStorage.getItem('sis:rankingMetric') as RankingMetric) || 'time',
+      rankChangeLookback: (localStorage.getItem('sis:rankChangeLookback') as RankChangeLookback) || 'disabled',
       weekStart: (localStorage.getItem('sis:weekStart') as WeekStartOption) || 'friday',
       locale: (localStorage.getItem('sis:locale') as LocaleSetting) || 'auto',
+      albumTrackDisplay: (localStorage.getItem('sis:albumTrackDisplay') as AlbumTrackDisplay) || 'fill',
+      albumShowDuration: localStorage.getItem('sis:albumShowDuration') !== 'false',
+      albumShowAccolades: localStorage.getItem('sis:albumShowAccolades') !== 'false',
     };
   }
   settingsLoaded = true;
@@ -164,6 +184,17 @@ export function setRankingMetric(metric: RankingMetric) {
   settingsCache.rankingMetric = metric;
   localStorage.setItem('sis:rankingMetric', metric);
   updateSetting({ rankingMetric: metric });
+}
+
+export function getRankChangeLookback(): RankChangeLookback {
+  if (settingsLoaded) return settingsCache.rankChangeLookback;
+  return (localStorage.getItem('sis:rankChangeLookback') as RankChangeLookback) || 'disabled';
+}
+
+export function setRankChangeLookback(lookback: RankChangeLookback) {
+  settingsCache.rankChangeLookback = lookback;
+  localStorage.setItem('sis:rankChangeLookback', lookback);
+  updateSetting({ rankChangeLookback: lookback });
 }
 
 export function getWeekStart(): WeekStartOption {
@@ -193,6 +224,39 @@ export function setLocale(locale: LocaleSetting) {
   settingsCache.locale = locale;
   localStorage.setItem('sis:locale', locale);
   updateSetting({ locale });
+}
+
+export function getAlbumTrackDisplay(): AlbumTrackDisplay {
+  if (settingsLoaded) return settingsCache.albumTrackDisplay;
+  return (localStorage.getItem('sis:albumTrackDisplay') as AlbumTrackDisplay) || 'fill';
+}
+
+export function setAlbumTrackDisplay(display: AlbumTrackDisplay) {
+  settingsCache.albumTrackDisplay = display;
+  localStorage.setItem('sis:albumTrackDisplay', display);
+  updateSetting({ albumTrackDisplay: display });
+}
+
+export function getAlbumShowDuration(): boolean {
+  if (settingsLoaded) return settingsCache.albumShowDuration;
+  return localStorage.getItem('sis:albumShowDuration') !== 'false';
+}
+
+export function setAlbumShowDuration(v: boolean) {
+  settingsCache.albumShowDuration = v;
+  localStorage.setItem('sis:albumShowDuration', String(v));
+  updateSetting({ albumShowDuration: String(v) });
+}
+
+export function getAlbumShowAccolades(): boolean {
+  if (settingsLoaded) return settingsCache.albumShowAccolades;
+  return localStorage.getItem('sis:albumShowAccolades') !== 'false';
+}
+
+export function setAlbumShowAccolades(v: boolean) {
+  settingsCache.albumShowAccolades = v;
+  localStorage.setItem('sis:albumShowAccolades', String(v));
+  updateSetting({ albumShowAccolades: String(v) });
 }
 
 // invalidar cache (tras mutaciones o cuando se necesite data fresca)
@@ -236,14 +300,14 @@ export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
   nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
 
-  topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, signal?: AbortSignal) =>
-    apiFetch<TopTrackItem[]>('/stats/top-tracks', { ...rangeParams(range, dates), limit: String(limit), sort }, signal),
+  topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, lookback?: string, signal?: AbortSignal) =>
+    apiFetch<TopTrackItem[]>('/stats/top-tracks', { ...rangeParams(range, dates), limit: String(limit), sort, ...(lookback && lookback !== 'disabled' ? { lookback } : {}) }, signal),
 
-  topArtists: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, signal?: AbortSignal) =>
-    apiFetch<TopArtistItem[]>('/stats/top-artists', { ...rangeParams(range, dates), limit: String(limit), sort }, signal),
+  topArtists: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, lookback?: string, signal?: AbortSignal) =>
+    apiFetch<TopArtistItem[]>('/stats/top-artists', { ...rangeParams(range, dates), limit: String(limit), sort, ...(lookback && lookback !== 'disabled' ? { lookback } : {}) }, signal),
 
-  topAlbums: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, signal?: AbortSignal) =>
-    apiFetch<TopAlbumItem[]>('/stats/top-albums', { ...rangeParams(range, dates), limit: String(limit), sort }, signal),
+  topAlbums: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, lookback?: string, signal?: AbortSignal) =>
+    apiFetch<TopAlbumItem[]>('/stats/top-albums', { ...rangeParams(range, dates), limit: String(limit), sort, ...(lookback && lookback !== 'disabled' ? { lookback } : {}) }, signal),
 
   topGenres: (range = 'month', limit = 20, dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<GenreItem[]>('/stats/top-genres', { ...rangeParams(range, dates), limit: String(limit) }, signal),

@@ -7,9 +7,11 @@
   import NowPlaying from '$lib/components/NowPlaying.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
+  import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import { api, loadSettings, type MeResponse } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { onDestroy } from 'svelte';
 
   // estado del modal global de merge (abierto desde el menú contextual).
@@ -79,10 +81,10 @@
 
   $effect(() => {
     function handleKeydown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        showSearch = true;
-      }
+      shortcutStore.handleKeydown(e, {
+        openSearch: () => { showSearch = true; },
+        isSearchOpen: () => showSearch,
+      });
     }
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
@@ -267,6 +269,7 @@
     </main>
   </div>
   <SearchModal bind:show={showSearch} />
+  <KeyboardShortcutsHelp />
   <ContextMenu />
   {#if mergeModal.target}
     <MergeEntityModal

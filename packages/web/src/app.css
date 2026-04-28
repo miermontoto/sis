@@ -329,6 +329,20 @@ a.stat-card--link:hover {
   padding: 0.75rem;
   border-radius: var(--radius);
   transition: background 0.15s;
+  position: relative;
+}
+
+.track-fill {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  border-radius: var(--radius);
+  background: rgba(29, 185, 84, 0.10);
+  pointer-events: none;
+  transition: width 0.3s ease;
+}
+.track-item--filled:hover .track-fill {
+  background: rgba(29, 185, 84, 0.15);
 }
 
 a.track-item {
@@ -358,6 +372,15 @@ a.track-item {
   min-width: 2.2rem;
   flex-shrink: 0;
   gap: 1px;
+}
+
+.rank-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 2rem;
+  flex-shrink: 0;
 }
 
 .track-rank {
@@ -407,6 +430,23 @@ a.track-item {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.track-duration-label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: 0.4rem;
+  opacity: 0.7;
+}
+
+.track-share {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-left: 0.4rem;
+  opacity: 0.8;
 }
 
 .track-meta {

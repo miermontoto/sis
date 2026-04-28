@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type DateRangeParams } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
@@ -12,8 +12,10 @@
   import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL } from '$lib/utils/chart';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
+  import RankChange from '$lib/components/RankChange.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import type { EChartsOption } from 'echarts';
 
   let activeTab = $state<'tracks' | 'artists' | 'albums'>('tracks');
@@ -21,6 +23,11 @@
   let startDate = $state('');
   let endDate = $state('');
   let metric = $state<RankingMetric>('time');
+  let lookback = $state<RankChangeLookback>('disabled');
+
+  const LOOKBACK_QUALIFYING_RANGES = new Set(['3months', '6months', 'year', 'thisYear', 'all']);
+  let showRankChanges = $derived(lookback !== 'disabled' && LOOKBACK_QUALIFYING_RANGES.has(range));
+
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
   let topAlbums = $state<TopAlbumItem[]>([]);
@@ -60,12 +67,13 @@
     visibleCount = PAGE_SIZE;
     try {
       const dates = getCustomDates();
+      const lb = lookback !== 'disabled' && LOOKBACK_QUALIFYING_RANGES.has(range) ? lookback : undefined;
       if (activeTab === 'tracks') {
-        topTracks = await api.topTracks(range, 200, metric, dates, signal);
+        topTracks = await api.topTracks(range, 200, metric, dates, lb, signal);
       } else if (activeTab === 'artists') {
-        topArtists = await api.topArtists(range, 200, metric, dates, signal);
+        topArtists = await api.topArtists(range, 200, metric, dates, lb, signal);
       } else {
-        topAlbums = await api.topAlbums(range, 200, metric, dates, signal);
+        topAlbums = await api.topAlbums(range, 200, metric, dates, lb, signal);
       }
       // extraer colores en el mismo ciclo para evitar doble re-render del chart
       if (!signal.aborted) {
@@ -162,6 +170,7 @@
     endDate = getQueryParam('endDate', '');
     activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
+    lookback = getRankChangeLookback();
     pendingFocusId = getQueryParam('focus', '') || null;
     initialized = true;
 
@@ -176,6 +185,35 @@
 
     return () => observer?.disconnect();
   });
+
+  const RANGES = ['week', 'month', '3months', '6months', 'year', 'thisYear', 'all'];
+  const TABS: ('tracks' | 'artists' | 'albums')[] = ['tracks', 'artists', 'albums'];
+
+  shortcutStore.registerPageShortcuts(
+    [
+      { key: '1', description: 'Tracks', category: 'page' },
+      { key: '2', description: 'Artists', category: 'page' },
+      { key: '3', description: 'Albums', category: 'page' },
+      { key: '[', description: 'Previous range', category: 'page' },
+      { key: ']', description: 'Next range', category: 'page' },
+    ],
+    (e) => {
+      if (e.key === '1' || e.key === '2' || e.key === '3') {
+        e.preventDefault();
+        setTab(TABS[+e.key - 1]);
+        return true;
+      }
+      if (e.key === '[' || e.key === ']') {
+        const idx = RANGES.indexOf(range);
+        if (idx < 0) return false;
+        const next = e.key === '[' ? idx - 1 : idx + 1;
+        if (next >= 0 && next < RANGES.length) { e.preventDefault(); setRange(RANGES[next]); }
+        return true;
+      }
+      return false;
+    },
+  );
+  onDestroy(() => shortcutStore.unregisterPageShortcuts());
 
   $effect(() => {
     if (sentinel && observer) observer.observe(sentinel);
@@ -444,7 +482,7 @@
   {/if}
 
   {#if activeTab === 'tracks'}
-    <TrackList items={topTracks.slice(0, visibleCount)} showRank {metric} {focusedId} />
+    <TrackList items={topTracks.slice(0, visibleCount)} showRank {showRankChanges} {metric} {focusedId} />
   {:else if activeTab === 'artists'}
     <div class="track-list">
       {#each topArtists.slice(0, visibleCount) as item, i}
@@ -456,7 +494,14 @@
             data-focus-id={item.artistId}
             oncontextmenu={openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist.name, imageUrl: item.artist.imageUrl })}
           >
-            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+            {#if showRankChanges}
+              <div class="rank-col">
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
+              </div>
+            {:else}
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+            {/if}
             {#if item.artist.imageUrl}
               <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
             {:else}
@@ -484,7 +529,14 @@
             data-focus-id={item.albumId}
             oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl })}
           >
-            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+            {#if showRankChanges}
+              <div class="rank-col">
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
+              </div>
+            {:else}
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+            {/if}
             {#if item.album.imageUrl}
               <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
             {:else}

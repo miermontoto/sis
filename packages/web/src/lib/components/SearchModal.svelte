@@ -193,7 +193,7 @@
                   </div>
                   {#if playlist.spotifyId}
                     <button class="search-play-btn" title="Play" disabled={playingId === String(playlist.id)} onmousedown={(e) => playItem(e, 'playlist', String(playlist.id), playlist.spotifyId!)}>
-                      <IconPlay size={14} />
+                      <IconPlay />
                     </button>
                   {/if}
                   <div class="search-result-plays">{playlist.trackCount} tracks</div>
@@ -224,7 +224,7 @@
                   </div>
                   {#if isSpotifyId(artist.id)}
                     <button class="search-play-btn" title="Play" disabled={playingId === artist.id} onmousedown={(e) => playItem(e, 'artist', artist.id)}>
-                      <IconPlay size={14} />
+                      <IconPlay />
                     </button>
                   {/if}
                   {#if artist.playCount > 0}
@@ -257,7 +257,7 @@
                   </div>
                   {#if isSpotifyId(album.id)}
                     <button class="search-play-btn" title="Play" disabled={playingId === album.id} onmousedown={(e) => playItem(e, 'album', album.id)}>
-                      <IconPlay size={14} />
+                      <IconPlay />
                     </button>
                   {/if}
                   {#if album.playCount > 0}
@@ -290,7 +290,7 @@
                   </div>
                   {#if isSpotifyId(track.id)}
                     <button class="search-play-btn" title="Play" disabled={playingId === track.id} onmousedown={(e) => playItem(e, 'track', track.id)}>
-                      <IconPlay size={14} />
+                      <IconPlay />
                     </button>
                   {/if}
                   {#if track.playCount > 0}
@@ -439,26 +439,25 @@
   }
 
   .search-play-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
     border: none;
-    border-radius: 50%;
+    border-radius: var(--radius);
     background: var(--accent);
     color: #fff;
     cursor: pointer;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s, transform 0.15s;
-    transform: scale(0.85);
+    transition: opacity 0.15s, background 0.15s;
   }
 
   .search-result:hover .search-play-btn,
   .search-result.selected .search-play-btn {
     opacity: 1;
-    transform: scale(1);
   }
 
   .search-play-btn:hover:not(:disabled) {
@@ -466,7 +465,7 @@
   }
 
   .search-play-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.5;
     cursor: default;
   }
 
