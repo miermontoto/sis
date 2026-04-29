@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w18f';
+export const VERSION = '26w18g';
 
 // intervalos de polling en ms
 export const CURRENTLY_PLAYING_INTERVAL_MS = 30_000; // fallback en error

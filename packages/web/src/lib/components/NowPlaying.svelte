@@ -21,6 +21,7 @@
   $effect(() => {
     void data?.track?.name;
     if (!trackEl) { overflows = false; return; }
+    overflows = false;
     requestAnimationFrame(() => {
       if (trackEl) overflows = trackEl.scrollWidth > trackEl.clientWidth;
     });
