@@ -129,7 +129,6 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
     inMostPlaylists: e.inMostPlaylists.slice(0, limit),
     // extensiones
     longestGap: e.longestGap.slice(0, limit),
-    biggestNewMonth: e.biggestNewMonth.slice(0, limit),
     goldenOldies: e.goldenOldies.slice(0, limit),
     latestDiscoveries: e.latestDiscoveries.slice(0, limit),
     latestNew: e.latestNew.slice(0, limit),
@@ -194,7 +193,6 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ['longestRun', data.longestChartRun as any[]],
     ['inMostPlaylists', data.inMostPlaylists as any[]],
     ['longestGap', data.longestGap as any[]],
-    ['biggestNewMonth', data.biggestNewMonth as any[]],
     ['goldenOldies', data.goldenOldies as any[]],
     ['latestDiscoveries', data.latestDiscoveries as any[]],
     ['latestNew', data.latestNew as any[]],

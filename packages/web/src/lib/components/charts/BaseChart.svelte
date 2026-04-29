@@ -10,6 +10,7 @@
     VisualMapComponent,
     CalendarComponent,
     RadarComponent as RadarComp,
+    PolarComponent,
   } from 'echarts/components';
   import type { EChartsOption } from 'echarts';
 
@@ -28,6 +29,7 @@
     VisualMapComponent,
     CalendarComponent,
     RadarComp,
+    PolarComponent,
   ]);
 
   interface Props {
@@ -37,9 +39,10 @@
     onmouseover?: (params: any) => void;
     onmouseout?: (params: any) => void;
     instance?: echarts.ECharts | null;
+    replaceMerge?: string[];
   }
 
-  let { option, height = '300px', onclick, onmouseover, onmouseout, instance = $bindable(null) }: Props = $props();
+  let { option, height = '300px', onclick, onmouseover, onmouseout, instance = $bindable(null), replaceMerge }: Props = $props();
   let container = $state<HTMLElement | null>(null);
   let chart: echarts.ECharts | null = null;
 
@@ -83,7 +86,7 @@
   // actualizar cuando cambia la opción
   $effect(() => {
     if (chart && option) {
-      chart.setOption(option);
+      chart.setOption(option, replaceMerge ? { replaceMerge } : undefined);
     }
   });
 </script>

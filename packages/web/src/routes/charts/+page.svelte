@@ -14,6 +14,9 @@
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
+  import IconTrack from '$lib/icons/IconTrack.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -333,7 +336,6 @@
 
 <div class="page-header">
   <h1>Charts</h1>
-  <p>Browse ranked charts by period</p>
 </div>
 
 {#if closedChart}
@@ -345,60 +347,61 @@
   </div>
 {/if}
 
-{#if dateRangeLabel}
-  <div class="period-date-range">
-    <span>{dateRangeLabel}</span>
-    {#if currentData && currentData.entries.length > 0}
-      {#if createdPlaylistId}
-        <a href="/playlists/{createdPlaylistId}" class="playlist-btn playlist-btn--ok">
-          <IconCheckSmall />
-          Created
-        </a>
-      {:else}
-        <button
-          class="playlist-btn"
-          class:playlist-btn--busy={creatingPlaylist}
-          onclick={createChartPlaylist}
-          disabled={creatingPlaylist}
-          title="Create Spotify playlist from this chart"
-        >
-          {#if creatingPlaylist}
-            <span class="btn-spinner"></span>
-            Creating…
-          {:else}
-            <IconPlus />
-            Playlist
-          {/if}
-        </button>
-      {/if}
+<div class="tabs">
+  <button class="tab" class:active={activeType === 'tracks'} onclick={() => activeType = 'tracks'}>
+    <IconTrack size={14} /> Tracks
+  </button>
+  <button class="tab" class:active={activeType === 'albums'} onclick={() => activeType = 'albums'}>
+    <IconAlbum size={14} /> Albums
+  </button>
+  <button class="tab" class:active={activeType === 'artists'} onclick={() => activeType = 'artists'}>
+    <IconArtist size={14} /> Artists
+  </button>
+</div>
+
+<div class="range-row">
+  <button class="range-btn" class:active={granularity === 'week'} onclick={() => granularity = 'week'}>Week</button>
+  <button class="range-btn" class:active={granularity === 'month'} onclick={() => granularity = 'month'}>Month</button>
+  <button class="range-btn" class:active={granularity === 'year'} onclick={() => granularity = 'year'}>Year</button>
+
+  <div class="period-nav">
+    <button class="range-btn period-arrow" disabled={!hasPrev || periodsLoading} onclick={goPrev} title="Previous period">&lsaquo;</button>
+    <select class="period-select" bind:value={selectedPeriod} disabled={periodsLoading}>
+      {#each periods as p}
+        <option value={p}>{p}</option>
+      {/each}
+    </select>
+    <button class="range-btn period-arrow" disabled={!hasNext || periodsLoading} onclick={goNext} title="Next period">&rsaquo;</button>
+  </div>
+
+  {#if dateRangeLabel}
+    <span class="period-date-label">{dateRangeLabel}</span>
+  {/if}
+
+  {#if currentData && currentData.entries.length > 0}
+    {#if createdPlaylistId}
+      <a href="/playlists/{createdPlaylistId}" class="range-btn range-btn--playlist range-btn--ok">
+        <IconCheckSmall />
+        Created
+      </a>
+    {:else}
+      <button
+        class="range-btn range-btn--playlist"
+        class:range-btn--busy={creatingPlaylist}
+        onclick={createChartPlaylist}
+        disabled={creatingPlaylist}
+        title="Create Spotify playlist from this chart"
+      >
+        {#if creatingPlaylist}
+          <span class="btn-spinner"></span>
+          Creating…
+        {:else}
+          <IconPlus />
+          Playlist
+        {/if}
+      </button>
     {/if}
-  </div>
-{/if}
-
-<div class="charts-controls">
-  <div class="charts-tabs">
-    <button class="ch-tab" class:ch-tab--active={activeType === 'tracks'} onclick={() => activeType = 'tracks'}>Tracks</button>
-    <button class="ch-tab" class:ch-tab--active={activeType === 'albums'} onclick={() => activeType = 'albums'}>Albums</button>
-    <button class="ch-tab" class:ch-tab--active={activeType === 'artists'} onclick={() => activeType = 'artists'}>Artists</button>
-  </div>
-
-  <div class="charts-selectors">
-    <div class="charts-tabs">
-      <button class="ch-tab ch-tab--sm" class:ch-tab--active={granularity === 'week'} onclick={() => granularity = 'week'}>Week</button>
-      <button class="ch-tab ch-tab--sm" class:ch-tab--active={granularity === 'month'} onclick={() => granularity = 'month'}>Month</button>
-      <button class="ch-tab ch-tab--sm" class:ch-tab--active={granularity === 'year'} onclick={() => granularity = 'year'}>Year</button>
-    </div>
-
-    <div class="period-nav">
-      <button class="period-arrow" disabled={!hasPrev || periodsLoading} onclick={goPrev} title="Previous period">&lsaquo;</button>
-      <select class="period-select" bind:value={selectedPeriod} disabled={periodsLoading}>
-        {#each periods as p}
-          <option value={p}>{p}</option>
-        {/each}
-      </select>
-      <button class="period-arrow" disabled={!hasNext || periodsLoading} onclick={goNext} title="Next period">&rsaquo;</button>
-    </div>
-  </div>
+  {/if}
 </div>
 
 {#if (loading && !currentData) || periodsLoading}
@@ -551,85 +554,31 @@
     color: var(--text);
   }
 
-  .charts-controls {
+  .range-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-  }
-  .charts-selectors {
-    display: flex;
     align-items: center;
-    gap: 0.5rem;
-  }
-  .charts-tabs {
-    display: flex;
     gap: 0.25rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 3px;
-    width: fit-content;
-  }
-  .ch-tab {
-    padding: 0.4rem 1rem;
-    border: none;
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .ch-tab--sm {
-    padding: 0.3rem 0.7rem;
-    font-size: 0.8rem;
-  }
-  .ch-tab:hover:not(.ch-tab--active) {
-    color: var(--text);
-  }
-  .ch-tab--active {
-    background: var(--accent);
-    color: #000;
-    font-weight: 500;
+    margin-bottom: 1.25rem;
   }
   .period-nav {
     display: flex;
     align-items: center;
     gap: 0.2rem;
+    margin-left: 0.35rem;
   }
   .period-arrow {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    font-size: 1.2rem;
+    padding: 0.4rem 0.5rem;
+    font-size: 1.1rem;
     line-height: 1;
-    width: 1.8rem;
-    height: 1.8rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius);
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-    padding: 0;
-  }
-  .period-arrow:hover:not(:disabled) {
-    color: var(--text);
-    border-color: var(--text-muted);
-  }
-  .period-arrow:disabled {
-    opacity: 0.3;
-    cursor: default;
   }
   .period-select {
-    background: var(--bg-card);
+    background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
-    font-size: 0.85rem;
-    padding: 0.35rem 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
     border-radius: var(--radius);
     cursor: pointer;
     outline: none;
@@ -637,14 +586,10 @@
   .period-select:focus {
     border-color: var(--accent);
   }
-  .period-date-range {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    font-size: 0.85rem;
+  .period-date-label {
+    font-size: 0.8rem;
     color: var(--text-muted);
-    margin-bottom: 0.75rem;
+    margin-left: 0.35rem;
   }
   .chart-list {
     background: var(--bg-card);
@@ -817,12 +762,8 @@
     letter-spacing: 0.03em;
   }
   @media (max-width: 640px) {
-    .charts-controls {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .charts-selectors {
-      justify-content: space-between;
+    .period-date-label {
+      display: none;
     }
   }
 </style>

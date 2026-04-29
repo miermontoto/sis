@@ -4,6 +4,9 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import IconPlay from '$lib/icons/IconPlay.svelte';
+  import IconTrack from '$lib/icons/IconTrack.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
 
   let { show = $bindable(false) }: { show: boolean } = $props();
 
@@ -204,7 +207,7 @@
 
           {#if results!.artists.length > 0}
             <div class="search-section">
-              <div class="search-section-title">Artists</div>
+              <div class="search-section-title"><IconArtist size={14} /> Artists</div>
               {#each results!.artists as artist, i}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
@@ -237,7 +240,7 @@
 
           {#if results!.albums.length > 0}
             <div class="search-section">
-              <div class="search-section-title">Albums</div>
+              <div class="search-section-title"><IconAlbum size={14} /> Albums</div>
               {#each results!.albums as album, i}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
@@ -270,7 +273,7 @@
 
           {#if results!.tracks.length > 0}
             <div class="search-section">
-              <div class="search-section-title">Tracks</div>
+              <div class="search-section-title"><IconTrack size={14} /> Tracks</div>
               {#each results!.tracks as track, i}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
@@ -378,6 +381,9 @@
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
   }
 
   .search-result {

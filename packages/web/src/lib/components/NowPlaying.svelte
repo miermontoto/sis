@@ -107,10 +107,13 @@
       <button
         class="ctrl-btn ctrl-btn--like"
         class:ctrl-btn--liked={nowPlayingStore.isLiked}
-        title={nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+        title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+        disabled={nowPlayingStore.likeLoading}
         onclick={() => nowPlayingStore.toggleLike()}
       >
-        {#if nowPlayingStore.isLiked}
+        {#if nowPlayingStore.likeLoading}
+          <span class="btn-spinner"></span>
+        {:else if nowPlayingStore.isLiked}
           <IconHeartFilled size={14} />
         {:else}
           <IconHeartOutline size={14} />

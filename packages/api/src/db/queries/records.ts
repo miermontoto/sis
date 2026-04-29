@@ -84,7 +84,6 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     ...base,
     longestGap: timed('track.longestGap', () => computeLongestGap('track', db, userId, limit)),
     goldenOldies: timed('track.goldenOldies', () => computeGoldenOldies('track', db, userId, limit)),
-    biggestNewMonth: timed('track.biggestNewMonth', () => computeBiggestNewMonth('track', db, userId, limit)),
     latestDiscoveries: timed('track.latestDiscoveries', () => computeLatestDiscoveries('track', db, userId, limit)),
     latestNew: timed('track.latestNew', () => computeLatestNew('track', db, userId, limit)),
     mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit)),
@@ -149,7 +148,6 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     ...base,
     longestGap: timed('album.longestGap', () => computeLongestGap('album', db, userId, limit)),
     goldenOldies: timed('album.goldenOldies', () => computeGoldenOldies('album', db, userId, limit)),
-    biggestNewMonth: timed('album.biggestNewMonth', () => computeBiggestNewMonth('album', db, userId, limit)),
     latestDiscoveries: timed('album.latestDiscoveries', () => computeLatestDiscoveries('album', db, userId, limit)),
     latestNew: timed('album.latestNew', () => computeLatestNew('album', db, userId, limit)),
     mostUniquePerMonth: timed('album.mostUniquePerMonth', () => computeMostUniquePerMonth('album', db, userId, limit)),
@@ -266,7 +264,6 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     mostNo1Albums,
     longestGap: timed('artist.longestGap', () => computeLongestGap('artist', db, userId, limit)),
     goldenOldies: timed('artist.goldenOldies', () => computeGoldenOldies('artist', db, userId, limit)),
-    biggestNewMonth: timed('artist.biggestNewMonth', () => computeBiggestNewMonth('artist', db, userId, limit)),
     latestDiscoveries: timed('artist.latestDiscoveries', () => computeLatestDiscoveries('artist', db, userId, limit)),
     latestNew: timed('artist.latestNew', () => computeLatestNew('artist', db, userId, limit)),
     mostUniquePerMonth: timed('artist.mostUniquePerMonth', () => computeMostUniquePerMonth('artist', db, userId, limit)),
@@ -340,22 +337,41 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
 
     let maxStreak = 0, curStreak = 0;
     let endsAtLatest = false;
+    let bestStart = '', bestEnd = '';
+    let curStart = '';
     for (const w of allWeekLabels) {
       if (chartWeekSet.has(w)) {
+        if (curStreak === 0) curStart = w;
         curStreak++;
       } else {
-        if (curStreak > maxStreak) maxStreak = curStreak;
+        if (curStreak > maxStreak) {
+          maxStreak = curStreak;
+          bestStart = curStart;
+          bestEnd = allWeekLabels[allWeekLabels.indexOf(w) - 1];
+          endsAtLatest = false;
+        }
         curStreak = 0;
       }
     }
-    if (curStreak > maxStreak) { maxStreak = curStreak; endsAtLatest = true; }
-    else if (curStreak === maxStreak && curStreak > 0) { endsAtLatest = true; }
+    if (curStreak > maxStreak) {
+      maxStreak = curStreak;
+      bestStart = curStart;
+      bestEnd = allWeekLabels[allWeekLabels.length - 1];
+      endsAtLatest = true;
+    } else if (curStreak === maxStreak && curStreak > 0) {
+      bestStart = curStart;
+      bestEnd = allWeekLabels[allWeekLabels.length - 1];
+      endsAtLatest = true;
+    }
 
     if (maxStreak > 0) {
       longestChartRun.push({
         entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName,
         value: maxStreak,
         week: endsAtLatest ? 'active' : null,
+        date: bestStart,
+        endDate: bestEnd,
+        ongoing: endsAtLatest,
       });
     }
   }
@@ -370,7 +386,6 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
     inMostPlaylists: [],
     // placeholders — las funciones getXxxRecords los sobrescriben
     longestGap: [],
-    biggestNewMonth: [],
     goldenOldies: [],
     latestDiscoveries: [],
     latestNew: [],
@@ -546,49 +561,6 @@ function computeGoldenOldies(entity: Ent, db: Db, userId: number, limit: number)
     value: Number(r.value),
     week: null,
     date: r.last_play ?? null,
-  }));
-}
-
-function computeBiggestNewMonth(entity: Ent, db: Db, userId: number, limit: number): RecordEntry[] {
-  const ctx = entityCtx(entity, userId);
-  // CTE: para cada entidad, encontrar el primer mes y contar las plays en ese mes
-  const rows = db.all(sql`
-    WITH per_month AS (
-      SELECT ${ctx.eidExpr} AS eid,
-             strftime('%Y-%m', lh.played_at) AS m,
-             COUNT(*) AS plays
-      FROM listening_history lh ${ctx.extraJoins}
-      WHERE lh.user_id = ${userId} ${ctx.filter}
-      GROUP BY eid, m
-    ),
-    first_m AS (
-      SELECT eid, MIN(m) AS first_month FROM per_month GROUP BY eid
-    ),
-    joined AS (
-      SELECT pm.eid, pm.m AS month, pm.plays
-      FROM per_month pm
-      JOIN first_m fm ON fm.eid = pm.eid AND fm.first_month = pm.m
-    )
-    SELECT j.eid AS eid, j.plays AS value, j.month AS month,
-           ${ctx.finalName} AS name,
-           ${ctx.finalImg} AS image_url,
-           ${ctx.finalArtistId} AS artist_id,
-           ${ctx.finalArtistName} AS artist_name
-    FROM joined j
-    ${ctx.finalJoin}
-    ORDER BY j.plays DESC
-    LIMIT ${limit}
-  `) as any[];
-
-  return rows.map(r => ({
-    entityId: r.eid,
-    name: r.name ?? 'unknown',
-    imageUrl: r.image_url ?? null,
-    artistId: r.artist_id ?? null,
-    artistName: r.artist_name ?? null,
-    value: Number(r.value),
-    week: null,
-    month: r.month ?? null,
   }));
 }
 
@@ -924,7 +896,6 @@ function computeMostAccolades(
   tally(data.longestChartRun);
   tally(data.inMostPlaylists);
   tally(data.longestGap);
-  tally(data.biggestNewMonth);
   tally(data.goldenOldies);
   tally(data.latestDiscoveries);
   tally(data.latestNew);

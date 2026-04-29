@@ -26,3 +26,8 @@ export interface DiscoveryItem {
   distinct_count: number;
   cumulative: number;
 }
+
+export interface MonthlyDistributionItem {
+  month: number;
+  play_count: number;
+}

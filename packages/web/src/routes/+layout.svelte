@@ -10,8 +10,12 @@
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import { api, loadSettings, type MeResponse } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { projectionsStore } from '$lib/stores/projections.svelte';
+  import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
+  import IconPause from '$lib/icons/IconPause.svelte';
+  import IconPlay from '$lib/icons/IconPlay.svelte';
   import { onDestroy } from 'svelte';
 
   // estado del modal global de merge (abierto desde el menú contextual).
@@ -37,7 +41,12 @@
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
   let tabbarRef = $state<HTMLElement | null>(null);
 
-  onDestroy(() => nowPlayingStore.stopPolling());
+  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); });
+
+  $effect(() => {
+    nowPlayingStore.trackId;
+    projectionsStore.onTrackChange();
+  });
 
   function handleClickOutside(e: MouseEvent) {
     if (showUserMenu) {
@@ -71,6 +80,7 @@
           Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
             nowPlayingStore.startPolling();
+            projectionsStore.startPolling();
           });
         }
       })
@@ -147,6 +157,25 @@
     nav.find(n => isNavActive(n.href))?.label ?? null
   );
 
+  let miniActing = $state(false);
+
+  async function miniTogglePlay() {
+    const d = nowPlayingStore.data;
+    if (!d || miniActing) return;
+    miniActing = true;
+    try {
+      if (d.isPlaying) {
+        await api.playbackPause();
+        nowPlayingStore.data = { ...d, isPlaying: false };
+      } else {
+        await api.playbackPlay();
+        nowPlayingStore.data = { ...d, isPlaying: true };
+      }
+    } catch {} finally {
+      miniActing = false;
+    }
+  }
+
 </script>
 
 {#if page.url.pathname === '/login'}
@@ -178,6 +207,32 @@
           </div>
         {/each}
       </nav>
+      {#if nowPlayingStore.data?.playing && nowPlayingStore.data.track}
+        {@const npData = nowPlayingStore.data}
+        <a href="/track/{npData.track.id}" class="mobile-mini-player">
+          {#if npData.track.album?.imageUrl}
+            <img class="mini-player-art" src={npData.track.album.imageUrl} alt={npData.track.album.name} />
+          {:else}
+            <div class="mini-player-art"></div>
+          {/if}
+          <div class="mini-player-info">
+            <span class="mini-player-track">{npData.track.name}</span>
+            <span class="mini-player-artist">{npData.track.artists.map(a => a.name).join(', ')}</span>
+          </div>
+          <button
+            class="mini-player-btn"
+            title={npData.isPlaying ? 'Pause' : 'Play'}
+            disabled={miniActing}
+            onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniTogglePlay(); }}
+          >
+            {#if npData.isPlaying}
+              <IconPause size={18} />
+            {:else}
+              <IconPlay size={18} />
+            {/if}
+          </button>
+        </a>
+      {/if}
       <nav class="mobile-tabbar" bind:this={tabbarRef} aria-label="Primary navigation">
         {#each mobileNavGroups as group}
           <div class="mobile-tab-group">
@@ -207,6 +262,11 @@
           </div>
         {/each}
       </nav>
+      {#if (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
+        <div class="sidebar-projections">
+          <ProjectedChanges />
+        </div>
+      {/if}
       <div class="sidebar-now-playing">
         <NowPlaying compact />
       </div>

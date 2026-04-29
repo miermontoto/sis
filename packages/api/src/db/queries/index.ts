@@ -6,7 +6,7 @@ export { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, ge
 export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getGlobalSeries, getRecentPlays, getHistoryPage, deleteHistoryEntries } from './entity.js';
 
 // rankings
-export { computeRankings, getRankingHistory } from './rankings.js';
+export { computeRankings, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory } from './rankings.js';
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
@@ -27,7 +27,7 @@ export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopTrackRows, forma
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';
 
 // inline queries extraídas de stats.ts
-export { getTopGenres, getHeatmap, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, rebuildPlaylistSearchIndex } from './inline.js';
+export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, rebuildPlaylistSearchIndex } from './inline.js';
 
 // playlist strategies
 export { strategyTopRange, strategyTopArtist, strategyTopGenre, strategyDeepCuts, strategyTimeVibes, strategyRediscovery, strategyTop, strategyChart, resolveEntitiesToTracks } from './playlists.js';

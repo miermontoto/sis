@@ -35,6 +35,7 @@
   let showMergeModal = $state(false);
   let playActing = $state(false);
   let isLiked = $state(false);
+  let likeLoading = $state(false);
   let likeActing = $state(false);
   const fetchCtrl = createFetchController();
 
@@ -80,7 +81,11 @@
     }
     loadData(id);
     if (isSpotifyId(id)) {
-      api.checkTrackLiked(id).then(r => { isLiked = r.isLiked; }).catch(() => { isLiked = false; });
+      likeLoading = true;
+      api.checkTrackLiked(id).then(r => { isLiked = r.isLiked; }).catch(() => { isLiked = false; }).finally(() => { likeLoading = false; });
+    } else {
+      isLiked = false;
+      likeLoading = false;
     }
   });
 
@@ -153,11 +158,13 @@
         <button
           class="like-btn"
           class:like-btn--liked={isLiked}
-          title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-          disabled={likeActing}
+          title={likeLoading ? 'Loading...' : isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+          disabled={likeActing || likeLoading}
           onclick={toggleLike}
         >
-          {#if isLiked}
+          {#if likeLoading}
+            <span class="btn-spinner"></span>
+          {:else if isLiked}
             <IconHeartFilled />
           {:else}
             <IconHeartOutline />

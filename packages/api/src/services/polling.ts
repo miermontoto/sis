@@ -19,6 +19,7 @@ import {
   ARTIST_FIX_INTERVAL_MS,
   RECORDS_CACHE_INTERVAL_MS,
   PLAYLIST_SYNC_INTERVAL_MS,
+  SESSION_GAP_MS,
 } from '../constants.js';
 import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { computeAndCacheRecords } from './records-cache.js';
@@ -81,12 +82,23 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
         console.log(`[poll:${userId}] registrada reproducción local: ${lastLocal.id}`);
         userLocalTracks.delete(userId);
       }
-      updatePollingStateForUser(userId, {
-        lastCurrentlyPlayingTrackId: null,
-        lastCurrentlyPlayingAt: null,
-      });
+      const state = getPollingStateForUser(userId);
       const db = getDb();
-      db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
+      const lastPlayAt = state?.lastCurrentlyPlayingAt ? new Date(state.lastCurrentlyPlayingAt).getTime() : 0;
+      const idleMs = lastPlayAt ? Date.now() - lastPlayAt : Infinity;
+
+      if (idleMs >= SESSION_GAP_MS) {
+        updatePollingStateForUser(userId, {
+          lastCurrentlyPlayingTrackId: null,
+          lastCurrentlyPlayingAt: null,
+        });
+        db.run(sql`UPDATE polling_state SET is_playing = 0, session_started_at = NULL WHERE user_id = ${userId}`);
+      } else {
+        updatePollingStateForUser(userId, {
+          lastCurrentlyPlayingTrackId: null,
+        });
+        db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
+      }
       return CURRENTLY_PLAYING_IDLE_MS;
     }
 
@@ -134,6 +146,11 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
     });
     const db = getDb();
     db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0} WHERE user_id = ${userId}`);
+
+    // nueva sesión: si el track anterior era null (idle → playing)
+    if (trackChanged && !state?.lastCurrentlyPlayingTrackId) {
+      db.run(sql`UPDATE polling_state SET session_started_at = ${new Date().toISOString()} WHERE user_id = ${userId}`);
+    }
     return computeNextPollDelay(data);
   } catch (err) {
     console.error(`[poll:${userId}] error en currently playing:`, err);

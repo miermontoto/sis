@@ -35,7 +35,6 @@
     mostNo1Albums: '#1 albums',
     inMostPlaylists: 'In most playlists',
     longestGap: 'Longest gap',
-    biggestNewMonth: 'Biggest launch',
     goldenOldies: 'Golden oldie',
     latestDiscoveries: 'Latest discovery',
     latestNew: 'Latest new',
@@ -64,7 +63,7 @@
     if (a.type === 'mostNo1Tracks' || a.type === 'mostNo1Albums' || a.type === 'mostAccolades') return String(a.value);
     if (a.type === 'longestGap') return `${formatNumber(a.value)} day${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'mostDistinctTracks') return `${a.value} track${a.value !== 1 ? 's' : ''}`;
-    if (a.type === 'biggestNewMonth' || a.type === 'goldenOldies' ||
+    if (a.type === 'goldenOldies' ||
         a.type === 'latestDiscoveries' || a.type === 'latestNew' ||
         a.type === 'oneHitWonders' || a.type === 'topNoAlbum') {
       return `${formatNumber(a.value)} plays`;

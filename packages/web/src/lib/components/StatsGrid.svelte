@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatDuration, formatNumber, formatShortDate, localDateKey } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatShortDate, formatSmartDate, localDateKey } from '$lib/utils/format';
 
   let {
     stats,
@@ -25,7 +25,7 @@
   {/if}
   {#if stats.last_played}
     <a href="/history?date={localDateKey(stats.last_played)}&focus={encodeURIComponent(stats.last_played)}" class="card stat-card stat-card--link">
-      <div class="stat-value">{formatShortDate(stats.last_played)}</div>
+      <div class="stat-value">{formatSmartDate(stats.last_played)}</div>
       <div class="stat-label">Last played</div>
     </a>
   {/if}

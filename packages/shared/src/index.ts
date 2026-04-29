@@ -5,7 +5,7 @@ export type { TrackInfo, FormattedArtist, FormattedAlbum } from './entities.js';
 export type { TopTrackItem, TopArtistItem, TopAlbumItem } from './top.js';
 
 // estadísticas
-export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem } from './stats.js';
+export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem } from './stats.js';
 
 // historial
 export type { HistoryItem, HistoryResponse } from './history.js';
@@ -37,6 +37,9 @@ export type { PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, Playlis
 
 // merge
 export type { MergeRule, MergeSuggestion } from './merge.js';
+
+// proyecciones de ranking
+export type { RankProjection, ProjectionResult, ProjectedRankingsResponse } from './projections.js';
 
 // usuarios
 export type { MeResponse, UserRecord, ImportResult, HealthData } from './users.js';

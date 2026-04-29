@@ -48,7 +48,6 @@ export interface EntityRecords {
   longestGap: RecordEntry[];
   goldenOldies: RecordEntry[];
   // --- descubrimiento ---
-  biggestNewMonth: RecordEntry[];
   latestDiscoveries: RecordEntry[];
   latestNew: RecordEntry[];
   // --- mensuales ---

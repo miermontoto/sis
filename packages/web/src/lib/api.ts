@@ -6,7 +6,7 @@ export type {
   RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay,
   HistoryItem, HistoryResponse,
   NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
-  ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem,
+  ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
   HealthData, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
@@ -16,13 +16,14 @@ export type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,
   MergeRule, MergeSuggestion,
+  ProjectedRankingsResponse, ProjectionResult, RankProjection,
 } from '@sis/shared';
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
   RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData,
+  GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
@@ -30,6 +31,7 @@ import type {
   MergeRule, MergeSuggestion, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
+  ProjectedRankingsResponse,
 } from '@sis/shared';
 
 const BASE = '/api';
@@ -312,6 +314,9 @@ export const api = {
   topGenres: (range = 'month', limit = 20, dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<GenreItem[]>('/stats/top-genres', { ...rangeParams(range, dates), limit: String(limit) }, signal),
 
+  projectedRankings: (sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<ProjectedRankingsResponse>('/stats/projected-rankings', { sort }, signal),
+
   history: (page = 1, limit = 50, filters?: { date?: string; album?: string; track?: string; artist?: string }, signal?: AbortSignal) => {
     const f = filters ?? {};
     // minutos al este de UTC (inverso del valor de getTimezoneOffset)
@@ -337,6 +342,9 @@ export const api = {
 
   heatmap: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<HeatmapItem[]>('/stats/heatmap', { ...rangeParams(range, dates) }, signal),
+
+  monthlyDistribution: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<MonthlyDistributionItem[]>('/stats/monthly-distribution', { ...rangeParams(range, dates) }, signal),
 
   streaks: (signal?: AbortSignal) => apiFetch<StreaksData>('/stats/streaks', undefined, signal),
 

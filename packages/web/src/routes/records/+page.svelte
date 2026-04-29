@@ -6,6 +6,9 @@
   import TrackItem from '$lib/components/TrackItem.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
+  import IconTrack from '$lib/icons/IconTrack.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import type { EntityContext } from '$lib/utils/entity-context';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -155,9 +158,9 @@
 </div>
 
 <div class="records-tabs">
-  <button class="rec-tab" class:rec-tab--active={tab.value === 'tracks'} onclick={() => tab.value = 'tracks'}>Tracks</button>
-  <button class="rec-tab" class:rec-tab--active={tab.value === 'albums'} onclick={() => tab.value = 'albums'}>Albums</button>
-  <button class="rec-tab" class:rec-tab--active={tab.value === 'artists'} onclick={() => tab.value = 'artists'}>Artists</button>
+  <button class="rec-tab" class:rec-tab--active={tab.value === 'tracks'} onclick={() => tab.value = 'tracks'}><IconTrack size={14} /> Tracks</button>
+  <button class="rec-tab" class:rec-tab--active={tab.value === 'albums'} onclick={() => tab.value = 'albums'}><IconAlbum size={14} /> Albums</button>
+  <button class="rec-tab" class:rec-tab--active={tab.value === 'artists'} onclick={() => tab.value = 'artists'}><IconArtist size={14} /> Artists</button>
 </div>
 
 {#if loading && !currentData}
@@ -320,6 +323,48 @@
     {/if}
   {/snippet}
 
+  {#snippet chartRunList(title: string, items: RecordEntry[], recordKey: string)}
+    {#if items.length > 0}
+      <div class="record-section">
+        {@render sectionHeader(title, recordKey)}
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
+              name={item.name}
+              nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
+              compact
+            >
+              {#snippet subtitle()}
+                {#if item.artistName}
+                  {#if item.artistId}
+                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
+                  {:else}
+                    {item.artistName}
+                  {/if}
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, 'weeks')}</span>
+                  {#if item.ongoing}
+                    <span class="record-active">active · since <a href="/charts?type={tab.value}&granularity=week&period={item.date}" class="record-week">{item.date}</a></span>
+                  {:else if item.date && item.endDate}
+                    <a href="/charts?type={tab.value}&granularity=week&period={item.date}" class="record-week">{item.date}</a>→<a href="/charts?type={tab.value}&granularity=week&period={item.endDate}" class="record-week">{item.endDate}</a>
+                  {/if}
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
   {#snippet oneHitList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
@@ -360,45 +405,6 @@
     {/if}
   {/snippet}
 
-  {#snippet newMonthList(title: string, items: RecordEntry[], recordKey: string)}
-    {#if items.length > 0}
-      <div class="record-section">
-        {@render sectionHeader(title, recordKey)}
-        <div class="record-list">
-          {#each items as item, i}
-            <TrackItem
-              rank={i + 1}
-              imageUrl={item.imageUrl}
-              imageHref={entityLink(tab.value, item.entityId)}
-              imageRound={tab.value === 'artists'}
-              name={item.name}
-              nameHref={entityLink(tab.value, item.entityId)}
-              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
-              compact
-            >
-              {#snippet subtitle()}
-                {#if item.artistName}
-                  {#if item.artistId}
-                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
-                  {:else}
-                    {item.artistName}
-                  {/if}
-                {/if}
-              {/snippet}
-              {#snippet meta()}
-                <div class="record-value">
-                  <span class="record-val">{formatValue(item.value, 'plays')}</span>
-                  {#if item.month}
-                    <a href="/charts?type={tab.value}&granularity=month&period={item.month}" class="record-week">{formatMonth(item.month)}</a>
-                  {/if}
-                </div>
-              {/snippet}
-            </TrackItem>
-          {/each}
-        </div>
-      </div>
-    {/if}
-  {/snippet}
 
   {#snippet monthList(title: string, items: MonthCountEntry[], entityLabel: string)}
     {#if items.length > 0}
@@ -479,7 +485,6 @@
     currentData.longestChartRun.length > 0}
   {@const hasDiscovery =
     currentData.biggestDebuts.length > 0 ||
-    currentData.biggestNewMonth.length > 0 ||
     currentData.latestDiscoveries.length > 0 ||
     currentData.latestNew.length > 0}
   {@const hasOther =
@@ -505,13 +510,12 @@
   {#if hasLongevity}
     <h2 class="record-group">Longevity</h2>
     {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks', 'mostWeeksInTop5')}
-    {@render recordList('Longest chart run', currentData.longestChartRun, 'weeks', 'longestChartRun')}
+    {@render chartRunList('Longest chart run', currentData.longestChartRun, 'longestChartRun')}
   {/if}
 
   {#if hasDiscovery}
     <h2 class="record-group">Discovery</h2>
     {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut', 'biggestDebuts')}
-    {@render newMonthList('Biggest launch month', currentData.biggestNewMonth, 'biggestNewMonth')}
     {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays', 'latestDiscoveries')}
     {@render datedList('Latest new', currentData.latestNew, 'first heard', 'plays', 'latestNew')}
   {/if}
@@ -554,6 +558,9 @@
     letter-spacing: 0.03em;
     cursor: pointer;
     transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
   }
   .rec-tab:hover:not(.rec-tab--active) { color: var(--text); }
   .rec-tab--active {

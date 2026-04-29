@@ -1,13 +1,17 @@
-import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse } from '$lib/api';
+import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem } from '$lib/api';
 
 let _data = $state<NowPlayingResponse | null>(null);
 let _intervalId: ReturnType<typeof setInterval> | null = null;
 let _isLiked = $state(false);
+let _likeLoading = $state(false);
 let _lastCheckedTrackId: string | null = null;
 let _liveTrackGuardUntil = 0;
 let _liveTrackGuardId: string | null = null;
+let _trackStartedAt = 0;
+let _lastFinishedPlay = $state<HistoryItem | null>(null);
 
 const LIVE_TRACK_GUARD_MS = 35_000;
+const MIN_PLAY_MS = 30_000;
 
 type NowPlayingSource = 'cached' | 'live' | 'local';
 
@@ -16,6 +20,7 @@ function trackIdOf(data: NowPlayingResponse | null): string | null {
 }
 
 function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSource) {
+  const prevTrackId = trackIdOf(_data);
   const nextTrackId = trackIdOf(data);
 
   if (source === 'cached' && _liveTrackGuardId && Date.now() < _liveTrackGuardUntil) {
@@ -27,6 +32,18 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
     }
   }
 
+  if (nextTrackId !== prevTrackId) {
+    if (prevTrackId && _data?.track && _trackStartedAt > 0 && Date.now() - _trackStartedAt >= MIN_PLAY_MS) {
+      _lastFinishedPlay = {
+        id: Date.now(),
+        playedAt: new Date().toISOString(),
+        contextType: null,
+        track: _data.track,
+      };
+    }
+    _trackStartedAt = nextTrackId ? Date.now() : 0;
+  }
+
   _data = data;
 
   if (source === 'live') {
@@ -36,14 +53,17 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
 }
 
 async function checkLiked(trackId: string | undefined) {
-  if (!trackId) { _isLiked = false; _lastCheckedTrackId = null; return; }
+  if (!trackId) { _isLiked = false; _likeLoading = false; _lastCheckedTrackId = null; return; }
   if (trackId === _lastCheckedTrackId) return;
   _lastCheckedTrackId = trackId;
+  _likeLoading = true;
   try {
     const { isLiked } = await api.checkTrackLiked(trackId);
     if (_lastCheckedTrackId === trackId) _isLiked = isLiked;
   } catch {
     _isLiked = false;
+  } finally {
+    if (_lastCheckedTrackId === trackId) _likeLoading = false;
   }
 }
 
@@ -114,6 +134,8 @@ export const nowPlayingStore = {
   get isPlaying() { return _data?.playing && _data.isPlaying ? true : false; },
   get isLiked() { return _isLiked; },
   set isLiked(v: boolean) { _isLiked = v; },
+  get likeLoading() { return _likeLoading; },
+  get lastFinishedPlay() { return _lastFinishedPlay; },
   startPolling,
   stopPolling,
   pollLive,

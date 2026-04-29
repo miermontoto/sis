@@ -228,6 +228,13 @@
     };
   });
 
+  $effect(() => {
+    const play = nowPlayingStore.lastFinishedPlay;
+    if (!play || items.length === 0 || hasFilters || editMode) return;
+    if (items[0]?.track?.id === play.track?.id && Math.abs(new Date(items[0].playedAt).getTime() - new Date(play.playedAt).getTime()) < 60_000) return;
+    items = [play, ...items];
+  });
+
   async function waitForHistoryElement(selector: string, timeoutMs = 2000): Promise<HTMLElement | null> {
     const deadline = performance.now() + timeoutMs;
     let el = document.querySelector<HTMLElement>(selector);

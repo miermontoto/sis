@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric } from '$lib/api';
-  import NowPlaying from '$lib/components/NowPlaying.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import CoverGrid from '$lib/components/CoverGrid.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
@@ -103,14 +102,17 @@
     const pollInterval = setInterval(pollRecent, 15_000);
     return () => clearInterval(pollInterval);
   });
+
+  $effect(() => {
+    const play = nowPlayingStore.lastFinishedPlay;
+    if (!play || recentPlays.length === 0) return;
+    if (recentPlays[0]?.track?.id === play.track?.id && Math.abs(new Date(recentPlays[0].playedAt).getTime() - new Date(play.playedAt).getTime()) < 60_000) return;
+    recentPlays = [play, ...recentPlays].slice(0, 10);
+  });
 </script>
 
 <div class="page-header">
   <h1>Dashboard</h1>
-</div>
-
-<div class="mobile-only-np">
-  <NowPlaying />
 </div>
 
 {#if closedCharts.length > 0}

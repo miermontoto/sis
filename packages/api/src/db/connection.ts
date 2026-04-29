@@ -65,6 +65,7 @@ export function getDb() {
   // merge_rules: JOIN en queries de álbumes
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_merge_rules_lookup ON merge_rules(entity_type, source_id, user_id)'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
+  try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN session_started_at TEXT'); } catch {}
   try { sqlite.exec('ALTER TABLE albums ADD COLUMN artist_ids TEXT'); } catch {}
 
   // multi-user: tabla de usuarios

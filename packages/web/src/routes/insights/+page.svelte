@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { api, createFetchController, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type DateRangeParams } from '$lib/api';
+  import { api, createFetchController, getWeekStart, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type MonthlyDistributionItem, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import { formatHours, getLocalizedDayNames } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, PIE_TOOLTIP, PIE_COLORS, GREEN } from '$lib/utils/chart';
+  import { formatHours, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, PIE_TOOLTIP, PIE_COLORS, GREEN } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -17,6 +17,7 @@
   let genres = $state<GenreItem[]>([]);
   let streaks = $state<StreaksData | null>(null);
   let discovery = $state<DiscoveryItem[]>([]);
+  let monthlyDist = $state<MonthlyDistributionItem[]>([]);
   let discoveryEntity = $state<'track' | 'album' | 'artist'>('track');
   let loading = $state(true);
   let discoveryLoading = $state(false);
@@ -45,11 +46,12 @@
     try {
       const dates = getCustomDates();
       const gran = granularityForRange(range);
-      [listeningData, heatmap, genres, streaks] = await Promise.all([
+      [listeningData, heatmap, genres, streaks, monthlyDist] = await Promise.all([
         api.listeningTime(range, gran, dates, signal),
         api.heatmap(range, dates, signal),
         api.topGenres(range, 10, dates, signal),
         api.streaks(signal),
+        api.monthlyDistribution(range, dates, signal),
       ]);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
@@ -144,19 +146,52 @@
   });
   let avgDailyMs = $derived(listeningData.length > 0 ? totalMs / dayCount : 0);
   let maxHeatmapValue = $derived(Math.max(...heatmap.map(h => h.play_count), 1));
-  let dayNames = $derived(getLocalizedDayNames());
+  const weekStartOffset: Record<string, number> = { sunday: 0, monday: 1, friday: 5 };
+  let wsOffset = $derived(weekStartOffset[getWeekStart()] ?? 1);
+  let allDayNames = $derived(getLocalizedDayNames());
+  let dayNames = $derived([...allDayNames.slice(wsOffset), ...allDayNames.slice(0, wsOffset)]);
+  let monthNames = $derived(getLocalizedMonthNames());
+
+  let hourDistribution = $derived(
+    Array.from({ length: 24 }, (_, h) =>
+      heatmap.filter(item => item.hour === h).reduce((sum, item) => sum + item.play_count, 0)
+    )
+  );
+  let dayDistribution = $derived(
+    Array.from({ length: 7 }, (_, i) => {
+      const dow = (i + wsOffset) % 7;
+      return heatmap.filter(item => item.day_of_week === dow).reduce((sum, item) => sum + item.play_count, 0);
+    })
+  );
+  let monthDistribution = $derived(
+    Array.from({ length: 12 }, (_, i) => monthlyDist.find(m => m.month === i + 1)?.play_count ?? 0)
+  );
 
   const periodLabel = (data: typeof listeningData) => ({
     rotate: data.length > 14 ? 45 : 0,
     formatter: (v: string) => v.length > 5 ? v.slice(5) : v,
   });
 
+  let yearlyData = $derived.by(() => {
+    const byYear = new Map<string, number>();
+    for (const d of listeningData) {
+      const year = d.period.slice(0, 4);
+      byYear.set(year, (byYear.get(year) ?? 0) + d.total_ms);
+    }
+    return [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  });
+
+  let playsRegression = $derived(linearRegression(listeningData.map(d => d.play_count)));
+  let timeRegression = $derived(linearRegression(listeningData.map(d => d.total_ms)));
+  let yearlyRegression = $derived(linearRegression(yearlyData.map(d => d[1])));
+  let discoveryRegression = $derived(linearRegression(discovery.map(d => d.distinct_count)));
+
   let lineChartOption = $derived<EChartsOption>({
     grid: { ...GRID },
     tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis(),
-    series: [lineSeries(listeningData.map(d => d.play_count), { areaStyle: areaGradient() })],
+    series: [lineSeries(listeningData.map(d => d.play_count), { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
   });
 
   let barChartOption = $derived<EChartsOption>({
@@ -164,16 +199,52 @@
     tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(listeningData.map(d => d.total_ms))],
+    series: [barSeries(listeningData.map(d => d.total_ms)), trendSeries(timeRegression.line)],
+  });
+
+  let yearlyChartOption = $derived<EChartsOption>({
+    grid: { ...GRID },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
+    xAxis: categoryAxis(yearlyData.map(d => d[0]), { axisLabel: { ...AXIS_LABEL } }),
+    yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
+    series: [barSeries(yearlyData.map(d => d[1])), trendSeries(yearlyRegression.line)],
   });
 
   let heatmapOption = $derived<EChartsOption>({
     tooltip: { ...TOOLTIP_BASE, trigger: 'item', formatter: (params: any) => { const [hour, day] = params.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
     grid: { ...GRID },
     xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
-    yAxis: { type: 'category', data: dayNames, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
+    yAxis: { type: 'category', data: dayNames, inverse: true, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#0f1214', '#0d3320', '#1a6b3f', '#1db954'] } },
-    series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, h.day_of_week, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 1 } }],
+    series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, (h.day_of_week - wsOffset + 7) % 7, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 1 } }],
+  });
+
+  const polarBase = {
+    polar: { radius: ['12%', '75%'] },
+    radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, splitLine: { lineStyle: { color: '#1e2a2a' } } },
+    tooltip: { ...TOOLTIP_BASE, trigger: 'item' as const, formatter: (params: any) => `${params.name}<br/>Plays: <b>${params.value}</b>` },
+  };
+  const polarAngle = (data: string[], n: number, overrides?: Record<string, any>) => ({
+    type: 'category' as const, data, startAngle: 90 + 180 / n, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE }, ...overrides,
+  });
+  const polarSeries = (data: number[]) => [{ type: 'bar' as const, coordinateSystem: 'polar' as const, data, itemStyle: { color: GREEN, borderRadius: 2 }, emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.4)' } } }];
+
+  let hourPolarOption = $derived<EChartsOption>({
+    ...polarBase,
+    angleAxis: polarAngle(Array.from({ length: 24 }, (_, i) => `${i}:00`), 24, { axisLabel: { ...AXIS_LABEL, fontSize: 10 } }),
+    series: polarSeries(hourDistribution),
+  });
+
+  let dayPolarOption = $derived<EChartsOption>({
+    ...polarBase,
+    angleAxis: polarAngle(dayNames, 7),
+    series: polarSeries(dayDistribution),
+  });
+
+  let monthPolarOption = $derived<EChartsOption>({
+    ...polarBase,
+    angleAxis: polarAngle(monthNames, 12),
+    series: polarSeries(monthDistribution),
   });
 
   const entityLabels = { track: 'Tracks', album: 'Albums', artist: 'Artists' } as const;
@@ -202,6 +273,7 @@
         lineStyle: { color: entityColors[discoveryEntity], width: 2 },
         itemStyle: { color: entityColors[discoveryEntity] },
       }),
+      trendSeries(discoveryRegression.line, { yAxisIndex: 0 }),
     ],
   });
 
@@ -239,7 +311,18 @@
       <div class="ghost-chart" style="height: 220px;"></div>
     </div>
     <div class="card chart-half">
+      <h3>Genre distribution</h3>
+      <div class="ghost-chart" style="height: 220px;"></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="card chart-half">
       <h3>Listening time</h3>
+      <div class="ghost-chart" style="height: 220px;"></div>
+    </div>
+    <div class="card chart-half">
+      <h3>Listening time by year</h3>
       <div class="ghost-chart" style="height: 220px;"></div>
     </div>
   </div>
@@ -257,9 +340,13 @@
     <div class="ghost-chart" style="height: 220px;"></div>
   </div>
 
-  <div class="card" style="margin-bottom: 1.5rem;">
-    <h3 style="margin-bottom: 0.5rem;">Genre distribution</h3>
-    <div class="ghost-chart ghost-chart--pie" style="height: 280px;"></div>
+  <div class="charts-row charts-row--triple">
+    {#each ['By hour', 'By day', 'By month'] as label}
+      <div class="card chart-third">
+        <h3>{label}</h3>
+        <div class="ghost-chart" style="height: 280px;"></div>
+      </div>
+    {/each}
   </div>
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
@@ -283,22 +370,41 @@
     {/if}
   </div>
 
+  {#if listeningData.length > 0 || genres.length > 0}
+    <div class="charts-row">
+      {#if listeningData.length > 0}
+        <div class="card chart-half">
+          <div class="chart-header"><h3>Plays</h3><span class="r2-badge">R² = {playsRegression.r2.toFixed(2)}</span></div>
+          <BaseChart option={lineChartOption} height="220px" />
+        </div>
+      {/if}
+      {#if genres.length > 0}
+        <div class="card chart-half">
+          <h3 style="margin-bottom: 0.5rem;">Genre distribution</h3>
+          <BaseChart option={pieOption} height="220px" />
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if listeningData.length > 0}
     <div class="charts-row">
       <div class="card chart-half">
-        <h3>Plays</h3>
-        <BaseChart option={lineChartOption} height="220px" />
-      </div>
-      <div class="card chart-half">
-        <h3>Listening time</h3>
+        <div class="chart-header"><h3>Listening time</h3><span class="r2-badge">R² = {timeRegression.r2.toFixed(2)}</span></div>
         <BaseChart option={barChartOption} height="220px" />
       </div>
+      {#if yearlyData.length > 1}
+        <div class="card chart-half">
+          <div class="chart-header"><h3>Listening time by year</h3><span class="r2-badge">R² = {yearlyRegression.r2.toFixed(2)}</span></div>
+          <BaseChart option={yearlyChartOption} height="220px" />
+        </div>
+      {/if}
     </div>
   {/if}
 
   <div class="card" style="margin-bottom: 1.5rem;">
     <div class="chart-header">
-      <h3>Library growth</h3>
+      <h3>Library growth {#if discovery.length > 1}<span class="r2-badge">R² = {discoveryRegression.r2.toFixed(2)}</span>{/if}</h3>
       <div class="entity-toggle">
         {#each (['track', 'album', 'artist'] as const) as type}
           <button
@@ -324,10 +430,20 @@
     </div>
   {/if}
 
-  {#if genres.length > 0}
-    <div class="card" style="margin-bottom: 1.5rem;">
-      <h3 style="margin-bottom: 0.5rem;">Genre distribution</h3>
-      <BaseChart option={pieOption} height="280px" />
+  {#if heatmap.length > 0 || monthlyDist.length > 0}
+    <div class="charts-row charts-row--triple">
+      <div class="card chart-third">
+        <h3>By hour</h3>
+        <BaseChart option={hourPolarOption} height="280px" />
+      </div>
+      <div class="card chart-third">
+        <h3>By day</h3>
+        <BaseChart option={dayPolarOption} height="280px" />
+      </div>
+      <div class="card chart-third">
+        <h3>By month</h3>
+        <BaseChart option={monthPolarOption} height="280px" />
+      </div>
     </div>
   {/if}
 {/if}
@@ -339,8 +455,18 @@
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
-  .chart-half h3 {
+  .chart-half h3, .chart-third h3 {
     margin-bottom: 0.5rem;
+  }
+  .charts-row--triple {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .r2-badge {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 0.4rem;
+    vertical-align: middle;
   }
   .ghost-stat {
     width: 3.5rem;

@@ -108,6 +108,138 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
   };
 }
 
+interface ProjectionTarget {
+  entityId: string;
+  extraPlays: number;
+  extraMs: number;
+}
+
+const PROJECTED_RANK_LIMITS: Record<string, number> = { thisYear: 50, all: 100 };
+
+interface ScoreRow { eid: string; val_all: number; val_year: number; pre_all: number; pre_year: number }
+
+/** Ranking proyectado batch: 1 scan de entity_scores, N targets resueltos in-memory.
+ *  Solo calcula YTD y All. Cuando sessionStart se pasa, "current" es el rank pre-sesión
+ *  y "projected" es el rank post-sesión (incluyendo el track en curso vía extra). */
+export function computeProjectedRankingsBatch(
+  db: Db, entityType: EntityType, targets: ProjectionTarget[],
+  sort: Sort, userId: number, sessionStart?: string | null
+): Map<string, Record<string, { current: number | null; projected: number | null }>> {
+  if (targets.length === 0) return new Map();
+
+  const uf = userFilter(userId);
+  const yearStart = getRangeStart('thisYear')!;
+  const hasSession = !!sessionStart;
+
+  let scores: ScoreRow[];
+
+  if (entityType === 'artist') {
+    const mrJoin = entityMergeJoin('artist', userId);
+    const valExpr = sort === 'plays' ? sql`1` : sql`duration_ms`;
+    const preAllExpr = hasSession ? sql`sum(CASE WHEN played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
+    const preYearExpr = hasSession ? sql`sum(CASE WHEN played_at >= ${yearStart} AND played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
+    scores = db.all(sql`
+      WITH plays_dedup AS (
+        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId}
+      )
+      SELECT eid,
+             sum(${valExpr}) as val_all,
+             sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year,
+             ${preAllExpr} as pre_all,
+             ${preYearExpr} as pre_year
+      FROM plays_dedup
+      GROUP BY eid
+    `) as ScoreRow[];
+  } else {
+    const join = entityJoins(entityType, userId);
+    const groupCol = entityGroupCol(entityType, userId);
+    const extraMergeJoin = entityMergeJoin(entityType, userId);
+    const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
+    const valExpr = sort === 'plays' ? sql`1` : sql`t.duration_ms`;
+    const preAllExpr = hasSession ? sql`sum(CASE WHEN lh.played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
+    const preYearExpr = hasSession ? sql`sum(CASE WHEN lh.played_at >= ${yearStart} AND lh.played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
+
+    scores = db.all(sql`
+      SELECT ${groupCol} as eid,
+             sum(${valExpr}) as val_all,
+             sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year,
+             ${preAllExpr} as pre_all,
+             ${preYearExpr} as pre_year
+      FROM listening_history lh
+      ${join}
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${extraMergeJoin}
+      WHERE 1=1 ${uf} ${albumFilter}
+      GROUP BY eid
+    `) as ScoreRow[];
+  }
+
+  const results = new Map<string, Record<string, { current: number | null; projected: number | null }>>();
+  const ranges = ['thisYear', 'all'] as const;
+  const valKeys = { thisYear: 'val_year', all: 'val_all' } as const;
+  const preKeys = { thisYear: 'pre_year', all: 'pre_all' } as const;
+
+  for (const target of targets) {
+    const extra = sort === 'plays' ? target.extraPlays : target.extraMs;
+    const my = scores.find(s => s.eid === target.entityId);
+    const out: Record<string, { current: number | null; projected: number | null }> = {};
+
+    for (const range of ranges) {
+      const vk = valKeys[range];
+      const pk = preKeys[range];
+      const myVal = my?.[vk] ?? 0;
+      const preVal = my?.[pk] ?? 0;
+      const projVal = myVal + extra;
+
+      if (preVal === 0 && projVal === 0) {
+        out[range] = { current: null, projected: null };
+        continue;
+      }
+
+      let currentAbove = 0;
+      let projectedAbove = 0;
+      for (const s of scores) {
+        if (s.eid === target.entityId) continue;
+        // "current" = rank pre-sesión (comparar contra scores pre-sesión de todos)
+        if (s[pk] > preVal) currentAbove++;
+        // "projected" = rank post-sesión + track actual (comparar contra scores completos de todos)
+        if (s[vk] > projVal) projectedAbove++;
+      }
+
+      const current = preVal > 0 || range === 'all' ? currentAbove + 1 : null;
+      const projected = (myVal > 0 || extra > 0) ? projectedAbove + 1 : null;
+
+      const rankLimit = PROJECTED_RANK_LIMITS[range] ?? 100;
+      if (current !== null && current > rankLimit && (projected === null || projected > rankLimit)) {
+        out[range] = { current: null, projected: null };
+        continue;
+      }
+
+      out[range] = { current, projected };
+    }
+
+    results.set(target.entityId, out);
+  }
+
+  return results;
+}
+
+/** Wrapper single-entity para compatibilidad */
+export function computeProjectedRankings(
+  db: Db, entityType: EntityType, entityId: string,
+  extraPlays: number, extraMs: number,
+  sort: Sort, userId: number
+): Record<string, { current: number | null; projected: number | null }> {
+  const results = computeProjectedRankingsBatch(db, entityType, [{ entityId, extraPlays, extraMs }], sort, userId);
+  const nil = { current: null, projected: null };
+  return results.get(entityId) ?? { thisYear: nil, all: nil };
+}
+
 /** Historial de ranking: posición acumulada de una entidad mes a mes.
  *  Optimizado: acumula mes a mes y calcula rank con COUNT. */
 export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPoint[] {

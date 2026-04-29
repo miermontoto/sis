@@ -89,6 +89,28 @@
     selected = [...selected, id];
   }
 
+  async function selectAll() {
+    const uncached = topArtists.filter(a => a.artist && !cache.has(a.artistId));
+    if (uncached.length > 0) {
+      const ids = new Set(uncached.map(a => a.artistId));
+      loadingSeries = new Set([...loadingSeries, ...ids]);
+      await Promise.all(uncached.map(async (item) => {
+        try {
+          const detail = await api.artistDetail(item.artistId, 'all');
+          cache.set(item.artistId, toCumulative(detail, item.artistId, item.artist!.name));
+        } catch {}
+      }));
+      const next = new Set(loadingSeries);
+      ids.forEach(id => next.delete(id));
+      loadingSeries = next;
+    }
+    selected = topArtists.filter(a => a.artist).map(a => a.artistId);
+  }
+
+  function deselectAll() {
+    selected = [];
+  }
+
   // convierte un punto a [x, y] según el modo
   function toDataPoint(periodStr: string, firstPeriod: string, value: number): [number | string, number] {
     if (mode === 'absolute') return [periodStr, value];
@@ -190,6 +212,10 @@
     {#if loadingTop}
       <div class="loading"><div class="spinner"></div></div>
     {:else}
+      <div class="bulk-actions">
+        <button class="mode-btn" onclick={selectAll}>Select all</button>
+        <button class="mode-btn" onclick={deselectAll} disabled={selected.length === 0}>Deselect all</button>
+      </div>
       <div class="chips">
         {#each topArtists as item}
           {@const isSel = selected.includes(item.artistId)}
@@ -215,7 +241,7 @@
     {#if selected.length === 0}
       <div class="hint">Select artists on the left to compare their trajectories.</div>
     {:else}
-      <BaseChart option={chartOption} height="560px" />
+      <BaseChart option={chartOption} height="560px" replaceMerge={['series']} />
     {/if}
   </div>
 </div>
@@ -244,6 +270,11 @@
     gap: 0.75rem;
     max-height: 660px;
     overflow: hidden;
+  }
+
+  .bulk-actions {
+    display: flex;
+    gap: 0.3rem;
   }
 
   .av-header {

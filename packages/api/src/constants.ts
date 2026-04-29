@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w18e';
+export const VERSION = '26w18f';
 
 // intervalos de polling en ms
 export const CURRENTLY_PLAYING_INTERVAL_MS = 30_000; // fallback en error
@@ -8,6 +8,7 @@ export const CURRENTLY_PLAYING_MAX_MS = 60_000;
 export const CURRENTLY_PLAYING_BUFFER_MS = 3_000;
 export const CURRENTLY_PLAYING_PAUSED_MS = 60_000;
 export const CURRENTLY_PLAYING_IDLE_MS = 90_000;
+export const SESSION_GAP_MS = 10 * 60_000;
 export const RECENTLY_PLAYED_INTERVAL_MS = 5 * 60_000;
 
 // límites de la API de spotify

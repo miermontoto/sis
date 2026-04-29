@@ -49,7 +49,6 @@ const RECORD_KEY_TITLES: Record<string, string> = {
   inMostPlaylists: 'In Most Playlists',
   longestGap: 'Longest Gap',
   goldenOldies: 'Golden Oldies',
-  biggestNewMonth: 'Biggest Launch Month',
   latestDiscoveries: 'Latest Discoveries',
   latestNew: 'Latest New',
   mostAccolades: 'Most Records',

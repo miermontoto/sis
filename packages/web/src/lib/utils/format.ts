@@ -71,6 +71,15 @@ export function formatHistoryStamp(dateStr: string): string {
   return `${date.toLocaleDateString(locale, opts)}, ${time}`;
 }
 
+export function formatSmartDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
+  }
+  return formatShortDate(dateStr);
+}
+
 // "January 2024"
 export function formatMonthYear(dateStr: string): string {
   const d = new Date(dateStr);
@@ -107,4 +116,11 @@ export function getLocalizedDayNames(): string[] {
     d.setDate(d.getDate() + i);
     return d.toLocaleDateString(locale, { weekday: 'short' });
   });
+}
+
+export function getLocalizedMonthNames(): string[] {
+  const locale = getLocale();
+  return Array.from({ length: 12 }, (_, i) =>
+    new Date(2017, i, 1).toLocaleDateString(locale, { month: 'short' })
+  );
 }

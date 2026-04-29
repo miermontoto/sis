@@ -36,6 +36,21 @@ export function getHeatmap(db: Db, rangeStart: string | null, rangeEnd: string |
   `) as { day_of_week: number; hour: number; play_count: number }[];
 }
 
+export function getMonthlyDistribution(db: Db, rangeStart: string | null, rangeEnd: string | null, userId: number) {
+  const rw = rangeWhere(rangeStart, rangeEnd);
+  const uf = userFilter(userId);
+
+  return db.all(sql`
+    SELECT
+      cast(strftime('%m', lh.played_at) as integer) as month,
+      count(*) as play_count
+    FROM listening_history lh
+    WHERE 1=1 ${uf} ${rw}
+    GROUP BY month
+    ORDER BY month
+  `) as { month: number; play_count: number }[];
+}
+
 export function getStreakDays(db: Db, userId: number) {
   return db.all(sql`
     SELECT DISTINCT date(played_at) as day

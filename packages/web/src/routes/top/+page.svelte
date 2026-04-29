@@ -15,6 +15,9 @@
   import RankChange from '$lib/components/RankChange.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
+  import IconTrack from '$lib/icons/IconTrack.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import type { EChartsOption } from 'echarts';
 
@@ -187,13 +190,13 @@
   });
 
   const RANGES = ['week', 'month', '3months', '6months', 'year', 'thisYear', 'all'];
-  const TABS: ('tracks' | 'artists' | 'albums')[] = ['tracks', 'artists', 'albums'];
+  const TABS: ('tracks' | 'artists' | 'albums')[] = ['tracks', 'albums', 'artists'];
 
   shortcutStore.registerPageShortcuts(
     [
       { key: '1', description: 'Tracks', category: 'page' },
-      { key: '2', description: 'Artists', category: 'page' },
-      { key: '3', description: 'Albums', category: 'page' },
+      { key: '2', description: 'Albums', category: 'page' },
+      { key: '3', description: 'Artists', category: 'page' },
       { key: '[', description: 'Previous range', category: 'page' },
       { key: ']', description: 'Next range', category: 'page' },
     ],
@@ -432,13 +435,13 @@
 
 <div class="tabs">
   <button class="tab" class:active={activeTab === 'tracks'} onclick={() => setTab('tracks')}>
-    Tracks
-  </button>
-  <button class="tab" class:active={activeTab === 'artists'} onclick={() => setTab('artists')}>
-    Artists
+    <IconTrack size={14} /> Tracks
   </button>
   <button class="tab" class:active={activeTab === 'albums'} onclick={() => setTab('albums')}>
-    Albums
+    <IconAlbum size={14} /> Albums
+  </button>
+  <button class="tab" class:active={activeTab === 'artists'} onclick={() => setTab('artists')}>
+    <IconArtist size={14} /> Artists
   </button>
 </div>
 

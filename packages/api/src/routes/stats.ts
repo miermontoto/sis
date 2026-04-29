@@ -1,12 +1,15 @@
 import { Hono } from 'hono';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { dbRead } from '../db/read-pool.js';
-import { DEFAULT_PAGE_LIMIT, CHART_SIZE, RECORDS_LIMIT } from '../constants.js';
+import { DEFAULT_PAGE_LIMIT, CHART_SIZE, RECORDS_LIMIT, SESSION_GAP_MS } from '../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../services/records-cache.js';
 import { ensureFullAlbumTracks } from '../services/ingestion.js';
 import type { TimeRange } from '../constants.js';
-import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getLookbackPreviousPeriodRange, deleteHistoryEntries } from '../db/queries/index.js';
+import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getLookbackPreviousPeriodRange, deleteHistoryEntries, computeProjectedRankingsBatch } from '../db/queries/index.js';
+import { pollingState, tracks, artists, trackArtists, albums, listeningHistory } from '../db/schema.js';
 import type { AppVariables } from '../app.js';
+import type { ProjectionResult, ProjectedRankingsResponse } from '@sis/shared';
 
 const stats = new Hono<{ Variables: AppVariables }>();
 
@@ -193,6 +196,12 @@ stats.get('/heatmap', async (c) => {
   const { rangeStart, rangeEnd } = parseParams(c);
   const userId = c.get('userId');
   return c.json(await dbRead('getHeatmap', rangeStart, rangeEnd, userId));
+});
+
+stats.get('/monthly-distribution', async (c) => {
+  const { rangeStart, rangeEnd } = parseParams(c);
+  const userId = c.get('userId');
+  return c.json(await dbRead('getMonthlyDistribution', rangeStart, rangeEnd, userId));
 });
 
 stats.get('/streaks', async (c) => {
@@ -490,6 +499,161 @@ stats.get('/search', async (c) => {
   const userId = c.get('userId');
 
   return c.json(await dbRead('searchEntities', term, limit, userId));
+});
+
+// --- projected rankings (now-playing + session) ---
+
+stats.get('/projected-rankings', (c) => {
+  const userId = c.get('userId');
+  const sort = parseSort(c);
+  const db = getDb();
+  const empty: ProjectedRankingsResponse = { nowPlaying: [], session: [], sessionTrackCount: 0, sessionTotalMs: 0 };
+
+  const state = db.select().from(pollingState).where(eq(pollingState.userId, userId)).get();
+
+  // --- recopilar targets de session ---
+  type TargetInfo = { entityId: string; entityType: 'track' | 'artist' | 'album'; extraPlays: number; extraMs: number };
+  const sessionTargets: TargetInfo[] = [];
+
+  // session: plays desde session_started_at (o derivado del último gap en listening_history)
+  const sessionRow = db.all(sql`SELECT session_started_at FROM polling_state WHERE user_id = ${userId}`)[0] as { session_started_at: string | null } | undefined;
+  let sessionStart = sessionRow?.session_started_at ?? null;
+
+  if (!sessionStart) {
+    // derivar: buscar el último gap > track_duration + buffer entre plays recientes
+    const BUFFER_MS = 2 * 60_000;
+    const recentPlays = db.all(sql`
+      SELECT lh.played_at, t.duration_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.user_id = ${userId}
+      ORDER BY lh.played_at DESC
+      LIMIT 100
+    `) as { played_at: string; duration_ms: number }[];
+
+    if (recentPlays.length > 0) {
+      sessionStart = recentPlays[0].played_at;
+      for (let i = 0; i < recentPlays.length - 1; i++) {
+        const cur = new Date(recentPlays[i].played_at).getTime();
+        const prev = new Date(recentPlays[i + 1].played_at).getTime();
+        const prevDuration = recentPlays[i + 1].duration_ms ?? 0;
+        const threshold = Math.max(SESSION_GAP_MS, prevDuration + BUFFER_MS);
+        if (cur - prev > threshold) {
+          sessionStart = recentPlays[i].played_at;
+          break;
+        }
+        sessionStart = recentPlays[i + 1].played_at;
+      }
+    }
+  }
+
+  let sessionTrackCount = 0;
+  let sessionTotalMs = 0;
+  const trackNameMap = new Map<string, string>();
+  if (sessionStart) {
+    const sessionPlays = db
+      .select({ trackId: listeningHistory.trackId })
+      .from(listeningHistory)
+      .where(sql`${listeningHistory.userId} = ${userId} AND ${listeningHistory.playedAt} >= ${sessionStart}`)
+      .all();
+
+    const trackCounts = new Map<string, number>();
+    for (const p of sessionPlays) {
+      trackCounts.set(p.trackId, (trackCounts.get(p.trackId) || 0) + 1);
+    }
+    sessionTrackCount = sessionPlays.length;
+
+    const artistAccum = new Map<string, { plays: number; ms: number }>();
+    const albumAccum = new Map<string, { plays: number; ms: number }>();
+
+    for (const [trackId, count] of trackCounts) {
+      const t = db.select().from(tracks).where(eq(tracks.spotifyId, trackId)).get();
+      if (!t) continue;
+      const totalMs = t.durationMs * count;
+      sessionTotalMs += totalMs;
+      trackNameMap.set(trackId, t.name);
+
+      sessionTargets.push({ entityId: trackId, entityType: 'track', extraPlays: count, extraMs: totalMs });
+
+      if (t.albumId) {
+        const prev = albumAccum.get(t.albumId) || { plays: 0, ms: 0 };
+        albumAccum.set(t.albumId, { plays: prev.plays + count, ms: prev.ms + totalMs });
+      }
+
+      const tArtists = db.select({ artistId: trackArtists.artistId }).from(trackArtists).where(eq(trackArtists.trackId, trackId)).all();
+      for (const ta of tArtists) {
+        const prev = artistAccum.get(ta.artistId) || { plays: 0, ms: 0 };
+        artistAccum.set(ta.artistId, { plays: prev.plays + count, ms: prev.ms + totalMs });
+      }
+    }
+
+    for (const [albumId, accum] of albumAccum) {
+      sessionTargets.push({ entityId: albumId, entityType: 'album', extraPlays: accum.plays, extraMs: accum.ms });
+    }
+    for (const [artistId, accum] of artistAccum) {
+      sessionTargets.push({ entityId: artistId, entityType: 'artist', extraPlays: accum.plays, extraMs: accum.ms });
+    }
+  }
+
+  // --- batch: session (con sessionStart), pre-sesión como "current", post-sesión como "projected" ---
+  const sessByType = new Map<string, { entityId: string; extraPlays: number; extraMs: number }[]>();
+  for (const t of sessionTargets) {
+    const list = sessByType.get(t.entityType) || [];
+    if (!list.some(x => x.entityId === t.entityId)) {
+      list.push({ entityId: t.entityId, extraPlays: 0, extraMs: 0 });
+    }
+    sessByType.set(t.entityType, list);
+  }
+
+  const sessRankResults = new Map<string, Map<string, Record<string, { current: number | null; projected: number | null }>>>();
+  for (const [entityType, targets] of sessByType) {
+    sessRankResults.set(entityType, computeProjectedRankingsBatch(db, entityType as 'track' | 'artist' | 'album', targets, sort, userId, sessionStart));
+  }
+
+  // --- construir resultados ---
+  function buildResult(target: TargetInfo, resultsMap: Map<string, Map<string, Record<string, { current: number | null; projected: number | null }>>>): ProjectionResult | null {
+    const typeResults = resultsMap.get(target.entityType);
+    if (!typeResults) return null;
+
+    const ranks = typeResults.get(target.entityId);
+    if (!ranks) return null;
+
+    const changes = Object.entries(ranks)
+      .filter(([, v]) => v.current !== null && v.projected !== null && v.current !== v.projected)
+      .map(([range, v]) => ({
+        range,
+        currentRank: v.current!,
+        projectedRank: v.projected!,
+        delta: v.current! - v.projected!,
+      }));
+
+    if (changes.length === 0) return null;
+
+    let entityName = '';
+    let imageUrl: string | null = null;
+
+    if (target.entityType === 'track') {
+      entityName = trackNameMap.get(target.entityId) ?? '';
+    } else if (target.entityType === 'artist') {
+      const a = db.select().from(artists).where(eq(artists.spotifyId, target.entityId)).get();
+      entityName = a?.name ?? '';
+      imageUrl = a?.imageUrl ?? null;
+    } else {
+      const al = db.select().from(albums).where(eq(albums.spotifyId, target.entityId)).get();
+      entityName = al?.name ?? '';
+      imageUrl = al?.imageUrl ?? null;
+    }
+
+    return { entityId: target.entityId, entityType: target.entityType, entityName, imageUrl, changes };
+  }
+
+  const sessionResults: ProjectionResult[] = [];
+  for (const t of sessionTargets) {
+    const r = buildResult(t, sessRankResults);
+    if (r) sessionResults.push(r);
+  }
+
+  return c.json({ nowPlaying: [], session: sessionResults, sessionTrackCount, sessionTotalMs } satisfies ProjectedRankingsResponse);
 });
 
 export default stats;

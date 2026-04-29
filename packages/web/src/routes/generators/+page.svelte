@@ -6,19 +6,7 @@
       name: 'Album Quilt',
       description: 'NxN mosaic of your most-listened album covers. Downloadable as an image.',
     },
-    {
-      href: '/generators/the-wall',
-      icon: '≡',
-      name: 'The Wall',
-      description: 'Typographic poster of your 50 most-listened artists over the selected range.',
-    },
-    {
-      href: '/generators/pixel-grid',
-      icon: '▧',
-      name: 'Pixel Grid',
-      description: 'Daily heatmap — each cell is one day, intensity is your listening activity.',
-    },
-    {
+{
       href: '/generators/bubbles',
       icon: '◉',
       name: 'Bubbles',
@@ -42,11 +30,11 @@
       name: 'Receipt',
       description: 'Shopping-receipt poster of your top 10 tracks or artists, with estimated Spotify royalties.',
     },
-    {
-      href: '/generators/underground-map',
-      icon: '⊖',
-      name: 'Underground Map',
-      description: 'Your monthly top 5 artists across the year, laid out like a tube map with rank-over-time.',
+{
+      href: '/generators/race-chart',
+      icon: '▶',
+      name: 'Race Chart',
+      description: 'Animated bar chart race showing how your top artists, tracks, or albums accumulate plays over time.',
     },
   ];
 </script>
