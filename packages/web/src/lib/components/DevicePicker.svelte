@@ -139,7 +139,7 @@
     cursor: pointer;
     padding: 0.35rem;
     border-radius: var(--radius);
-    transition: color 0.15s, background 0.15s;
+    transition: color 0.05s, background 0.05s;
     min-width: 30px;
     min-height: 30px;
   }
@@ -187,7 +187,7 @@
     color: var(--text);
     cursor: pointer;
     text-align: left;
-    transition: background 0.1s;
+    transition: background 0.05s;
   }
 
   .dp-item:hover {

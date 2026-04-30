@@ -402,7 +402,7 @@
     cursor: pointer;
     text-align: left;
     font-family: var(--font-sans);
-    transition: background 0.1s;
+    transition: background 0.05s;
   }
 
   .merge-item:hover:not(:disabled) { background: var(--bg-hover); }
@@ -419,7 +419,7 @@
     justify-content: center;
     font-size: 0.7rem;
     flex-shrink: 0;
-    transition: border-color 0.15s, background 0.15s;
+    transition: border-color 0.05s, background 0.05s;
   }
 
   .merge-check--active {
@@ -476,7 +476,7 @@
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity 0.05s;
   }
 
   .merge-confirm:hover:not(:disabled) { opacity: 0.9; }

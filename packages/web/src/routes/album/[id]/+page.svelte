@@ -320,7 +320,7 @@
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity 0.05s;
     pointer-events: none;
   }
   .cover-wrapper:hover .cover-edit-hint {
@@ -353,7 +353,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: border-color 0.15s;
+    transition: border-color 0.05s;
   }
   .cover-thumb img {
     width: 100%;
@@ -393,7 +393,7 @@
     cursor: pointer;
     font-size: 0.78rem;
     font-weight: 500;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
   .track-sort-toggle button:hover {
     color: var(--text);

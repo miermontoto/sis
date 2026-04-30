@@ -81,7 +81,7 @@
     cursor: pointer;
     padding: 0;
     border-radius: var(--radius);
-    transition: background 0.15s;
+    transition: background 0.05s;
     width: 100%;
   }
   .peak-trigger:hover {
@@ -145,7 +145,7 @@
     color: var(--text);
     font-size: 0.8rem;
     cursor: pointer;
-    transition: background 0.1s;
+    transition: background 0.05s;
     white-space: nowrap;
   }
   .peak-option:hover {

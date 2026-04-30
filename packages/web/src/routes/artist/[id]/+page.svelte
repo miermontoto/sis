@@ -213,7 +213,7 @@
     padding: 0.2rem 0.5rem;
     border-radius: var(--radius);
     opacity: 0;
-    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+    transition: opacity 0.05s, color 0.05s, border-color 0.05s;
     flex-shrink: 0;
     white-space: nowrap;
   }

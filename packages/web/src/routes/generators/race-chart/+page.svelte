@@ -375,7 +375,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.8rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .toggle-btn:hover { border-color: var(--text-muted); color: var(--text); }
@@ -413,7 +413,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .play-btn:hover { border-color: var(--accent); color: var(--accent); }

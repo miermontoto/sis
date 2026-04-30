@@ -339,7 +339,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .chip:hover { border-color: var(--text-muted); color: var(--text); }
@@ -351,7 +351,7 @@
     border-radius: 50%;
     border: 2px solid var(--border);
     cursor: pointer;
-    transition: transform 0.15s, border-color 0.15s;
+    transition: transform 0.05s, border-color 0.05s;
   }
   .swatch:hover { transform: scale(1.1); }
   .swatch.active { border-color: var(--accent); transform: scale(1.1); }
@@ -365,7 +365,7 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
   .download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .download-btn:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }

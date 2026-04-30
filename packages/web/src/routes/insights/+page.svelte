@@ -512,7 +512,7 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
   .toggle-btn:hover {
     color: #ccc;

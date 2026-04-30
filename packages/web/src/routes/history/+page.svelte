@@ -496,7 +496,7 @@
     padding: 0.3rem 0.75rem;
     border-radius: var(--radius);
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color 0.05s, border-color 0.05s;
   }
   .edit-toggle:hover {
     color: var(--text);
@@ -514,7 +514,7 @@
     padding: 0.25rem 0.6rem;
     border-radius: var(--radius);
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color 0.05s, border-color 0.05s;
   }
   .toolbar-btn:hover:not(:disabled) {
     color: var(--text);

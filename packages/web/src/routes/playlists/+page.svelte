@@ -574,7 +574,7 @@
     color: var(--text-muted);
     font-size: 0.95rem;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .tabs button.active {
@@ -614,7 +614,7 @@
     padding: 0.75rem;
     text-decoration: none;
     color: var(--text);
-    transition: border-color 0.15s;
+    transition: border-color 0.05s;
   }
 
   .library-card:hover {
@@ -731,7 +731,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    transition: border-color 0.15s;
+    transition: border-color 0.05s;
     color: var(--text);
   }
 
@@ -822,7 +822,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .segmented button.active {
@@ -886,7 +886,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.8rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .day-btn.active {
@@ -932,7 +932,7 @@
     font-size: 0.9rem;
     cursor: pointer;
     border: none;
-    transition: all 0.15s;
+    transition: all 0.05s;
     text-decoration: none;
   }
 
@@ -1010,7 +1010,7 @@
     width: 100%;
     text-align: left;
     font-size: 0.9rem;
-    transition: background 0.15s;
+    transition: background 0.05s;
   }
 
   .playlist-row:hover {
@@ -1058,7 +1058,7 @@
     display: flex;
     align-items: center;
     color: #1db954;
-    transition: color 0.15s;
+    transition: color 0.05s;
   }
 
   .spotify-link:hover {

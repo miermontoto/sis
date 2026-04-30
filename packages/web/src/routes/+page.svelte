@@ -363,7 +363,7 @@
     text-decoration: none;
     font-size: 0.8rem;
     padding: 0.3rem 0;
-    transition: color 0.15s;
+    transition: color 0.05s;
   }
   .closed-chart-link:hover {
     color: var(--accent);
@@ -371,7 +371,7 @@
   .closed-chart-link svg {
     margin-left: auto;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity 0.05s;
   }
   .closed-chart-link:hover svg {
     opacity: 1;

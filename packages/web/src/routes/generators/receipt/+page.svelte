@@ -447,7 +447,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
   .chip:hover { border-color: var(--text-muted); color: var(--text); }
   .chip.active { background: var(--accent); border-color: var(--accent); color: #000; }
@@ -461,7 +461,7 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
   .download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .download-btn:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }

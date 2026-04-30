@@ -251,7 +251,7 @@
     border: 2px solid var(--border);
     background: var(--bg);
     cursor: pointer;
-    transition: transform 0.15s, border-color 0.15s;
+    transition: transform 0.05s, border-color 0.05s;
   }
 
   .palette-swatch:hover { transform: scale(1.08); }
@@ -275,7 +275,7 @@
 
   .bubble-link {
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity 0.05s;
   }
 
   .bubble-link.dim {

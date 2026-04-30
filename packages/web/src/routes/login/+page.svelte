@@ -119,7 +119,7 @@
     padding: 0.8rem 1.5rem;
     border-radius: var(--radius);
     text-decoration: none;
-    transition: background 0.15s, transform 0.1s;
+    transition: background 0.05s, transform 0.05s;
   }
 
   .login-btn:hover {
@@ -149,7 +149,7 @@
     color: var(--text);
     text-decoration: none;
     font-weight: 500;
-    transition: color 0.15s;
+    transition: color 0.05s;
   }
 
   .login-footer a:hover {

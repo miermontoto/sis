@@ -84,7 +84,7 @@
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color 0.05s;
   }
 
   .date-input:focus {

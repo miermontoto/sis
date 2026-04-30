@@ -295,7 +295,7 @@
     height: 100%;
     background: var(--accent);
     border-radius: var(--radius);
-    transition: width 0.3s;
+    transition: width 0.12s;
   }
 
   .card {
@@ -318,7 +318,7 @@
     gap: 0.75rem;
     padding: 0.4rem 0.5rem;
     border-radius: var(--radius);
-    transition: background 0.1s;
+    transition: background 0.05s;
   }
   .track-row:hover { background: var(--bg-hover); }
   .track-pos {

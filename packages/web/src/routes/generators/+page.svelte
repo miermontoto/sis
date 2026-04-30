@@ -78,7 +78,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    transition: border-color 0.15s, transform 0.15s;
+    transition: border-color 0.05s, transform 0.05s;
   }
 
   .generator-card:hover {

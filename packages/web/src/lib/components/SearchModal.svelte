@@ -458,7 +458,7 @@
     cursor: pointer;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s, background 0.15s;
+    transition: opacity 0.05s, background 0.05s;
   }
 
   .search-result:hover .search-play-btn,

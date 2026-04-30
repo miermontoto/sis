@@ -536,7 +536,7 @@
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.05s;
   }
   .banner-action:hover {
     background: var(--accent-hover);
@@ -603,7 +603,7 @@
     padding: 0.55rem 0.75rem;
     text-decoration: none;
     color: var(--text);
-    transition: background 0.1s;
+    transition: background 0.05s;
     border-bottom: 1px solid var(--border);
   }
   .chart-item:last-child {
@@ -702,7 +702,7 @@
     cursor: pointer;
     padding: 0;
     border-radius: var(--radius);
-    transition: background 0.15s;
+    transition: background 0.05s;
   }
   .chart-stat--peak:hover {
     background: rgba(29, 185, 84, 0.12);

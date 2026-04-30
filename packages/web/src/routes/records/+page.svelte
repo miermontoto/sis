@@ -557,7 +557,7 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.05s;
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;

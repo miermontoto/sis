@@ -172,7 +172,7 @@
     border: 1px solid var(--border);
     text-decoration: none;
     color: inherit;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    transition: background 0.05s, border-color 0.05s, transform 0.05s;
   }
   .ranking-badge--active {
     border-color: #1db954;

@@ -97,7 +97,7 @@
     border-radius: var(--radius);
     color: var(--text-muted);
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    transition: color 0.05s, border-color 0.05s, background 0.05s;
   }
   .actions-trigger:hover,
   .actions-trigger--open {
@@ -131,7 +131,7 @@
     font-family: var(--font-sans);
     font-size: 0.85rem;
     cursor: pointer;
-    transition: background 0.1s, color 0.1s;
+    transition: background 0.05s, color 0.05s;
   }
   .actions-item:hover:not(:disabled) {
     background: var(--bg-hover);

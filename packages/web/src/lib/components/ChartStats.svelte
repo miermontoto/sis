@@ -211,7 +211,7 @@
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 1px solid var(--border);
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.08s, background 0.08s;
   }
   button.cs-badge--clickable {
     cursor: pointer;
@@ -222,7 +222,7 @@
     appearance: none;
     text-align: center;
     margin: 0;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.08s, background 0.08s;
   }
   button.cs-badge--clickable:hover,
   .cs-badge--interactive:hover {
@@ -290,7 +290,7 @@
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+    transition: background 0.05s, border-color 0.05s, opacity 0.05s;
     -webkit-appearance: none;
     appearance: none;
   }

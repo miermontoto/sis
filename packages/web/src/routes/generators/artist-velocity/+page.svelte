@@ -327,7 +327,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .chip:hover:not(:disabled) {

@@ -295,7 +295,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .chip:hover {
@@ -318,7 +318,7 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    transition: all 0.15s;
+    transition: all 0.05s;
   }
 
   .download-btn:disabled {

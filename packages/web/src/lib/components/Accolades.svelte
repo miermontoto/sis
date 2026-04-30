@@ -224,7 +224,7 @@
     color: var(--text-muted);
     font: inherit;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    transition: color 0.05s, border-color 0.05s, background 0.05s;
   }
   .accolades-trigger:hover,
   .accolades-trigger--open {
@@ -347,7 +347,7 @@
   .pill-year-link {
     color: var(--text-muted);
     text-decoration: none;
-    transition: color 0.1s;
+    transition: color 0.05s;
   }
   .pill-year-link:hover {
     color: var(--text);
@@ -374,7 +374,7 @@
   }
   .popover-row--link {
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.05s;
   }
   .popover-row--link:hover {
     background: rgba(29, 185, 84, 0.1);

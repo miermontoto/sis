@@ -688,7 +688,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
     white-space: nowrap;
   }
 
@@ -712,7 +712,7 @@
     padding: 0.4rem 0.7rem;
     outline: none;
     cursor: pointer;
-    transition: border-color 0.15s;
+    transition: border-color 0.05s;
   }
 
   .locale-select:focus {
@@ -762,7 +762,7 @@
     font-size: 0.85rem;
     font-weight: 500;
     text-decoration: none;
-    transition: background 0.15s;
+    transition: background 0.05s;
     white-space: nowrap;
   }
 
@@ -800,7 +800,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    transition: all 0.05s;
     white-space: nowrap;
   }
 
@@ -883,7 +883,7 @@
     padding: 0.35rem 0.7rem;
     outline: none;
     width: 180px;
-    transition: border-color 0.15s;
+    transition: border-color 0.05s;
   }
   .merge-search:focus {
     border-color: var(--accent);
@@ -1027,7 +1027,7 @@
     line-height: 1;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s, color 0.15s;
+    transition: opacity 0.05s, color 0.05s;
   }
   .merge-row:hover .merge-flat-unmerge { opacity: 1; }
   .merge-flat-unmerge:hover { color: #ff4444; }
