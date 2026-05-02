@@ -18,7 +18,7 @@
   async function loadData(id: string) {
     loading = true;
     try {
-      data = await api.libraryPlaylistDetail(parseInt(id));
+      data = await api.libraryPlaylistDetail(parseInt(id), metric);
     } catch {
       data = null;
     } finally {
@@ -193,8 +193,13 @@
             </div>
             <div class="track-stats">
               {#if t.playCount > 0}
-                <span class="track-plays">{t.playCount} plays</span>
-                <span class="track-time">{formatDuration(t.totalMs)}</span>
+                {#if metric === 'plays'}
+                  <span class="track-plays">{t.playCount} plays</span>
+                  <span class="track-time">{formatDuration(t.totalMs)}</span>
+                {:else}
+                  <span class="track-plays">{formatDuration(t.totalMs)}</span>
+                  <span class="track-time">{t.playCount} plays</span>
+                {/if}
               {:else}
                 <span class="track-unplayed">not played</span>
               {/if}

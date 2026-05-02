@@ -228,9 +228,9 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 }
 
 // batch fetch de metadata para un conjunto de entidades (reemplaza N+1 queries individuales)
-interface EntityMeta { name: string; imageUrl: string | null; artistName: string | null; artistId: string | null; }
+export interface EntityMeta { name: string; imageUrl: string | null; artistName: string | null; artistId: string | null; }
 
-function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[]): Map<string, EntityMeta> {
+export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[]): Map<string, EntityMeta> {
   const result = new Map<string, EntityMeta>();
   if (ids.length === 0) return result;
 

@@ -7,7 +7,7 @@ import type { AppVariables } from '../app.js';
 
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear'] as const;
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',

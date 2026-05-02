@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
-import type { RankingHistoryPoint } from '@sis/shared';
+import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers } from '@sis/shared';
 import { getRangeStart, entityJoins, entityGroupCol, entityMergeJoin, resolvedEntityId, userFilter } from './helpers.js';
+import { fetchEntityMetadata } from './charts.js';
 
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
  *  Optimizado: 1 scan con CASE para los 4 rangos + COUNT del target en la misma query. */
@@ -311,6 +312,133 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
       if (val > myVal) higher++;
     }
     result.push({ period, rank: higher + 1 });
+  }
+
+  return result;
+}
+
+const CROSSOVER_LIMIT = 10;
+
+export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPointWithCrossovers[] {
+  const uf = userFilter(userId);
+
+  let rows: { period: string; eid: string; val: number }[];
+
+  if (entityType === 'artist') {
+    const mrJoin = entityMergeJoin('artist', userId);
+    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
+
+    rows = db.all(sql`
+      WITH plays_dedup AS (
+        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, t.duration_ms as duration_ms
+        FROM listening_history lh
+        JOIN tracks t ON t.spotify_id = lh.track_id
+        JOIN track_artists ta ON ta.track_id = lh.track_id
+        ${mrJoin}
+        WHERE lh.user_id = ${userId}
+      )
+      SELECT strftime('%Y-%m', played_at) as period, eid, ${metricCol} as val
+      FROM plays_dedup
+      GROUP BY period, eid
+      ORDER BY period
+    `) as { period: string; eid: string; val: number }[];
+  } else {
+    const join = entityJoins(entityType, userId);
+    const groupCol = entityGroupCol(entityType, userId);
+    const extraMergeJoin = entityMergeJoin(entityType, userId);
+    const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
+    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+
+    rows = db.all(sql`
+      SELECT strftime('%Y-%m', lh.played_at) as period,
+             ${groupCol} as eid,
+             ${metricCol} as val
+      FROM listening_history lh
+      ${join}
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${extraMergeJoin}
+      WHERE 1=1 ${uf} ${albumFilter}
+      GROUP BY period, eid
+      ORDER BY period
+    `) as { period: string; eid: string; val: number }[];
+  }
+
+  if (rows.length === 0) return [];
+
+  const cumulative = new Map<string, number>();
+  const periods = [...new Set(rows.map(r => r.period))].sort();
+
+  const result: RankingHistoryPointWithCrossovers[] = [];
+  const crossoverEids = new Set<string>();
+  let rowIdx = 0;
+  let prevMyVal: number | undefined;
+
+  for (const period of periods) {
+    const periodDelta = new Map<string, number>();
+    while (rowIdx < rows.length && rows[rowIdx].period === period) {
+      const r = rows[rowIdx];
+      periodDelta.set(r.eid, (periodDelta.get(r.eid) || 0) + r.val);
+      cumulative.set(r.eid, (cumulative.get(r.eid) || 0) + r.val);
+      rowIdx++;
+    }
+
+    const myVal = cumulative.get(entityId);
+    if (myVal == null) continue;
+
+    let higher = 0;
+    const surpassedByIds: { eid: string; val: number }[] = [];
+    const surpassedIds: { eid: string; val: number }[] = [];
+
+    for (const [eid, val] of cumulative) {
+      if (val > myVal) higher++;
+
+      if (eid === entityId || prevMyVal == null) continue;
+
+      const prevVal = val - (periodDelta.get(eid) || 0);
+      // entity was at or below target, now above → surpassed us
+      if (prevVal <= prevMyVal && val > myVal) surpassedByIds.push({ eid, val });
+      // entity was at or above target, now below → we surpassed them
+      if (prevVal >= prevMyVal && val < myVal) surpassedIds.push({ eid, val });
+    }
+
+    const rank = higher + 1;
+    const point: RankingHistoryPointWithCrossovers = { period, rank };
+
+    if (rank <= 200 && (surpassedByIds.length > 0 || surpassedIds.length > 0)) {
+      // sort by proximity to target's value
+      surpassedByIds.sort((a, b) => a.val - b.val);
+      surpassedIds.sort((a, b) => b.val - a.val);
+
+      const sbSlice = surpassedByIds.slice(0, CROSSOVER_LIMIT);
+      const sSlice = surpassedIds.slice(0, CROSSOVER_LIMIT);
+
+      for (const e of sbSlice) crossoverEids.add(e.eid);
+      for (const e of sSlice) crossoverEids.add(e.eid);
+
+      point.crossovers = {
+        surpassedBy: sbSlice.map(e => ({ id: e.eid, name: '', imageUrl: null, artistName: null })),
+        surpassed: sSlice.map(e => ({ id: e.eid, name: '', imageUrl: null, artistName: null })),
+      };
+    }
+
+    result.push(point);
+    prevMyVal = myVal;
+  }
+
+  // batch-resolve metadata for all crossover entities
+  if (crossoverEids.size > 0) {
+    const metaMap = fetchEntityMetadata(db, entityType, [...crossoverEids]);
+    for (const point of result) {
+      if (!point.crossovers) continue;
+      for (const e of point.crossovers.surpassedBy) {
+        const meta = metaMap.get(e.id);
+        if (meta) { e.name = meta.name; e.imageUrl = meta.imageUrl; e.artistName = meta.artistName; }
+      }
+      for (const e of point.crossovers.surpassed) {
+        const meta = metaMap.get(e.id);
+        if (meta) { e.name = meta.name; e.imageUrl = meta.imageUrl; e.artistName = meta.artistName; }
+      }
+    }
   }
 
   return result;

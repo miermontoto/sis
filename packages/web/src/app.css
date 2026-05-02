@@ -959,6 +959,74 @@ a.track-item {
 .like-btn:disabled { opacity: 0.5; cursor: default; }
 .like-btn--liked { color: #ff4b7a; border-color: #ff4b7a; }
 
+.like-wrap {
+  position: relative;
+}
+.like-badge {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #ff4b7a;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 3px;
+  line-height: 14px;
+  pointer-events: none;
+}
+.like-popover {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  padding-top: 4px;
+  z-index: 100;
+}
+.like-popover-inner {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  min-width: 180px;
+  max-width: 260px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.like-wrap:hover .like-popover { display: block; }
+.like-popover-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 2px 6px 4px;
+}
+.like-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.8rem;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.like-popover-item:hover { background: var(--bg-hover); }
+.like-popover-art {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-hover);
+}
+
 .section-title {
   font-family: var(--font-mono);
   font-size: 0.85rem;

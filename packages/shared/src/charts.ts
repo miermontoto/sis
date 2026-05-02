@@ -42,6 +42,24 @@ export interface RankingHistoryPoint {
   rank: number;
 }
 
+export interface CrossoverEntity {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  artistName: string | null;
+}
+
+export interface RankingCrossovers {
+  surpassedBy: CrossoverEntity[];
+  surpassed: CrossoverEntity[];
+}
+
+export interface RankingHistoryPointWithCrossovers {
+  period: string;
+  rank: number;
+  crossovers?: RankingCrossovers;
+}
+
 export interface ChartHistoryResponse {
   currentRank: number | null;
   currentPeriod: string;

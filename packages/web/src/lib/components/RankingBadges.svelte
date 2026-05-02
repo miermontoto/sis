@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPoint, type RankingMetric, type EntityType } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPointWithCrossovers, type RankingMetric, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
   import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -18,7 +18,7 @@
 
   let rankings = $state<Rankings | null>(null);
   let rankingsLoading = $state(true);
-  let history = $state<RankingHistoryPoint[]>([]);
+  let history = $state<RankingHistoryPointWithCrossovers[]>([]);
   let historyLoading = $state(true);
   let chartInstance = $state<ECharts | null>(null);
   const fetchCtrl = createFetchController();
@@ -74,11 +74,26 @@
       grid: { ...GRID },
       tooltip: {
         ...TOOLTIP_BASE,
+        className: 'xo-tooltip',
         formatter: (params: any) => {
           const p = Array.isArray(params) ? params[0] : params;
-          const period = history[p.dataIndex]?.period;
-          if (period && highlightedMonth !== period) highlightedMonth = period;
-          return `${p.axisValue}<br/>#${p.value}`;
+          const point = history[p.dataIndex];
+          if (!point) return '';
+          if (point.period && highlightedMonth !== point.period) highlightedMonth = point.period;
+          let html = `${p.axisValue}<br/><b>#${p.value}</b>`;
+          if (point.crossovers) {
+            const { surpassedBy, surpassed } = point.crossovers;
+            const renderEntity = (e: typeof surpassedBy[0], arrow: string, cls: string) => {
+              const img = e.imageUrl ? `<img class="xo-img" src="${e.imageUrl}"/>` : '';
+              return `<div class="xo-row"><span class="${cls}">${arrow}</span>${img}<span>${e.name}</span></div>`;
+            };
+            if (surpassedBy.length > 0 || surpassed.length > 0) html += `<div class="xo-sep"></div>`;
+            for (const e of surpassed.slice(0, 5)) html += renderEntity(e, '▲', 'xo-up');
+            if (surpassed.length > 5) html += `<div class="xo-more">+${surpassed.length - 5} más</div>`;
+            for (const e of surpassedBy.slice(0, 5)) html += renderEntity(e, '▼', 'xo-down');
+            if (surpassedBy.length > 5) html += `<div class="xo-more">+${surpassedBy.length - 5} más</div>`;
+          }
+          return html;
         },
       },
       xAxis: categoryAxis(history.map(d => d.period)),
@@ -238,5 +253,38 @@
     background: linear-gradient(90deg, #161a1d 25%, #1e2a2a 50%, #161a1d 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
+  }
+  :global(.xo-row) {
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+  }
+  :global(.xo-img) {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    object-fit: cover;
+  }
+  :global(.xo-artist) {
+    color: #6a7a7a;
+  }
+  :global(.xo-up) {
+    color: #1db954;
+  }
+  :global(.xo-down) {
+    color: #ff6b6b;
+  }
+  :global(.xo-sep) {
+    margin-top: 5px;
+  }
+  :global(.xo-more) {
+    font-size: 10px;
+    color: #6a7a7a;
+  }
+  :global(.xo-tooltip) {
+    max-width: 300px;
+    white-space: normal;
   }
 </style>

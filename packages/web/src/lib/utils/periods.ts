@@ -1,5 +1,5 @@
 import type { Granularity, WeekStartOption } from '$lib/api';
-import { getWeekStart } from '$lib/api';
+import { getWeekStart, setLastPeriod } from '$lib/api';
 import { formatMonthYear } from './format';
 
 const GRANULARITIES: Granularity[] = ['week', 'month', 'year'];
@@ -80,6 +80,7 @@ export function getClosedCharts(weekStart?: WeekStartOption): ClosedChart[] {
     if (lastSeen === null) {
       // primera vez — guardar periodo actual, no notificar
       localStorage.setItem(lsKey(gran), current);
+      setLastPeriod(gran, current);
       continue;
     }
 
@@ -99,7 +100,9 @@ export function getClosedCharts(weekStart?: WeekStartOption): ClosedChart[] {
 /** Descartar notificación de un chart cerrado */
 export function dismissClosedChart(gran: Granularity, weekStart?: WeekStartOption) {
   const ws = weekStart ?? getWeekStart();
-  localStorage.setItem(lsKey(gran), computeCurrentPeriod(gran, ws));
+  const current = computeCurrentPeriod(gran, ws);
+  localStorage.setItem(lsKey(gran), current);
+  setLastPeriod(gran, current);
 }
 
 /** Descartar todas las notificaciones de charts cerrados */

@@ -485,7 +485,8 @@ stats.get('/ranking-history/:type/:id', async (c) => {
   const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
   const userId = c.get('userId');
-  return c.json(await dbRead('getRankingHistory', entityType, id, parseSort(c), userId));
+  const fn = c.req.query('crossovers') === 'true' ? 'getRankingHistoryWithCrossovers' : 'getRankingHistory';
+  return c.json(await dbRead(fn, entityType, id, parseSort(c), userId));
 });
 
 // --- search ---

@@ -1,5 +1,6 @@
 import type { TopTrackItem, TopAlbumItem } from './top.js';
 import type { HistoryItem } from './history.js';
+import type { PlaylistPresenceItem } from './records.js';
 
 export interface Rankings {
   week: number | null;
@@ -51,4 +52,5 @@ export interface TrackDetail {
   recentPlays: HistoryItem[];
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
+  playlists: PlaylistPresenceItem[];
 }

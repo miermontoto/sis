@@ -12,7 +12,7 @@ export type {
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, Rankings,
-  ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint,
+  ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,
   MergeRule, MergeSuggestion,
@@ -27,7 +27,7 @@ import type {
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
-  AccoladesResponse, Rankings, RankingHistoryPoint, HealthData,
+  AccoladesResponse, Rankings, RankingHistoryPoint, RankingHistoryPointWithCrossovers, HealthData,
   MergeRule, MergeSuggestion, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
@@ -119,6 +119,9 @@ interface SettingsData {
   albumTrackDisplay: AlbumTrackDisplay;
   albumShowDuration: boolean;
   albumShowAccolades: boolean;
+  lastPeriodWeek: string | null;
+  lastPeriodMonth: string | null;
+  lastPeriodYear: string | null;
 }
 
 const SETTINGS_DEFAULTS: SettingsData = {
@@ -129,6 +132,9 @@ const SETTINGS_DEFAULTS: SettingsData = {
   albumTrackDisplay: 'fill',
   albumShowDuration: true,
   albumShowAccolades: true,
+  lastPeriodWeek: null,
+  lastPeriodMonth: null,
+  lastPeriodYear: null,
 };
 
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
@@ -145,6 +151,9 @@ export async function loadSettings(): Promise<void> {
       albumTrackDisplay: (data.albumTrackDisplay as AlbumTrackDisplay) || 'fill',
       albumShowDuration: data.albumShowDuration !== 'false',
       albumShowAccolades: data.albumShowAccolades !== 'false',
+      lastPeriodWeek: data.lastPeriodWeek || null,
+      lastPeriodMonth: data.lastPeriodMonth || null,
+      lastPeriodYear: data.lastPeriodYear || null,
     };
     // sync to localStorage as fallback
     localStorage.setItem('sis:rankingMetric', settingsCache.rankingMetric);
@@ -154,6 +163,9 @@ export async function loadSettings(): Promise<void> {
     localStorage.setItem('sis:albumTrackDisplay', settingsCache.albumTrackDisplay);
     localStorage.setItem('sis:albumShowDuration', String(settingsCache.albumShowDuration));
     localStorage.setItem('sis:albumShowAccolades', String(settingsCache.albumShowAccolades));
+    if (settingsCache.lastPeriodWeek) localStorage.setItem('sis:lastPeriod:week', settingsCache.lastPeriodWeek);
+    if (settingsCache.lastPeriodMonth) localStorage.setItem('sis:lastPeriod:month', settingsCache.lastPeriodMonth);
+    if (settingsCache.lastPeriodYear) localStorage.setItem('sis:lastPeriod:year', settingsCache.lastPeriodYear);
   } catch {
     // fallback: read from localStorage
     settingsCache = {
@@ -164,6 +176,9 @@ export async function loadSettings(): Promise<void> {
       albumTrackDisplay: (localStorage.getItem('sis:albumTrackDisplay') as AlbumTrackDisplay) || 'fill',
       albumShowDuration: localStorage.getItem('sis:albumShowDuration') !== 'false',
       albumShowAccolades: localStorage.getItem('sis:albumShowAccolades') !== 'false',
+      lastPeriodWeek: localStorage.getItem('sis:lastPeriod:week'),
+      lastPeriodMonth: localStorage.getItem('sis:lastPeriod:month'),
+      lastPeriodYear: localStorage.getItem('sis:lastPeriod:year'),
     };
   }
   settingsLoaded = true;
@@ -259,6 +274,19 @@ export function setAlbumShowAccolades(v: boolean) {
   settingsCache.albumShowAccolades = v;
   localStorage.setItem('sis:albumShowAccolades', String(v));
   updateSetting({ albumShowAccolades: String(v) });
+}
+
+const LAST_PERIOD_SETTING_KEY: Record<string, string> = {
+  week: 'lastPeriodWeek',
+  month: 'lastPeriodMonth',
+  year: 'lastPeriodYear',
+};
+
+export function setLastPeriod(gran: string, value: string) {
+  const settingKey = LAST_PERIOD_SETTING_KEY[gran] as keyof SettingsData;
+  (settingsCache as any)[settingKey] = value;
+  localStorage.setItem(`sis:lastPeriod:${gran}`, value);
+  updateSetting({ [settingKey]: value });
 }
 
 // invalidar cache (tras mutaciones o cuando se necesite data fresca)
@@ -407,7 +435,7 @@ export const api = {
     apiFetch<Rankings>(`/stats/rankings/${type}/${encodeURIComponent(id)}`, { sort }, signal),
 
   rankingHistory: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
-    apiFetch<RankingHistoryPoint[]>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort }, signal),
+    apiFetch<RankingHistoryPointWithCrossovers[]>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort, crossovers: 'true' }, signal),
 
   health: () => apiFetch<HealthData>('/health'),
   version: () => apiFetch<{ version: string }>('/version'),
@@ -458,8 +486,8 @@ export const api = {
   libraryPlaylists: (limit = 50, offset = 0) =>
     apiFetch<LibraryPlaylistListResponse>('/playlists/library', { limit: String(limit), offset: String(offset) }),
 
-  libraryPlaylistDetail: (id: number) =>
-    apiFetch<LibraryPlaylistDetail>(`/playlists/library/${id}`),
+  libraryPlaylistDetail: (id: number, sort: RankingMetric = 'time') =>
+    apiFetch<LibraryPlaylistDetail>(`/playlists/library/${id}`, { sort }),
 
   syncLibrary: () =>
     apiMutate<{ success: boolean }>('POST', '/playlists/library/sync'),

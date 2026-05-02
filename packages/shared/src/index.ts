@@ -21,7 +21,7 @@ export { LOCALE_OPTIONS } from './settings.js';
 export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } from './detail.js';
 
 // charts
-export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, ChartHistoryResponse } from './charts.js';
+export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';
 
 // records
 export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish } from './records.js';

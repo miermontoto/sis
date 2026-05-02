@@ -5,7 +5,8 @@
 
   type ChartEntityType = 'tracks' | 'albums' | 'artists';
   import { formatDuration, formatNumber, formatMonthYear, formatShortDateUTC } from '$lib/utils/format';
-  import { computeCurrentPeriod, getClosedCharts, dismissClosedChart, type ClosedChart } from '$lib/utils/periods';
+  import { computeCurrentPeriod } from '$lib/utils/periods';
+  import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { setQueryParams } from '$lib/utils/query-state';
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
@@ -28,7 +29,6 @@
   let periods = $state<string[]>([]);
   let loading = $state(false);
   let periodsLoading = $state(false);
-  let closedChart = $state<ClosedChart | null>(null);
 
   // cache: `${type}:${granularity}:${period}:${metric}` → ChartResponse
   let cache = $state<Map<string, ChartResponse>>(new Map());
@@ -41,6 +41,7 @@
 
   let currentData = $derived(cache.get(cacheKey()) ?? null);
   let peaksReady = $derived(peaksLoaded.has(cacheKey()));
+  let closedChart = $derived(closedChartsStore.charts.find(c => c.granularity === granularity) ?? null);
 
   // ancho mínimo para la columna "wks" basado en el texto más largo
   function wksText(wk: number, cons: number): string {
@@ -194,15 +195,9 @@
 
   let initialized = false;
 
-  function updateClosedChart() {
-    const all = getClosedCharts(weekStart);
-    closedChart = all.find(c => c.granularity === granularity) ?? null;
-  }
-
   function handleDismissBanner() {
     if (closedChart) {
-      dismissClosedChart(closedChart.granularity, weekStart);
-      closedChart = null;
+      closedChartsStore.dismiss(closedChart.granularity);
     }
   }
 
@@ -222,7 +217,6 @@
     if (params.get('granularity')) granularity = params.get('granularity') as Granularity;
     // usar periodo de URL si existe, si no calcular el actual
     selectedPeriod = params.get('period') || computeCurrentPeriod(granularity, weekStart);
-    updateClosedChart();
     initialized = true;
   });
 
@@ -265,12 +259,6 @@
       selectedPeriod = computeCurrentPeriod(granularity, weekStart);
     }
     loadPeriods();
-  });
-
-  // actualizar banner cuando cambia granularidad
-  $effect(() => {
-    void granularity;
-    if (initialized) updateClosedChart();
   });
 
   // cargar chart cuando cambia el periodo o tipo

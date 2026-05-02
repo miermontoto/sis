@@ -5,7 +5,7 @@
   import CoverGrid from '$lib/components/CoverGrid.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import { getClosedCharts, dismissAllClosedCharts, type ClosedChart } from '$lib/utils/periods';
+  import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
@@ -20,7 +20,6 @@
   let weekMs = $state(0);
   let streaks = $state<StreaksData | null>(null);
   let metric = $state<RankingMetric>('time');
-  let closedCharts = $state<ClosedChart[]>([]);
 
   // estado de carga por petición independiente
   let loadingTracks = $state(true);
@@ -45,14 +44,8 @@
     }
   }
 
-  function handleDismissCharts() {
-    dismissAllClosedCharts();
-    closedCharts = [];
-  }
-
   onMount(() => {
     metric = getRankingMetric();
-    closedCharts = getClosedCharts();
 
     // disparar cada petición por separado para que cada sección
     // se renderice en cuanto su dato esté disponible
@@ -115,15 +108,15 @@
   <h1>Dashboard</h1>
 </div>
 
-{#if closedCharts.length > 0}
+{#if closedChartsStore.charts.length > 0}
   <div class="card closed-charts-card">
     <div class="closed-charts-header">
       <IconChart />
       <span>Charts ready to view</span>
-      <button class="closed-charts-dismiss" onclick={handleDismissCharts} title="Dismiss">&times;</button>
+      <button class="closed-charts-dismiss" onclick={() => closedChartsStore.dismissAll()} title="Dismiss">&times;</button>
     </div>
     <div class="closed-charts-list">
-      {#each closedCharts as chart}
+      {#each closedChartsStore.charts as chart}
         <a href="/charts?granularity={chart.granularity}&period={chart.period}" class="closed-chart-link">
           {chart.label}
           <IconChevronRight />

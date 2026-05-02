@@ -378,7 +378,8 @@ playlists.get('/library/:id', (c) => {
 
   if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
 
-  const trackStats = getPlaylistTrackStats(db, id, userId);
+  const sort = c.req.query('sort') === 'plays' ? 'plays' : 'time';
+  const trackStats = getPlaylistTrackStats(db, id, userId, sort);
   const genres = getPlaylistGenres(db, id);
   const series = getPlaylistSeries(db, id, userId);
 

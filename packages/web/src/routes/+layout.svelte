@@ -11,6 +11,7 @@
   import { api, loadSettings, type MeResponse } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
+  import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -79,6 +80,7 @@
         else {
           Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
+            closedChartsStore.refresh();
             nowPlayingStore.startPolling();
             projectionsStore.startPolling();
           });

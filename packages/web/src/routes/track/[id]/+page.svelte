@@ -155,21 +155,41 @@
         >
           <IconPlay />
         </button>
-        <button
-          class="like-btn"
-          class:like-btn--liked={isLiked}
-          title={likeLoading ? 'Loading...' : isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-          disabled={likeActing || likeLoading}
-          onclick={toggleLike}
-        >
-          {#if likeLoading}
-            <span class="btn-spinner"></span>
-          {:else if isLiked}
-            <IconHeartFilled />
-          {:else}
-            <IconHeartOutline />
+        <div class="like-wrap">
+          <button
+            class="like-btn"
+            class:like-btn--liked={isLiked}
+            title={likeLoading ? 'Loading...' : isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+            disabled={likeActing || likeLoading}
+            onclick={toggleLike}
+          >
+            {#if likeLoading}
+              <span class="btn-spinner"></span>
+            {:else if isLiked}
+              <IconHeartFilled />
+            {:else}
+              <IconHeartOutline />
+            {/if}
+          </button>
+          {#if data && data.playlists.length > 0}
+            <span class="like-badge">+{data.playlists.length}</span>
+            <div class="like-popover">
+              <div class="like-popover-inner">
+                <div class="like-popover-title">In playlists</div>
+                {#each data.playlists as playlist}
+                  <a href="/playlists/{playlist.id}" class="like-popover-item">
+                    {#if playlist.imageUrl}
+                      <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
+                    {:else}
+                      <div class="like-popover-art"></div>
+                    {/if}
+                    <span>{playlist.name}</span>
+                  </a>
+                {/each}
+              </div>
+            </div>
           {/if}
-        </button>
+        </div>
       {/if}
       {#if !data.mergedInto}
         <Accolades entityType="track" entityId={$page.params.id} />

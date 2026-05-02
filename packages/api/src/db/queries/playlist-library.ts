@@ -47,7 +47,8 @@ export interface PlaylistTrackStatRow {
 }
 
 /** Stats por track de una playlist */
-export function getPlaylistTrackStats(db: Db, playlistId: number, userId: number): PlaylistTrackStatRow[] {
+export function getPlaylistTrackStats(db: Db, playlistId: number, userId: number, sort: 'time' | 'plays' = 'time'): PlaylistTrackStatRow[] {
+  const orderCol = sort === 'plays' ? 'play_count' : 'total_ms';
   return db.all(sql`
     SELECT
       spt.track_id,
@@ -65,7 +66,7 @@ export function getPlaylistTrackStats(db: Db, playlistId: number, userId: number
       GROUP BY lh.track_id
     ) stats ON stats.track_id = spt.track_id
     WHERE spt.playlist_id = ${playlistId}
-    ORDER BY play_count DESC, spt.position ASC
+    ORDER BY ${sql.raw(orderCol)} DESC, spt.position ASC
   `) as PlaylistTrackStatRow[];
 }
 
