@@ -9,7 +9,7 @@
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
 
-  let { compact = false }: { compact?: boolean } = $props();
+  let { compact = false, inline = false }: { compact?: boolean; inline?: boolean } = $props();
 
   let acting = $state(false);
   let showDevices = $state(false);
@@ -67,25 +67,27 @@
 </script>
 
 {#if data?.playing && data.track}
-  <div class="np" class:np--compact={compact}>
-    {#if data.track.album?.imageUrl}
-      <a href="/album/{data.track.album.id}" class="np-art-link">
-        <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
-        {#if data.isPlaying}
-          <div class="np-eq">
-            <span></span><span></span><span></span>
-          </div>
-        {/if}
-      </a>
-    {:else}
-      <div class="np-art"></div>
-    {/if}
-    <div class="np-info">
-      <a href="/track/{data.track.id}" class="np-track" bind:this={trackEl} class:np-track--marquee={overflows}><span class="np-track-text">{data.track.name}</span></a>
-      <div class="np-artist">
-        {#each data.track.artists as artist, i}
-          <a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
-        {/each}
+  <div class="np" class:np--compact={compact} class:np--inline={inline}>
+    <div class="np-row-info">
+      {#if data.track.album?.imageUrl}
+        <a href="/album/{data.track.album.id}" class="np-art-link">
+          <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
+          {#if data.isPlaying}
+            <div class="np-eq">
+              <span></span><span></span><span></span>
+            </div>
+          {/if}
+        </a>
+      {:else}
+        <div class="np-art"></div>
+      {/if}
+      <div class="np-info">
+        <a href="/track/{data.track.id}" class="np-track" bind:this={trackEl} class:np-track--marquee={overflows}><span class="np-track-text">{data.track.name}</span></a>
+        <div class="np-artist">
+          {#each data.track.artists as artist, i}
+            <a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
+          {/each}
+        </div>
       </div>
     </div>
     <div class="np-actions">
@@ -142,11 +144,68 @@
     padding: 0.6rem;
   }
 
-  .np--compact .np-art {
+  .np--compact:not(.np--inline) .np-art {
     width: 100%;
     height: auto;
     aspect-ratio: 1;
     border-radius: var(--radius);
+  }
+
+  .np--inline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    padding: 0.5rem;
+  }
+
+  .np--inline .np-art {
+    width: 32px;
+    height: 32px;
+  }
+
+  .np--inline .np-eq {
+    height: 8px;
+    bottom: 2px;
+    left: 2px;
+  }
+
+  .np--inline .np-eq span {
+    width: 2px;
+  }
+
+  .np--inline .np-track {
+    font-size: 0.78rem;
+  }
+
+  .np--inline .np-artist {
+    font-size: 0.68rem;
+  }
+
+  .np--inline .np-actions {
+    gap: 0.15rem;
+    justify-content: center;
+  }
+
+  .np--inline .ctrl-btn {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0.2rem;
+  }
+
+  .np--inline .ctrl-btn--play {
+    min-width: 28px;
+    min-height: 28px;
+  }
+
+  .np-row-info {
+    display: contents;
+  }
+
+  .np--inline .np-row-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
   }
 
   .np-art-link {

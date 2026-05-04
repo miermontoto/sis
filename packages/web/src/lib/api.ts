@@ -3,7 +3,7 @@
 export type {
   TrackInfo, FormattedArtist, FormattedAlbum,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay,
+  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay,
   HistoryItem, HistoryResponse,
   NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
@@ -21,7 +21,7 @@ export type {
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
-  RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, DateRangeParams,
+  RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, NowPlayingDisplay, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse,
@@ -119,6 +119,8 @@ interface SettingsData {
   albumTrackDisplay: AlbumTrackDisplay;
   albumShowDuration: boolean;
   albumShowAccolades: boolean;
+  sessionRankDisplay: SessionRankDisplay;
+  nowPlayingDisplay: NowPlayingDisplay;
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
   lastPeriodYear: string | null;
@@ -132,6 +134,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   albumTrackDisplay: 'fill',
   albumShowDuration: true,
   albumShowAccolades: true,
+  sessionRankDisplay: 'all+ytd',
+  nowPlayingDisplay: 'auto',
   lastPeriodWeek: null,
   lastPeriodMonth: null,
   lastPeriodYear: null,
@@ -151,6 +155,8 @@ export async function loadSettings(): Promise<void> {
       albumTrackDisplay: (data.albumTrackDisplay as AlbumTrackDisplay) || 'fill',
       albumShowDuration: data.albumShowDuration !== 'false',
       albumShowAccolades: data.albumShowAccolades !== 'false',
+      sessionRankDisplay: (data.sessionRankDisplay as SessionRankDisplay) || 'all+ytd',
+      nowPlayingDisplay: (data.nowPlayingDisplay as NowPlayingDisplay) || 'auto',
       lastPeriodWeek: data.lastPeriodWeek || null,
       lastPeriodMonth: data.lastPeriodMonth || null,
       lastPeriodYear: data.lastPeriodYear || null,
@@ -163,6 +169,8 @@ export async function loadSettings(): Promise<void> {
     localStorage.setItem('sis:albumTrackDisplay', settingsCache.albumTrackDisplay);
     localStorage.setItem('sis:albumShowDuration', String(settingsCache.albumShowDuration));
     localStorage.setItem('sis:albumShowAccolades', String(settingsCache.albumShowAccolades));
+    localStorage.setItem('sis:sessionRankDisplay', settingsCache.sessionRankDisplay);
+    localStorage.setItem('sis:nowPlayingDisplay', settingsCache.nowPlayingDisplay);
     if (settingsCache.lastPeriodWeek) localStorage.setItem('sis:lastPeriod:week', settingsCache.lastPeriodWeek);
     if (settingsCache.lastPeriodMonth) localStorage.setItem('sis:lastPeriod:month', settingsCache.lastPeriodMonth);
     if (settingsCache.lastPeriodYear) localStorage.setItem('sis:lastPeriod:year', settingsCache.lastPeriodYear);
@@ -176,6 +184,8 @@ export async function loadSettings(): Promise<void> {
       albumTrackDisplay: (localStorage.getItem('sis:albumTrackDisplay') as AlbumTrackDisplay) || 'fill',
       albumShowDuration: localStorage.getItem('sis:albumShowDuration') !== 'false',
       albumShowAccolades: localStorage.getItem('sis:albumShowAccolades') !== 'false',
+      sessionRankDisplay: (localStorage.getItem('sis:sessionRankDisplay') as SessionRankDisplay) || 'all+ytd',
+      nowPlayingDisplay: (localStorage.getItem('sis:nowPlayingDisplay') as NowPlayingDisplay) || 'auto',
       lastPeriodWeek: localStorage.getItem('sis:lastPeriod:week'),
       lastPeriodMonth: localStorage.getItem('sis:lastPeriod:month'),
       lastPeriodYear: localStorage.getItem('sis:lastPeriod:year'),
@@ -274,6 +284,42 @@ export function setAlbumShowAccolades(v: boolean) {
   settingsCache.albumShowAccolades = v;
   localStorage.setItem('sis:albumShowAccolades', String(v));
   updateSetting({ albumShowAccolades: String(v) });
+}
+
+export function getSessionRankDisplay(): SessionRankDisplay {
+  if (settingsLoaded) return settingsCache.sessionRankDisplay;
+  return (localStorage.getItem('sis:sessionRankDisplay') as SessionRankDisplay) || 'all+ytd';
+}
+
+const sessionRankDisplayListeners: (() => void)[] = [];
+export function onSessionRankDisplayChange(fn: () => void): () => void {
+  sessionRankDisplayListeners.push(fn);
+  return () => { const i = sessionRankDisplayListeners.indexOf(fn); if (i >= 0) sessionRankDisplayListeners.splice(i, 1); };
+}
+
+export function setSessionRankDisplay(v: SessionRankDisplay) {
+  settingsCache.sessionRankDisplay = v;
+  localStorage.setItem('sis:sessionRankDisplay', v);
+  updateSetting({ sessionRankDisplay: v });
+  for (const fn of sessionRankDisplayListeners) fn();
+}
+
+export function getNowPlayingDisplay(): NowPlayingDisplay {
+  if (settingsLoaded) return settingsCache.nowPlayingDisplay;
+  return (localStorage.getItem('sis:nowPlayingDisplay') as NowPlayingDisplay) || 'auto';
+}
+
+const nowPlayingDisplayListeners: ((v: NowPlayingDisplay) => void)[] = [];
+export function onNowPlayingDisplayChange(fn: (v: NowPlayingDisplay) => void): () => void {
+  nowPlayingDisplayListeners.push(fn);
+  return () => { const i = nowPlayingDisplayListeners.indexOf(fn); if (i >= 0) nowPlayingDisplayListeners.splice(i, 1); };
+}
+
+export function setNowPlayingDisplay(v: NowPlayingDisplay) {
+  settingsCache.nowPlayingDisplay = v;
+  localStorage.setItem('sis:nowPlayingDisplay', v);
+  updateSetting({ nowPlayingDisplay: v });
+  for (const fn of nowPlayingDisplayListeners) fn(v);
 }
 
 const LAST_PERIOD_SETTING_KEY: Record<string, string> = {

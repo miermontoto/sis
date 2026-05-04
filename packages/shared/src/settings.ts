@@ -7,6 +7,8 @@ export type EntityType = 'artist' | 'track' | 'album';
 export type LocaleSetting = 'auto' | string;
 export type RankChangeLookback = 'disabled' | '7d' | '30d';
 export type AlbumTrackDisplay = 'off' | 'fill' | 'percent';
+export type SessionRankDisplay = 'none' | 'all' | 'all+ytd';
+export type NowPlayingDisplay = 'off' | 'compact' | 'auto' | 'normal';
 
 export const LOCALE_OPTIONS: { value: string; label: string }[] = [
   { value: 'auto', label: 'Browser default' },

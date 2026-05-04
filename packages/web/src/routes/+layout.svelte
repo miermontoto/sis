@@ -8,7 +8,7 @@
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
-  import { api, loadSettings, type MeResponse } from '$lib/api';
+  import { api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, type MeResponse, type NowPlayingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
@@ -41,12 +41,28 @@
   let userMenuRef = $state<HTMLElement | null>(null);
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
   let tabbarRef = $state<HTMLElement | null>(null);
+  let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
+  let sidebarEl = $state<HTMLElement | null>(null);
+  let sidebarOverflows = $state(false);
 
-  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); });
+  const unsubNpDisplay = onNowPlayingDisplayChange((v) => { nowPlayingDisplay = v; });
+  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); });
 
   $effect(() => {
     nowPlayingStore.trackId;
     projectionsStore.onTrackChange();
+  });
+
+  $effect(() => {
+    const el = sidebarEl;
+    if (!el) return;
+    const check = () => { sidebarOverflows = el.scrollHeight > el.clientHeight; };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    const mo = new MutationObserver(check);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => { ro.disconnect(); mo.disconnect(); };
   });
 
   function handleClickOutside(e: MouseEvent) {
@@ -80,6 +96,7 @@
         else {
           Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
+            nowPlayingDisplay = getNowPlayingDisplay();
             closedChartsStore.refresh();
             nowPlayingStore.startPolling();
             projectionsStore.startPolling();
@@ -184,7 +201,7 @@
   {@render children()}
 {:else if authChecked}
   <div class="app-layout">
-    <aside class="sidebar">
+    <aside class="sidebar" bind:this={sidebarEl}>
       <div class="sidebar-top">
         <div class="sidebar-logo">
           <span class="sidebar-logo-mark">SIS</span>
@@ -269,9 +286,11 @@
           <ProjectedChanges />
         </div>
       {/if}
-      <div class="sidebar-now-playing">
-        <NowPlaying compact />
-      </div>
+      {#if nowPlayingDisplay !== 'off'}
+        <div class="sidebar-now-playing">
+          <NowPlaying compact inline={nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && sidebarOverflows)} />
+        </div>
+      {/if}
       {#if user?.authenticated}
         <div class="sidebar-user-wrap" bind:this={userMenuRef}>
           <button class="sidebar-user" onclick={() => showUserMenu = !showUserMenu}>
@@ -295,7 +314,7 @@
           {/if}
         </div>
       {/if}
-      <div class="sidebar-footer">{#if appVersion} <span class="sidebar-version">{appVersion}</span>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
+      <div class="sidebar-footer">{#if appVersion} <a href="https://github.com/miermontoto/sis" target="_blank" rel="noopener" class="sidebar-version">{appVersion}</a>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content">
       <div class="mobile-header">

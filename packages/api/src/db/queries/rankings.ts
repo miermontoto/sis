@@ -180,7 +180,7 @@ export function computeProjectedRankingsBatch(
     `) as ScoreRow[];
   }
 
-  const results = new Map<string, Record<string, { current: number | null; projected: number | null }>>();
+  const results = new Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>>();
   const ranges = ['thisYear', 'all'] as const;
   const valKeys = { thisYear: 'val_year', all: 'val_all' } as const;
   const preKeys = { thisYear: 'pre_year', all: 'pre_all' } as const;
@@ -188,7 +188,7 @@ export function computeProjectedRankingsBatch(
   for (const target of targets) {
     const extra = sort === 'plays' ? target.extraPlays : target.extraMs;
     const my = scores.find(s => s.eid === target.entityId);
-    const out: Record<string, { current: number | null; projected: number | null }> = {};
+    const out: Record<string, { current: number | null; projected: number | null; displaced: string[] }> = {};
 
     for (const range of ranges) {
       const vk = valKeys[range];
@@ -198,18 +198,19 @@ export function computeProjectedRankingsBatch(
       const projVal = myVal + extra;
 
       if (preVal === 0 && projVal === 0) {
-        out[range] = { current: null, projected: null };
+        out[range] = { current: null, projected: null, displaced: [] };
         continue;
       }
 
       let currentAbove = 0;
       let projectedAbove = 0;
+      const displacedIds: { eid: string; val: number }[] = [];
       for (const s of scores) {
         if (s.eid === target.entityId) continue;
-        // "current" = rank pre-sesión (comparar contra scores pre-sesión de todos)
         if (s[pk] > preVal) currentAbove++;
-        // "projected" = rank post-sesión + track actual (comparar contra scores completos de todos)
         if (s[vk] > projVal) projectedAbove++;
+        // was above target pre-session, now at/below post-session → displaced
+        if (s[pk] > preVal && s[vk] <= projVal) displacedIds.push({ eid: s.eid, val: s[vk] });
       }
 
       const current = preVal > 0 || range === 'all' ? currentAbove + 1 : null;
@@ -217,11 +218,12 @@ export function computeProjectedRankingsBatch(
 
       const rankLimit = PROJECTED_RANK_LIMITS[range] ?? 100;
       if (current !== null && current > rankLimit && (projected === null || projected > rankLimit)) {
-        out[range] = { current: null, projected: null };
+        out[range] = { current: null, projected: null, displaced: [] };
         continue;
       }
 
-      out[range] = { current, projected };
+      displacedIds.sort((a, b) => b.val - a.val);
+      out[range] = { current, projected, displaced: displacedIds.slice(0, CROSSOVER_LIMIT).map(d => d.eid) };
     }
 
     results.set(target.entityId, out);
@@ -235,9 +237,9 @@ export function computeProjectedRankings(
   db: Db, entityType: EntityType, entityId: string,
   extraPlays: number, extraMs: number,
   sort: Sort, userId: number
-): Record<string, { current: number | null; projected: number | null }> {
+): Record<string, { current: number | null; projected: number | null; displaced: string[] }> {
   const results = computeProjectedRankingsBatch(db, entityType, [{ entityId, extraPlays, extraMs }], sort, userId);
-  const nil = { current: null, projected: null };
+  const nil = { current: null, projected: null, displaced: [] };
   return results.get(entityId) ?? { thisYear: nil, all: nil };
 }
 

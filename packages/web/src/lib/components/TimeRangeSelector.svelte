@@ -46,34 +46,34 @@
   >
     Custom
   </button>
+  {#if value === 'custom'}
+    <div class="custom-dates">
+      <input
+        type="date"
+        class="date-input"
+        value={startDate}
+        max={endDate || today}
+        oninput={(e) => handleDateInput('start', e)}
+      />
+      <span class="date-sep">—</span>
+      <input
+        type="date"
+        class="date-input"
+        value={endDate}
+        min={startDate}
+        max={today}
+        oninput={(e) => handleDateInput('end', e)}
+      />
+    </div>
+  {/if}
 </div>
-{#if value === 'custom'}
-  <div class="custom-dates">
-    <input
-      type="date"
-      class="date-input"
-      value={startDate}
-      max={endDate || today}
-      oninput={(e) => handleDateInput('start', e)}
-    />
-    <span class="date-sep">—</span>
-    <input
-      type="date"
-      class="date-input"
-      value={endDate}
-      min={startDate}
-      max={today}
-      oninput={(e) => handleDateInput('end', e)}
-    />
-  </div>
-{/if}
 
 <style>
   .custom-dates {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    margin-left: 0.25rem;
   }
 
   .date-input {

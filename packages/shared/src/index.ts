@@ -14,7 +14,7 @@ export type { HistoryItem, HistoryResponse } from './history.js';
 export type { NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse } from './now-playing.js';
 
 // configuración
-export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay } from './settings.js';
+export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay } from './settings.js';
 export { LOCALE_OPTIONS } from './settings.js';
 
 // detalle de entidades

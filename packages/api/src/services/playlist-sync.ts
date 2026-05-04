@@ -198,6 +198,10 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
     if (!seenSpotifyIds.has(dbPl.spotify_id)) {
       db.run(sql`DELETE FROM spotify_playlist_tracks WHERE playlist_id = ${dbPl.id}`);
       db.run(sql`DELETE FROM spotify_playlists WHERE id = ${dbPl.id}`);
+      db.run(sql`DELETE FROM generated_playlist_tracks WHERE playlist_id IN (
+        SELECT id FROM generated_playlists WHERE spotify_playlist_id = ${dbPl.spotify_id} AND user_id = ${userId}
+      )`);
+      db.run(sql`DELETE FROM generated_playlists WHERE spotify_playlist_id = ${dbPl.spotify_id} AND user_id = ${userId}`);
       console.log(`[playlist-sync] - ${dbPl.name} (removed)`);
     }
   }

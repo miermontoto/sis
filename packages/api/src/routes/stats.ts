@@ -9,7 +9,8 @@ import type { TimeRange } from '../constants.js';
 import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getLookbackPreviousPeriodRange, deleteHistoryEntries, computeProjectedRankingsBatch } from '../db/queries/index.js';
 import { pollingState, tracks, artists, trackArtists, albums, listeningHistory } from '../db/schema.js';
 import type { AppVariables } from '../app.js';
-import type { ProjectionResult, ProjectedRankingsResponse } from '@sis/shared';
+import type { ProjectionResult, ProjectedRankingsResponse, CrossoverEntity } from '@sis/shared';
+import { fetchEntityMetadata } from '../db/queries/charts.js';
 
 const stats = new Hono<{ Variables: AppVariables }>();
 
@@ -606,18 +607,35 @@ stats.get('/projected-rankings', (c) => {
     sessByType.set(t.entityType, list);
   }
 
-  const sessRankResults = new Map<string, Map<string, Record<string, { current: number | null; projected: number | null }>>>();
+  type RankResult = Record<string, { current: number | null; projected: number | null; displaced: string[] }>;
+  const sessRankResults = new Map<string, Map<string, RankResult>>();
   for (const [entityType, targets] of sessByType) {
     sessRankResults.set(entityType, computeProjectedRankingsBatch(db, entityType as 'track' | 'artist' | 'album', targets, sort, userId, sessionStart));
   }
 
+  // batch-fetch displaced entity metadata per entity type
+  const displacedMetaByType = new Map<string, Map<string, { name: string; imageUrl: string | null; artistName: string | null }>>();
+  for (const [entityType, rankMap] of sessRankResults) {
+    const allIds = new Set<string>();
+    for (const ranks of rankMap.values()) {
+      for (const v of Object.values(ranks)) {
+        for (const id of v.displaced) allIds.add(id);
+      }
+    }
+    if (allIds.size > 0) {
+      displacedMetaByType.set(entityType, fetchEntityMetadata(db, entityType as 'track' | 'artist' | 'album', [...allIds]));
+    }
+  }
+
   // --- construir resultados ---
-  function buildResult(target: TargetInfo, resultsMap: Map<string, Map<string, Record<string, { current: number | null; projected: number | null }>>>): ProjectionResult | null {
+  function buildResult(target: TargetInfo, resultsMap: Map<string, Map<string, RankResult>>): ProjectionResult | null {
     const typeResults = resultsMap.get(target.entityType);
     if (!typeResults) return null;
 
     const ranks = typeResults.get(target.entityId);
     if (!ranks) return null;
+
+    const metaMap = displacedMetaByType.get(target.entityType);
 
     const changes = Object.entries(ranks)
       .filter(([, v]) => v.current !== null && v.projected !== null && v.current !== v.projected)
@@ -626,6 +644,10 @@ stats.get('/projected-rankings', (c) => {
         currentRank: v.current!,
         projectedRank: v.projected!,
         delta: v.current! - v.projected!,
+        displaced: v.displaced.map(id => {
+          const meta = metaMap?.get(id);
+          return { id, name: meta?.name ?? '', imageUrl: meta?.imageUrl ?? null, artistName: meta?.artistName ?? null } satisfies CrossoverEntity;
+        }),
       }));
 
     if (changes.length === 0) return null;

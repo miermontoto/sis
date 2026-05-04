@@ -152,23 +152,36 @@ const RANGE_LABELS: Record<string, string> = {
   year: 'Year', thisYear: 'This Year', all: 'All Time', custom: 'Custom',
 };
 
+function formatCustomRange(startDate: string, endDate: string): string {
+  const s = new Date(startDate + 'T00:00:00');
+  const e = new Date(endDate + 'T00:00:00');
+  const sameYear = s.getFullYear() === e.getFullYear();
+  const fmt = (d: Date, includeYear: boolean) =>
+    d.toLocaleString('en', { month: 'short', day: 'numeric', ...(includeYear ? { year: 'numeric' } : {}) });
+  return `${fmt(s, !sameYear)} – ${fmt(e, true)}`;
+}
+
 function autoName(strategy: Strategy, params?: Record<string, unknown>): string {
   const now = new Date();
   const month = now.toLocaleString('en', { month: 'short', year: 'numeric' });
   if (strategy === 'record' && params?.recordKey) {
     const title = RECORD_KEY_TITLES[params.recordKey as string] || 'Record';
-    return `SIS — ${title} — ${month}`;
+    return `[SIS] ${title} — ${month}`;
   }
   if (strategy === 'top' && params?.entityType) {
     const entity = ENTITY_LABELS[params.entityType as string] || 'Tracks';
+    if (params.range === 'custom' && params.startDate && params.endDate) {
+      const rangeStr = formatCustomRange(params.startDate as string, params.endDate as string);
+      return `[SIS] Top ${entity} — ${rangeStr}`;
+    }
     const range = RANGE_LABELS[params.range as string] || '';
-    return `SIS — Top ${entity}${range ? ` (${range})` : ''} — ${month}`;
+    return `[SIS] Top ${entity}${range ? ` (${range})` : ''} — ${month}`;
   }
   if (strategy === 'chart' && params?.period) {
     const entity = ENTITY_LABELS[params.entityType as string] || 'Tracks';
-    return `SIS — Chart ${entity} (${params.period}) — ${month}`;
+    return `[SIS] Chart ${entity} (${params.period}) — ${month}`;
   }
-  return `SIS — ${STRATEGY_LABELS[strategy]} — ${month}`;
+  return `[SIS] ${STRATEGY_LABELS[strategy]} — ${month}`;
 }
 
 // generar playlist (preview o crear en spotify)

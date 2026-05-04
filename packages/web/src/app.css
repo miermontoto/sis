@@ -96,6 +96,7 @@ a:hover {
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
+  user-select: none;
 }
 
 .sidebar-top {
@@ -561,6 +562,8 @@ a.track-item {
 /* selector de rango temporal */
 .time-range-selector {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.25rem;
   margin-bottom: 1.5rem;
 }

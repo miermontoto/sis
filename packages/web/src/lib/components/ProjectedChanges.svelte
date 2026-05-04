@@ -5,10 +5,28 @@
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
-  import type { ProjectionResult, RankProjection } from '$lib/api';
+  import { getSessionRankDisplay, onSessionRankDisplayChange } from '$lib/api';
+  import type { ProjectionResult, RankProjection, SessionRankDisplay } from '$lib/api';
 
   const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
   const TAB_MAP: Record<string, string> = { track: 'tracks', artist: 'artists', album: 'albums' };
+
+  let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
+
+  $effect(() => {
+    return onSessionRankDisplayChange(() => { displayMode = getSessionRankDisplay(); });
+  });
+
+  const ALLOWED_RANGES: Record<string, Set<string>> = {
+    'all': new Set(['all']),
+    'all+ytd': new Set(['all', 'thisYear']),
+  };
+
+  function filterChanges(changes: RankProjection[]): RankProjection[] {
+    const allowed = ALLOWED_RANGES[displayMode];
+    if (!allowed) return [];
+    return changes.filter(c => allowed.has(c.range));
+  }
 
   function rankingHref(r: ProjectionResult, range: string): string {
     return `/top?tab=${TAB_MAP[r.entityType] ?? 'tracks'}&range=${range === 'thisYear' ? 'thisYear' : 'all'}&focus=${r.entityId}`;
@@ -52,10 +70,10 @@
       <span class="session-title">Session</span>
       <span class="session-count">{data.sessionTrackCount} tracks · {formatDuration(data.sessionTotalMs)}</span>
     </div>
-    {#if data.session.length > 0}
+    {#if displayMode !== 'none' && data.session.length > 0}
       <div class="session-list">
         {#each data.session as r}
-          {@const best = bestChange(r.changes)}
+          {@const best = bestChange(filterChanges(r.changes))}
           {#if best}
             <div class="session-row">
               <span class="session-icon">
@@ -65,9 +83,25 @@
                 {/if}
               </span>
               <a href="/{r.entityType}/{r.entityId}" class="session-name" class:session-name--marquee={overflowing.has(r.entityId)} use:trackOverflow={r.entityId}><span class="session-name-text">{r.entityName}</span></a>
-              <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
-                {RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}
-              </a>
+              <span class="session-change-wrap">
+                <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
+                  {RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}
+                </a>
+                {#if best.displaced.length > 0}
+                  <div class="displaced-tooltip">
+                    {#each best.displaced.slice(0, 5) as d}
+                      <div class="displaced-row">
+                        <span class="displaced-arrow">▲</span>
+                        {#if d.imageUrl}<img class="displaced-img" src={d.imageUrl} alt="" />{/if}
+                        <a href="/{r.entityType}/{d.id}" class="displaced-name">{d.name}</a>
+                      </div>
+                    {/each}
+                    {#if best.displaced.length > 5}
+                      <div class="displaced-more">+{best.displaced.length - 5} más</div>
+                    {/if}
+                  </div>
+                {/if}
+              </span>
             </div>
           {/if}
         {/each}
@@ -160,8 +194,12 @@
     100% { transform: translateX(-100%); }
   }
 
-  .session-change {
+  .session-change-wrap {
     flex-shrink: 0;
+    position: relative;
+  }
+
+  .session-change {
     font-weight: 600;
     font-size: 0.6rem;
     font-variant-numeric: tabular-nums;
@@ -178,5 +216,66 @@
 
   .session-change.down {
     color: #e34234;
+  }
+
+  .displaced-tooltip {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 100;
+    margin-top: 4px;
+    padding: 0.4rem 0.5rem;
+    background: var(--bg-elevated, #1e1e1e);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+    min-width: max-content;
+  }
+
+  .session-change-wrap:hover .displaced-tooltip {
+    display: block;
+  }
+
+  .displaced-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0;
+    font-size: 0.6rem;
+    color: var(--text-secondary, #aaa);
+  }
+
+  .displaced-arrow {
+    color: #1db954;
+    font-size: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .displaced-img {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .displaced-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .displaced-name:hover {
+    color: var(--text-primary, #fff);
+  }
+
+  .displaced-more {
+    font-size: 0.55rem;
+    color: var(--text-muted, #666);
+    padding-top: 0.1rem;
   }
 </style>
