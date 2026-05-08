@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getSessionRankDisplay, setSessionRankDisplay, getNowPlayingDisplay, setNowPlayingDisplay, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionRankDisplay, type NowPlayingDisplay, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionTrackingEnabled, setSessionTrackingEnabled, getNowPlayingDisplay, setNowPlayingDisplay, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionRankDisplay, type NowPlayingDisplay, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -24,6 +24,7 @@
   let albumShowDurationPref = $state(true);
   let albumShowAccoladesPref = $state(true);
   let sessionRankDisplayPref = $state<SessionRankDisplay>('all+ytd');
+  let sessionTrackingPref = $state(true);
   let nowPlayingDisplayPref = $state<NowPlayingDisplay>('auto');
 
   // estado del import
@@ -61,6 +62,7 @@
     albumShowDurationPref = getAlbumShowDuration();
     albumShowAccoladesPref = getAlbumShowAccolades();
     sessionRankDisplayPref = getSessionRankDisplay();
+    sessionTrackingPref = getSessionTrackingEnabled();
     nowPlayingDisplayPref = getNowPlayingDisplay();
     try {
       [health, streaks, me] = await Promise.all([
@@ -184,14 +186,26 @@
       </div>
       <div class="pref-row row-border">
         <div class="pref-info">
+          <div class="pref-label">Session tracking</div>
+          <div class="pref-desc">Show session card in sidebar and highlight session tracks in recent plays and history</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!sessionTrackingPref} onclick={() => { sessionTrackingPref = false; setSessionTrackingEnabled(false); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={sessionTrackingPref} onclick={() => { sessionTrackingPref = true; setSessionTrackingEnabled(true); }}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!sessionTrackingPref}>
+        <div class="pref-info">
           <div class="pref-label">Session rankings</div>
           <div class="pref-desc">Which projected ranking changes to show during a listening session</div>
         </div>
         <div class="pref-control">
           <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }}>ALL</button>
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }}>ALL+YTD</button>
+            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }} disabled={!sessionTrackingPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }} disabled={!sessionTrackingPref}>ALL</button>
+            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }} disabled={!sessionTrackingPref}>ALL+YTD</button>
           </div>
         </div>
       </div>
@@ -411,6 +425,11 @@
 
   .row-border {
     border-top: 1px solid var(--border);
+  }
+
+  .pref-row--disabled {
+    opacity: 0.4;
+    pointer-events: none;
   }
 
   .pref-info {

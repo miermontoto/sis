@@ -1,5 +1,8 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w19a';
+export const VERSION = '26w19b';
+
+// umbral mínimo de reproducción (30s = Spotify Wrapped threshold)
+export const MIN_PLAY_MS = 30_000;
 
 // intervalos de polling en ms
 export const CURRENTLY_PLAYING_INTERVAL_MS = 30_000; // fallback en error

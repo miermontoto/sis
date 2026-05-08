@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
 import { syntheticId } from './ids.js';
+import { MIN_PLAY_MS } from '../constants.js';
 
 // cache de resolución nombre → ID existente en DB
 const artistIdCache = new Map<string, string>();
@@ -79,8 +80,7 @@ function resolveTrackId(artistName: string, trackName: string): string {
   return id;
 }
 
-// umbral mínimo de reproducción (30s = Spotify Wrapped threshold)
-const MIN_PLAYED_MS = 30_000;
+const MIN_PLAYED_MS = MIN_PLAY_MS;
 const BATCH_SIZE = 500;
 
 const IMPORT_PREFIX = 'import:';

@@ -1,6 +1,6 @@
 import { sql, eq, inArray } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { rangeWhere, userFilter } from './helpers.js';
+import { rangeWhere, userFilter, playDuration } from './helpers.js';
 import { tracks, albums, artists, trackArtists } from '../schema.js';
 
 export interface EnrichedTrack {
@@ -72,7 +72,7 @@ export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: stri
     : sql`lh.track_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`;
 
   return db.all(sql`
-    SELECT t.album_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT t.album_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE ${trackFilter} ${wr} ${uf}

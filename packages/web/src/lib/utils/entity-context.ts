@@ -39,7 +39,13 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
         icon: IconQueue,
         onClick: async () => {
           const { api } = await import('$lib/api');
-          api.queueTrack(entity.id);
+          const { toastStore } = await import('$lib/stores/toast.svelte');
+          try {
+            await api.queueTrack(entity.id);
+            toastStore.show(`Added to queue`);
+          } catch {
+            toastStore.show('Failed to add to queue');
+          }
         },
       });
     }

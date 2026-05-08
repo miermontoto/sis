@@ -8,7 +8,8 @@
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
-  import { api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, type MeResponse, type NowPlayingDisplay } from '$lib/api';
+  import Toast from '$lib/components/Toast.svelte';
+  import { api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingEnabled, onSessionTrackingChange, type MeResponse, type NowPlayingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
@@ -42,13 +43,20 @@
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
   let tabbarRef = $state<HTMLElement | null>(null);
   let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
+  let sessionTrackingEnabled = $state(true);
   let sidebarEl = $state<HTMLElement | null>(null);
   let sidebarOverflows = $state(false);
 
   const unsubNpDisplay = onNowPlayingDisplayChange((v) => { nowPlayingDisplay = v; });
-  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); });
+  const unsubSessionTracking = onSessionTrackingChange(() => {
+    sessionTrackingEnabled = getSessionTrackingEnabled();
+    if (sessionTrackingEnabled) projectionsStore.startPolling();
+    else projectionsStore.stopPolling();
+  });
+  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); });
 
   $effect(() => {
+    if (!sessionTrackingEnabled) return;
     nowPlayingStore.trackId;
     projectionsStore.onTrackChange();
   });
@@ -97,9 +105,10 @@
           Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
             nowPlayingDisplay = getNowPlayingDisplay();
+            sessionTrackingEnabled = getSessionTrackingEnabled();
             closedChartsStore.refresh();
             nowPlayingStore.startPolling();
-            projectionsStore.startPolling();
+            if (sessionTrackingEnabled) projectionsStore.startPolling();
           });
         }
       })
@@ -281,7 +290,7 @@
           </div>
         {/each}
       </nav>
-      {#if (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
+      {#if sessionTrackingEnabled && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
         <div class="sidebar-projections">
           <ProjectedChanges />
         </div>
@@ -352,6 +361,7 @@
   <SearchModal bind:show={showSearch} />
   <KeyboardShortcutsHelp />
   <ContextMenu />
+  <Toast />
   {#if mergeModal.target}
     <MergeEntityModal
       bind:show={mergeModalShow}

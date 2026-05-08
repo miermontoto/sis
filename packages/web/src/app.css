@@ -365,6 +365,17 @@ a.track-item {
 .track-item--dimmed {
   opacity: 0.4;
 }
+.session-group {
+  border: 1px solid rgba(74, 158, 255, 0.15);
+  border-radius: var(--radius, 8px);
+  background: rgba(74, 158, 255, 0.03);
+}
+.session-group--open {
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+}
 @keyframes track-item-highlight {
   0%   { background: rgba(29, 185, 84, 0.25); box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.45); }
   100% { background: transparent; box-shadow: 0 0 0 1px transparent; }

@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric } from '$lib/api';
+  import { api, getRankingMetric, getSessionTrackingEnabled, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
   import CoverGrid from '$lib/components/CoverGrid.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
+  import { projectionsStore } from '$lib/stores/projections.svelte';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
@@ -271,7 +272,7 @@
       {/each}
     </div>
   {:else if recentPlays.length > 0}
-    <TrackList items={recentPlays} showTime compact />
+    <TrackList items={recentPlays} showTime compact sessionStartedAt={getSessionTrackingEnabled() ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
   {:else}
     <p class="empty-inline">No listening data yet.</p>
   {/if}

@@ -70,7 +70,7 @@
       <span class="session-title">Session</span>
       <span class="session-count">{data.sessionTrackCount} tracks · {formatDuration(data.sessionTotalMs)}</span>
     </div>
-    {#if displayMode !== 'none' && data.session.length > 0}
+    {#if displayMode !== 'none' && data.session.some(r => bestChange(filterChanges(r.changes)) !== null)}
       <div class="session-list">
         {#each data.session as r}
           {@const best = bestChange(filterChanges(r.changes))}

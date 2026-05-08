@@ -34,6 +34,7 @@ function onTrackChange() {
 export const projectionsStore = {
   get data() { return _data; },
   get loading() { return _loading; },
+  get sessionStartedAt() { return _data?.sessionStartedAt ?? null; },
   get hasChanges() {
     return _data !== null && (_data.nowPlaying.length > 0 || _data.session.length > 0);
   },

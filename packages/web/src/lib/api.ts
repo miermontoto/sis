@@ -15,7 +15,7 @@ export type {
   ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,
-  MergeRule, MergeSuggestion,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult,
   ProjectedRankingsResponse, ProjectionResult, RankProjection,
 } from '@sis/shared';
 export { LOCALE_OPTIONS } from '@sis/shared';
@@ -120,6 +120,7 @@ interface SettingsData {
   albumShowDuration: boolean;
   albumShowAccolades: boolean;
   sessionRankDisplay: SessionRankDisplay;
+  sessionTrackingEnabled: boolean;
   nowPlayingDisplay: NowPlayingDisplay;
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
@@ -135,6 +136,7 @@ const SETTINGS_DEFAULTS: SettingsData = {
   albumShowDuration: true,
   albumShowAccolades: true,
   sessionRankDisplay: 'all+ytd',
+  sessionTrackingEnabled: true,
   nowPlayingDisplay: 'auto',
   lastPeriodWeek: null,
   lastPeriodMonth: null,
@@ -156,6 +158,7 @@ export async function loadSettings(): Promise<void> {
       albumShowDuration: data.albumShowDuration !== 'false',
       albumShowAccolades: data.albumShowAccolades !== 'false',
       sessionRankDisplay: (data.sessionRankDisplay as SessionRankDisplay) || 'all+ytd',
+      sessionTrackingEnabled: data.sessionTrackingEnabled !== 'false',
       nowPlayingDisplay: (data.nowPlayingDisplay as NowPlayingDisplay) || 'auto',
       lastPeriodWeek: data.lastPeriodWeek || null,
       lastPeriodMonth: data.lastPeriodMonth || null,
@@ -170,6 +173,7 @@ export async function loadSettings(): Promise<void> {
     localStorage.setItem('sis:albumShowDuration', String(settingsCache.albumShowDuration));
     localStorage.setItem('sis:albumShowAccolades', String(settingsCache.albumShowAccolades));
     localStorage.setItem('sis:sessionRankDisplay', settingsCache.sessionRankDisplay);
+    localStorage.setItem('sis:sessionTrackingEnabled', String(settingsCache.sessionTrackingEnabled));
     localStorage.setItem('sis:nowPlayingDisplay', settingsCache.nowPlayingDisplay);
     if (settingsCache.lastPeriodWeek) localStorage.setItem('sis:lastPeriod:week', settingsCache.lastPeriodWeek);
     if (settingsCache.lastPeriodMonth) localStorage.setItem('sis:lastPeriod:month', settingsCache.lastPeriodMonth);
@@ -185,6 +189,7 @@ export async function loadSettings(): Promise<void> {
       albumShowDuration: localStorage.getItem('sis:albumShowDuration') !== 'false',
       albumShowAccolades: localStorage.getItem('sis:albumShowAccolades') !== 'false',
       sessionRankDisplay: (localStorage.getItem('sis:sessionRankDisplay') as SessionRankDisplay) || 'all+ytd',
+      sessionTrackingEnabled: localStorage.getItem('sis:sessionTrackingEnabled') !== 'false',
       nowPlayingDisplay: (localStorage.getItem('sis:nowPlayingDisplay') as NowPlayingDisplay) || 'auto',
       lastPeriodWeek: localStorage.getItem('sis:lastPeriod:week'),
       lastPeriodMonth: localStorage.getItem('sis:lastPeriod:month'),
@@ -302,6 +307,24 @@ export function setSessionRankDisplay(v: SessionRankDisplay) {
   localStorage.setItem('sis:sessionRankDisplay', v);
   updateSetting({ sessionRankDisplay: v });
   for (const fn of sessionRankDisplayListeners) fn();
+}
+
+export function getSessionTrackingEnabled(): boolean {
+  if (settingsLoaded) return settingsCache.sessionTrackingEnabled;
+  return localStorage.getItem('sis:sessionTrackingEnabled') !== 'false';
+}
+
+const sessionTrackingListeners: (() => void)[] = [];
+export function onSessionTrackingChange(fn: () => void): () => void {
+  sessionTrackingListeners.push(fn);
+  return () => { const i = sessionTrackingListeners.indexOf(fn); if (i >= 0) sessionTrackingListeners.splice(i, 1); };
+}
+
+export function setSessionTrackingEnabled(v: boolean) {
+  settingsCache.sessionTrackingEnabled = v;
+  localStorage.setItem('sis:sessionTrackingEnabled', String(v));
+  updateSetting({ sessionTrackingEnabled: String(v) });
+  for (const fn of sessionTrackingListeners) fn();
 }
 
 export function getNowPlayingDisplay(): NowPlayingDisplay {
@@ -497,6 +520,12 @@ export const api = {
 
   // opts.parent — artistId (requerido para album/track, ignorado para artist)
   // opts.exclude — id a excluir (normalmente el propio target)
+  albumMergePreview: (sourceId: string, targetId: string) =>
+    apiFetch<AlbumMergePreview>('/admin/album-merge-preview', { source: sourceId, target: targetId }),
+
+  mergeAlbum: (sourceAlbumId: string, targetAlbumId: string, trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }>) =>
+    apiMutate<AlbumMergeResult>('POST', '/admin/merge-album', { sourceAlbumId, targetAlbumId, trackPairs }),
+
   mergeSuggestions: (entityType: 'album' | 'artist' | 'track', opts: { parent?: string; exclude?: string } = {}) => {
     const params: Record<string, string> = { entityType };
     if (opts.parent) params.parent = opts.parent;

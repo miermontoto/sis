@@ -36,7 +36,7 @@ export type { SearchResults } from './search.js';
 export type { PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse, LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail } from './playlists.js';
 
 // merge
-export type { MergeRule, MergeSuggestion } from './merge.js';
+export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch } from './merge.js';
 
 // proyecciones de ranking
 export type { RankProjection, ProjectionResult, ProjectedRankingsResponse } from './projections.js';

@@ -20,6 +20,7 @@ import {
   RECORDS_CACHE_INTERVAL_MS,
   PLAYLIST_SYNC_INTERVAL_MS,
   SESSION_GAP_MS,
+  MIN_PLAY_MS,
 } from '../constants.js';
 import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { computeAndCacheRecords } from './records-cache.js';
@@ -37,8 +38,48 @@ interface UserTimers {
 
 const userTimers = new Map<number, UserTimers>();
 
-// estado de archivos locales por usuario
-const userLocalTracks = new Map<number, { id: string; startedAt: string; durationMs: number; lastProgressMs: number }>();
+// estado del track activo por usuario (todos los tracks, no solo locales)
+interface ActiveTrackState {
+  id: string;
+  startedAt: string;
+  durationMs: number;
+  lastProgressMs: number;
+  isLocal: boolean;
+}
+const userActiveTrack = new Map<number, ActiveTrackState>();
+
+// buffer de reproducciones completadas detectadas por currently-playing,
+// pendientes de ser correlacionadas con recently-played
+interface CompletedPlay {
+  trackId: string;
+  progressMs: number;
+  endedAt: number;
+}
+const completedPlays = new Map<number, CompletedPlay[]>();
+const COMPLETED_PLAY_TTL_MS = 10 * 60_000;
+
+function pushCompletedPlay(userId: number, play: CompletedPlay) {
+  if (!completedPlays.has(userId)) completedPlays.set(userId, []);
+  const list = completedPlays.get(userId)!;
+  list.push(play);
+  // expirar entradas antiguas
+  const cutoff = Date.now() - COMPLETED_PLAY_TTL_MS;
+  const firstValid = list.findIndex(p => p.endedAt >= cutoff);
+  if (firstValid > 0) list.splice(0, firstValid);
+}
+
+export function getCompletedPlayDuration(userId: number, trackId: string): number | null {
+  const list = completedPlays.get(userId);
+  if (!list) return null;
+  // buscar la entrada más reciente para este track
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].trackId === trackId) {
+      const play = list.splice(i, 1)[0];
+      return play.progressMs;
+    }
+  }
+  return null;
+}
 
 // timers compartidos (catálogo global)
 let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -75,12 +116,15 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
     const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
     if (!data || !data.item || data.currently_playing_type !== 'track') {
-      // si el track anterior era local, registrar la reproducción
-      const lastLocal = userLocalTracks.get(userId);
-      if (lastLocal) {
-        insertLocalPlay(lastLocal.id, lastLocal.startedAt, userId, lastLocal.durationMs);
-        console.log(`[poll:${userId}] registrada reproducción local: ${lastLocal.id}`);
-        userLocalTracks.delete(userId);
+      const lastActive = userActiveTrack.get(userId);
+      if (lastActive) {
+        if (lastActive.isLocal && lastActive.lastProgressMs >= MIN_PLAY_MS) {
+          insertLocalPlay(lastActive.id, lastActive.startedAt, userId, lastActive.lastProgressMs);
+          console.log(`[poll:${userId}] registrada reproducción local: ${lastActive.id}`);
+        } else if (!lastActive.isLocal) {
+          pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: lastActive.lastProgressMs, endedAt: Date.now() });
+        }
+        userActiveTrack.delete(userId);
       }
       const state = getPollingStateForUser(userId);
       const db = getDb();
@@ -108,19 +152,22 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
     const state = getPollingStateForUser(userId);
     const trackChanged = state?.lastCurrentlyPlayingTrackId !== data.item.id;
 
-    // detectar loop: mismo track local pero el progreso retrocedió (reinició)
+    // detectar loop: mismo track pero el progreso retrocedió (reinició)
     const progressMs = data.progress_ms ?? 0;
-    const lastLocal = userLocalTracks.get(userId);
+    const lastActive = userActiveTrack.get(userId);
     const loopDetected = !trackChanged
-      && lastLocal
-      && lastLocal.id === data.item.id
-      && progressMs < lastLocal.lastProgressMs;
+      && lastActive
+      && lastActive.id === data.item.id
+      && progressMs < lastActive.lastProgressMs;
 
     if (trackChanged || loopDetected) {
-      // si el track anterior era local, registrar la reproducción
-      if (lastLocal) {
-        insertLocalPlay(lastLocal.id, lastLocal.startedAt, userId, lastLocal.durationMs);
-        console.log(`[poll:${userId}] registrada reproducción local: ${lastLocal.id}`);
+      if (lastActive) {
+        if (lastActive.isLocal && lastActive.lastProgressMs >= MIN_PLAY_MS) {
+          insertLocalPlay(lastActive.id, lastActive.startedAt, userId, lastActive.lastProgressMs);
+          console.log(`[poll:${userId}] registrada reproducción local: ${lastActive.id}`);
+        } else if (!lastActive.isLocal) {
+          pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: lastActive.lastProgressMs, endedAt: Date.now() });
+        }
       }
 
       if (trackChanged) {
@@ -129,15 +176,9 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
         console.log(`[poll:${userId}] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name} (siguiente poll en ${Math.round(nextDelay / 1000)}s)`);
       }
 
-      // trackear si el track actual es local
-      if (data.item.is_local) {
-        userLocalTracks.set(userId, { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs });
-      } else {
-        userLocalTracks.delete(userId);
-      }
-    } else if (lastLocal) {
-      // actualizar progreso para detección de loop
-      lastLocal.lastProgressMs = progressMs;
+      userActiveTrack.set(userId, { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs, isLocal: !!data.item.is_local });
+    } else if (lastActive) {
+      lastActive.lastProgressMs = progressMs;
     }
 
     updatePollingStateForUser(userId, {
@@ -188,7 +229,8 @@ async function pollRecentlyPlayed(userId: number) {
 
     let inserted = 0;
     for (const item of data.items) {
-      if (insertPlay(item, userId)) inserted++;
+      const estimatedMs = getCompletedPlayDuration(userId, item.track.id);
+      if (insertPlay(item, userId, estimatedMs ?? undefined)) inserted++;
     }
 
     // actualizar cursor para la siguiente poll
@@ -237,7 +279,7 @@ function stopPollingForUser(userId: number) {
   if (timers.currentlyPlaying) clearTimeout(timers.currentlyPlaying);
   clearInterval(timers.recentlyPlayed);
   userTimers.delete(userId);
-  userLocalTracks.delete(userId);
+  userActiveTrack.delete(userId);
 }
 
 // obtener el primer userId con tokens (para operaciones globales de catálogo)

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
+import { playDuration } from './helpers.js';
 import type { PlaylistPresenceItem } from '@sis/shared';
 
 export interface LibraryPlaylistRow {
@@ -59,7 +60,7 @@ export function getPlaylistTrackStats(db: Db, playlistId: number, userId: number
       stats.last_played
     FROM spotify_playlist_tracks spt
     LEFT JOIN (
-      SELECT lh.track_id, COUNT(*) as play_count, SUM(t.duration_ms) as total_ms, MAX(lh.played_at) as last_played
+      SELECT lh.track_id, COUNT(*) as play_count, SUM(${playDuration()}) as total_ms, MAX(lh.played_at) as last_played
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       WHERE lh.user_id = ${userId}
@@ -105,7 +106,7 @@ export function getPlaylistSeries(db: Db, playlistId: number, userId: number, gr
     : sql`date(lh.played_at)`;
 
   return db.all(sql`
-    SELECT ${dateTrunc} as period, COUNT(*) as play_count, SUM(t.duration_ms) as total_ms
+    SELECT ${dateTrunc} as period, COUNT(*) as play_count, SUM(${playDuration()}) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE lh.user_id = ${userId}

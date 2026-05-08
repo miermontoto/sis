@@ -6,6 +6,14 @@ export function formatDuration(ms: number): string {
   return `${formatNumber(minutes)} min`;
 }
 
+// formatear duración de track individual: "Xm Ys"
+export function formatTrackLength(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m${String(seconds).padStart(2, '0')}s`;
+}
+
 // formatear duración total en horas con decimal
 export function formatHours(ms: number): string {
   return `${(ms / 3_600_000).toFixed(1)}h`;

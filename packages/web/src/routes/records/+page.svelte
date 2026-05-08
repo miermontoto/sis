@@ -354,7 +354,7 @@
                   {#if item.ongoing}
                     <span class="record-active">active · since <a href="/charts?type={tab.value}&granularity=week&period={item.date}" class="record-week">{item.date}</a></span>
                   {:else if item.date && item.endDate}
-                    <a href="/charts?type={tab.value}&granularity=week&period={item.date}" class="record-week">{item.date}</a>→<a href="/charts?type={tab.value}&granularity=week&period={item.endDate}" class="record-week">{item.endDate}</a>
+                    <span class="record-week"><a href="/charts?type={tab.value}&granularity=week&period={item.date}">{item.date}</a>→<a href="/charts?type={tab.value}&granularity=week&period={item.endDate}">{item.endDate}</a></span>
                   {/if}
                 </div>
               {/snippet}
@@ -620,7 +620,8 @@
     color: var(--text-muted);
     text-decoration: none;
   }
-  .record-week:hover { color: var(--accent); }
+  .record-week:hover, .record-week a:hover { color: var(--accent); }
+  .record-week a { color: inherit; text-decoration: none; }
   .record-active {
     font-size: 0.6rem;
     font-weight: 600;

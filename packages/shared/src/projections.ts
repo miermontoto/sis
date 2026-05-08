@@ -22,4 +22,5 @@ export interface ProjectedRankingsResponse {
   session: ProjectionResult[];
   sessionTrackCount: number;
   sessionTotalMs: number;
+  sessionStartedAt: string | null;
 }

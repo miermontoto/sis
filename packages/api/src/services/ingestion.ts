@@ -1020,7 +1020,7 @@ export function insertLocalPlay(trackId: string, playedAt: string, userId: numbe
 }
 
 // insertar entrada en el historial, retorna true si se insertó (no duplicado)
-export function insertPlay(item: SpotifyPlayHistoryItem, userId: number): boolean {
+export function insertPlay(item: SpotifyPlayHistoryItem, userId: number, durationPlayedMs?: number): boolean {
   const db = getDb();
 
   upsertTrack(item.track);
@@ -1033,6 +1033,7 @@ export function insertPlay(item: SpotifyPlayHistoryItem, userId: number): boolea
         userId,
         contextType: item.context?.type ?? null,
         contextUri: item.context?.uri ?? null,
+        durationPlayedMs: durationPlayedMs ?? null,
       })
       .run();
     return true;

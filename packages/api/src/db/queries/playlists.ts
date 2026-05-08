@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort, EntityType } from './helpers.js';
-import { getRangeStart, orderByCol, userFilter, rangeWhere } from './helpers.js';
+import { getRangeStart, orderByCol, userFilter, rangeWhere, playDuration } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { getRawRanking } from './charts.js';
 import type { TimeRange } from '../../constants.js';
@@ -83,7 +83,7 @@ export function strategyTopRange(db: Db, userId: number, params: TopRangeParams)
     : sql`WHERE 1=1`;
 
   const rows = db.all(sql`
-    SELECT lh.track_id as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     ${whereClause} ${uf} ${NO_LOCAL}
@@ -104,7 +104,7 @@ export function strategyTopArtist(db: Db, userId: number, params: TopArtistParam
   const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
 
   const rows = db.all(sql`
-    SELECT lh.track_id as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -126,7 +126,7 @@ export function strategyTopGenre(db: Db, userId: number, params: TopGenreParams)
   const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
 
   const rows = db.all(sql`
-    SELECT lh.track_id as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+    SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -287,7 +287,7 @@ export function strategyTop(db: Db, userId: number, params: TopParams): string[]
       ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
       : sql`WHERE 1=1`;
     const rows = db.all(sql`
-      SELECT lh.track_id as entity_id, count(*) as play_count, sum(t.duration_ms) as total_ms
+      SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       ${whereClause} ${uf} ${NO_LOCAL}

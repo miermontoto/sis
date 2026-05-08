@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api, type MergeSuggestion } from '$lib/api';
+  import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch } from '$lib/api';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -14,13 +14,11 @@
     show: boolean;
     entityType: EntityType;
     target: { id: string; name: string; imageUrl: string | null };
-    /** Artist scope para album/track. Ignorado para artist (sugerencias son globales). */
     parentId?: string;
     existingMerges?: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
     onMerged?: () => void;
   } = $props();
 
-  // Textos + estilos por tipo de entidad
   const LABELS: Record<EntityType, { title: string; canonical: string; placeholder: string; verb: string; empty: string; noSuggested: string; round: boolean }> = {
     album:  { title: 'Manage album merges',  canonical: 'Canonical album',  placeholder: 'Filter albums...',  verb: 'album',  empty: 'No other albums found for this artist',  noSuggested: 'No close matches — type to search',           round: false },
     artist: { title: 'Manage artist merges', canonical: 'Canonical artist', placeholder: 'Search all artists...', verb: 'artist', empty: 'No other artists with plays available', noSuggested: 'No close matches — type to search all artists', round: true  },
@@ -36,14 +34,18 @@
   let error = $state('');
   let searchQuery = $state('');
 
+  // track matching step (albums only)
+  let step = $state<'select' | 'tracks'>('select');
+  let trackPreview = $state<AlbumMergePreview | null>(null);
+  let trackMatches = $state<Map<string, string>>(new Map());
+  let loadingPreview = $state(false);
+
   let existingIds = $derived(new Set(existingMerges.map(m => m.id)));
 
-  // artists: sin parent → por defecto ocultar lista, mostrar sólo similares.
-  // album/track: con parent → mostrar todos los candidatos del artista (lista corta).
   let showOnlySimilar = $derived(entityType === 'artist');
   const SIM_THRESHOLD = 0.3;
 
-  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   function fuzzyMatch(name: string, query: string): boolean {
     return norm(name).includes(norm(query));
@@ -88,11 +90,34 @@
 
   let filteredSuggestions = $derived(searchQuery.length > 0 ? searchResults : defaultList);
 
+  // para el step de tracks: número de matches activos
+  let activeTrackPairs = $derived(trackMatches.size);
+
+  // helpers para el step de tracks
+  function getTargetTrackForSource(sourceId: string) {
+    return trackPreview?.target.tracks.find(t => t.id === trackMatches.get(sourceId));
+  }
+
+  function getMatchConfidence(sourceId: string): AlbumMergeMatch['confidence'] | null {
+    const targetId = trackMatches.get(sourceId);
+    if (!targetId) return null;
+    return trackPreview?.matches.find(m => m.sourceTrackId === sourceId && m.targetTrackId === targetId)?.confidence ?? 'name';
+  }
+
+  function formatDuration(ms: number) {
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
   function close() {
     show = false;
     error = '';
     selected = new Set();
     searchQuery = '';
+    step = 'select';
+    trackPreview = null;
+    trackMatches = new Map();
   }
 
   async function loadSuggestions() {
@@ -122,13 +147,57 @@
     selected = next;
   }
 
+  function toggleTrackMatch(sourceId: string) {
+    const next = new Map(trackMatches);
+    if (next.has(sourceId)) next.delete(sourceId);
+    else {
+      const original = trackPreview?.matches.find(m => m.sourceTrackId === sourceId);
+      if (original) next.set(sourceId, original.targetTrackId);
+    }
+    trackMatches = next;
+  }
+
+  async function goToTrackStep() {
+    if (entityType !== 'album' || selected.size !== 1) return;
+    const sourceId = [...selected][0];
+    loadingPreview = true;
+    error = '';
+    try {
+      trackPreview = await api.albumMergePreview(sourceId, target.id);
+      // inicializar matches activos desde auto-matches
+      const initial = new Map<string, string>();
+      for (const m of trackPreview.matches) {
+        initial.set(m.sourceTrackId, m.targetTrackId);
+      }
+      trackMatches = initial;
+      step = 'tracks';
+    } catch (e: any) {
+      error = e.message || 'Error loading track preview';
+    } finally {
+      loadingPreview = false;
+    }
+  }
+
+  function goBackToSelect() {
+    step = 'select';
+    trackPreview = null;
+    trackMatches = new Map();
+    error = '';
+  }
+
   async function doMerge() {
     if (selected.size === 0) return;
     merging = true;
     error = '';
     try {
-      for (const sourceId of selected) {
-        await api.createMerge(entityType, sourceId, target.id);
+      if (entityType === 'album' && step === 'tracks' && selected.size === 1) {
+        const sourceId = [...selected][0];
+        const pairs = [...trackMatches.entries()].map(([src, tgt]) => ({ sourceTrackId: src, targetTrackId: tgt }));
+        await api.mergeAlbum(sourceId, target.id, pairs);
+      } else {
+        for (const sourceId of selected) {
+          await api.createMerge(entityType, sourceId, target.id);
+        }
       }
       onMerged();
       close();
@@ -148,6 +217,9 @@
     }
   }
 
+  // para album con 1 selección: el botón dice "Next: Match tracks"
+  let showTrackStep = $derived(entityType === 'album' && selected.size === 1 && step === 'select');
+
   $effect(() => {
     if (show) loadSuggestions();
   });
@@ -156,97 +228,179 @@
 {#if show}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="merge-overlay" onmousedown={(e) => { if (e.target === e.currentTarget) close(); }}>
-    <div class="merge-modal">
+    <div class="merge-modal" class:merge-modal--wide={step === 'tracks'}>
       <div class="merge-header">
-        <h3>{labels.title}</h3>
+        <h3>{step === 'tracks' ? 'Match tracks' : labels.title}</h3>
         <button class="merge-close" onclick={close}>&times;</button>
       </div>
 
-      <div class="merge-target">
-        {#if target.imageUrl}
-          <img class="merge-thumb" class:merge-thumb--round={labels.round} src={target.imageUrl} alt="" />
-        {:else}
-          <div class="merge-thumb" class:merge-thumb--round={labels.round} class:merge-thumb--empty={true}></div>
-        {/if}
-        <div class="merge-target-info">
-          <div class="merge-target-name">{target.name}</div>
-          <div class="merge-target-label">{labels.canonical}</div>
+      {#if step === 'select'}
+        <!-- STEP 1: seleccionar source(s) -->
+        <div class="merge-target">
+          {#if target.imageUrl}
+            <img class="merge-thumb" class:merge-thumb--round={labels.round} src={target.imageUrl} alt="" />
+          {:else}
+            <div class="merge-thumb" class:merge-thumb--round={labels.round} class:merge-thumb--empty={true}></div>
+          {/if}
+          <div class="merge-target-info">
+            <div class="merge-target-name">{target.name}</div>
+            <div class="merge-target-label">{labels.canonical}</div>
+          </div>
         </div>
-      </div>
 
-      {#if error}
-        <div class="merge-error">{error}</div>
-      {/if}
+        {#if error}
+          <div class="merge-error">{error}</div>
+        {/if}
 
-      {#if existingMerges.length > 0}
-        <div class="merge-section-title">Currently merged</div>
-        <div class="merge-list">
-          {#each existingMerges as merge}
-            <div class="merge-item merge-item--existing">
-              {#if merge.imageUrl}
-                <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={merge.imageUrl} alt="" />
-              {:else}
-                <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
-              {/if}
-              <div class="merge-item-info">
-                <div class="merge-item-name">{merge.name}</div>
+        {#if existingMerges.length > 0}
+          <div class="merge-section-title">Currently merged</div>
+          <div class="merge-list">
+            {#each existingMerges as merge}
+              <div class="merge-item merge-item--existing">
+                {#if merge.imageUrl}
+                  <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={merge.imageUrl} alt="" />
+                {:else}
+                  <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
+                {/if}
+                <div class="merge-item-info">
+                  <div class="merge-item-name">{merge.name}</div>
+                </div>
+                <button class="merge-unmerge" title="Unmerge" onclick={() => doUnmerge(merge.ruleId)}>&times;</button>
               </div>
-              <button class="merge-unmerge" title="Unmerge" onclick={() => doUnmerge(merge.ruleId)}>&times;</button>
+            {/each}
+          </div>
+        {/if}
+
+        {#if loading}
+          <div class="merge-loading"><div class="spinner"></div></div>
+        {:else if suggestions.length > 0}
+          <div class="merge-section-title">{searchQuery.length > 0 ? 'Search results' : (showOnlySimilar ? 'Suggested matches' : 'Available to merge')}</div>
+          <input
+            class="merge-search"
+            type="text"
+            placeholder={labels.placeholder}
+            bind:value={searchQuery}
+            autocomplete="off"
+            spellcheck="false"
+          />
+          {#if filteredSuggestions.length === 0}
+            <div class="merge-empty">
+              {searchQuery.length > 0 ? 'No matches found' : labels.noSuggested}
             </div>
-          {/each}
-        </div>
-      {/if}
-
-      {#if loading}
-        <div class="merge-loading"><div class="spinner"></div></div>
-      {:else if suggestions.length > 0}
-        <div class="merge-section-title">{searchQuery.length > 0 ? 'Search results' : (showOnlySimilar ? 'Suggested matches' : 'Available to merge')}</div>
-        <input
-          class="merge-search"
-          type="text"
-          placeholder={labels.placeholder}
-          bind:value={searchQuery}
-          autocomplete="off"
-          spellcheck="false"
-        />
-        {#if filteredSuggestions.length === 0}
-          <div class="merge-empty">
-            {searchQuery.length > 0 ? 'No matches found' : labels.noSuggested}
+          {/if}
+          <div class="merge-list">
+            {#each filteredSuggestions as item}
+              <button
+                class="merge-item"
+                class:merge-item--selected={selected.has(item.id)}
+                disabled={merging}
+                onclick={() => toggleSelection(item.id)}
+              >
+                <div class="merge-check" class:merge-check--active={selected.has(item.id)}>
+                  {#if selected.has(item.id)}&#10003;{/if}
+                </div>
+                {#if item.image_url}
+                  <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={item.image_url} alt="" />
+                {:else}
+                  <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
+                {/if}
+                <div class="merge-item-info">
+                  <div class="merge-item-name">{item.name}</div>
+                  <div class="merge-item-plays">{item.plays} plays</div>
+                </div>
+              </button>
+            {/each}
           </div>
-        {/if}
-        <div class="merge-list">
-          {#each filteredSuggestions as item}
-            <button
-              class="merge-item"
-              class:merge-item--selected={selected.has(item.id)}
-              disabled={merging}
-              onclick={() => toggleSelection(item.id)}
-            >
-              <div class="merge-check" class:merge-check--active={selected.has(item.id)}>
-                {#if selected.has(item.id)}&#10003;{/if}
-              </div>
-              {#if item.image_url}
-                <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={item.image_url} alt="" />
+
+          {#if selected.size > 0}
+            <div class="merge-footer">
+              {#if showTrackStep}
+                <button class="merge-confirm" disabled={loadingPreview} onclick={goToTrackStep}>
+                  {loadingPreview ? 'Loading...' : 'Next: Match tracks'}
+                </button>
               {:else}
-                <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
+                <button class="merge-confirm" disabled={merging} onclick={doMerge}>
+                  {merging ? 'Merging...' : `Merge ${selected.size} ${labels.verb}${selected.size > 1 ? 's' : ''}`}
+                </button>
               {/if}
-              <div class="merge-item-info">
-                <div class="merge-item-name">{item.name}</div>
-                <div class="merge-item-plays">{item.plays} plays</div>
+            </div>
+          {/if}
+        {:else if !loading && existingMerges.length === 0}
+          <div class="merge-empty">{labels.empty}</div>
+        {/if}
+
+      {:else if step === 'tracks' && trackPreview}
+        <!-- STEP 2: match tracks -->
+        <div class="merge-albums-header">
+          <div class="merge-album-badge merge-album-badge--source">
+            {#if trackPreview.source.imageUrl}
+              <img class="merge-thumb-xs" src={trackPreview.source.imageUrl} alt="" />
+            {/if}
+            <span class="merge-album-name">{trackPreview.source.name}</span>
+            <span class="merge-badge-arrow">&rarr;</span>
+          </div>
+          <div class="merge-album-badge merge-album-badge--target">
+            {#if trackPreview.target.imageUrl}
+              <img class="merge-thumb-xs" src={trackPreview.target.imageUrl} alt="" />
+            {/if}
+            <span class="merge-album-name">{trackPreview.target.name}</span>
+          </div>
+        </div>
+
+        {#if error}
+          <div class="merge-error">{error}</div>
+        {/if}
+
+        <div class="merge-section-title">Track matches ({activeTrackPairs} of {trackPreview.source.tracks.length})</div>
+
+        <div class="merge-list">
+          {#each trackPreview.source.tracks as sourceTrack}
+            {@const targetTrack = getTargetTrackForSource(sourceTrack.id)}
+            {@const confidence = getMatchConfidence(sourceTrack.id)}
+            {@const isMatched = trackMatches.has(sourceTrack.id)}
+            {@const hasAutoMatch = trackPreview.matches.some(m => m.sourceTrackId === sourceTrack.id)}
+            <button
+              class="track-pair"
+              class:track-pair--matched={isMatched}
+              class:track-pair--unmatched={!isMatched && hasAutoMatch}
+              disabled={!hasAutoMatch}
+              onclick={() => toggleTrackMatch(sourceTrack.id)}
+            >
+              <div class="merge-check" class:merge-check--active={isMatched}>
+                {#if isMatched}&#10003;{/if}
+              </div>
+              <div class="track-pair-content">
+                <div class="track-pair-source">
+                  <span class="track-num">{sourceTrack.trackNumber ?? '?'}</span>
+                  <span class="track-name">{sourceTrack.name}</span>
+                  <span class="track-duration">{formatDuration(sourceTrack.durationMs)}</span>
+                </div>
+                {#if targetTrack && isMatched}
+                  <div class="track-pair-arrow">&darr;</div>
+                  <div class="track-pair-target">
+                    <span class="track-num">{targetTrack.trackNumber ?? '?'}</span>
+                    <span class="track-name">{targetTrack.name}</span>
+                    <span class="track-duration">{formatDuration(targetTrack.durationMs)}</span>
+                    {#if confidence}
+                      <span class="track-confidence" class:track-confidence--position={confidence === 'position'}>
+                        {confidence === 'position' ? '#' : '~'}
+                      </span>
+                    {/if}
+                  </div>
+                {:else if !hasAutoMatch}
+                  <div class="track-pair-no-match">No match found</div>
+                {/if}
               </div>
             </button>
           {/each}
         </div>
 
-        {#if selected.size > 0}
-          <div class="merge-footer">
-            <button class="merge-confirm" disabled={merging} onclick={doMerge}>
-              {merging ? 'Merging...' : `Merge ${selected.size} ${labels.verb}${selected.size > 1 ? 's' : ''}`}
-            </button>
-          </div>
-        {/if}
-      {:else if !loading && existingMerges.length === 0}
-        <div class="merge-empty">{labels.empty}</div>
+        <div class="merge-footer merge-footer--split">
+          <button class="merge-back" onclick={goBackToSelect}>&larr; Back</button>
+          <button class="merge-confirm" disabled={merging} onclick={doMerge}>
+            {merging ? 'Merging...' : `Merge album${activeTrackPairs > 0 ? ` + ${activeTrackPairs} tracks` : ''}`}
+          </button>
+        </div>
       {/if}
     </div>
   </div>
@@ -275,6 +429,11 @@
     flex-direction: column;
     overflow: hidden;
     align-self: flex-start;
+    transition: width 0.15s ease;
+  }
+
+  .merge-modal--wide {
+    width: 520px;
   }
 
   .merge-header {
@@ -330,6 +489,14 @@
 
   .merge-thumb--empty {
     background: var(--border);
+  }
+
+  .merge-thumb-xs {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 
   .merge-target-name {
@@ -466,8 +633,27 @@
     border-top: 1px solid var(--border);
   }
 
+  .merge-footer--split {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .merge-back {
+    padding: 0.6rem 1rem;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    white-space: nowrap;
+  }
+  .merge-back:hover { color: var(--text); border-color: var(--text-muted); }
+
   .merge-confirm {
-    width: 100%;
+    flex: 1;
     padding: 0.6rem;
     background: var(--accent);
     color: #000;
@@ -481,4 +667,128 @@
 
   .merge-confirm:hover:not(:disabled) { opacity: 0.9; }
   .merge-confirm:disabled { opacity: 0.5; cursor: wait; }
+
+  /* --- track matching step --- */
+
+  .merge-albums-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .merge-album-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    min-width: 0;
+  }
+
+  .merge-album-badge--source { color: var(--text-muted); }
+  .merge-album-badge--target { color: var(--accent); }
+
+  .merge-album-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+  }
+
+  .merge-badge-arrow {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .track-pair {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-sans);
+    transition: background 0.05s;
+  }
+
+  .track-pair:hover:not(:disabled) { background: var(--bg-hover); }
+  .track-pair:disabled { cursor: default; opacity: 0.5; }
+  .track-pair--matched { background: rgba(29, 185, 84, 0.05); }
+  .track-pair--unmatched { opacity: 0.7; }
+
+  .track-pair .merge-check { margin-top: 1px; }
+
+  .track-pair-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .track-pair-source, .track-pair-target {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .track-pair-target {
+    color: var(--accent);
+    font-size: 0.78rem;
+  }
+
+  .track-pair-arrow {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    padding-left: 1.4rem;
+    line-height: 1;
+  }
+
+  .track-pair-no-match {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding-left: 1.4rem;
+    font-style: italic;
+  }
+
+  .track-num {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    min-width: 1.2rem;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .track-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-duration {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .track-confidence {
+    font-size: 0.65rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .track-confidence--position {
+    background: rgba(29, 185, 84, 0.15);
+    color: var(--accent);
+  }
 </style>

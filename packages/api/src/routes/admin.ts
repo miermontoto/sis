@@ -165,6 +165,188 @@ admin.get('/merges', (c) => {
   return c.json([...albumRows, ...artistRows, ...trackRows]);
 });
 
+// preview de merge de álbum: devuelve tracks de ambos álbumes con auto-match
+admin.get('/album-merge-preview', (c) => {
+  const userId = c.get('userId');
+  const sourceId = c.req.query('source');
+  const targetId = c.req.query('target');
+  if (!sourceId || !targetId) return c.json({ error: 'source and target are required' }, 400);
+
+  const db = getDb();
+  const sourceAlbum = db.select().from(albums).where(eq(albums.spotifyId, sourceId)).get();
+  const targetAlbum = db.select().from(albums).where(eq(albums.spotifyId, targetId)).get();
+  if (!sourceAlbum) return c.json({ error: 'source album not found' }, 404);
+  if (!targetAlbum) return c.json({ error: 'target album not found' }, 404);
+
+  const mergedTrackIds = new Set(
+    (db.all(sql`SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}`) as { source_id: string }[])
+      .map(r => r.source_id)
+  );
+
+  const getTracksForAlbum = (albumId: string) =>
+    (db.all(sql`
+      SELECT t.spotify_id as id, t.name, t.track_number, t.disc_number, t.duration_ms
+      FROM tracks t
+      WHERE t.album_id = ${albumId}
+      ORDER BY COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC
+    `) as { id: string; name: string; track_number: number | null; disc_number: number | null; duration_ms: number }[])
+      .filter(t => !mergedTrackIds.has(t.id))
+      .map(t => ({ id: t.id, name: t.name, trackNumber: t.track_number, discNumber: t.disc_number, durationMs: t.duration_ms }));
+
+  const sourceTracks = getTracksForAlbum(sourceId);
+  const targetTracks = getTracksForAlbum(targetId);
+
+  // auto-matching: position first, then name similarity
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const trigrams = (s: string) => {
+    const t = new Set<string>();
+    const n = norm(s);
+    for (let i = 0; i <= n.length - 3; i++) t.add(n.slice(i, i + 3));
+    return t;
+  };
+  const similarity = (a: Set<string>, b: Set<string>) => {
+    if (a.size === 0 || b.size === 0) return 0;
+    let common = 0;
+    for (const t of a) if (b.has(t)) common++;
+    return common / Math.max(a.size, b.size);
+  };
+
+  const matches: { sourceTrackId: string; targetTrackId: string; confidence: 'position' | 'name' }[] = [];
+  const usedSource = new Set<string>();
+  const usedTarget = new Set<string>();
+
+  // pass 1: match by track_number (within same disc)
+  for (const st of sourceTracks) {
+    if (st.trackNumber == null) continue;
+    const disc = st.discNumber ?? 1;
+    const match = targetTracks.find(tt =>
+      !usedTarget.has(tt.id) && tt.trackNumber === st.trackNumber && (tt.discNumber ?? 1) === disc
+    );
+    if (match) {
+      matches.push({ sourceTrackId: st.id, targetTrackId: match.id, confidence: 'position' });
+      usedSource.add(st.id);
+      usedTarget.add(match.id);
+    }
+  }
+
+  // pass 2: name similarity for unmatched
+  const candidates: { sourceId: string; targetId: string; sim: number }[] = [];
+  for (const st of sourceTracks) {
+    if (usedSource.has(st.id)) continue;
+    const stTri = trigrams(st.name);
+    for (const tt of targetTracks) {
+      if (usedTarget.has(tt.id)) continue;
+      const sim = similarity(stTri, trigrams(tt.name));
+      if (sim >= 0.4) candidates.push({ sourceId: st.id, targetId: tt.id, sim });
+    }
+  }
+  candidates.sort((a, b) => b.sim - a.sim);
+  for (const c of candidates) {
+    if (usedSource.has(c.sourceId) || usedTarget.has(c.targetId)) continue;
+    matches.push({ sourceTrackId: c.sourceId, targetTrackId: c.targetId, confidence: 'name' });
+    usedSource.add(c.sourceId);
+    usedTarget.add(c.targetId);
+  }
+
+  return c.json({
+    source: { id: sourceId, name: sourceAlbum.name, imageUrl: sourceAlbum.imageUrl, tracks: sourceTracks },
+    target: { id: targetId, name: targetAlbum.name, imageUrl: targetAlbum.imageUrl, tracks: targetTracks },
+    matches,
+  });
+});
+
+// merge de álbum batch: crea merge de álbum + merges de tracks en una transacción
+admin.post('/merge-album', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{
+    sourceAlbumId: string;
+    targetAlbumId: string;
+    trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }>;
+  }>();
+  const { sourceAlbumId, targetAlbumId, trackPairs } = body;
+
+  if (!sourceAlbumId || !targetAlbumId) return c.json({ error: 'sourceAlbumId and targetAlbumId are required' }, 400);
+  if (sourceAlbumId === targetAlbumId) return c.json({ error: 'cannot merge album with itself' }, 400);
+
+  const db = getDb();
+
+  const sourceAlbum = db.select().from(albums).where(eq(albums.spotifyId, sourceAlbumId)).get();
+  const targetAlbum = db.select().from(albums).where(eq(albums.spotifyId, targetAlbumId)).get();
+  if (!sourceAlbum) return c.json({ error: 'source album not found' }, 404);
+  if (!targetAlbum) return c.json({ error: 'target album not found' }, 404);
+
+  // validar album merge (mismas reglas que el endpoint simple)
+  const existingAlbum = db.all(sql`
+    SELECT id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId}
+      AND ((source_id = ${sourceAlbumId} AND target_id = ${targetAlbumId})
+        OR (source_id = ${targetAlbumId} AND target_id = ${sourceAlbumId}))
+  `);
+  if (existingAlbum.length > 0) return c.json({ error: 'album merge rule already exists' }, 409);
+
+  const albumSourceIsTarget = db.all(sql`
+    SELECT id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId} AND target_id = ${sourceAlbumId}
+  `);
+  if (albumSourceIsTarget.length > 0) return c.json({ error: 'source album is already a merge target' }, 400);
+
+  const albumTargetIsSource = db.all(sql`
+    SELECT id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId} AND source_id = ${targetAlbumId}
+  `);
+  if (albumTargetIsSource.length > 0) return c.json({ error: 'target album is already merged into another album' }, 400);
+
+  // ejecutar todo en transacción
+  const result = db.transaction(() => {
+    const albumResult = db.insert(mergeRules).values({
+      userId, entityType: 'album', sourceId: sourceAlbumId, targetId: targetAlbumId,
+    }).run();
+
+    const trackRules: Array<{ id: number; sourceTrackId: string; targetTrackId: string }> = [];
+    const skipped: string[] = [];
+
+    for (const pair of (trackPairs ?? [])) {
+      if (!pair.sourceTrackId || !pair.targetTrackId || pair.sourceTrackId === pair.targetTrackId) {
+        skipped.push(`${pair.sourceTrackId}: invalid pair`);
+        continue;
+      }
+
+      // verificar que los tracks existen
+      const src = db.select().from(tracks).where(eq(tracks.spotifyId, pair.sourceTrackId)).get();
+      const tgt = db.select().from(tracks).where(eq(tracks.spotifyId, pair.targetTrackId)).get();
+      if (!src || !tgt) { skipped.push(`${pair.sourceTrackId}: track not found`); continue; }
+
+      // verificar duplicados y cadenas
+      const dup = db.all(sql`
+        SELECT id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}
+          AND ((source_id = ${pair.sourceTrackId} AND target_id = ${pair.targetTrackId})
+            OR (source_id = ${pair.targetTrackId} AND target_id = ${pair.sourceTrackId}))
+      `);
+      if (dup.length > 0) { skipped.push(`${pair.sourceTrackId}: already merged`); continue; }
+
+      const srcIsTarget = db.all(sql`
+        SELECT id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId} AND target_id = ${pair.sourceTrackId}
+      `);
+      if (srcIsTarget.length > 0) { skipped.push(`${pair.sourceTrackId}: is already a merge target`); continue; }
+
+      const tgtIsSource = db.all(sql`
+        SELECT id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId} AND source_id = ${pair.targetTrackId}
+      `);
+      if (tgtIsSource.length > 0) { skipped.push(`${pair.sourceTrackId}: target already merged elsewhere`); continue; }
+
+      const r = db.insert(mergeRules).values({
+        userId, entityType: 'track', sourceId: pair.sourceTrackId, targetId: pair.targetTrackId,
+      }).run();
+      trackRules.push({ id: Number(r.lastInsertRowid), sourceTrackId: pair.sourceTrackId, targetTrackId: pair.targetTrackId });
+    }
+
+    return {
+      albumRule: { id: Number(albumResult.lastInsertRowid), sourceId: sourceAlbumId, targetId: targetAlbumId },
+      trackRules,
+      skipped,
+    };
+  });
+
+  return c.json(result);
+});
+
 // sugerencias de merge unificadas.
 // Query params:
 //   entityType (required): 'album' | 'artist' | 'track'

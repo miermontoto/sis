@@ -553,39 +553,40 @@ stats.get('/projected-rankings', (c) => {
   let sessionTotalMs = 0;
   const trackNameMap = new Map<string, string>();
   if (sessionStart) {
-    const sessionPlays = db
-      .select({ trackId: listeningHistory.trackId })
-      .from(listeningHistory)
-      .where(sql`${listeningHistory.userId} = ${userId} AND ${listeningHistory.playedAt} >= ${sessionStart}`)
-      .all();
+    const sessionPlays = db.all(sql`
+      SELECT lh.track_id as trackId, COALESCE(lh.duration_played_ms, t.duration_ms) as playMs
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.user_id = ${userId} AND lh.played_at >= ${sessionStart}
+    `) as { trackId: string; playMs: number }[];
 
-    const trackCounts = new Map<string, number>();
+    const trackAccum = new Map<string, { count: number; totalMs: number }>();
     for (const p of sessionPlays) {
-      trackCounts.set(p.trackId, (trackCounts.get(p.trackId) || 0) + 1);
+      const prev = trackAccum.get(p.trackId) || { count: 0, totalMs: 0 };
+      trackAccum.set(p.trackId, { count: prev.count + 1, totalMs: prev.totalMs + p.playMs });
     }
     sessionTrackCount = sessionPlays.length;
 
     const artistAccum = new Map<string, { plays: number; ms: number }>();
     const albumAccum = new Map<string, { plays: number; ms: number }>();
 
-    for (const [trackId, count] of trackCounts) {
+    for (const [trackId, accum] of trackAccum) {
       const t = db.select().from(tracks).where(eq(tracks.spotifyId, trackId)).get();
       if (!t) continue;
-      const totalMs = t.durationMs * count;
-      sessionTotalMs += totalMs;
+      sessionTotalMs += accum.totalMs;
       trackNameMap.set(trackId, t.name);
 
-      sessionTargets.push({ entityId: trackId, entityType: 'track', extraPlays: count, extraMs: totalMs });
+      sessionTargets.push({ entityId: trackId, entityType: 'track', extraPlays: accum.count, extraMs: accum.totalMs });
 
       if (t.albumId) {
         const prev = albumAccum.get(t.albumId) || { plays: 0, ms: 0 };
-        albumAccum.set(t.albumId, { plays: prev.plays + count, ms: prev.ms + totalMs });
+        albumAccum.set(t.albumId, { plays: prev.plays + accum.count, ms: prev.ms + accum.totalMs });
       }
 
       const tArtists = db.select({ artistId: trackArtists.artistId }).from(trackArtists).where(eq(trackArtists.trackId, trackId)).all();
       for (const ta of tArtists) {
         const prev = artistAccum.get(ta.artistId) || { plays: 0, ms: 0 };
-        artistAccum.set(ta.artistId, { plays: prev.plays + count, ms: prev.ms + totalMs });
+        artistAccum.set(ta.artistId, { plays: prev.plays + accum.count, ms: prev.ms + accum.totalMs });
       }
     }
 
@@ -676,7 +677,7 @@ stats.get('/projected-rankings', (c) => {
     if (r) sessionResults.push(r);
   }
 
-  return c.json({ nowPlaying: [], session: sessionResults, sessionTrackCount, sessionTotalMs } satisfies ProjectedRankingsResponse);
+  return c.json({ nowPlaying: [], session: sessionResults, sessionTrackCount, sessionTotalMs, sessionStartedAt: sessionStart } satisfies ProjectedRankingsResponse);
 });
 
 export default stats;

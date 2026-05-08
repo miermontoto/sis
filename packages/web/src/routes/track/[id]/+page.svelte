@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
-  import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
+  import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -134,10 +134,10 @@
             {#if data.track.album.releaseDate}
               <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
             {/if}
-            <span class="detail-meta"> &middot; {formatDuration(data.track.durationMs)}</span>
+            <span class="detail-meta"> &middot; {formatTrackLength(data.track.durationMs)}</span>
           </p>
         {:else}
-          <p class="detail-album"><span class="detail-meta">{formatDuration(data.track.durationMs)}</span></p>
+          <p class="detail-album"><span class="detail-meta">{formatTrackLength(data.track.durationMs)}</span></p>
         {/if}
       </div>
     </div>

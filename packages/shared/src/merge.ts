@@ -19,3 +19,29 @@ export interface MergeSuggestion {
   image_url: string | null;
   plays: number;
 }
+
+export interface AlbumMergeTrack {
+  id: string;
+  name: string;
+  trackNumber: number | null;
+  discNumber: number | null;
+  durationMs: number;
+}
+
+export interface AlbumMergeMatch {
+  sourceTrackId: string;
+  targetTrackId: string;
+  confidence: 'position' | 'name';
+}
+
+export interface AlbumMergePreview {
+  source: { id: string; name: string; imageUrl: string | null; tracks: AlbumMergeTrack[] };
+  target: { id: string; name: string; imageUrl: string | null; tracks: AlbumMergeTrack[] };
+  matches: AlbumMergeMatch[];
+}
+
+export interface AlbumMergeResult {
+  albumRule: { id: number; sourceId: string; targetId: string };
+  trackRules: Array<{ id: number; sourceTrackId: string; targetTrackId: string }>;
+  skipped: string[];
+}

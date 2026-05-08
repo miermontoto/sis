@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, userFilter, albumIdIn, entityMergeJoin, resolvedEntityId } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn, entityMergeJoin, resolvedEntityId, trackJoinResolvingMerges } from './helpers.js';
 
 /** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists */
 export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
@@ -45,22 +45,21 @@ export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
   `) as { artist_id: string; name: string; image_url: string | null }[];
 }
 
-/** Tracks de un álbum con play counts (merge-aware: agrupa plays por track canónico, excluye tracks source) */
+/** Tracks de un álbum con play counts (merge-aware: resuelve track merges, agrupa por track canónico, excluye tracks source) */
 export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | null, sort: Sort, ids: string[] | undefined, rangeEnd: string | null | undefined, userId: number) {
   const albumIds = ids ?? [albumId];
   const wr = rangeWhere(rangeStart, rangeEnd);
   const uf = userFilter(userId);
-  const trackMrJoin = entityMergeJoin('track', userId);
 
   return db.all(sql`
     SELECT t.spotify_id as track_id, t.name, t.duration_ms, t.track_number, t.disc_number,
            coalesce(s.play_count, 0) as play_count, coalesce(s.total_ms, 0) as total_ms
     FROM tracks t
     LEFT JOIN (
-      SELECT ${resolvedEntityId('track', userId)} as resolved_track_id, count(*) as play_count, sum(tr.duration_ms) as total_ms
+      SELECT COALESCE(mr_track.target_id, lh.track_id) as resolved_track_id, count(*) as play_count, sum(COALESCE(lh.duration_played_ms, tr.duration_ms)) as total_ms
       FROM listening_history lh
-      JOIN tracks tr ON tr.spotify_id = lh.track_id
-      ${trackMrJoin}
+      LEFT JOIN merge_rules mr_track ON mr_track.entity_type = 'track' AND mr_track.source_id = lh.track_id AND mr_track.user_id = ${userId}
+      JOIN tracks tr ON tr.spotify_id = COALESCE(mr_track.target_id, lh.track_id)
       WHERE ${albumIdIn(albumIds, 'tr')} ${wr} ${uf}
       GROUP BY resolved_track_id
     ) s ON s.resolved_track_id = t.spotify_id

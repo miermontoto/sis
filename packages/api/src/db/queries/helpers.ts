@@ -117,6 +117,14 @@ export function entityTableName(type: EntityType): 'albums' | 'artists' | 'track
   return 'tracks';
 }
 
+/** JOIN chain que resuelve track merges y une a la tabla tracks por track canónico.
+ *  Tras esto, `t` apunta al track canónico (target del merge o el original).
+ *  Usar en queries que agrupan/filtran por t.album_id para atribución correcta. */
+export function trackJoinResolvingMerges(userId: number): SqlChunk {
+  return sql`LEFT JOIN merge_rules mr_track ON mr_track.entity_type = 'track' AND mr_track.source_id = lh.track_id AND mr_track.user_id = ${userId}
+    JOIN tracks t ON t.spotify_id = COALESCE(mr_track.target_id, lh.track_id)`;
+}
+
 /** LEFT JOIN a merge_rules para un tipo de entidad, filtrado por usuario. */
 export function entityMergeJoin(type: EntityType, userId?: number): SqlChunk {
   const alias = sql.raw(MERGE_ALIAS[type]);
@@ -135,12 +143,38 @@ export function resolvedEntityId(type: EntityType, _userId?: number): SqlChunk {
 
 // --- helpers de SQL dinámico según tipo de entidad ---
 
+export function playDuration(): SqlChunk {
+  return sql`COALESCE(lh.duration_played_ms, t.duration_ms)`;
+}
+
 export function orderByCol(sort: Sort): SqlChunk {
   return sort === 'plays' ? sql`play_count` : sql`total_ms`;
 }
 
-/** Joins necesarios para agregar por entidad. Para artist: track_artists + merge_rules.
- *  Para album/track: vacío (los callers añaden entityMergeJoin cuando agregan por entidad). */
+/** JOIN chain completo desde listening_history hasta la entidad resuelta, con todos los niveles de merge.
+ *  Album:  lh → track merge → canonical track t → album merge (mr_album)
+ *  Track:  lh → tracks t → track merge (mr_track)
+ *  Artist: lh → tracks t → track_artists ta → artist merge (mr_artist)
+ *  Tras esto: `t` siempre es el track correcto, y resolvedEntityId/entityGroupCol funcionan para agrupar. */
+export function resolvedPlayJoins(entityType: EntityType, userId: number): SqlChunk {
+  if (entityType === 'album') {
+    return sql`${trackJoinResolvingMerges(userId)} ${entityMergeJoin('album', userId)}`;
+  }
+  if (entityType === 'artist') {
+    return sql`JOIN tracks t ON t.spotify_id = lh.track_id
+      JOIN track_artists ta ON ta.track_id = lh.track_id
+      ${entityMergeJoin('artist', userId)}`;
+  }
+  return sql`JOIN tracks t ON t.spotify_id = lh.track_id
+    ${entityMergeJoin('track', userId)}`;
+}
+
+/** AND t.album_id IS NOT NULL — necesario para queries de álbumes, vacío para otros tipos. */
+export function albumNullFilter(entityType: EntityType): SqlChunk {
+  return entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
+}
+
+/** @deprecated Usar resolvedPlayJoins() que incluye todos los joins necesarios. */
 export function entityJoins(entityType: EntityType, userId?: number): SqlChunk {
   if (entityType === 'artist') {
     return sql`JOIN track_artists ta ON ta.track_id = lh.track_id ${entityMergeJoin('artist', userId)}`;

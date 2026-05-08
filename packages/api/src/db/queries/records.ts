@@ -4,7 +4,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, RankingMetric, WeekStartOption, EntityType, MonthCountEntry, YearEndFinish,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { CHART_SIZE, RECORDS_LIMIT } from '../../constants.js';
 
@@ -35,7 +35,7 @@ function weekExpr(ws: WeekStart) {
 
 function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): TrackRecords {
   const week = weekExpr(ws);
-  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
   const trackMrJoin = entityMergeJoin('track', userId);
 
@@ -97,19 +97,17 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
 
 function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): AlbumRecords {
   const week = weekExpr(ws);
-  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
-  const mrJoin = entityMergeJoin('album', userId);
 
   const ranked = db.all(sql`
     WITH weekly AS (
       SELECT ${week} as w, ${resolvedEntityId('album', userId)} as eid, ${metric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${week} ORDER BY ${metric} DESC) as rank
       FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
-      ${mrJoin}
+      ${resolvedPlayJoins('album', userId)}
       WHERE t.album_id IS NOT NULL ${uf}
-      GROUP BY w, eid
+      Group by w, eid
     ),
     first_week AS (
       SELECT eid, MIN(w) as debut_week FROM weekly GROUP BY eid
@@ -169,7 +167,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
   // de una track acaban mergeados al mismo target
   const ranked = db.all(sql`
     WITH plays_dedup AS (
-      SELECT DISTINCT ${week} as w, ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, t.duration_ms as duration_ms
+      SELECT DISTINCT ${week} as w, ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, ${playDuration()} as duration_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -196,7 +194,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 
   // artistas con más tracks en #1 (por semana)
   const trackWeek = weekExpr(ws);
-  const trackMetric = sort === 'plays' ? sql`count(*)` : sql`sum(t.duration_ms)`;
+  const trackMetric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
 
   // artistResolveJoin y resolved devuelven el artist_id canónico (target si mergeado)
   const artistResolveJoin = sql`LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}`;
@@ -222,14 +220,12 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     LIMIT ${limit}
   `) as ArtistRecordEntry[];
 
-  const mrJoin = entityMergeJoin('album', userId);
   const mostNo1Albums = db.all(sql`
     WITH weekly_albums AS (
       SELECT ${trackWeek} as w, ${resolvedEntityId('album', userId)} as aid, ${trackMetric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${trackWeek} ORDER BY ${trackMetric} DESC) as rank
       FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
-      ${mrJoin}
+      ${resolvedPlayJoins('album', userId)}
       WHERE t.album_id IS NOT NULL ${uf}
       GROUP BY w, aid
     )
@@ -421,7 +417,7 @@ function entityCtx(entity: Ent, userId: number) {
   if (entity === 'album') {
     return {
       eidExpr: resolvedEntityId('album', userId),
-      extraJoins: sql`JOIN tracks t ON t.spotify_id = lh.track_id ${entityMergeJoin('album', userId)}`,
+      extraJoins: resolvedPlayJoins('album', userId),
       filter: sql`AND t.album_id IS NOT NULL`,
       finalJoin: sql`JOIN albums al ON al.spotify_id = eid`,
       finalName: sql`al.name`,
