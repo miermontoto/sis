@@ -521,8 +521,8 @@ stats.get('/projected-rankings', (c) => {
   const sessionRow = db.all(sql`SELECT session_started_at FROM polling_state WHERE user_id = ${userId}`)[0] as { session_started_at: string | null } | undefined;
   let sessionStart = sessionRow?.session_started_at ?? null;
 
-  if (!sessionStart) {
-    // derivar: buscar el último gap > track_duration + buffer entre plays recientes
+  if (!sessionStart && state?.lastCurrentlyPlayingTrackId) {
+    // derivar solo si hay reproducción activa (session_started_at puede perderse tras restart)
     const BUFFER_MS = 2 * 60_000;
     const recentPlays = db.all(sql`
       SELECT lh.played_at, t.duration_ms

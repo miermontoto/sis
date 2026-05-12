@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { Hono } from 'hono';
 import { importHistory, type ImportResult } from '../services/history-import.js';
 import type { AppVariables } from '../app.js';
@@ -28,11 +29,6 @@ importRoute.post('/', async (c) => {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      if (!Array.isArray(data)) {
-        console.warn(`[import] archivo ${file.name} no contiene un array JSON, omitiendo`);
-        continue;
-      }
-
       const result = importHistory(data, userId);
       aggregated.total += result.total;
       aggregated.imported += result.imported;
@@ -45,6 +41,26 @@ importRoute.post('/', async (c) => {
   }
 
   return c.json(aggregated);
+});
+
+importRoute.post('/file', async (c) => {
+  const userId = c.get('userId');
+  const { path } = await c.req.json<{ path: string }>();
+
+  if (!path) {
+    return c.json({ error: 'se requiere un path al archivo' }, 400);
+  }
+
+  try {
+    console.log(`[import] leyendo archivo: ${path}`);
+    const text = readFileSync(path, 'utf-8');
+    const data = JSON.parse(text);
+    const result = importHistory(data, userId);
+    return c.json(result);
+  } catch (err) {
+    console.error(`[import] error procesando ${path}:`, err);
+    return c.json({ error: `error procesando archivo: ${(err as Error).message}` }, 400);
+  }
 });
 
 export default importRoute;

@@ -3,9 +3,9 @@
 export type {
   TrackInfo, FormattedArtist, FormattedAlbum,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay,
+  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility,
   HistoryItem, HistoryResponse,
-  NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
+  NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendActivity, FriendsActivityResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
   HealthData, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
@@ -21,10 +21,10 @@ export type {
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
-  RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, NowPlayingDisplay, DateRangeParams,
+  RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, NowPlayingDisplay, SocialVisibility, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
-  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse,
+  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPoint, RankingHistoryPointWithCrossovers, HealthData,
@@ -122,6 +122,7 @@ interface SettingsData {
   sessionRankDisplay: SessionRankDisplay;
   sessionTrackingEnabled: boolean;
   nowPlayingDisplay: NowPlayingDisplay;
+  socialVisibility: SocialVisibility;
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
   lastPeriodYear: string | null;
@@ -138,6 +139,7 @@ const SETTINGS_DEFAULTS: SettingsData = {
   sessionRankDisplay: 'all+ytd',
   sessionTrackingEnabled: true,
   nowPlayingDisplay: 'auto',
+  socialVisibility: 'visible',
   lastPeriodWeek: null,
   lastPeriodMonth: null,
   lastPeriodYear: null,
@@ -160,6 +162,7 @@ export async function loadSettings(): Promise<void> {
       sessionRankDisplay: (data.sessionRankDisplay as SessionRankDisplay) || 'all+ytd',
       sessionTrackingEnabled: data.sessionTrackingEnabled !== 'false',
       nowPlayingDisplay: (data.nowPlayingDisplay as NowPlayingDisplay) || 'auto',
+      socialVisibility: (data.socialVisibility as SocialVisibility) || 'visible',
       lastPeriodWeek: data.lastPeriodWeek || null,
       lastPeriodMonth: data.lastPeriodMonth || null,
       lastPeriodYear: data.lastPeriodYear || null,
@@ -175,6 +178,7 @@ export async function loadSettings(): Promise<void> {
     localStorage.setItem('sis:sessionRankDisplay', settingsCache.sessionRankDisplay);
     localStorage.setItem('sis:sessionTrackingEnabled', String(settingsCache.sessionTrackingEnabled));
     localStorage.setItem('sis:nowPlayingDisplay', settingsCache.nowPlayingDisplay);
+    localStorage.setItem('sis:socialVisibility', settingsCache.socialVisibility);
     if (settingsCache.lastPeriodWeek) localStorage.setItem('sis:lastPeriod:week', settingsCache.lastPeriodWeek);
     if (settingsCache.lastPeriodMonth) localStorage.setItem('sis:lastPeriod:month', settingsCache.lastPeriodMonth);
     if (settingsCache.lastPeriodYear) localStorage.setItem('sis:lastPeriod:year', settingsCache.lastPeriodYear);
@@ -191,6 +195,7 @@ export async function loadSettings(): Promise<void> {
       sessionRankDisplay: (localStorage.getItem('sis:sessionRankDisplay') as SessionRankDisplay) || 'all+ytd',
       sessionTrackingEnabled: localStorage.getItem('sis:sessionTrackingEnabled') !== 'false',
       nowPlayingDisplay: (localStorage.getItem('sis:nowPlayingDisplay') as NowPlayingDisplay) || 'auto',
+      socialVisibility: (localStorage.getItem('sis:socialVisibility') as SocialVisibility) || 'visible',
       lastPeriodWeek: localStorage.getItem('sis:lastPeriod:week'),
       lastPeriodMonth: localStorage.getItem('sis:lastPeriod:month'),
       lastPeriodYear: localStorage.getItem('sis:lastPeriod:year'),
@@ -345,6 +350,17 @@ export function setNowPlayingDisplay(v: NowPlayingDisplay) {
   for (const fn of nowPlayingDisplayListeners) fn(v);
 }
 
+export function getSocialVisibility(): SocialVisibility {
+  if (settingsLoaded) return settingsCache.socialVisibility;
+  return (localStorage.getItem('sis:socialVisibility') as SocialVisibility) || 'visible';
+}
+
+export function setSocialVisibility(v: SocialVisibility) {
+  settingsCache.socialVisibility = v;
+  localStorage.setItem('sis:socialVisibility', v);
+  updateSetting({ socialVisibility: v });
+}
+
 const LAST_PERIOD_SETTING_KEY: Record<string, string> = {
   week: 'lastPeriodWeek',
   month: 'lastPeriodMonth',
@@ -398,6 +414,7 @@ function rangeParams(range: string, dates?: DateRangeParams): Record<string, str
 export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
   nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
+  friendsActivity: () => apiFetch<FriendsActivityResponse>('/now-playing/friends'),
 
   topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, lookback?: string, signal?: AbortSignal) =>
     apiFetch<TopTrackItem[]>('/stats/top-tracks', { ...rangeParams(range, dates), limit: String(limit), sort, ...(lookback && lookback !== 'disabled' ? { lookback } : {}) }, signal),
@@ -540,6 +557,8 @@ export const api = {
   updateUser: (id: number, fields: { isAdmin?: boolean; isActive?: boolean }) =>
     apiMutate<UserRecord>('PUT', `/admin/users/${id}`, fields),
   deleteUser: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/admin/users/${id}`),
+  updateTrackDuration: (trackId: string, durationMs: number) =>
+    apiMutate<{ success: boolean; durationMs: number }>('PATCH', `/admin/track/${encodeURIComponent(trackId)}`, { durationMs }),
 
   // playlist API
   generatePlaylist: (body: { strategy: PlaylistStrategy; params: Record<string, unknown>; name?: string; preview?: boolean }) =>

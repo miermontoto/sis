@@ -632,6 +632,19 @@ a.track-item {
   margin-top: 0;
 }
 
+.sidebar-friends {
+  margin-top: auto;
+  padding: 0 0.5rem;
+}
+
+.sidebar-friends:empty {
+  display: none;
+}
+
+.sidebar-friends + .sidebar-projections {
+  margin-top: 0;
+}
+
 .sidebar-now-playing {
   margin-top: auto;
   padding: 0.5rem;
@@ -927,6 +940,29 @@ a.track-item {
   margin: 0.15rem 0 0;
 }
 
+.duration-edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: inherit;
+  padding: 0;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--text-muted);
+}
+.duration-edit-btn:hover { color: var(--text-primary); border-color: var(--text-primary); }
+
+.duration-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: inherit;
+  padding: 0.1rem 0.3rem;
+  width: 5em;
+}
+
 .hero-actions {
   display: flex;
   align-items: center;
@@ -1158,6 +1194,7 @@ a.track-item {
   .sidebar-nav--desktop,
   .sidebar-now-playing,
   .sidebar-projections,
+  .sidebar-friends,
   .sidebar-user-wrap,
   .sidebar-footer {
     display: none;
@@ -1210,19 +1247,33 @@ a.track-item {
     text-overflow: ellipsis;
   }
 
+  .mini-player-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+    flex-shrink: 0;
+  }
+
   .mini-player-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.06);
+    background: none;
     border: none;
     border-radius: var(--radius);
-    color: var(--text);
+    color: var(--text-muted);
     cursor: pointer;
     transition: color 0.05s, background 0.05s;
+  }
+
+  .mini-player-btn--play {
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
   }
 
   .mini-player-btn:hover:not(:disabled) {
@@ -1232,6 +1283,15 @@ a.track-item {
 
   .mini-player-btn:disabled {
     opacity: 0.4;
+  }
+
+  .mini-player-btn--like:hover:not(:disabled) {
+    color: #ff4b7a;
+    background: rgba(255, 75, 122, 0.1);
+  }
+
+  .mini-player-btn--liked {
+    color: #ff4b7a;
   }
 
   .mobile-tabbar {
@@ -1469,5 +1529,11 @@ a.track-item {
 
   .page-header {
     display: none;
+  }
+}
+
+@media (display-mode: standalone) {
+  .mobile-header {
+    padding-top: env(safe-area-inset-top);
   }
 }

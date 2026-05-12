@@ -29,3 +29,14 @@ export interface PlayContextResponse {
   success: boolean;
   error?: string;
 }
+
+export interface FriendActivity {
+  spotifyId: string;
+  displayName: string | null;
+  imageUrl: string | null;
+  isPlaying: boolean;
+  track: { name: string; artists: string; albumImageUrl: string | null } | null;
+  updatedAt: string | null;
+}
+
+export type FriendsActivityResponse = FriendActivity[];

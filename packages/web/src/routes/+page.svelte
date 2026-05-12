@@ -10,6 +10,7 @@
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
+  import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
@@ -45,11 +46,10 @@
     }
   }
 
-  onMount(() => {
+  function loadData() {
     metric = getRankingMetric();
+    loadingTracks = loadingArtists = loadingAlbums = loadingHistory = loadingHealth = loadingTime = loadingStreaks = true;
 
-    // disparar cada petición por separado para que cada sección
-    // se renderice en cuanto su dato esté disponible
     api.topTracks('week', 5, metric)
       .then((t) => { topTracks = t; })
       .catch((e) => console.error('topTracks:', e))
@@ -92,7 +92,18 @@
       .then((s) => { streaks = s; })
       .catch((e) => console.error('streaks:', e))
       .finally(() => { loadingStreaks = false; });
+  }
 
+  async function refresh() {
+    loadData();
+    await Promise.all([
+      api.topTracks('week', 5, metric).catch(() => {}),
+      api.health().catch(() => {}),
+    ]);
+  }
+
+  onMount(() => {
+    loadData();
     const pollInterval = setInterval(pollRecent, 15_000);
     return () => clearInterval(pollInterval);
   });
@@ -105,6 +116,7 @@
   });
 </script>
 
+<PullToRefresh onrefresh={refresh}>
 <div class="page-header">
   <h1>Dashboard</h1>
 </div>
@@ -277,6 +289,7 @@
     <p class="empty-inline">No listening data yet.</p>
   {/if}
 </div>
+</PullToRefresh>
 
 <style>
   .stats-bar {
@@ -462,18 +475,33 @@
 
   @media (max-width: 600px) {
     .stats-bar {
-      gap: 0.75rem;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6rem 0.25rem;
+      justify-items: center;
+      padding: 0.75rem 0.5rem;
+    }
+    .stats-bar-sep {
+      display: none;
     }
     .stats-bar-item {
       flex-direction: column;
       align-items: center;
       gap: 0.1rem;
     }
+    .stats-bar-item:nth-child(7) {
+      grid-column: 1 / 2;
+      justify-self: end;
+    }
+    .stats-bar-item:nth-child(9) {
+      grid-column: 3 / 4;
+      justify-self: start;
+    }
     .stats-bar-value {
       font-size: 1.1rem;
     }
     .stats-bar-label {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
     }
   }
 </style>

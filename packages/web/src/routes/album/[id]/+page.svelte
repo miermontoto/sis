@@ -18,8 +18,10 @@
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
+  import IconShare from '$lib/icons/IconShare.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import { canShare, shareEntity } from '$lib/utils/share';
 
 
   let data = $state<AlbumDetail | null>(null);
@@ -245,6 +247,7 @@
         title="Actions"
         actions={[
           ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
+          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', window.location.href) }] : []),
           { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
           { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
         ]}

@@ -1000,9 +1000,73 @@ export async function enrichLocalAlbumCovers() {
   console.log(`[metadata] ${updated} álbumes locales actualizados con portada`);
 }
 
+export async function enrichImportTrackDurations() {
+  const db = getDb();
+  const missing = db.all(sql`
+    SELECT t.spotify_id, t.name, a.name as artist_name
+    FROM tracks t
+    JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+    JOIN artists a ON a.spotify_id = ta.artist_id
+    WHERE t.duration_ms <= 0 AND (t.spotify_id LIKE 'import:%' OR t.spotify_id LIKE 'local:%')
+  `) as { spotify_id: string; name: string; artist_name: string }[];
+
+  if (missing.length === 0) return;
+  console.log(`[metadata] ${missing.length} tracks importados sin duración, buscando en MusicBrainz...`);
+
+  let updated = 0;
+  for (const track of missing) {
+    const query = `recording:${track.name} AND artist:${track.artist_name}`;
+    const url = `${MB_BASE}/recording?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
+
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': MB_USER_AGENT, 'Accept': 'application/json' },
+      });
+
+      if (res.ok) {
+        const data = await res.json() as { recordings?: { score: number; length?: number }[] };
+        const recording = data.recordings?.[0];
+        if (recording && recording.score >= 80 && recording.length) {
+          db.run(sql`UPDATE tracks SET duration_ms = ${recording.length}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
+          updated++;
+          console.log(`[metadata] duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(recording.length / 1000)}s)`);
+        } else {
+          db.run(sql`UPDATE tracks SET duration_ms = -1, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
+        }
+      }
+    } catch (err) {
+      console.error(`[metadata] error buscando duración de "${track.name}":`, err);
+    }
+
+    await sleep(MB_DELAY_MS);
+  }
+
+  console.log(`[metadata] ${updated} tracks importados actualizados con duración`);
+}
+
+const DEDUP_WINDOW_S = 30;
+
+function findNearbyPlay(db: ReturnType<typeof getDb>, trackId: string, playedAt: string, userId: number) {
+  return db.get(sql`
+    SELECT id, duration_played_ms FROM listening_history
+    WHERE user_id = ${userId} AND track_id = ${trackId}
+      AND abs(strftime('%s', played_at) - strftime('%s', ${playedAt})) <= ${DEDUP_WINDOW_S}
+    LIMIT 1
+  `) as { id: number; duration_played_ms: number | null } | undefined;
+}
+
 // insertar reproducción de archivo local (llamado desde polling cuando el track cambia)
 export function insertLocalPlay(trackId: string, playedAt: string, userId: number, durationMs?: number): boolean {
   const db = getDb();
+
+  const existing = findNearbyPlay(db, trackId, playedAt, userId);
+  if (existing) {
+    if (existing.duration_played_ms === null && durationMs) {
+      db.run(sql`UPDATE listening_history SET duration_played_ms = ${durationMs} WHERE id = ${existing.id}`);
+    }
+    return false;
+  }
+
   try {
     db.insert(listeningHistory)
       .values({
@@ -1025,6 +1089,14 @@ export function insertPlay(item: SpotifyPlayHistoryItem, userId: number, duratio
 
   upsertTrack(item.track);
 
+  const existing = findNearbyPlay(db, item.track.id, item.played_at, userId);
+  if (existing) {
+    if (existing.duration_played_ms === null && durationPlayedMs) {
+      db.run(sql`UPDATE listening_history SET duration_played_ms = ${durationPlayedMs} WHERE id = ${existing.id}`);
+    }
+    return false;
+  }
+
   try {
     db.insert(listeningHistory)
       .values({
@@ -1042,4 +1114,29 @@ export function insertPlay(item: SpotifyPlayHistoryItem, userId: number, duratio
     if (err.message?.includes('UNIQUE')) return false;
     throw err;
   }
+}
+
+export function cleanDuplicatePlays() {
+  const db = getDb();
+  // encontrar el ID a eliminar en cada par de duplicados (mismo track, ±30s)
+  // conservar el que tenga duración; si ambos iguales, conservar el más antiguo (id menor)
+  const toDelete = db.all(sql`
+    SELECT CASE
+      WHEN a.duration_played_ms IS NOT NULL AND b.duration_played_ms IS NULL THEN b.id
+      WHEN b.duration_played_ms IS NOT NULL AND a.duration_played_ms IS NULL THEN a.id
+      ELSE b.id
+    END as id
+    FROM listening_history a
+    JOIN listening_history b ON a.user_id = b.user_id AND a.track_id = b.track_id AND a.id < b.id
+    WHERE abs(strftime('%s', a.played_at) - strftime('%s', b.played_at)) <= ${DEDUP_WINDOW_S}
+  `) as { id: number }[];
+
+  if (toDelete.length === 0) return;
+
+  const ids = toDelete.map(r => r.id);
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = ids.slice(i, i + 500);
+    db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+  }
+  console.log(`[cleanup] eliminados ${ids.length} plays duplicados (±${DEDUP_WINDOW_S}s)`);
 }

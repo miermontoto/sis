@@ -80,8 +80,10 @@ function resolveTrackId(artistName: string, trackName: string): string {
   return id;
 }
 
+
 const MIN_PLAYED_MS = MIN_PLAY_MS;
 const BATCH_SIZE = 500;
+const DEDUP_WINDOW_S = 300;
 
 const IMPORT_PREFIX = 'import:';
 
@@ -114,6 +116,14 @@ function importId(a: string, b: string): string {
 }
 
 // detecta formato y normaliza las entradas a un formato común
+interface LastFmEntry {
+  name: string;
+  artist: { '#text': string; mbid?: string };
+  album: { '#text': string; mbid?: string };
+  date?: { uts: string; '#text'?: string };
+  '@attr'?: { nowplaying: string };
+}
+
 interface NormalizedEntry {
   playedAt: string;
   trackName: string;
@@ -122,13 +132,46 @@ interface NormalizedEntry {
   trackId: string;
   artistId: string;
   albumId: string | null;
-  msPlayed: number;
+  msPlayed: number | null;
+}
+
+function isLastFmEntry(item: unknown): item is LastFmEntry {
+  const obj = item as Record<string, unknown>;
+  return obj.artist !== null && typeof obj.artist === 'object' && '#text' in (obj.artist as Record<string, unknown>);
 }
 
 function normalizeEntries(data: unknown[]): NormalizedEntry[] {
   if (data.length === 0) return [];
 
   const first = data[0] as Record<string, unknown>;
+
+  if (isLastFmEntry(first)) {
+    return (data as LastFmEntry[])
+      .map((entry) => {
+        if (entry['@attr']?.nowplaying === 'true') return null;
+        if (!entry.date?.uts) return null;
+        if (!entry.name || !entry.artist['#text']) return null;
+
+        const trackName = entry.name;
+        const artistName = entry.artist['#text'];
+        const albumName = entry.album?.['#text'] || null;
+        const trackId = resolveTrackId(artistName, trackName);
+        const playedAt = new Date(parseInt(entry.date!.uts) * 1000).toISOString();
+        const artistId = resolveArtistId(artistName);
+        return {
+          playedAt,
+          trackName,
+          artistName,
+          albumName,
+          trackId,
+          artistId,
+          albumId: albumName ? resolveAlbumId(artistId, artistName, albumName) : null,
+          msPlayed: null,
+        };
+      })
+      .filter((e): e is NormalizedEntry => e !== null);
+  }
+
   const isExtended = 'ts' in first;
 
   return data
@@ -181,20 +224,84 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
     .filter((e): e is NormalizedEntry => e !== null);
 }
 
-export function importHistory(data: unknown[], userId: number): ImportResult {
-  const entries = normalizeEntries(data);
-  const result: ImportResult = { total: data.length, imported: 0, duplicates: 0, skipped: data.length - entries.length };
+function buildPlayIndex(userId: number): Map<string, number[]> {
+  const db = getDb();
+  const rows = db.all(sql`
+    SELECT LOWER(t.name) as name, strftime('%s', lh.played_at) as ts
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE lh.user_id = ${userId}
+  `) as { name: string; ts: string }[];
+
+  const index = new Map<string, number[]>();
+  for (const row of rows) {
+    const arr = index.get(row.name);
+    const ts = parseInt(row.ts);
+    if (arr) arr.push(ts);
+    else index.set(row.name, [ts]);
+  }
+  for (const arr of index.values()) arr.sort((a, b) => a - b);
+  console.log(`[import] índice de dedup: ${rows.length} plays, ${index.size} tracks`);
+  return index;
+}
+
+function hasNearbyPlay(index: Map<string, number[]>, trackName: string, playedAtS: number): boolean {
+  const arr = index.get(trackName.toLowerCase());
+  if (!arr || arr.length === 0) return false;
+  let lo = 0, hi = arr.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < playedAtS) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  for (const i of [lo - 1, lo]) {
+    if (i >= 0 && i < arr.length && Math.abs(arr[i] - playedAtS) <= DEDUP_WINDOW_S) return true;
+  }
+  return false;
+}
+
+function addToIndex(index: Map<string, number[]>, trackName: string, playedAtS: number) {
+  const key = trackName.toLowerCase();
+  const arr = index.get(key);
+  if (arr) { arr.push(playedAtS); arr.sort((a, b) => a - b); }
+  else index.set(key, [playedAtS]);
+}
+
+export function importHistory(data: unknown, userId: number): ImportResult {
+  let flat: unknown[];
+  if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
+    flat = (data as unknown[][]).flat();
+  } else if (Array.isArray(data)) {
+    flat = data;
+  } else {
+    throw new Error('formato de datos no reconocido');
+  }
+
+  const entries = normalizeEntries(flat);
+  const result: ImportResult = { total: flat.length, imported: 0, duplicates: 0, skipped: flat.length - entries.length };
+
+  // dedup temporal en memoria para entradas last.fm que resolvieron a tracks existentes
+  const hasLastFm = entries.some(e => e.msPlayed === null);
+  const playIndex = hasLastFm ? buildPlayIndex(userId) : null;
 
   const db = getDb();
 
-  // procesar en lotes dentro de transacciones
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
     const batch = entries.slice(i, i + BATCH_SIZE);
     const now = new Date().toISOString();
 
     db.transaction((tx) => {
       for (const entry of batch) {
-        // crear artista si no existe (ignorar nombres vacíos)
+        // dedup temporal: para entradas last.fm, comprobar si ya hay un play ±5 min
+        if (entry.msPlayed === null && playIndex) {
+          const playedAtS = Math.floor(new Date(entry.playedAt).getTime() / 1000);
+          if (hasNearbyPlay(playIndex, entry.trackName, playedAtS)) {
+            result.duplicates++;
+            continue;
+          }
+          addToIndex(playIndex, entry.trackName, playedAtS);
+        }
+
         if (entry.artistName) {
           tx.run(sql`
             INSERT INTO artists (spotify_id, name, genres, updated_at)
@@ -203,7 +310,6 @@ export function importHistory(data: unknown[], userId: number): ImportResult {
           `);
         }
 
-        // crear álbum si existe
         if (entry.albumId && entry.albumName) {
           tx.run(sql`
             INSERT INTO albums (spotify_id, name, updated_at)
@@ -212,14 +318,12 @@ export function importHistory(data: unknown[], userId: number): ImportResult {
           `);
         }
 
-        // crear track si no existe
         tx.run(sql`
           INSERT INTO tracks (spotify_id, name, album_id, duration_ms, updated_at)
-          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, ${entry.msPlayed}, ${now})
+          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, ${entry.msPlayed ?? 0}, ${now})
           ON CONFLICT (spotify_id) DO NOTHING
         `);
 
-        // relación track-artista
         tx.run(sql`
           INSERT INTO track_artists (track_id, artist_id, position)
           VALUES (${entry.trackId}, ${entry.artistId}, 0)
@@ -239,6 +343,10 @@ export function importHistory(data: unknown[], userId: number): ImportResult {
         }
       }
     });
+
+    if ((i + BATCH_SIZE) % 10000 < BATCH_SIZE) {
+      console.log(`[import] progreso: ${Math.min(i + BATCH_SIZE, entries.length)}/${entries.length}`);
+    }
   }
 
   console.log(`[import] total: ${result.total}, importados: ${result.imported}, duplicados: ${result.duplicates}, omitidos: ${result.skipped}`);

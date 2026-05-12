@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 import {
@@ -306,15 +306,18 @@ export function startPolling() {
   const globalUserId = activeUsers[0].userId;
 
   cleanOrphanImports();
+  cleanDuplicatePlays();
 
   enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
   enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
+  enrichImportTrackDurations().catch(err => console.error('[metadata] error duraciones:', err));
 
   metadataRefreshTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
     enrichArtistMetadata(uid).catch(err => console.error('[metadata] error:', err));
     enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
+    enrichImportTrackDurations().catch(err => console.error('[metadata] error duraciones:', err));
   }, METADATA_REFRESH_INTERVAL_MS);
 
   // resolución de entidades import:

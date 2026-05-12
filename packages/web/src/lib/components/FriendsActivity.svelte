@@ -1,0 +1,182 @@
+<script lang="ts">
+  import { api, type FriendActivity } from '$lib/api';
+  import { onMount, onDestroy } from 'svelte';
+
+  let friends = $state<FriendActivity[]>([]);
+  let intervalId: ReturnType<typeof setInterval> | null = null;
+  let hoveredId = $state<string | null>(null);
+
+  async function poll() {
+    try {
+      friends = await api.friendsActivity();
+    } catch {
+      friends = [];
+    }
+  }
+
+  onMount(() => {
+    poll();
+    intervalId = setInterval(poll, 30_000);
+  });
+
+  onDestroy(() => {
+    if (intervalId) clearInterval(intervalId);
+  });
+
+  function positionTooltip(node: HTMLElement) {
+    const parent = node.parentElement!;
+    const pr = parent.getBoundingClientRect();
+    const gap = 6;
+
+    node.style.left = '0';
+    node.style.right = 'auto';
+    node.style.top = 'auto';
+    node.style.bottom = 'auto';
+
+    const tr = node.getBoundingClientRect();
+
+    // vertical: prefer above, fall back to below
+    if (pr.top - gap - tr.height >= 0) {
+      node.style.bottom = `${pr.height + gap}px`;
+    } else {
+      node.style.top = `${pr.height + gap}px`;
+    }
+
+    // horizontal: center on avatar, clamp to viewport
+    const idealLeft = pr.width / 2 - tr.width / 2;
+    const absLeft = pr.left + idealLeft;
+    const absRight = absLeft + tr.width;
+    const pad = 8;
+
+    let left = idealLeft;
+    if (absLeft < pad) {
+      left = idealLeft + (pad - absLeft);
+    } else if (absRight > window.innerWidth - pad) {
+      left = idealLeft - (absRight - (window.innerWidth - pad));
+    }
+    node.style.left = `${left}px`;
+  }
+</script>
+
+{#if friends.length > 0}
+  <div class="friends-activity">
+    <span class="friends-label">Friends</span>
+    <div class="friends-row">
+      {#each friends as friend (friend.spotifyId)}
+        <div
+          class="friend-wrap"
+          onmouseenter={() => hoveredId = friend.spotifyId}
+          onmouseleave={() => hoveredId = null}
+        >
+          {#if friend.imageUrl}
+            <img
+              class="friend-avatar"
+              class:playing={friend.isPlaying}
+              src={friend.imageUrl}
+              alt={friend.displayName || friend.spotifyId}
+            />
+          {:else}
+            <div
+              class="friend-avatar friend-avatar--empty"
+              class:playing={friend.isPlaying}
+            >
+              {(friend.displayName || friend.spotifyId).charAt(0).toUpperCase()}
+            </div>
+          {/if}
+          {#if hoveredId === friend.spotifyId}
+            <div class="friend-tooltip" use:positionTooltip>
+              <span class="tooltip-name">{friend.displayName || friend.spotifyId}</span>
+              {#if friend.track}
+                <span class="tooltip-track">{friend.track.name} — {friend.track.artists}</span>
+              {:else}
+                <span class="tooltip-idle">Not listening</span>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </div>
+{/if}
+
+<style>
+  .friends-activity {
+    padding: 0.25rem 0;
+  }
+
+  .friends-label {
+    display: block;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.35rem;
+  }
+
+  .friends-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .friend-wrap {
+    position: relative;
+  }
+
+  .friend-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, opacity 0.15s;
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .friend-avatar.playing {
+    border-color: var(--accent);
+    opacity: 1;
+  }
+
+  .friend-avatar--empty {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  .friend-tooltip {
+    position: absolute;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    white-space: nowrap;
+    z-index: 50;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tooltip-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .tooltip-track {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  .tooltip-idle {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+</style>

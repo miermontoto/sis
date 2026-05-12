@@ -64,6 +64,53 @@ nowPlaying.get('/', (c) => {
   });
 });
 
+nowPlaying.get('/friends', (c) => {
+  const userId = c.get('userId');
+  const db = getDb();
+  const staleThreshold = new Date(Date.now() - 2 * 60_000).toISOString();
+
+  const rows = db.all(sql`
+    SELECT
+      u.spotify_id AS spotifyId,
+      u.display_name AS displayName,
+      u.image_url AS imageUrl,
+      ps.is_playing AS isPlaying,
+      ps.last_currently_playing_at AS updatedAt,
+      t.name AS trackName,
+      a.image_url AS albumImageUrl,
+      (SELECT GROUP_CONCAT(a2.name, ', ')
+       FROM track_artists ta2
+       JOIN artists a2 ON a2.spotify_id = ta2.artist_id
+       WHERE ta2.track_id = t.spotify_id
+       ORDER BY ta2.position) AS artistNames
+    FROM users u
+    INNER JOIN polling_state ps ON ps.user_id = u.id
+    LEFT JOIN tracks t ON t.spotify_id = ps.last_currently_playing_track_id
+      AND ps.last_currently_playing_at > ${staleThreshold}
+    LEFT JOIN albums a ON a.spotify_id = t.album_id
+    WHERE u.id != ${userId}
+      AND u.is_active = 1
+      AND u.spotify_id NOT IN (
+        SELECT us.user_id FROM user_settings us
+        WHERE us.key = 'socialVisibility' AND us.value = 'hidden'
+      )
+    ORDER BY ps.is_playing DESC, ps.last_currently_playing_at DESC
+  `) as any[];
+
+  return c.json(rows.map((r) => ({
+    spotifyId: r.spotifyId,
+    displayName: r.displayName,
+    imageUrl: r.imageUrl,
+    isPlaying: !!(r.isPlaying && r.trackName),
+    track: r.trackName ? {
+      name: r.trackName,
+      artists: r.artistNames || '',
+      albumImageUrl: r.albumImageUrl,
+    } : null,
+    updatedAt: r.updatedAt,
+  })));
+});
+
 // lectura en vivo desde Spotify (no cache) — usado tras acciones de playback
 nowPlaying.get('/live', async (c) => {
   const userId = c.get('userId');

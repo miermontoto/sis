@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionTrackingEnabled, setSessionTrackingEnabled, getNowPlayingDisplay, setNowPlayingDisplay, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionRankDisplay, type NowPlayingDisplay, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionTrackingEnabled, setSessionTrackingEnabled, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -26,6 +26,7 @@
   let sessionRankDisplayPref = $state<SessionRankDisplay>('all+ytd');
   let sessionTrackingPref = $state(true);
   let nowPlayingDisplayPref = $state<NowPlayingDisplay>('auto');
+  let socialVisibilityPref = $state<SocialVisibility>('visible');
 
   // estado del import
   let importFiles = $state<FileList | null>(null);
@@ -64,6 +65,7 @@
     sessionRankDisplayPref = getSessionRankDisplay();
     sessionTrackingPref = getSessionTrackingEnabled();
     nowPlayingDisplayPref = getNowPlayingDisplay();
+    socialVisibilityPref = getSocialVisibility();
     try {
       [health, streaks, me] = await Promise.all([
         api.health(),
@@ -206,6 +208,22 @@
             <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }} disabled={!sessionTrackingPref}>Off</button>
             <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }} disabled={!sessionTrackingPref}>ALL</button>
             <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }} disabled={!sessionTrackingPref}>ALL+YTD</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="prefs-subtitle">Social</div>
+    <div class="prefs-list">
+      <div class="pref-row">
+        <div class="pref-info">
+          <div class="pref-label">Activity visibility</div>
+          <div class="pref-desc">Show your currently playing track to other users in the sidebar</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={socialVisibilityPref === 'hidden'} onclick={() => { socialVisibilityPref = 'hidden'; setSocialVisibility('hidden'); }}>Hidden</button>
+            <button class="segmented-btn" class:segmented-active={socialVisibilityPref === 'visible'} onclick={() => { socialVisibilityPref = 'visible'; setSocialVisibility('visible'); }}>Visible</button>
           </div>
         </div>
       </div>

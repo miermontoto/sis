@@ -22,7 +22,9 @@
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import IconQueue from '$lib/icons/IconQueue.svelte';
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
+  import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import { canShare, shareEntity } from '$lib/utils/share';
 
 
 
@@ -37,6 +39,8 @@
   let isLiked = $state(false);
   let likeLoading = $state(false);
   let likeActing = $state(false);
+  let editingDuration = $state(false);
+  let durationInput = $state('');
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -106,6 +110,29 @@
     }
   }
 
+  function parseDurationInput(val: string): number | null {
+    // acepta "3:45", "3m45s", "225" (segundos)
+    let match = val.match(/^(\d+):(\d{1,2})$/);
+    if (match) return (parseInt(match[1]) * 60 + parseInt(match[2])) * 1000;
+    match = val.match(/^(\d+)m\s*(\d{1,2})s?$/);
+    if (match) return (parseInt(match[1]) * 60 + parseInt(match[2])) * 1000;
+    match = val.match(/^(\d+)$/);
+    if (match) return parseInt(match[1]) * 1000;
+    return null;
+  }
+
+  async function saveDuration() {
+    const ms = parseDurationInput(durationInput);
+    if (ms === null || !data) return;
+    try {
+      await api.updateTrackDuration($page.params.id, ms);
+      data.track.durationMs = ms;
+    } catch (e) {
+      console.error('error actualizando duración:', e);
+    }
+    editingDuration = false;
+  }
+
 </script>
 
 {#if loading && !data}
@@ -134,10 +161,43 @@
             {#if data.track.album.releaseDate}
               <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
             {/if}
-            <span class="detail-meta"> &middot; {formatTrackLength(data.track.durationMs)}</span>
+            <span class="detail-meta"> &middot; </span>
+            {#if !isSpotifyId($page.params.id) && editingDuration}
+              <input
+                class="duration-input"
+                type="text"
+                placeholder="3:45"
+                bind:value={durationInput}
+                onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
+                autofocus
+              />
+            {:else if !isSpotifyId($page.params.id)}
+              <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
+                {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
+              </button>
+            {:else}
+              <span class="detail-meta">{formatTrackLength(data.track.durationMs)}</span>
+            {/if}
           </p>
         {:else}
-          <p class="detail-album"><span class="detail-meta">{formatTrackLength(data.track.durationMs)}</span></p>
+          <p class="detail-album">
+            {#if !isSpotifyId($page.params.id) && editingDuration}
+              <input
+                class="duration-input"
+                type="text"
+                placeholder="3:45"
+                bind:value={durationInput}
+                onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
+                autofocus
+              />
+            {:else if !isSpotifyId($page.params.id)}
+              <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
+                {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
+              </button>
+            {:else}
+              <span class="detail-meta">{formatTrackLength(data.track.durationMs)}</span>
+            {/if}
+          </p>
         {/if}
       </div>
     </div>
@@ -201,6 +261,7 @@
             { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack($page.params.id) },
             { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${$page.params.id}`, '_blank') },
           ] : []),
+          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', window.location.href) }] : []),
           { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
         ]}
       />

@@ -366,7 +366,7 @@ admin.get('/merge-suggestions', (c) => {
   const db = getDb();
   const excludeClause = exclude ? sql`AND e.spotify_id != ${exclude}` : sql``;
   const sourceFilter = sql`e.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId})`;
-  const importFilter = sql`e.spotify_id NOT LIKE 'import:%'`;
+  const importFilter = sql`e.spotify_id NOT LIKE 'unresolved:%'`;
 
   let rows: { id: string; name: string; image_url: string | null; plays: number }[] = [];
 
@@ -510,6 +510,22 @@ admin.delete('/users/:id', (c) => {
     hardDeleteUser(id);
   }
   return c.json({ success: true });
+});
+
+admin.patch('/track/:id', async (c) => {
+  const trackId = decodeURIComponent(c.req.param('id'));
+  const { durationMs } = await c.req.json<{ durationMs: number }>();
+
+  if (typeof durationMs !== 'number' || durationMs < 0) {
+    return c.json({ error: 'durationMs debe ser un número >= 0' }, 400);
+  }
+
+  const db = getDb();
+  const existing = db.select().from(tracks).where(eq(tracks.spotifyId, trackId)).get();
+  if (!existing) return c.json({ error: 'track no encontrado' }, 404);
+
+  db.update(tracks).set({ durationMs }).where(eq(tracks.spotifyId, trackId)).run();
+  return c.json({ success: true, durationMs });
 });
 
 export default admin;

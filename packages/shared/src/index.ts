@@ -11,10 +11,10 @@ export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryI
 export type { HistoryItem, HistoryResponse } from './history.js';
 
 // now playing
-export type { NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse } from './now-playing.js';
+export type { NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendActivity, FriendsActivityResponse } from './now-playing.js';
 
 // configuración
-export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay } from './settings.js';
+export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility } from './settings.js';
 export { LOCALE_OPTIONS } from './settings.js';
 
 // detalle de entidades

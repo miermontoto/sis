@@ -14,11 +14,17 @@
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
+  import FriendsActivity from '$lib/components/FriendsActivity.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import IconPause from '$lib/icons/IconPause.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
-  import { onDestroy } from 'svelte';
+  import IconPrev from '$lib/icons/IconPrev.svelte';
+  import IconNext from '$lib/icons/IconNext.svelte';
+  import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
+  import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
+  import { onDestroy, onMount } from 'svelte';
+  import { pwaInfo } from 'virtual:pwa-info';
 
   // estado del modal global de merge (abierto desde el menú contextual).
   // Sincroniza bidireccionalmente con el store: abre al set target, cierra al
@@ -54,6 +60,13 @@
     else projectionsStore.stopPolling();
   });
   onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); });
+
+  onMount(async () => {
+    if (pwaInfo) {
+      const { registerSW } = await import('virtual:pwa-register');
+      registerSW({ immediate: true });
+    }
+  });
 
   $effect(() => {
     if (!sessionTrackingEnabled) return;
@@ -204,6 +217,28 @@
     }
   }
 
+  async function miniPrevious() {
+    if (miniActing) return;
+    miniActing = true;
+    try {
+      await api.playbackPrevious();
+      setTimeout(() => nowPlayingStore.pollLive(), 500);
+    } catch {} finally {
+      miniActing = false;
+    }
+  }
+
+  async function miniNext() {
+    if (miniActing) return;
+    miniActing = true;
+    try {
+      await api.playbackNext();
+      setTimeout(() => nowPlayingStore.pollLive(), 500);
+    } catch {} finally {
+      miniActing = false;
+    }
+  }
+
 </script>
 
 {#if page.url.pathname === '/login'}
@@ -247,16 +282,49 @@
             <span class="mini-player-track">{npData.track.name}</span>
             <span class="mini-player-artist">{npData.track.artists.map(a => a.name).join(', ')}</span>
           </div>
+          <div class="mini-player-controls">
+            <button
+              class="mini-player-btn"
+              title="Previous"
+              disabled={miniActing}
+              onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniPrevious(); }}
+            >
+              <IconPrev size={14} />
+            </button>
+            <button
+              class="mini-player-btn mini-player-btn--play"
+              title={npData.isPlaying ? 'Pause' : 'Play'}
+              disabled={miniActing}
+              onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniTogglePlay(); }}
+            >
+              {#if npData.isPlaying}
+                <IconPause size={18} />
+              {:else}
+                <IconPlay size={18} />
+              {/if}
+            </button>
+            <button
+              class="mini-player-btn"
+              title="Next"
+              disabled={miniActing}
+              onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniNext(); }}
+            >
+              <IconNext size={14} />
+            </button>
+          </div>
           <button
-            class="mini-player-btn"
-            title={npData.isPlaying ? 'Pause' : 'Play'}
-            disabled={miniActing}
-            onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniTogglePlay(); }}
+            class="mini-player-btn mini-player-btn--like"
+            class:mini-player-btn--liked={nowPlayingStore.isLiked}
+            title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+            disabled={nowPlayingStore.likeLoading}
+            onclick={(e) => { e.stopPropagation(); e.preventDefault(); nowPlayingStore.toggleLike(); }}
           >
-            {#if npData.isPlaying}
-              <IconPause size={18} />
+            {#if nowPlayingStore.likeLoading}
+              <span class="btn-spinner"></span>
+            {:else if nowPlayingStore.isLiked}
+              <IconHeartFilled size={14} />
             {:else}
-              <IconPlay size={18} />
+              <IconHeartOutline size={14} />
             {/if}
           </button>
         </a>
@@ -290,6 +358,9 @@
           </div>
         {/each}
       </nav>
+      <div class="sidebar-friends">
+        <FriendsActivity />
+      </div>
       {#if sessionTrackingEnabled && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
         <div class="sidebar-projections">
           <ProjectedChanges />
@@ -327,7 +398,7 @@
     </aside>
     <main class="main-content">
       <div class="mobile-header">
-        <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle} <span class="mobile-header-sep">|</span> {pageTitle}{/if}</span>
+        <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">
           <button class="mobile-search-bar" onclick={() => showSearch = true}>
             Search...
