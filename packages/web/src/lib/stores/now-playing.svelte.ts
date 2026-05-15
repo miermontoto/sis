@@ -1,4 +1,5 @@
 import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem } from '$lib/api';
+import { MIN_PLAY_MS } from '@sis/shared';
 
 let _data = $state<NowPlayingResponse | null>(null);
 let _intervalId: ReturnType<typeof setInterval> | null = null;
@@ -11,7 +12,6 @@ let _trackStartedAt = 0;
 let _lastFinishedPlay = $state<HistoryItem | null>(null);
 
 const LIVE_TRACK_GUARD_MS = 35_000;
-const MIN_PLAY_MS = 30_000;
 
 type NowPlayingSource = 'cached' | 'live' | 'local';
 

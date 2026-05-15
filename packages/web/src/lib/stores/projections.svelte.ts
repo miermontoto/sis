@@ -4,12 +4,16 @@ import { nowPlayingStore } from './now-playing.svelte';
 let _data = $state<ProjectedRankingsResponse | null>(null);
 let _loading = $state(false);
 let _lastFetchedTrackId: string | null = null;
+let _pendingTrackId: string | null = null;
 let _controller: AbortController | null = null;
 
 async function fetchProjections() {
+  const trackId = nowPlayingStore.data?.track?.id ?? null;
+  if (_pendingTrackId === trackId && _loading) return;
   _controller?.abort();
   _controller = new AbortController();
   _loading = true;
+  _pendingTrackId = trackId;
 
   try {
     const url = `/api/stats/projected-rankings?sort=${getRankingMetric()}`;
@@ -17,7 +21,7 @@ async function fetchProjections() {
     if (!res.ok) return;
     const result: ProjectedRankingsResponse = await res.json();
     _data = result;
-    _lastFetchedTrackId = nowPlayingStore.data?.track?.id ?? null;
+    _lastFetchedTrackId = trackId;
   } catch {
   } finally {
     _loading = false;
@@ -26,7 +30,7 @@ async function fetchProjections() {
 
 function onTrackChange() {
   const trackId = nowPlayingStore.data?.track?.id ?? null;
-  if (trackId !== _lastFetchedTrackId) {
+  if (trackId !== _lastFetchedTrackId && trackId !== _pendingTrackId) {
     fetchProjections();
   }
 }
@@ -38,7 +42,7 @@ export const projectionsStore = {
   get hasChanges() {
     return _data !== null && (_data.nowPlaying.length > 0 || _data.session.length > 0);
   },
-  startPolling() { fetchProjections(); },
+  startPolling() { _lastFetchedTrackId = null; _pendingTrackId = null; },
   stopPolling() { _controller?.abort(); },
   onTrackChange,
   refresh: fetchProjections,

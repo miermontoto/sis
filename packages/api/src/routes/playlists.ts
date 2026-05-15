@@ -4,7 +4,7 @@ import { getDb } from '../db/connection.js';
 import { generatedPlaylists, generatedPlaylistTracks, userSettings } from '../db/schema.js';
 import { PLAYLIST_SCOPES } from '../constants.js';
 import { hasRequiredScopes } from '../services/token-manager.js';
-import { spotifyFetch } from '../services/spotify-client.js';
+import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import {
   enrichTrack,
   strategyTopRange, strategyTopArtist, strategyTopGenre,
@@ -50,7 +50,6 @@ const RECORD_KEY_TITLES: Record<string, string> = {
   longestGap: 'Longest Gap',
   goldenOldies: 'Golden Oldies',
   latestDiscoveries: 'Latest Discoveries',
-  latestNew: 'Latest New',
   mostAccolades: 'Most Records',
   topNoAlbum: 'Top No Album',
   mostDistinctTracks: 'Most Distinct Tracks',
@@ -64,9 +63,9 @@ const UNSUPPORTED_RECORD_KEYS = new Set(['mostUniquePerMonth', 'yearEndFinishes'
 
 // leer la preferencia de ranking metric del usuario (time o plays)
 function getUserSort(db: ReturnType<typeof getDb>, userId: number): Sort {
-  const row = db.all(sql`
+  const row = db.get(sql`
     SELECT value FROM user_settings WHERE user_id = ${String(userId)} AND key = 'rankingMetric'
-  `)[0] as { value: string } | undefined;
+  `) as { value: string } | undefined;
   return (row?.value === 'plays' ? 'plays' : 'time') as Sort;
 }
 
@@ -278,14 +277,9 @@ playlists.post('/generate', async (c) => {
     trackCount: trackIds.length,
   }).returning().get();
 
-  // guardar tracks
-  for (let i = 0; i < trackIds.length; i++) {
-    db.insert(generatedPlaylistTracks).values({
-      playlistId: row.id,
-      trackId: trackIds[i],
-      position: i + 1,
-    }).run();
-  }
+  db.insert(generatedPlaylistTracks).values(
+    trackIds.map((id, i) => ({ playlistId: row.id, trackId: id, position: i + 1 }))
+  ).run();
 
   const libraryPlaylistId = syncCreatedPlaylistToLibrary({
     userId,
@@ -326,9 +320,9 @@ playlists.get('/', (c) => {
     LIMIT ${limit} OFFSET ${offset}
   `) as any[];
 
-  const total = db.all(sql`
+  const total = db.get(sql`
     SELECT count(*) as count FROM generated_playlists WHERE user_id = ${userId}
-  `)[0] as { count: number };
+  `) as { count: number };
 
   return c.json({
     items: rows.map(r => ({
@@ -379,15 +373,96 @@ playlists.post('/library/sync', async (c) => {
   return c.json({ success: true });
 });
 
+// agregar track a playlist
+playlists.post('/library/:id/tracks', async (c) => {
+  const userId = c.get('userId');
+  const db = getDb();
+  const playlistId = parseInt(c.req.param('id'));
+  const { trackId } = await c.req.json<{ trackId: string }>();
+
+  if (!trackId) return c.json({ error: 'trackId requerido' }, 400);
+
+  const row = db.get(sql`
+    SELECT id, spotify_id, is_owned FROM spotify_playlists
+    WHERE id = ${playlistId} AND user_id = ${userId}
+  `) as any;
+
+  if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
+  if (!row.is_owned) return c.json({ error: 'no se puede modificar playlist ajena' }, 403);
+
+  if (!hasRequiredScopes(userId, PLAYLIST_SCOPES)) {
+    return c.json({ error: 'missing_scopes', scopes: PLAYLIST_SCOPES }, 403);
+  }
+
+  const uri = `spotify:track:${trackId}`;
+  const res = await spotifyFetchRaw(
+    `/playlists/${row.spotify_id}/tracks`,
+    { userId, method: 'POST', body: { uris: [uri] } },
+  );
+  if (!res) return c.json({ error: 'rate_limited' }, 429);
+  if (!res.ok) return c.json({ error: 'spotify_rejected' }, res.status as 400);
+
+  const maxPos = db.get(sql`
+    SELECT COALESCE(MAX(position), -1) as maxPos FROM spotify_playlist_tracks WHERE playlist_id = ${playlistId}
+  `) as { maxPos: number };
+
+  db.run(sql`
+    INSERT OR IGNORE INTO spotify_playlist_tracks (playlist_id, track_id, position, added_at)
+    VALUES (${playlistId}, ${trackId}, ${maxPos.maxPos + 1}, ${new Date().toISOString()})
+  `);
+
+  db.run(sql`UPDATE spotify_playlists SET track_count = track_count + 1 WHERE id = ${playlistId}`);
+
+  return c.json({ success: true });
+});
+
+// eliminar track de playlist
+playlists.delete('/library/:id/tracks', async (c) => {
+  const userId = c.get('userId');
+  const db = getDb();
+  const playlistId = parseInt(c.req.param('id'));
+  const { trackId } = await c.req.json<{ trackId: string }>();
+
+  if (!trackId) return c.json({ error: 'trackId requerido' }, 400);
+
+  const row = db.get(sql`
+    SELECT id, spotify_id, is_owned FROM spotify_playlists
+    WHERE id = ${playlistId} AND user_id = ${userId}
+  `) as any;
+
+  if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
+  if (!row.is_owned) return c.json({ error: 'no se puede modificar playlist ajena' }, 403);
+
+  if (!hasRequiredScopes(userId, PLAYLIST_SCOPES)) {
+    return c.json({ error: 'missing_scopes', scopes: PLAYLIST_SCOPES }, 403);
+  }
+
+  const uri = `spotify:track:${trackId}`;
+  const res = await spotifyFetchRaw(
+    `/playlists/${row.spotify_id}/tracks`,
+    { userId, method: 'DELETE', body: { tracks: [{ uri }] } },
+  );
+  if (!res) return c.json({ error: 'rate_limited' }, 429);
+  if (!res.ok) return c.json({ error: 'spotify_rejected' }, res.status as 400);
+
+  db.run(sql`
+    DELETE FROM spotify_playlist_tracks WHERE playlist_id = ${playlistId} AND track_id = ${trackId}
+  `);
+
+  db.run(sql`UPDATE spotify_playlists SET track_count = MAX(track_count - 1, 0) WHERE id = ${playlistId}`);
+
+  return c.json({ success: true });
+});
+
 // detalle de una playlist de biblioteca
 playlists.get('/library/:id', (c) => {
   const userId = c.get('userId');
   const db = getDb();
   const id = parseInt(c.req.param('id'));
 
-  const row = db.all(sql`
+  const row = db.get(sql`
     SELECT * FROM spotify_playlists WHERE id = ${id} AND user_id = ${userId}
-  `)[0] as any;
+  `) as any;
 
   if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
 
@@ -441,9 +516,9 @@ playlists.get('/:id', (c) => {
   const db = getDb();
   const id = parseInt(c.req.param('id'));
 
-  const row = db.all(sql`
+  const row = db.get(sql`
     SELECT * FROM generated_playlists WHERE id = ${id} AND user_id = ${userId}
-  `)[0] as any;
+  `) as any;
 
   if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
 
@@ -478,9 +553,9 @@ playlists.delete('/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
   const removeFromSpotify = c.req.query('spotify') === 'true';
 
-  const row = db.all(sql`
+  const row = db.get(sql`
     SELECT * FROM generated_playlists WHERE id = ${id} AND user_id = ${userId}
-  `)[0] as any;
+  `) as any;
 
   if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
 
@@ -503,9 +578,9 @@ playlists.post('/:id/regenerate', async (c) => {
   const db = getDb();
   const id = parseInt(c.req.param('id'));
 
-  const row = db.all(sql`
+  const row = db.get(sql`
     SELECT * FROM generated_playlists WHERE id = ${id} AND user_id = ${userId}
-  `)[0] as any;
+  `) as any;
 
   if (!row) return c.json({ error: 'playlist no encontrada' }, 404);
 
@@ -542,13 +617,9 @@ playlists.post('/:id/regenerate', async (c) => {
   }
 
   db.run(sql`DELETE FROM generated_playlist_tracks WHERE playlist_id = ${id}`);
-  for (let i = 0; i < trackIds.length; i++) {
-    db.insert(generatedPlaylistTracks).values({
-      playlistId: id,
-      trackId: trackIds[i],
-      position: i + 1,
-    }).run();
-  }
+  db.insert(generatedPlaylistTracks).values(
+    trackIds.map((tid, i) => ({ playlistId: id, trackId: tid, position: i + 1 }))
+  ).run();
 
   const now = new Date().toISOString();
   db.run(sql`UPDATE generated_playlists SET track_count = ${trackIds.length}, updated_at = ${now} WHERE id = ${id}`);

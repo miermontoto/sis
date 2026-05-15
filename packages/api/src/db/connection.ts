@@ -60,10 +60,11 @@ export function getDb() {
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_track_artists_track_id ON track_artists(track_id)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON track_artists(artist_id)'); } catch {}
-  // composite para aggregaciones: GROUP BY track_id filtrado por user_id + rango temporal
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_lh_user_track ON listening_history(user_id, track_id)'); } catch {}
-  // merge_rules: JOIN en queries de álbumes
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_lh_user_track_played_at ON listening_history(user_id, track_id, played_at)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_merge_rules_lookup ON merge_rules(entity_type, source_id, user_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_merge_rules_target ON merge_rules(user_id, entity_type, target_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_ta_artist_position ON track_artists(artist_id, position)'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN session_started_at TEXT'); } catch {}
   try { sqlite.exec('ALTER TABLE albums ADD COLUMN artist_ids TEXT'); } catch {}

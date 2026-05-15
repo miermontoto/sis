@@ -1,8 +1,8 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w20b';
+export const VERSION = '26w20c';
 
-// umbral mínimo de reproducción (30s = Spotify Wrapped threshold)
-export const MIN_PLAY_MS = 30_000;
+// re-exportar desde shared (single source of truth)
+export { MIN_PLAY_MS } from '@sis/shared';
 
 // intervalos de polling en ms
 export const CURRENTLY_PLAYING_INTERVAL_MS = 30_000; // fallback en error
@@ -30,12 +30,13 @@ export const SPOTIFY_SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
   'playlist-modify-private',
+  'playlist-modify-public',
   'playlist-read-private',
   'playlist-read-collaborative',
 ].join(' ');
 
 // scopes necesarios para crear playlists
-export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-read-private', 'playlist-read-collaborative'];
+export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-modify-public', 'playlist-read-private', 'playlist-read-collaborative'];
 
 // URLs de la API de spotify
 export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';

@@ -49,7 +49,6 @@ export interface EntityRecords {
   goldenOldies: RecordEntry[];
   // --- descubrimiento ---
   latestDiscoveries: RecordEntry[];
-  latestNew: RecordEntry[];
   // --- mensuales ---
   mostUniquePerMonth: MonthCountEntry[];
   // --- year-end finishes (top-10 por año completo) ---
@@ -84,4 +83,5 @@ export interface PlaylistPresenceItem {
   spotifyId: string;
   name: string;
   imageUrl: string | null;
+  isOwned: boolean;
 }

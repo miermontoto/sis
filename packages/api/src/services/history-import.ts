@@ -280,9 +280,7 @@ export function importHistory(data: unknown, userId: number): ImportResult {
   const entries = normalizeEntries(flat);
   const result: ImportResult = { total: flat.length, imported: 0, duplicates: 0, skipped: flat.length - entries.length };
 
-  // dedup temporal en memoria para entradas last.fm que resolvieron a tracks existentes
-  const hasLastFm = entries.some(e => e.msPlayed === null);
-  const playIndex = hasLastFm ? buildPlayIndex(userId) : null;
+  const playIndex = buildPlayIndex(userId);
 
   const db = getDb();
 
@@ -292,15 +290,21 @@ export function importHistory(data: unknown, userId: number): ImportResult {
 
     db.transaction((tx) => {
       for (const entry of batch) {
-        // dedup temporal: para entradas last.fm, comprobar si ya hay un play ±5 min
-        if (entry.msPlayed === null && playIndex) {
-          const playedAtS = Math.floor(new Date(entry.playedAt).getTime() / 1000);
-          if (hasNearbyPlay(playIndex, entry.trackName, playedAtS)) {
+        const playedAtS = Math.floor(new Date(entry.playedAt).getTime() / 1000);
+        if (hasNearbyPlay(playIndex, entry.trackName, playedAtS)) {
+          result.duplicates++;
+          continue;
+        }
+        // Basic endTime ≈ Extended ts + duration → comprobar también desplazado
+        if (entry.msPlayed && entry.msPlayed > 0) {
+          const offsetS = Math.round(entry.msPlayed / 1000);
+          if (hasNearbyPlay(playIndex, entry.trackName, playedAtS - offsetS) ||
+              hasNearbyPlay(playIndex, entry.trackName, playedAtS + offsetS)) {
             result.duplicates++;
             continue;
           }
-          addToIndex(playIndex, entry.trackName, playedAtS);
         }
+        addToIndex(playIndex, entry.trackName, playedAtS);
 
         if (entry.artistName) {
           tx.run(sql`

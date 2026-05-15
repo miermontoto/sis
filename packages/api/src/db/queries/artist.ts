@@ -15,7 +15,7 @@ export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string 
     FROM listening_history lh
     ${resolvedPlayJoins('track', userId)}
     WHERE ${tracksFilter} ${wr} ${uf}
-    GROUP BY track_id
+    GROUP BY ${resolvedEntityId('track', userId)}
     ORDER BY ${ob} DESC
     LIMIT ${limit}
   `) as { track_id: string; play_count: number; total_ms: number }[];
@@ -45,7 +45,7 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
           JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id
           WHERE ta2.artist_id ${artistCmp} AND ta2.position = 0
         )
-      GROUP BY t.album_id
+      GROUP BY ${resolvedEntityId('album', userId)}
     )
     GROUP BY album_id
     ORDER BY ${ob} DESC

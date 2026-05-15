@@ -4,7 +4,7 @@
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import { formatHours, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
+  import { formatHours, formatDurationAs, DURATION_UNITS, type DurationUnit, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
   import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, PIE_TOOLTIP, PIE_COLORS, GREEN } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -19,9 +19,23 @@
   let discovery = $state<DiscoveryItem[]>([]);
   let monthlyDist = $state<MonthlyDistributionItem[]>([]);
   let discoveryEntity = $state<'track' | 'album' | 'artist'>('track');
+  let listeningUnit = $state<DurationUnit>('hours');
   let loading = $state(true);
   let discoveryLoading = $state(false);
   const fetchCtrl = createFetchController();
+
+  let pulseDim = $state(false);
+  let pulseInterval: ReturnType<typeof setInterval> | null = null;
+
+  function pulseData(values: number[], currentIdx: number): (number | { value: number; itemStyle: { opacity: number } })[] {
+    if (currentIdx < 0 || currentIdx >= values.length) return values;
+    return values.map((v, i) => i === currentIdx ? { value: v, itemStyle: { opacity: pulseDim ? 0.35 : 1 } } : v);
+  }
+
+  function pulseHeatmapData(data: number[][], currentIdx: number): (number[] | { value: number[]; itemStyle: { opacity: number } })[] {
+    if (currentIdx < 0) return data;
+    return data.map((v, i) => i === currentIdx ? { value: v, itemStyle: { opacity: pulseDim ? 0.35 : 1 } } : v);
+  }
 
   function granularityForRange(r: string): string {
     if (r === 'custom' && startDate && endDate) {
@@ -102,6 +116,7 @@
     startDate = getQueryParam('startDate', '');
     endDate = getQueryParam('endDate', '');
     initialized = true;
+    pulseInterval = setInterval(() => { pulseDim = !pulseDim; }, 1500);
   });
 
   const RANGES = ['week', 'month', '3months', '6months', 'year', 'thisYear', 'all'];
@@ -121,7 +136,7 @@
       return false;
     },
   );
-  onDestroy(() => shortcutStore.unregisterPageShortcuts());
+  onDestroy(() => { shortcutStore.unregisterPageShortcuts(); if (pulseInterval) clearInterval(pulseInterval); });
 
   $effect(() => {
     void range;
@@ -186,37 +201,50 @@
   let yearlyRegression = $derived(linearRegression(yearlyData.map(d => d[1])));
   let discoveryRegression = $derived(linearRegression(discovery.map(d => d.distinct_count)));
 
+  let currentYearIdx = $derived(yearlyData.findIndex(d => d[0] === String(new Date().getFullYear())));
+  let currentHour = new Date().getHours();
+  let currentDayIdx = (new Date().getDay() - wsOffset + 7) % 7;
+  let currentMonth = new Date().getMonth();
+  let heatmapMapped = $derived(heatmap.map(h => [h.hour, (h.day_of_week - wsOffset + 7) % 7, h.play_count]));
+  let currentHeatmapIdx = $derived(heatmapMapped.findIndex(d => d[0] === currentHour && d[1] === currentDayIdx));
+
+  const PULSE_ANIM = { animationDurationUpdate: 800, animationEasingUpdate: 'cubicInOut' as const };
+
   let lineChartOption = $derived<EChartsOption>({
+    ...PULSE_ANIM,
     grid: { ...GRID },
     tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis(),
-    series: [lineSeries(listeningData.map(d => d.play_count), { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
+    series: [lineSeries(pulseData(listeningData.map(d => d.play_count), listeningData.length - 1) as any, { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
   });
 
   let barChartOption = $derived<EChartsOption>({
+    ...PULSE_ANIM,
     grid: { ...GRID },
     tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(listeningData.map(d => d.total_ms)), trendSeries(timeRegression.line)],
+    series: [barSeries(pulseData(listeningData.map(d => d.total_ms), listeningData.length - 1) as any), trendSeries(timeRegression.line)],
   });
 
   let yearlyChartOption = $derived<EChartsOption>({
+    ...PULSE_ANIM,
     grid: { ...GRID },
     tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(yearlyData.map(d => d[0]), { axisLabel: { ...AXIS_LABEL } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(yearlyData.map(d => d[1])), trendSeries(yearlyRegression.line)],
+    series: [barSeries(pulseData(yearlyData.map(d => d[1]), currentYearIdx) as any), trendSeries(yearlyRegression.line)],
   });
 
   let heatmapOption = $derived<EChartsOption>({
+    ...PULSE_ANIM,
     tooltip: { ...TOOLTIP_BASE, trigger: 'item', formatter: (params: any) => { const [hour, day] = params.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
     grid: { ...GRID },
     xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     yAxis: { type: 'category', data: dayNames, inverse: true, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#0f1214', '#0d3320', '#1a6b3f', '#1db954'] } },
-    series: [{ type: 'heatmap', data: heatmap.map(h => [h.hour, (h.day_of_week - wsOffset + 7) % 7, h.play_count]), emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }, itemStyle: { borderRadius: 1 } }],
+    series: [{ type: 'heatmap', data: pulseHeatmapData(heatmapMapped, currentHeatmapIdx) as any, itemStyle: { borderRadius: 1 } }],
   });
 
   const polarBase = {
@@ -227,30 +255,31 @@
   const polarAngle = (data: string[], n: number, overrides?: Record<string, any>) => ({
     type: 'category' as const, data, startAngle: 90 + 180 / n, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE }, ...overrides,
   });
-  const polarSeries = (data: number[]) => [{ type: 'bar' as const, coordinateSystem: 'polar' as const, data, itemStyle: { color: GREEN, borderRadius: 2 }, emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.4)' } } }];
+  const polarSeries = (data: number[], currentIdx: number) => [{ type: 'bar' as const, coordinateSystem: 'polar' as const, data: pulseData(data, currentIdx) as any, itemStyle: { color: GREEN, borderRadius: 2 } }];
 
   let hourPolarOption = $derived<EChartsOption>({
-    ...polarBase,
+    ...PULSE_ANIM, ...polarBase,
     angleAxis: polarAngle(Array.from({ length: 24 }, (_, i) => `${i}:00`), 24, { axisLabel: { ...AXIS_LABEL, fontSize: 10 } }),
-    series: polarSeries(hourDistribution),
+    series: polarSeries(hourDistribution, currentHour),
   });
 
   let dayPolarOption = $derived<EChartsOption>({
-    ...polarBase,
+    ...PULSE_ANIM, ...polarBase,
     angleAxis: polarAngle(dayNames, 7),
-    series: polarSeries(dayDistribution),
+    series: polarSeries(dayDistribution, currentDayIdx),
   });
 
   let monthPolarOption = $derived<EChartsOption>({
-    ...polarBase,
+    ...PULSE_ANIM, ...polarBase,
     angleAxis: polarAngle(monthNames, 12),
-    series: polarSeries(monthDistribution),
+    series: polarSeries(monthDistribution, currentMonth),
   });
 
   const entityLabels = { track: 'Tracks', album: 'Albums', artist: 'Artists' } as const;
   const entityColors = { track: '#1db954', album: '#3498db', artist: '#e74c3c' } as const;
 
   let discoveryOption = $derived<EChartsOption>({
+    ...PULSE_ANIM,
     grid: dualAxisGrid(),
     tooltip: {
       ...TOOLTIP_BASE,
@@ -264,7 +293,7 @@
     xAxis: categoryAxis(discovery.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(discovery as any) } }),
     yAxis: [valueAxis(), secondaryValueAxis()],
     series: [
-      barSeries(discovery.map(d => d.distinct_count), {
+      barSeries(pulseData(discovery.map(d => d.distinct_count), discovery.length - 1) as any, {
         name: 'Distinct', yAxisIndex: 0,
         itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [1, 1, 0, 0] },
       }),
@@ -286,6 +315,7 @@
       data: genres.map((g, i) => ({ name: g.genre, value: g.play_count, itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] } })),
     }],
   });
+
 </script>
 
 <div class="page-header">
@@ -350,8 +380,8 @@
   </div>
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
-    <div class="card stat-card">
-      <div class="stat-value">{formatHours(totalMs)}</div>
+    <div class="card stat-card stat-card--clickable" onclick={() => { listeningUnit = DURATION_UNITS[(DURATION_UNITS.indexOf(listeningUnit) + 1) % DURATION_UNITS.length]; }}>
+      <div class="stat-value">{formatDurationAs(totalMs, listeningUnit)}</div>
       <div class="stat-label">Total listening</div>
     </div>
     <div class="card stat-card">
@@ -449,6 +479,10 @@
 {/if}
 
 <style>
+  .stat-card--clickable {
+    cursor: pointer;
+    user-select: none;
+  }
   .charts-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -131,7 +131,6 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
     longestGap: e.longestGap.slice(0, limit),
     goldenOldies: e.goldenOldies.slice(0, limit),
     latestDiscoveries: e.latestDiscoveries.slice(0, limit),
-    latestNew: e.latestNew.slice(0, limit),
     mostUniquePerMonth: e.mostUniquePerMonth.slice(0, limit),
     // year-end finishes no se recortan por `limit` — siempre son top-10 por año
     yearEndFinishes: e.yearEndFinishes,
@@ -195,7 +194,6 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ['longestGap', data.longestGap as any[]],
     ['goldenOldies', data.goldenOldies as any[]],
     ['latestDiscoveries', data.latestDiscoveries as any[]],
-    ['latestNew', data.latestNew as any[]],
     ['mostAccolades', data.mostAccolades as any[]],
   ];
 

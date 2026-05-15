@@ -220,6 +220,16 @@ export function userWhereClause(userId: number): SqlChunk {
   return sql`WHERE lh.user_id = ${userId}`;
 }
 
+export function periodExpr(granularity: 'week' | 'month' | 'year', weekStart: 'monday' | 'sunday' | 'friday' | 'thursday' = 'monday'): SqlChunk {
+  if (granularity === 'week') {
+    if (weekStart === 'monday') return sql`strftime('%Y-W%W', lh.played_at)`;
+    if (weekStart === 'sunday') return sql`strftime('%Y-W%W', lh.played_at, '-1 day')`;
+    return sql`strftime('%Y-W%W', lh.played_at, '-4 days')`;
+  }
+  if (granularity === 'month') return sql`strftime('%Y-%m', lh.played_at)`;
+  return sql`strftime('%Y', lh.played_at)`;
+}
+
 export function getDateTruncForDays(days: number): SqlChunk {
   if (days > 0 && days <= 30) return sql`date(lh.played_at)`;
   if (days > 0 && days <= 180) return sql`strftime('%Y-W%W', lh.played_at)`;

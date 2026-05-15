@@ -43,7 +43,7 @@
   let coverContainerEl: HTMLDivElement | undefined = $state();
   const fetchCtrl = createFetchController();
 
-  let displayTracks = $derived(trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []);
+  let displayTracks = $derived((trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []).filter(t => t.playCount > 0));
   let trackSharePercents = $derived.by(() => {
     if (albumTrackDisplay === 'off') return undefined;
     const value = (t: TopTrackItem) => metric === 'plays' ? t.playCount : t.totalMs;
@@ -276,7 +276,7 @@
     {#if trackSort === 'natural' && loadingNatural}
       <div class="loading"><div class="spinner"></div></div>
     {:else if trackSort === 'natural'}
-      <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} dimUnplayed fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
+      <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
     {:else}
       <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
     {/if}

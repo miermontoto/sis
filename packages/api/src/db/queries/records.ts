@@ -4,14 +4,13 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, RankingMetric, WeekStartOption, EntityType, MonthCountEntry, YearEndFinish,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { CHART_SIZE, RECORDS_LIMIT } from '../../constants.js';
 
 type Sort = RankingMetric;
 type WeekStart = WeekStartOption;
 
-// diagnóstico: envolver queries con timing (desactivable via RECORDS_PROFILE=0)
 const PROFILE = process.env.RECORDS_PROFILE !== '0';
 function timed<T>(label: string, fn: () => T): T {
   if (!PROFILE) return fn();
@@ -24,12 +23,7 @@ function timed<T>(label: string, fn: () => T): T {
   }
 }
 
-// formato de semana según día de inicio
-function weekExpr(ws: WeekStart) {
-  if (ws === 'monday') return sql`strftime('%Y-W%W', lh.played_at)`;
-  if (ws === 'sunday') return sql`strftime('%Y-W%W', lh.played_at, '-1 day')`;
-  return sql`strftime('%Y-W%W', lh.played_at, '-4 days')`;
-}
+const weekExpr = (ws: WeekStart) => periodExpr('week', ws);
 
 // --- queries existentes de records semanales (peak/debuts/weeks-at-#1/etc.) ---
 
@@ -85,7 +79,6 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     longestGap: timed('track.longestGap', () => computeLongestGap('track', db, userId, limit)),
     goldenOldies: timed('track.goldenOldies', () => computeGoldenOldies('track', db, userId, limit)),
     latestDiscoveries: timed('track.latestDiscoveries', () => computeLatestDiscoveries('track', db, userId, limit)),
-    latestNew: timed('track.latestNew', () => computeLatestNew('track', db, userId, limit)),
     mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit)),
     topNoAlbum: timed('track.topNoAlbum', () => computeTopNoAlbum(db, userId, limit)),
     yearEndFinishes: timed('track.yearEndFinishes', () => computeYearEndFinishes('track', db, userId, sort)),
@@ -147,7 +140,6 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     longestGap: timed('album.longestGap', () => computeLongestGap('album', db, userId, limit)),
     goldenOldies: timed('album.goldenOldies', () => computeGoldenOldies('album', db, userId, limit)),
     latestDiscoveries: timed('album.latestDiscoveries', () => computeLatestDiscoveries('album', db, userId, limit)),
-    latestNew: timed('album.latestNew', () => computeLatestNew('album', db, userId, limit)),
     mostUniquePerMonth: timed('album.mostUniquePerMonth', () => computeMostUniquePerMonth('album', db, userId, limit)),
     mostDistinctTracks: timed('album.mostDistinctTracks', () => computeMostDistinctTracks('album', db, userId, limit)),
     yearEndFinishes: timed('album.yearEndFinishes', () => computeYearEndFinishes('album', db, userId, sort)),
@@ -261,7 +253,6 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     longestGap: timed('artist.longestGap', () => computeLongestGap('artist', db, userId, limit)),
     goldenOldies: timed('artist.goldenOldies', () => computeGoldenOldies('artist', db, userId, limit)),
     latestDiscoveries: timed('artist.latestDiscoveries', () => computeLatestDiscoveries('artist', db, userId, limit)),
-    latestNew: timed('artist.latestNew', () => computeLatestNew('artist', db, userId, limit)),
     mostUniquePerMonth: timed('artist.mostUniquePerMonth', () => computeMostUniquePerMonth('artist', db, userId, limit)),
     mostDistinctTracks: timed('artist.mostDistinctTracks', () => computeMostDistinctTracks('artist', db, userId, limit)),
     oneHitWonders: timed('artist.oneHitWonders', () => computeOneHitWonders('artist', db, userId, limit)),
@@ -384,7 +375,6 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
     longestGap: [],
     goldenOldies: [],
     latestDiscoveries: [],
-    latestNew: [],
     mostUniquePerMonth: [],
     yearEndFinishes: [],
     mostAccolades: [],
@@ -571,40 +561,6 @@ function computeLatestDiscoveries(entity: Ent, db: Db, userId: number, limit: nu
       WHERE lh.user_id = ${userId} ${ctx.filter}
       GROUP BY eid
       HAVING plays > 50
-    )
-    SELECT agg.eid AS eid, agg.plays AS value, agg.first_play AS first_play,
-           ${ctx.finalName} AS name,
-           ${ctx.finalImg} AS image_url,
-           ${ctx.finalArtistId} AS artist_id,
-           ${ctx.finalArtistName} AS artist_name
-    FROM agg
-    ${ctx.finalJoin}
-    ORDER BY agg.first_play DESC
-    LIMIT ${limit}
-  `) as any[];
-
-  return rows.map(r => ({
-    entityId: r.eid,
-    name: r.name ?? 'unknown',
-    imageUrl: r.image_url ?? null,
-    artistId: r.artist_id ?? null,
-    artistName: r.artist_name ?? null,
-    value: Number(r.value),
-    week: null,
-    date: r.first_play ?? null,
-  }));
-}
-
-function computeLatestNew(entity: Ent, db: Db, userId: number, limit: number): RecordEntry[] {
-  const ctx = entityCtx(entity, userId);
-  const rows = db.all(sql`
-    WITH agg AS (
-      SELECT ${ctx.eidExpr} AS eid,
-             COUNT(*) AS plays,
-             MIN(lh.played_at) AS first_play
-      FROM listening_history lh ${ctx.extraJoins}
-      WHERE lh.user_id = ${userId} ${ctx.filter}
-      GROUP BY eid
     )
     SELECT agg.eid AS eid, agg.plays AS value, agg.first_play AS first_play,
            ${ctx.finalName} AS name,
@@ -894,7 +850,7 @@ function computeMostAccolades(
   tally(data.longestGap);
   tally(data.goldenOldies);
   tally(data.latestDiscoveries);
-  tally(data.latestNew);
+
 
   if (data.topNoAlbum) tally(data.topNoAlbum);
   if (data.mostDistinctTracks) tally(data.mostDistinctTracks);

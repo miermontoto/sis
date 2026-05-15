@@ -37,7 +37,6 @@
     longestGap: 'Longest gap',
     goldenOldies: 'Golden oldie',
     latestDiscoveries: 'Latest discovery',
-    latestNew: 'Latest new',
     mostDistinctTracks: 'Distinct tracks',
     oneHitWonders: 'One-hit wonder',
     topNoAlbum: 'Top without album',
@@ -64,7 +63,7 @@
     if (a.type === 'longestGap') return `${formatNumber(a.value)} day${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'mostDistinctTracks') return `${a.value} track${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'goldenOldies' ||
-        a.type === 'latestDiscoveries' || a.type === 'latestNew' ||
+        a.type === 'latestDiscoveries' ||
         a.type === 'oneHitWonders' || a.type === 'topNoAlbum') {
       return `${formatNumber(a.value)} plays`;
     }

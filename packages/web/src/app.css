@@ -623,30 +623,23 @@ a.track-item {
 }
 
 /* sidebar now playing */
-.sidebar-projections {
+.sidebar-spacer {
   margin-top: auto;
-  padding: 0 0.5rem;
 }
 
-.sidebar-projections + .sidebar-now-playing {
-  margin-top: 0;
+.sidebar-projections {
+  padding: 0 0.5rem;
 }
 
 .sidebar-friends {
-  margin-top: auto;
   padding: 0 0.5rem;
 }
 
-.sidebar-friends:empty {
+.sidebar-friends:not(:has(.friends-activity)) {
   display: none;
 }
 
-.sidebar-friends + .sidebar-projections {
-  margin-top: 0;
-}
-
 .sidebar-now-playing {
-  margin-top: auto;
   padding: 0.5rem;
 }
 
@@ -863,10 +856,6 @@ a.track-item {
   margin: 0 auto 1rem;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* detail pages */
 .detail-color-bg {
   position: absolute;
@@ -1025,7 +1014,7 @@ a.track-item {
   border-radius: 9px;
   padding: 0 3px;
   line-height: 14px;
-  pointer-events: none;
+  cursor: pointer;
 }
 .like-popover {
   display: none;
@@ -1042,9 +1031,12 @@ a.track-item {
   padding: 6px;
   min-width: 180px;
   max-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
-.like-wrap:hover .like-popover { display: block; }
+.like-wrap:hover .like-popover,
+.like-popover--open { display: block; }
 .like-popover-title {
   font-size: 0.65rem;
   font-weight: 600;
@@ -1076,6 +1068,65 @@ a.track-item {
   flex-shrink: 0;
   background: var(--bg-hover);
 }
+.like-popover-item--owned {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.like-popover-item-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.8rem;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+a.like-popover-item-link:hover { background: var(--bg-hover); }
+.like-popover-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+.like-popover-action:hover:not(:disabled) { background: var(--bg-hover); }
+.like-popover-action--remove { color: var(--accent, #1db954); }
+.like-popover-action--remove:hover:not(:disabled) { color: #ff4b7a; background: rgba(255,75,122,0.08); }
+.like-popover-action--add:hover:not(:disabled) { color: var(--accent, #1db954); }
+.like-popover-action:disabled { opacity: 0.5; cursor: default; }
+.like-popover-search {
+  padding: 4px 4px 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.like-popover-search-input {
+  width: 100%;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.like-popover-search-input:focus { border-color: var(--accent, #1db954); }
+.like-popover-search-input::placeholder { color: var(--text-muted); }
 
 .section-title {
   font-family: var(--font-mono);
@@ -1156,6 +1207,16 @@ a.track-item {
   50% { opacity: 0.4; }
 }
 
+/* parpadeo tipo reloj digital para los ":" cuando la fecha es hoy */
+.time-colon {
+  display: inline-block;
+  animation: clock-blink 1s step-end infinite;
+}
+
+@keyframes clock-blink {
+  50% { opacity: 0; }
+}
+
 /* shimmer ghost loading */
 @keyframes shimmer {
   0% { background-position: 200% 0; }
@@ -1192,6 +1253,7 @@ a.track-item {
 
   .sidebar-top,
   .sidebar-nav--desktop,
+  .sidebar-spacer,
   .sidebar-now-playing,
   .sidebar-projections,
   .sidebar-friends,

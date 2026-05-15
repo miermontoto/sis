@@ -485,8 +485,7 @@
     currentData.longestChartRun.length > 0}
   {@const hasDiscovery =
     currentData.biggestDebuts.length > 0 ||
-    currentData.latestDiscoveries.length > 0 ||
-    currentData.latestNew.length > 0}
+    currentData.latestDiscoveries.length > 0}
   {@const hasOther =
     currentData.longestGap.length > 0 ||
     currentData.goldenOldies.length > 0 ||
@@ -517,7 +516,6 @@
     <h2 class="record-group">Discovery</h2>
     {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut', 'biggestDebuts')}
     {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays', 'latestDiscoveries')}
-    {@render datedList('Latest new', currentData.latestNew, 'first heard', 'plays', 'latestNew')}
   {/if}
 
   {#if hasOther}

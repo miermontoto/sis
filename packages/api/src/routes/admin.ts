@@ -19,6 +19,39 @@ function entityTable(type: EntityType) {
   return tracks;
 }
 
+type MergeValidationResult =
+  | { ok: true }
+  | { ok: false; reason: 'exists' | 'source_is_target' | 'target_is_source' };
+
+function validateMergeRule(
+  db: ReturnType<typeof getDb>,
+  userId: number,
+  entityType: string,
+  sourceId: string,
+  targetId: string,
+): MergeValidationResult {
+  const row = db.get(sql`
+    SELECT
+      EXISTS(SELECT 1 FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId}
+        AND ((source_id = ${sourceId} AND target_id = ${targetId})
+          OR (source_id = ${targetId} AND target_id = ${sourceId}))) as dup,
+      EXISTS(SELECT 1 FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId}
+        AND target_id = ${sourceId}) as src_is_tgt,
+      EXISTS(SELECT 1 FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId}
+        AND source_id = ${targetId}) as tgt_is_src
+  `) as { dup: number; src_is_tgt: number; tgt_is_src: number };
+  if (row.dup) return { ok: false, reason: 'exists' };
+  if (row.src_is_tgt) return { ok: false, reason: 'source_is_target' };
+  if (row.tgt_is_src) return { ok: false, reason: 'target_is_source' };
+  return { ok: true };
+}
+
+const MERGE_ERRORS: Record<string, (type: string) => [string, number]> = {
+  exists: () => ['merge rule already exists', 409],
+  source_is_target: (t) => [`source ${t} is already a merge target — merge its sources into the new target instead`, 400],
+  target_is_source: (t) => [`target ${t} is already merged into another ${t}`, 400],
+};
+
 // --- merge rules (per-user) ---
 
 // crear regla de merge
@@ -47,30 +80,10 @@ admin.post('/merge', async (c) => {
   if (!source) return c.json({ error: `source ${entityType} not found` }, 404);
   if (!target) return c.json({ error: `target ${entityType} not found` }, 404);
 
-  // verificar que no exista ya (para este usuario, tipo específico)
-  const existing = db.all(sql`
-    SELECT id FROM merge_rules
-    WHERE entity_type = ${entityType} AND user_id = ${userId}
-      AND ((source_id = ${sourceId} AND target_id = ${targetId})
-        OR (source_id = ${targetId} AND target_id = ${sourceId}))
-  `);
-  if (existing.length > 0) {
-    return c.json({ error: 'merge rule already exists' }, 409);
-  }
-
-  // evitar cadenas (para este usuario, tipo específico)
-  const sourceIsTarget = db.all(sql`
-    SELECT id FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId} AND target_id = ${sourceId}
-  `);
-  if (sourceIsTarget.length > 0) {
-    return c.json({ error: `source ${entityType} is already a merge target — merge its sources into the new target instead` }, 400);
-  }
-
-  const targetIsSource = db.all(sql`
-    SELECT id FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId} AND source_id = ${targetId}
-  `);
-  if (targetIsSource.length > 0) {
-    return c.json({ error: `target ${entityType} is already merged into another ${entityType}` }, 400);
+  const v = validateMergeRule(db, userId, entityType, sourceId, targetId);
+  if (!v.ok) {
+    const [msg, status] = MERGE_ERRORS[v.reason](entityType);
+    return c.json({ error: msg }, status as 400);
   }
 
   const result = db.insert(mergeRules).values({
@@ -275,23 +288,11 @@ admin.post('/merge-album', async (c) => {
   if (!sourceAlbum) return c.json({ error: 'source album not found' }, 404);
   if (!targetAlbum) return c.json({ error: 'target album not found' }, 404);
 
-  // validar album merge (mismas reglas que el endpoint simple)
-  const existingAlbum = db.all(sql`
-    SELECT id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId}
-      AND ((source_id = ${sourceAlbumId} AND target_id = ${targetAlbumId})
-        OR (source_id = ${targetAlbumId} AND target_id = ${sourceAlbumId}))
-  `);
-  if (existingAlbum.length > 0) return c.json({ error: 'album merge rule already exists' }, 409);
-
-  const albumSourceIsTarget = db.all(sql`
-    SELECT id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId} AND target_id = ${sourceAlbumId}
-  `);
-  if (albumSourceIsTarget.length > 0) return c.json({ error: 'source album is already a merge target' }, 400);
-
-  const albumTargetIsSource = db.all(sql`
-    SELECT id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId} AND source_id = ${targetAlbumId}
-  `);
-  if (albumTargetIsSource.length > 0) return c.json({ error: 'target album is already merged into another album' }, 400);
+  const albumV = validateMergeRule(db, userId, 'album', sourceAlbumId, targetAlbumId);
+  if (!albumV.ok) {
+    const [msg, status] = MERGE_ERRORS[albumV.reason]('album');
+    return c.json({ error: msg }, status as 400);
+  }
 
   // ejecutar todo en transacción
   const result = db.transaction(() => {
@@ -313,23 +314,12 @@ admin.post('/merge-album', async (c) => {
       const tgt = db.select().from(tracks).where(eq(tracks.spotifyId, pair.targetTrackId)).get();
       if (!src || !tgt) { skipped.push(`${pair.sourceTrackId}: track not found`); continue; }
 
-      // verificar duplicados y cadenas
-      const dup = db.all(sql`
-        SELECT id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}
-          AND ((source_id = ${pair.sourceTrackId} AND target_id = ${pair.targetTrackId})
-            OR (source_id = ${pair.targetTrackId} AND target_id = ${pair.sourceTrackId}))
-      `);
-      if (dup.length > 0) { skipped.push(`${pair.sourceTrackId}: already merged`); continue; }
-
-      const srcIsTarget = db.all(sql`
-        SELECT id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId} AND target_id = ${pair.sourceTrackId}
-      `);
-      if (srcIsTarget.length > 0) { skipped.push(`${pair.sourceTrackId}: is already a merge target`); continue; }
-
-      const tgtIsSource = db.all(sql`
-        SELECT id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId} AND source_id = ${pair.targetTrackId}
-      `);
-      if (tgtIsSource.length > 0) { skipped.push(`${pair.sourceTrackId}: target already merged elsewhere`); continue; }
+      const tv = validateMergeRule(db, userId, 'track', pair.sourceTrackId, pair.targetTrackId);
+      if (!tv.ok) {
+        const reasons = { exists: 'already merged', source_is_target: 'is already a merge target', target_is_source: 'target already merged elsewhere' };
+        skipped.push(`${pair.sourceTrackId}: ${reasons[tv.reason]}`);
+        continue;
+      }
 
       const r = db.insert(mergeRules).values({
         userId, entityType: 'track', sourceId: pair.sourceTrackId, targetId: pair.targetTrackId,
@@ -390,6 +380,7 @@ admin.get('/merge-suggestions', (c) => {
         AND ${importFilter}
         ${excludeClause}
       GROUP BY e.spotify_id
+      HAVING plays > 0
       ORDER BY plays DESC, e.name
     `) as typeof rows;
   } else if (entityType === 'artist') {
@@ -427,6 +418,7 @@ admin.get('/merge-suggestions', (c) => {
         AND ${importFilter}
         ${excludeClause}
       GROUP BY e.spotify_id
+      HAVING plays > 0
       ORDER BY plays DESC, e.name
     `) as typeof rows;
   }

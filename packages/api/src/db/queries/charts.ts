@@ -1,22 +1,11 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingMetric, WeekStartOption, Granularity, EntityType } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 
 type Sort = RankingMetric;
 type WeekStart = WeekStartOption;
-
-// expresión de periodo según granularidad
-function periodExpr(granularity: Granularity, weekStart: WeekStart) {
-  if (granularity === 'week') {
-    if (weekStart === 'monday') return sql`strftime('%Y-W%W', lh.played_at)`;
-    if (weekStart === 'sunday') return sql`strftime('%Y-W%W', lh.played_at, '-1 day')`;
-    return sql`strftime('%Y-W%W', lh.played_at, '-4 days')`;
-  }
-  if (granularity === 'month') return sql`strftime('%Y-%m', lh.played_at)`;
-  return sql`strftime('%Y', lh.played_at)`;
-}
 
 // periodo anterior (para rank changes)
 function prevPeriod(period: string, granularity: Granularity): string | null {
@@ -539,7 +528,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     peakPeriod,
     peakPeriods,
     timesAtPeak,
-    weeksOnChart: closedRows.length,
+    weeksOnChart: currentRank != null ? closedRows.length + 1 : closedRows.length,
     history: fullHistory,
   };
 }

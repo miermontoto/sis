@@ -119,7 +119,8 @@ export function getPlaylistSeries(db: Db, playlistId: number, userId: number, gr
 /** En qué playlists aparece un track */
 export function getTrackPlaylistPresence(db: Db, trackId: string, userId: number): PlaylistPresenceItem[] {
   return db.all(sql`
-    SELECT sp.id, sp.spotify_id as spotifyId, sp.name, sp.image_url as imageUrl
+    SELECT sp.id, sp.spotify_id as spotifyId, sp.name, sp.image_url as imageUrl,
+           sp.is_owned as isOwned
     FROM spotify_playlist_tracks spt
     JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
     WHERE spt.track_id = ${trackId}

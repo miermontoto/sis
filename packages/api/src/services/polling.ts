@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 import {
@@ -307,6 +307,9 @@ export function startPolling() {
 
   cleanOrphanImports();
   cleanDuplicatePlays();
+  cleanBasicExtendedDuplicates();
+  mergeImportTracks();
+  cleanNonMusicImports();
 
   enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
   enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));

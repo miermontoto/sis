@@ -17,6 +17,9 @@ export type { NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextReq
 export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility } from './settings.js';
 export { LOCALE_OPTIONS } from './settings.js';
 
+// constantes compartidas
+export { MIN_PLAY_MS } from './constants.js';
+
 // detalle de entidades
 export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } from './detail.js';
 

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 # instalar dependencias
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
 COPY packages/web/package.json packages/web/
 RUN pnpm install --frozen-lockfile
 
@@ -26,6 +27,7 @@ WORKDIR /app/packages/api
 
 # copiar estructura necesaria (sin build tools)
 COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/packages/shared /app/packages/shared
 COPY --from=build /app/packages/api/node_modules node_modules
 COPY --from=build /app/packages/api/dist dist
 COPY --from=build /app/packages/api/static static

@@ -47,18 +47,27 @@ export function resolveLocalFileIds(track: SpotifyTrack) {
     artist.id = existing?.spotify_id ?? syntheticId(LOCAL_PREFIX, artist.name, artist.name);
   }
 
-  // álbum: busca por nombre en DB, si existe usa su ID, si no genera local:hash
+  // álbum: busca por nombre + artista en DB para reusar IDs existentes
   const albumName = track.album.name || 'Unknown Album';
-  const existingAlbum = db.get(
-    sql`SELECT spotify_id FROM albums WHERE LOWER(name) = LOWER(${albumName}) AND spotify_id LIKE 'local:%'`
-  ) as { spotify_id: string } | undefined;
+  const primaryArtistId = track.artists[0]?.id;
+  const existingAlbum = primaryArtistId ? db.get(
+    sql`SELECT a.spotify_id FROM albums a
+        WHERE LOWER(a.name) = LOWER(${albumName}) AND a.spotify_id LIKE 'local:%'
+          AND EXISTS (
+            SELECT 1 FROM tracks t
+            JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+            WHERE t.album_id = a.spotify_id AND ta.artist_id = ${primaryArtistId}
+          )
+        LIMIT 1`
+  ) as { spotify_id: string } | undefined : undefined;
   track.album.id = existingAlbum?.spotify_id ?? syntheticId(LOCAL_PREFIX, primaryArtist, albumName);
 
-  // track: busca por nombre+álbum en DB, si existe usa su ID, si no genera local:hash
+  // track: busca por nombre+álbum en DB; fallback incluye álbum en el hash
+  // para que tracks homónimos en álbumes distintos no colisionen
   const existingTrack = db.get(
     sql`SELECT spotify_id FROM tracks WHERE LOWER(name) = LOWER(${track.name}) AND album_id = ${track.album.id} AND spotify_id LIKE 'local:%'`
   ) as { spotify_id: string } | undefined;
-  track.id = existingTrack?.spotify_id ?? syntheticId(LOCAL_PREFIX, primaryArtist, track.name);
+  track.id = existingTrack?.spotify_id ?? syntheticId(LOCAL_PREFIX, `${primaryArtist}\0${albumName}`, track.name);
 }
 
 // upsert de artistas, álbum y track, retornando si hubo inserción nueva
@@ -314,6 +323,50 @@ export function cleanOrphanImports() {
   if (orphanArtists.changes || orphanAlbums.changes) {
     console.log(`[cleanup] eliminados ${orphanArtists.changes} artistas y ${orphanAlbums.changes} álbumes import: huérfanos`);
   }
+}
+
+// eliminar tracks import: que no son música (vídeos de YouTube, contenido pirata, entrevistas, etc.)
+export function cleanNonMusicImports() {
+  const db = getDb();
+
+  const NON_MUSIC_ARTISTS = [
+    'Linus Tech Tips', 'Loudwire', 'MSVD', 'Flashback FM', 'Craig Ferguson',
+    'Elden Ring Clips', 'FLeA24681', 'Exclusive',
+  ];
+  const artistList = NON_MUSIC_ARTISTS.map(a => `'${a}'`).join(',');
+
+  const trash = db.all(sql.raw(`
+    SELECT t.spotify_id FROM tracks t
+    LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+    LEFT JOIN artists a ON a.spotify_id = ta.artist_id
+    WHERE t.spotify_id LIKE 'import:%' AND (
+      t.name LIKE '%www%' OR t.name LIKE '%.com%'
+      OR a.name LIKE '%Video Converter%'
+      OR a.name LIKE '%Rock & Roll Hall of Fame%'
+      OR a.name IN (${artistList})
+      OR t.name LIKE '%REACTION%' OR t.name LIKE '%Reaction)%'
+      OR (t.name LIKE '%Interview%' AND t.name NOT LIKE '%(Live%')
+      OR t.name LIKE '%Behind The Scenes%' OR t.name LIKE '%Studio Tour%'
+      OR t.name LIKE '%Drum Cover%' OR t.name LIKE '%Guitar Cover%'
+      OR t.name LIKE '%Walked Out%'
+      OR t.name LIKE '%Making Of%' OR t.name LIKE '%Making of%'
+      OR t.name LIKE '%Hall of Fame Induction%'
+      OR t.name LIKE '%Tutorial%' OR t.name LIKE '%Explained%'
+    )
+  `)) as { spotify_id: string }[];
+
+  if (trash.length === 0) return;
+
+  let deletedPlays = 0;
+  for (const { spotify_id } of trash) {
+    const r = db.run(sql`DELETE FROM listening_history WHERE track_id = ${spotify_id}`);
+    deletedPlays += r.changes;
+    db.run(sql`DELETE FROM track_artists WHERE track_id = ${spotify_id}`);
+    db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${spotify_id}`);
+    db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${spotify_id}`);
+    db.run(sql`DELETE FROM tracks WHERE spotify_id = ${spotify_id}`);
+  }
+  console.log(`[cleanup] eliminados ${trash.length} tracks no-música (${deletedPlays} plays)`);
 }
 
 const RESOLVE_BATCH_LIMIT = 50;
@@ -1139,4 +1192,72 @@ export function cleanDuplicatePlays() {
     db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
   console.log(`[cleanup] eliminados ${ids.length} plays duplicados (±${DEDUP_WINDOW_S}s)`);
+}
+
+// eliminar duplicados Basic/Extended: mismo track+user, uno con duración NULL y otro con duración,
+// separados por ~duración del track (Basic graba endTime, Extended graba startTime)
+export function cleanBasicExtendedDuplicates() {
+  const db = getDb();
+  const toDelete = db.all(sql`
+    SELECT a.id
+    FROM listening_history a
+    JOIN listening_history b ON a.user_id = b.user_id AND a.track_id = b.track_id AND a.id != b.id
+    JOIN tracks t ON t.spotify_id = a.track_id
+    WHERE a.duration_played_ms IS NULL
+      AND b.duration_played_ms IS NOT NULL
+      AND t.duration_ms > 0
+      AND abs(
+        abs(strftime('%s', a.played_at) - strftime('%s', b.played_at))
+        - (t.duration_ms / 1000)
+      ) <= 15
+  `) as { id: number }[];
+
+  if (toDelete.length === 0) return;
+
+  const ids = [...new Set(toDelete.map(r => r.id))];
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = ids.slice(i, i + 500);
+    db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+  }
+  console.log(`[cleanup] eliminados ${ids.length} duplicados Basic/Extended`);
+}
+
+// unificar tracks import: con su equivalente real de Spotify (mismo nombre + artista principal)
+export function mergeImportTracks() {
+  const db = getDb();
+
+  const groups = db.all(sql`
+    SELECT i.spotify_id as import_id, r.spotify_id as real_id, i.name as track_name
+    FROM tracks i
+    JOIN track_artists tai ON tai.track_id = i.spotify_id AND tai.position = 0
+    JOIN track_artists tar ON tar.artist_id = tai.artist_id AND tar.position = 0
+    JOIN tracks r ON r.spotify_id = tar.track_id AND LOWER(TRIM(r.name)) = LOWER(TRIM(i.name))
+    WHERE i.spotify_id LIKE 'import:%'
+      AND r.spotify_id NOT LIKE 'import:%'
+      AND r.spotify_id NOT LIKE 'local:%'
+  `) as { import_id: string; real_id: string; track_name: string }[];
+
+  if (groups.length === 0) return;
+  console.log(`[cleanup] ${groups.length} tracks import: con equivalente real`);
+
+  let merged = 0;
+  for (const { import_id, real_id, track_name } of groups) {
+    try {
+      db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${real_id} WHERE track_id = ${import_id}`);
+      db.run(sql`DELETE FROM listening_history WHERE track_id = ${import_id}`);
+      db.run(sql`INSERT OR IGNORE INTO track_artists (track_id, artist_id, position)
+        SELECT ${real_id}, artist_id, position FROM track_artists WHERE track_id = ${import_id}`);
+      db.run(sql`DELETE FROM track_artists WHERE track_id = ${import_id}`);
+      db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${real_id} WHERE track_id = ${import_id}`);
+      db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${import_id}`);
+      db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${real_id} WHERE track_id = ${import_id}`);
+      db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${import_id}`);
+      db.run(sql`DELETE FROM tracks WHERE spotify_id = ${import_id}`);
+      merged++;
+    } catch (err) {
+      console.error(`[cleanup] error unificando "${track_name}":`, err);
+    }
+  }
+
+  if (merged > 0) console.log(`[cleanup] ${merged} tracks import: unificados con reales`);
 }

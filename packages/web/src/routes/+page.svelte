@@ -41,9 +41,21 @@
       if (newItems.length > 0) {
         recentPlays = [...newItems, ...recentPlays].slice(0, 10);
       }
-    } catch {
-      // silenciar errores de polling
-    }
+    } catch {}
+  }
+
+  function refreshStats() {
+    api.topTracks('week', 5, metric).then(t => { topTracks = t; }).catch(() => {});
+    api.topArtists('week', 5, metric).then(a => { topArtists = a; }).catch(() => {});
+    api.topAlbums('week', 5, metric).then(a => { topAlbums = a; }).catch(() => {});
+    api.health().then(h => { health = h; }).catch(() => {});
+    api.listeningTime('week', 'day').then(today => {
+      weekMs = today.reduce((sum, d) => sum + d.total_ms, 0);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayData = today.find(d => d.period === todayStr);
+      if (todayData) { todayPlays = todayData.play_count; todayMs = todayData.total_ms; }
+    }).catch(() => {});
+    api.streaks().then(s => { streaks = s; }).catch(() => {});
   }
 
   function loadData() {
@@ -96,10 +108,6 @@
 
   async function refresh() {
     loadData();
-    await Promise.all([
-      api.topTracks('week', 5, metric).catch(() => {}),
-      api.health().catch(() => {}),
-    ]);
   }
 
   onMount(() => {
@@ -113,6 +121,7 @@
     if (!play || recentPlays.length === 0) return;
     if (recentPlays[0]?.track?.id === play.track?.id && Math.abs(new Date(recentPlays[0].playedAt).getTime() - new Date(play.playedAt).getTime()) < 60_000) return;
     recentPlays = [play, ...recentPlays].slice(0, 10);
+    refreshStats();
   });
 </script>
 

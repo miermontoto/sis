@@ -48,7 +48,8 @@
   const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   function fuzzyMatch(name: string, query: string): boolean {
-    return norm(name).includes(norm(query));
+    const q = norm(query);
+    return norm(name).includes(q) || norm(coreName(name)).includes(q);
   }
 
   function trigrams(s: string): Set<string> {
@@ -64,9 +65,25 @@
     return common / Math.max(triA.size, triB.size);
   }
 
+  function coreName(s: string): string {
+    return s.split(/ - | \(/)[0].trim();
+  }
+
   let scored = $derived.by(() => {
-    const targetTri = trigrams(norm(target.name));
-    return suggestions.map(a => ({ a, sim: similarity(trigrams(norm(a.name)), targetTri) }));
+    const targetNorm = norm(target.name);
+    const targetCoreNorm = norm(coreName(target.name));
+    const targetTri = trigrams(targetNorm);
+    const targetCoreTri = targetCoreNorm !== targetNorm ? trigrams(targetCoreNorm) : targetTri;
+    return suggestions.map(a => {
+      const nameNorm = norm(a.name);
+      const nameTri = trigrams(nameNorm);
+      const full = similarity(nameTri, targetTri);
+      const coreNorm = norm(coreName(a.name));
+      const core = coreNorm !== nameNorm
+        ? Math.max(similarity(trigrams(coreNorm), targetTri), similarity(trigrams(coreNorm), targetCoreTri))
+        : similarity(nameTri, targetCoreTri);
+      return { a, sim: Math.max(full, core) };
+    });
   });
 
   let defaultList = $derived.by(() => {
@@ -254,7 +271,7 @@
 
         {#if existingMerges.length > 0}
           <div class="merge-section-title">Currently merged</div>
-          <div class="merge-list">
+          <div class="merge-list merge-list--existing">
             {#each existingMerges as merge}
               <div class="merge-item merge-item--existing">
                 {#if merge.imageUrl}
@@ -555,6 +572,11 @@
   .merge-list {
     overflow-y: auto;
     flex: 1;
+  }
+
+  .merge-list--existing {
+    flex: none;
+    max-height: 30%;
   }
 
   .merge-item {

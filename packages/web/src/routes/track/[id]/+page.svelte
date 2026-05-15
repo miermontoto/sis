@@ -24,6 +24,8 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
+  import IconPlus from '$lib/icons/IconPlus.svelte';
   import { canShare, shareEntity } from '$lib/utils/share';
 
 
@@ -41,6 +43,10 @@
   let likeActing = $state(false);
   let editingDuration = $state(false);
   let durationInput = $state('');
+  let ownedPlaylists = $state<Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null; containsTrack: boolean }>>([]);
+  let playlistPopoverOpen = $state(false);
+  let playlistActing = $state<number | null>(null);
+  let playlistSearch = $state('');
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -58,6 +64,16 @@
       } else {
         heroColor = '';
       }
+      api.libraryPlaylists(200, 0).then(res => {
+        if (signal.aborted) return;
+        const inIds = new Set(result.playlists.map(p => p.id));
+        ownedPlaylists = res.items
+          .filter(p => p.isOwned)
+          .map(p => ({
+            id: p.id, spotifyId: p.spotifyId, name: p.name, imageUrl: p.imageUrl,
+            containsTrack: inIds.has(p.id),
+          }));
+      }).catch(() => { ownedPlaylists = []; });
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;
@@ -72,6 +88,14 @@
   onMount(() => {
     metric = getRankingMetric();
     initialized = true;
+    function handleClickOutside(e: MouseEvent) {
+      if (playlistPopoverOpen && !(e.target as Element)?.closest('.like-wrap')) {
+        playlistPopoverOpen = false;
+        playlistSearch = '';
+      }
+    }
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   });
 
   $effect(() => {
@@ -81,6 +105,8 @@
     if (id !== prevId) {
       data = null;
       chartHistoryData = null;
+      ownedPlaylists = [];
+      playlistPopoverOpen = false;
       prevId = id;
     }
     loadData(id);
@@ -131,6 +157,48 @@
       console.error('error actualizando duración:', e);
     }
     editingDuration = false;
+  }
+
+  let ownedIds = $derived(new Set(ownedPlaylists.map(p => p.id)));
+  let addablePlaylists = $derived(ownedPlaylists.filter(p => !p.containsTrack));
+  let addSearchResults = $derived.by(() => {
+    const q = playlistSearch.trim().toLowerCase();
+    if (!q) return addablePlaylists.slice(0, 3);
+    return addablePlaylists.filter(p => p.name.toLowerCase().includes(q));
+  });
+
+  async function addToPlaylist(playlistId: number) {
+    const trackId = $page.params.id;
+    if (!trackId || playlistActing) return;
+    playlistActing = playlistId;
+    try {
+      await api.addTrackToPlaylist(playlistId, trackId);
+      const pl = ownedPlaylists.find(p => p.id === playlistId);
+      if (pl) pl.containsTrack = true;
+      if (data && pl && !data.playlists.some(p => p.id === playlistId)) {
+        data.playlists = [...data.playlists, { id: pl.id, spotifyId: pl.spotifyId, name: pl.name, imageUrl: pl.imageUrl, isOwned: true }];
+      }
+    } catch (e) {
+      console.error('error al agregar a playlist:', e);
+    } finally {
+      playlistActing = null;
+    }
+  }
+
+  async function removeFromPlaylist(playlistId: number) {
+    const trackId = $page.params.id;
+    if (!trackId || playlistActing) return;
+    playlistActing = playlistId;
+    try {
+      await api.removeTrackFromPlaylist(playlistId, trackId);
+      const pl = ownedPlaylists.find(p => p.id === playlistId);
+      if (pl) pl.containsTrack = false;
+      if (data) data.playlists = data.playlists.filter(p => p.id !== playlistId);
+    } catch (e) {
+      console.error('error al eliminar de playlist:', e);
+    } finally {
+      playlistActing = null;
+    }
   }
 
 </script>
@@ -231,21 +299,83 @@
               <IconHeartOutline />
             {/if}
           </button>
-          {#if data && data.playlists.length > 0}
-            <span class="like-badge">+{data.playlists.length}</span>
-            <div class="like-popover">
+          {#if data && (data.playlists.length > 0 || ownedPlaylists.length > 0)}
+            <span class="like-badge" onclick={() => playlistPopoverOpen = !playlistPopoverOpen}>{#if data.playlists.length > 0}+{data.playlists.length}{/if}</span>
+            <div class="like-popover" class:like-popover--open={playlistPopoverOpen}>
               <div class="like-popover-inner">
-                <div class="like-popover-title">In playlists</div>
+                {#if data.playlists.length > 0}
+                  <div class="like-popover-title">In playlists</div>
+                {/if}
                 {#each data.playlists as playlist}
-                  <a href="/playlists/{playlist.id}" class="like-popover-item">
-                    {#if playlist.imageUrl}
-                      <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
-                    {:else}
-                      <div class="like-popover-art"></div>
-                    {/if}
-                    <span>{playlist.name}</span>
-                  </a>
+                  {#if ownedIds.has(playlist.id)}
+                    <div class="like-popover-item like-popover-item--owned">
+                      <a href="/playlists/{playlist.id}" class="like-popover-item-link">
+                        {#if playlist.imageUrl}
+                          <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
+                        {:else}
+                          <div class="like-popover-art"></div>
+                        {/if}
+                        <span>{playlist.name}</span>
+                      </a>
+                      <button
+                        class="like-popover-action like-popover-action--remove"
+                        title="Remove from {playlist.name}"
+                        disabled={playlistActing === playlist.id}
+                        onclick={() => removeFromPlaylist(playlist.id)}
+                      >
+                        {#if playlistActing === playlist.id}
+                          <span class="btn-spinner"></span>
+                        {:else}
+                          <IconCheckSmall />
+                        {/if}
+                      </button>
+                    </div>
+                  {:else}
+                    <a href="/playlists/{playlist.id}" class="like-popover-item">
+                      {#if playlist.imageUrl}
+                        <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
+                      {:else}
+                        <div class="like-popover-art"></div>
+                      {/if}
+                      <span>{playlist.name}</span>
+                    </a>
+                  {/if}
                 {/each}
+                {#if ownedPlaylists.length > 0}
+                  <div class="like-popover-search">
+                    <input
+                      type="text"
+                      class="like-popover-search-input"
+                      placeholder="Add to playlist..."
+                      bind:value={playlistSearch}
+                      onclick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {#each addSearchResults as playlist}
+                    <div class="like-popover-item like-popover-item--owned">
+                      <span class="like-popover-item-link">
+                        {#if playlist.imageUrl}
+                          <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
+                        {:else}
+                          <div class="like-popover-art"></div>
+                        {/if}
+                        <span>{playlist.name}</span>
+                      </span>
+                      <button
+                        class="like-popover-action like-popover-action--add"
+                        title="Add to {playlist.name}"
+                        disabled={playlistActing === playlist.id}
+                        onclick={() => addToPlaylist(playlist.id)}
+                      >
+                        {#if playlistActing === playlist.id}
+                          <span class="btn-spinner"></span>
+                        {:else}
+                          <IconPlus />
+                        {/if}
+                      </button>
+                    </div>
+                  {/each}
+                {/if}
               </div>
             </div>
           {/if}

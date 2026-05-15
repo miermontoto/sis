@@ -21,7 +21,7 @@ export type {
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
-  RankingMetric, WeekStartOption, LocaleSetting, AlbumTrackDisplay, NowPlayingDisplay, SocialVisibility, DateRangeParams,
+  RankingMetric, RankChangeLookback, WeekStartOption, LocaleSetting, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
@@ -119,7 +119,11 @@ interface SettingsData {
   albumTrackDisplay: AlbumTrackDisplay;
   albumShowDuration: boolean;
   albumShowAccolades: boolean;
+  artistShowAlbumAccolades: boolean;
+  artistShowTrackAccolades: boolean;
   sessionRankDisplay: SessionRankDisplay;
+  sessionRankLimitYear: string;
+  sessionRankLimitAll: string;
   sessionTrackingEnabled: boolean;
   nowPlayingDisplay: NowPlayingDisplay;
   socialVisibility: SocialVisibility;
@@ -136,7 +140,11 @@ const SETTINGS_DEFAULTS: SettingsData = {
   albumTrackDisplay: 'fill',
   albumShowDuration: true,
   albumShowAccolades: true,
+  artistShowAlbumAccolades: true,
+  artistShowTrackAccolades: true,
   sessionRankDisplay: 'all+ytd',
+  sessionRankLimitYear: '50',
+  sessionRankLimitAll: '200',
   sessionTrackingEnabled: true,
   nowPlayingDisplay: 'auto',
   socialVisibility: 'visible',
@@ -148,58 +156,30 @@ const SETTINGS_DEFAULTS: SettingsData = {
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
 let settingsLoaded = false;
 
+const lsKey = (key: string) =>
+  key.startsWith('lastPeriod') ? `sis:lastPeriod:${key.slice(10).toLowerCase()}` : `sis:${key}`;
+
 export async function loadSettings(): Promise<void> {
+  let data: Record<string, string> = {};
   try {
-    const data = await apiFetch<Record<string, string>>('/settings');
-    settingsCache = {
-      rankingMetric: (data.rankingMetric as RankingMetric) || 'time',
-      rankChangeLookback: (data.rankChangeLookback as RankChangeLookback) || 'disabled',
-      weekStart: (data.weekStart as WeekStartOption) || 'friday',
-      locale: (data.locale as LocaleSetting) || 'auto',
-      albumTrackDisplay: (data.albumTrackDisplay as AlbumTrackDisplay) || 'fill',
-      albumShowDuration: data.albumShowDuration !== 'false',
-      albumShowAccolades: data.albumShowAccolades !== 'false',
-      sessionRankDisplay: (data.sessionRankDisplay as SessionRankDisplay) || 'all+ytd',
-      sessionTrackingEnabled: data.sessionTrackingEnabled !== 'false',
-      nowPlayingDisplay: (data.nowPlayingDisplay as NowPlayingDisplay) || 'auto',
-      socialVisibility: (data.socialVisibility as SocialVisibility) || 'visible',
-      lastPeriodWeek: data.lastPeriodWeek || null,
-      lastPeriodMonth: data.lastPeriodMonth || null,
-      lastPeriodYear: data.lastPeriodYear || null,
-    };
-    // sync to localStorage as fallback
-    localStorage.setItem('sis:rankingMetric', settingsCache.rankingMetric);
-    localStorage.setItem('sis:rankChangeLookback', settingsCache.rankChangeLookback);
-    localStorage.setItem('sis:weekStart', settingsCache.weekStart);
-    localStorage.setItem('sis:locale', settingsCache.locale);
-    localStorage.setItem('sis:albumTrackDisplay', settingsCache.albumTrackDisplay);
-    localStorage.setItem('sis:albumShowDuration', String(settingsCache.albumShowDuration));
-    localStorage.setItem('sis:albumShowAccolades', String(settingsCache.albumShowAccolades));
-    localStorage.setItem('sis:sessionRankDisplay', settingsCache.sessionRankDisplay);
-    localStorage.setItem('sis:sessionTrackingEnabled', String(settingsCache.sessionTrackingEnabled));
-    localStorage.setItem('sis:nowPlayingDisplay', settingsCache.nowPlayingDisplay);
-    localStorage.setItem('sis:socialVisibility', settingsCache.socialVisibility);
-    if (settingsCache.lastPeriodWeek) localStorage.setItem('sis:lastPeriod:week', settingsCache.lastPeriodWeek);
-    if (settingsCache.lastPeriodMonth) localStorage.setItem('sis:lastPeriod:month', settingsCache.lastPeriodMonth);
-    if (settingsCache.lastPeriodYear) localStorage.setItem('sis:lastPeriod:year', settingsCache.lastPeriodYear);
+    data = await apiFetch<Record<string, string>>('/settings');
   } catch {
-    // fallback: read from localStorage
-    settingsCache = {
-      rankingMetric: (localStorage.getItem('sis:rankingMetric') as RankingMetric) || 'time',
-      rankChangeLookback: (localStorage.getItem('sis:rankChangeLookback') as RankChangeLookback) || 'disabled',
-      weekStart: (localStorage.getItem('sis:weekStart') as WeekStartOption) || 'friday',
-      locale: (localStorage.getItem('sis:locale') as LocaleSetting) || 'auto',
-      albumTrackDisplay: (localStorage.getItem('sis:albumTrackDisplay') as AlbumTrackDisplay) || 'fill',
-      albumShowDuration: localStorage.getItem('sis:albumShowDuration') !== 'false',
-      albumShowAccolades: localStorage.getItem('sis:albumShowAccolades') !== 'false',
-      sessionRankDisplay: (localStorage.getItem('sis:sessionRankDisplay') as SessionRankDisplay) || 'all+ytd',
-      sessionTrackingEnabled: localStorage.getItem('sis:sessionTrackingEnabled') !== 'false',
-      nowPlayingDisplay: (localStorage.getItem('sis:nowPlayingDisplay') as NowPlayingDisplay) || 'auto',
-      socialVisibility: (localStorage.getItem('sis:socialVisibility') as SocialVisibility) || 'visible',
-      lastPeriodWeek: localStorage.getItem('sis:lastPeriod:week'),
-      lastPeriodMonth: localStorage.getItem('sis:lastPeriod:month'),
-      lastPeriodYear: localStorage.getItem('sis:lastPeriod:year'),
-    };
+    for (const key of Object.keys(SETTINGS_DEFAULTS)) {
+      const v = localStorage.getItem(lsKey(key));
+      if (v !== null) data[key] = v;
+    }
+  }
+
+  settingsCache = { ...SETTINGS_DEFAULTS };
+  for (const [key, def] of Object.entries(SETTINGS_DEFAULTS)) {
+    const raw = data[key];
+    if (typeof def === 'boolean') (settingsCache as any)[key] = raw !== undefined ? raw !== 'false' : def;
+    else if (def === null) (settingsCache as any)[key] = raw || null;
+    else (settingsCache as any)[key] = raw || def;
+  }
+
+  for (const [key, val] of Object.entries(settingsCache)) {
+    if (val !== null) localStorage.setItem(lsKey(key), String(val));
   }
   settingsLoaded = true;
 }
@@ -212,154 +192,67 @@ function updateSetting(patch: Partial<Record<string, string>>) {
   }).catch(() => {});
 }
 
-export function getRankingMetric(): RankingMetric {
-  if (settingsLoaded) return settingsCache.rankingMetric;
-  return (localStorage.getItem('sis:rankingMetric') as RankingMetric) || 'time';
+function stringSetting<T extends string>(key: keyof SettingsData, defaultValue: T) {
+  return [
+    (): T => settingsLoaded ? settingsCache[key] as T : (localStorage.getItem(`sis:${key}`) as T) || defaultValue,
+    (v: T) => { (settingsCache as any)[key] = v; localStorage.setItem(`sis:${key}`, v); updateSetting({ [key]: v }); },
+  ] as const;
 }
 
-export function setRankingMetric(metric: RankingMetric) {
-  settingsCache.rankingMetric = metric;
-  localStorage.setItem('sis:rankingMetric', metric);
-  updateSetting({ rankingMetric: metric });
+function boolSetting(key: keyof SettingsData) {
+  return [
+    (): boolean => settingsLoaded ? settingsCache[key] as boolean : localStorage.getItem(`sis:${key}`) !== 'false',
+    (v: boolean) => { (settingsCache as any)[key] = v; localStorage.setItem(`sis:${key}`, String(v)); updateSetting({ [key]: String(v) }); },
+  ] as const;
 }
 
-export function getRankChangeLookback(): RankChangeLookback {
-  if (settingsLoaded) return settingsCache.rankChangeLookback;
-  return (localStorage.getItem('sis:rankChangeLookback') as RankChangeLookback) || 'disabled';
+function withNotify<T>(setter: (v: T) => void) {
+  const listeners: ((v: T) => void)[] = [];
+  return {
+    set(v: T) { setter(v); for (const fn of listeners) fn(v); },
+    onChange(fn: (v: T) => void): () => void {
+      listeners.push(fn);
+      return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
+    },
+  };
 }
 
-export function setRankChangeLookback(lookback: RankChangeLookback) {
-  settingsCache.rankChangeLookback = lookback;
-  localStorage.setItem('sis:rankChangeLookback', lookback);
-  updateSetting({ rankChangeLookback: lookback });
-}
+export const [getRankingMetric, setRankingMetric] = stringSetting<RankingMetric>('rankingMetric', 'time');
+export const [getRankChangeLookback, setRankChangeLookback] = stringSetting<RankChangeLookback>('rankChangeLookback', 'disabled');
+export const [getWeekStart, setWeekStart] = stringSetting<WeekStartOption>('weekStart', 'friday');
+export const [getRawLocale, setLocale] = stringSetting<LocaleSetting>('locale', 'auto');
+export const [getAlbumTrackDisplay, setAlbumTrackDisplay] = stringSetting<AlbumTrackDisplay>('albumTrackDisplay', 'fill');
+export const [getAlbumShowDuration, setAlbumShowDuration] = boolSetting('albumShowDuration');
+export const [getAlbumShowAccolades, setAlbumShowAccolades] = boolSetting('albumShowAccolades');
+export const [getArtistShowAlbumAccolades, setArtistShowAlbumAccolades] = boolSetting('artistShowAlbumAccolades');
+export const [getArtistShowTrackAccolades, setArtistShowTrackAccolades] = boolSetting('artistShowTrackAccolades');
+export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');
 
-export function getWeekStart(): WeekStartOption {
-  if (settingsLoaded) return settingsCache.weekStart;
-  return (localStorage.getItem('sis:weekStart') as WeekStartOption) || 'friday';
-}
-
-export function setWeekStart(ws: WeekStartOption) {
-  settingsCache.weekStart = ws;
-  localStorage.setItem('sis:weekStart', ws);
-  updateSetting({ weekStart: ws });
-}
-
-/** Resolved locale: if 'auto', returns navigator.language; otherwise the stored BCP 47 tag */
 export function getLocale(): string {
   const raw = getRawLocale();
   return raw === 'auto' ? navigator.language : raw;
 }
 
-/** Raw stored value ('auto' or specific tag) — for the settings UI */
-export function getRawLocale(): LocaleSetting {
-  if (settingsLoaded) return settingsCache.locale;
-  return (localStorage.getItem('sis:locale') as LocaleSetting) || 'auto';
-}
+const [_getSessionRankDisplay, _setSessionRankDisplay] = stringSetting<SessionRankDisplay>('sessionRankDisplay', 'all+ytd');
+const _srd = withNotify<SessionRankDisplay>(_setSessionRankDisplay);
+export const getSessionRankDisplay = _getSessionRankDisplay;
+export const setSessionRankDisplay = _srd.set;
+export const onSessionRankDisplayChange = _srd.onChange;
 
-export function setLocale(locale: LocaleSetting) {
-  settingsCache.locale = locale;
-  localStorage.setItem('sis:locale', locale);
-  updateSetting({ locale });
-}
+export const [getSessionRankLimitYear, setSessionRankLimitYear] = stringSetting('sessionRankLimitYear', '50');
+export const [getSessionRankLimitAll, setSessionRankLimitAll] = stringSetting('sessionRankLimitAll', '200');
 
-export function getAlbumTrackDisplay(): AlbumTrackDisplay {
-  if (settingsLoaded) return settingsCache.albumTrackDisplay;
-  return (localStorage.getItem('sis:albumTrackDisplay') as AlbumTrackDisplay) || 'fill';
-}
+const [_getSessionTrackingEnabled, _setSessionTrackingEnabled] = boolSetting('sessionTrackingEnabled');
+const _ste = withNotify<boolean>(_setSessionTrackingEnabled);
+export const getSessionTrackingEnabled = _getSessionTrackingEnabled;
+export const setSessionTrackingEnabled = _ste.set;
+export const onSessionTrackingChange = _ste.onChange;
 
-export function setAlbumTrackDisplay(display: AlbumTrackDisplay) {
-  settingsCache.albumTrackDisplay = display;
-  localStorage.setItem('sis:albumTrackDisplay', display);
-  updateSetting({ albumTrackDisplay: display });
-}
-
-export function getAlbumShowDuration(): boolean {
-  if (settingsLoaded) return settingsCache.albumShowDuration;
-  return localStorage.getItem('sis:albumShowDuration') !== 'false';
-}
-
-export function setAlbumShowDuration(v: boolean) {
-  settingsCache.albumShowDuration = v;
-  localStorage.setItem('sis:albumShowDuration', String(v));
-  updateSetting({ albumShowDuration: String(v) });
-}
-
-export function getAlbumShowAccolades(): boolean {
-  if (settingsLoaded) return settingsCache.albumShowAccolades;
-  return localStorage.getItem('sis:albumShowAccolades') !== 'false';
-}
-
-export function setAlbumShowAccolades(v: boolean) {
-  settingsCache.albumShowAccolades = v;
-  localStorage.setItem('sis:albumShowAccolades', String(v));
-  updateSetting({ albumShowAccolades: String(v) });
-}
-
-export function getSessionRankDisplay(): SessionRankDisplay {
-  if (settingsLoaded) return settingsCache.sessionRankDisplay;
-  return (localStorage.getItem('sis:sessionRankDisplay') as SessionRankDisplay) || 'all+ytd';
-}
-
-const sessionRankDisplayListeners: (() => void)[] = [];
-export function onSessionRankDisplayChange(fn: () => void): () => void {
-  sessionRankDisplayListeners.push(fn);
-  return () => { const i = sessionRankDisplayListeners.indexOf(fn); if (i >= 0) sessionRankDisplayListeners.splice(i, 1); };
-}
-
-export function setSessionRankDisplay(v: SessionRankDisplay) {
-  settingsCache.sessionRankDisplay = v;
-  localStorage.setItem('sis:sessionRankDisplay', v);
-  updateSetting({ sessionRankDisplay: v });
-  for (const fn of sessionRankDisplayListeners) fn();
-}
-
-export function getSessionTrackingEnabled(): boolean {
-  if (settingsLoaded) return settingsCache.sessionTrackingEnabled;
-  return localStorage.getItem('sis:sessionTrackingEnabled') !== 'false';
-}
-
-const sessionTrackingListeners: (() => void)[] = [];
-export function onSessionTrackingChange(fn: () => void): () => void {
-  sessionTrackingListeners.push(fn);
-  return () => { const i = sessionTrackingListeners.indexOf(fn); if (i >= 0) sessionTrackingListeners.splice(i, 1); };
-}
-
-export function setSessionTrackingEnabled(v: boolean) {
-  settingsCache.sessionTrackingEnabled = v;
-  localStorage.setItem('sis:sessionTrackingEnabled', String(v));
-  updateSetting({ sessionTrackingEnabled: String(v) });
-  for (const fn of sessionTrackingListeners) fn();
-}
-
-export function getNowPlayingDisplay(): NowPlayingDisplay {
-  if (settingsLoaded) return settingsCache.nowPlayingDisplay;
-  return (localStorage.getItem('sis:nowPlayingDisplay') as NowPlayingDisplay) || 'auto';
-}
-
-const nowPlayingDisplayListeners: ((v: NowPlayingDisplay) => void)[] = [];
-export function onNowPlayingDisplayChange(fn: (v: NowPlayingDisplay) => void): () => void {
-  nowPlayingDisplayListeners.push(fn);
-  return () => { const i = nowPlayingDisplayListeners.indexOf(fn); if (i >= 0) nowPlayingDisplayListeners.splice(i, 1); };
-}
-
-export function setNowPlayingDisplay(v: NowPlayingDisplay) {
-  settingsCache.nowPlayingDisplay = v;
-  localStorage.setItem('sis:nowPlayingDisplay', v);
-  updateSetting({ nowPlayingDisplay: v });
-  for (const fn of nowPlayingDisplayListeners) fn(v);
-}
-
-export function getSocialVisibility(): SocialVisibility {
-  if (settingsLoaded) return settingsCache.socialVisibility;
-  return (localStorage.getItem('sis:socialVisibility') as SocialVisibility) || 'visible';
-}
-
-export function setSocialVisibility(v: SocialVisibility) {
-  settingsCache.socialVisibility = v;
-  localStorage.setItem('sis:socialVisibility', v);
-  updateSetting({ socialVisibility: v });
-}
+const [_getNowPlayingDisplay, _setNowPlayingDisplay] = stringSetting<NowPlayingDisplay>('nowPlayingDisplay', 'auto');
+const _npd = withNotify<NowPlayingDisplay>(_setNowPlayingDisplay);
+export const getNowPlayingDisplay = _getNowPlayingDisplay;
+export const setNowPlayingDisplay = _npd.set;
+export const onNowPlayingDisplayChange = _npd.onChange;
 
 const LAST_PERIOD_SETTING_KEY: Record<string, string> = {
   week: 'lastPeriodWeek',
@@ -585,6 +478,12 @@ export const api = {
 
   syncLibrary: () =>
     apiMutate<{ success: boolean }>('POST', '/playlists/library/sync'),
+
+  addTrackToPlaylist: (playlistId: number, trackId: string) =>
+    apiMutate<{ success: boolean }>('POST', `/playlists/library/${playlistId}/tracks`, { trackId }),
+
+  removeTrackFromPlaylist: (playlistId: number, trackId: string) =>
+    apiMutate<{ success: boolean }>('DELETE', `/playlists/library/${playlistId}/tracks`, { trackId }),
 
   importHistory: async (files: FileList): Promise<ImportResult> => {
     const formData = new FormData();

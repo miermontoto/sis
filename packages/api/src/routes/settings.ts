@@ -7,7 +7,7 @@ import type { AppVariables } from '../app.js';
 
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'sessionRankDisplay', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility'] as const;
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
@@ -16,7 +16,11 @@ const DEFAULTS: Record<string, string> = {
   albumTrackDisplay: 'fill',
   albumShowDuration: 'true',
   albumShowAccolades: 'true',
+  artistShowAlbumAccolades: 'true',
+  artistShowTrackAccolades: 'true',
   sessionRankDisplay: 'all+ytd',
+  sessionRankLimitYear: '50',
+  sessionRankLimitAll: '200',
   nowPlayingDisplay: 'auto',
   socialVisibility: 'visible',
 };

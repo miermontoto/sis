@@ -358,6 +358,7 @@
           </div>
         {/each}
       </nav>
+      <div class="sidebar-spacer"></div>
       <div class="sidebar-friends">
         <FriendsActivity />
       </div>

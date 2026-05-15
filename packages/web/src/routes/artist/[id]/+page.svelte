@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades } from '$lib/api';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
@@ -33,6 +33,8 @@
   let showAllAlbums = $state(false);
   let showArtistMergeModal = $state(false);
   let playActing = $state(false);
+  let artistShowAlbumAccolades = $state(true);
+  let artistShowTrackAccolades = $state(true);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   const fetchCtrl = createFetchController();
 
@@ -69,6 +71,8 @@
 
   onMount(() => {
     metric = getRankingMetric();
+    artistShowAlbumAccolades = getArtistShowAlbumAccolades();
+    artistShowTrackAccolades = getArtistShowTrackAccolades();
     initialized = true;
   });
 
@@ -152,7 +156,7 @@
         {showAllTracks ? 'Show less' : 'Show all'}
       </button>
     </div>
-    <TrackList items={data.topTracks} showRank {metric} />
+    <TrackList items={data.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} />
   {/if}
 
   {#if data.topAlbums.length > 0}
@@ -180,6 +184,9 @@
               <div class="track-name">{item.album.name}</div>
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
+            {#if artistShowAlbumAccolades}
+              <Accolades entityType="album" entityId={item.albumId} />
+            {/if}
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
               <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>

@@ -7,7 +7,7 @@ import { getCachedRecords, getEntityAccolades } from '../services/records-cache.
 import { ensureFullAlbumTracks } from '../services/ingestion.js';
 import type { TimeRange } from '../constants.js';
 import { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, getLookbackPreviousPeriodRange, deleteHistoryEntries, computeProjectedRankingsBatch } from '../db/queries/index.js';
-import { pollingState, tracks, artists, trackArtists, albums, listeningHistory } from '../db/schema.js';
+import { pollingState, tracks, artists, trackArtists, albums, listeningHistory, userSettings } from '../db/schema.js';
 import type { AppVariables } from '../app.js';
 import type { ProjectionResult, ProjectedRankingsResponse, CrossoverEntity } from '@sis/shared';
 import { fetchEntityMetadata } from '../db/queries/charts.js';
@@ -507,9 +507,19 @@ stats.get('/search', async (c) => {
 
 stats.get('/projected-rankings', (c) => {
   const userId = c.get('userId');
+  const spotifyId = c.get('spotifyId');
   const sort = parseSort(c);
   const db = getDb();
   const empty: ProjectedRankingsResponse = { nowPlaying: [], session: [], sessionTrackCount: 0, sessionTotalMs: 0 };
+
+  const settingsRows = db.select().from(userSettings)
+    .where(eq(userSettings.userId, spotifyId))
+    .all();
+  const settingsMap = new Map(settingsRows.map(r => [r.key, r.value]));
+  const rankLimits: Record<string, number> = {
+    thisYear: parseInt(settingsMap.get('sessionRankLimitYear') ?? '50', 10) || 50,
+    all: parseInt(settingsMap.get('sessionRankLimitAll') ?? '200', 10) || 200,
+  };
 
   const state = db.select().from(pollingState).where(eq(pollingState.userId, userId)).get();
 
@@ -518,7 +528,7 @@ stats.get('/projected-rankings', (c) => {
   const sessionTargets: TargetInfo[] = [];
 
   // session: plays desde session_started_at (o derivado del último gap en listening_history)
-  const sessionRow = db.all(sql`SELECT session_started_at FROM polling_state WHERE user_id = ${userId}`)[0] as { session_started_at: string | null } | undefined;
+  const sessionRow = db.get(sql`SELECT session_started_at FROM polling_state WHERE user_id = ${userId}`) as { session_started_at: string | null } | undefined;
   let sessionStart = sessionRow?.session_started_at ?? null;
 
   if (!sessionStart && state?.lastCurrentlyPlayingTrackId) {
@@ -611,7 +621,7 @@ stats.get('/projected-rankings', (c) => {
   type RankResult = Record<string, { current: number | null; projected: number | null; displaced: string[] }>;
   const sessRankResults = new Map<string, Map<string, RankResult>>();
   for (const [entityType, targets] of sessByType) {
-    sessRankResults.set(entityType, computeProjectedRankingsBatch(db, entityType as 'track' | 'artist' | 'album', targets, sort, userId, sessionStart));
+    sessRankResults.set(entityType, computeProjectedRankingsBatch(db, entityType as 'track' | 'artist' | 'album', targets, sort, userId, sessionStart, rankLimits));
   }
 
   // batch-fetch displaced entity metadata per entity type
@@ -676,6 +686,16 @@ stats.get('/projected-rankings', (c) => {
     const r = buildResult(t, sessRankResults);
     if (r) sessionResults.push(r);
   }
+
+  const entityOrder: Record<string, number> = { artist: 0, album: 1, track: 2 };
+  sessionResults.sort((a, b) => {
+    const typeA = entityOrder[a.entityType] ?? 3;
+    const typeB = entityOrder[b.entityType] ?? 3;
+    if (typeA !== typeB) return typeA - typeB;
+    const bestRankA = Math.min(...a.changes.map(c => c.projectedRank));
+    const bestRankB = Math.min(...b.changes.map(c => c.projectedRank));
+    return bestRankA - bestRankB;
+  });
 
   return c.json({ nowPlaying: [], session: sessionResults, sessionTrackCount, sessionTotalMs, sessionStartedAt: sessionStart } satisfies ProjectedRankingsResponse);
 });

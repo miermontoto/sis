@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
 import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
@@ -42,13 +42,16 @@ nowPlaying.get('/', (c) => {
     .where(eq(trackArtists.trackId, track.spotifyId))
     .all();
 
-  const artistList = trackArtistRows
+  const sortedArtistIds = trackArtistRows
     .sort((a, b) => a.position - b.position)
-    .map(ta => db.select().from(artists).where(eq(artists.spotifyId, ta.artistId)).get())
-    .filter(Boolean);
+    .map(ta => ta.artistId);
+  const artistMap = new Map(
+    db.select().from(artists).where(inArray(artists.spotifyId, sortedArtistIds)).all()
+      .map(a => [a.spotifyId, a])
+  );
+  const artistList = sortedArtistIds.map(id => artistMap.get(id)).filter(Boolean);
 
-  // is_playing es columna manual, leer con raw SQL
-  const isPlayingRow = db.all(sql`SELECT is_playing FROM polling_state WHERE user_id = ${userId}`)[0] as { is_playing: number } | undefined;
+  const isPlayingRow = db.get(sql`SELECT is_playing FROM polling_state WHERE user_id = ${userId}`) as { is_playing: number } | undefined;
 
   return c.json({
     playing: true,

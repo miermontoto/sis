@@ -19,6 +19,20 @@ export function formatHours(ms: number): string {
   return `${(ms / 3_600_000).toFixed(1)}h`;
 }
 
+export type DurationUnit = 'hours' | 'minutes' | 'days' | 'weeks' | 'months' | 'years';
+export const DURATION_UNITS: DurationUnit[] = ['hours', 'minutes', 'days', 'weeks', 'months', 'years'];
+
+export function formatDurationAs(ms: number, unit: DurationUnit): string {
+  switch (unit) {
+    case 'minutes': return `${formatNumber(Math.round(ms / 60_000))} min`;
+    case 'hours': return `${(ms / 3_600_000).toFixed(1)}h`;
+    case 'days': return `${(ms / 86_400_000).toFixed(1)}d`;
+    case 'weeks': return `${(ms / 604_800_000).toFixed(1)}w`;
+    case 'months': return `${(ms / 2_629_746_000).toFixed(1)}mo`;
+    case 'years': return `${(ms / 31_556_952_000).toFixed(2)}y`;
+  }
+}
+
 // formatear número con separador de miles
 export function formatNumber(n: number): string {
   return n.toLocaleString(getLocale());
@@ -86,6 +100,11 @@ export function formatSmartDate(dateStr: string): string {
     return date.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
   }
   return formatShortDate(dateStr);
+}
+
+// true si la fecha cae en el día local actual (mismo criterio que formatSmartDate)
+export function isToday(dateStr: string): boolean {
+  return new Date(dateStr).toDateString() === new Date().toDateString();
 }
 
 // "January 2024"

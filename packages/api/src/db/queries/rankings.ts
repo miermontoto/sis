@@ -107,7 +107,7 @@ interface ProjectionTarget {
   extraMs: number;
 }
 
-const PROJECTED_RANK_LIMITS: Record<string, number> = { thisYear: 50, all: 100 };
+const DEFAULT_RANK_LIMITS: Record<string, number> = { thisYear: 50, all: 200 };
 
 interface ScoreRow { eid: string; val_all: number; val_year: number; pre_all: number; pre_year: number }
 
@@ -116,7 +116,8 @@ interface ScoreRow { eid: string; val_all: number; val_year: number; pre_all: nu
  *  y "projected" es el rank post-sesión (incluyendo el track en curso vía extra). */
 export function computeProjectedRankingsBatch(
   db: Db, entityType: EntityType, targets: ProjectionTarget[],
-  sort: Sort, userId: number, sessionStart?: string | null
+  sort: Sort, userId: number, sessionStart?: string | null,
+  rankLimits?: Record<string, number>
 ): Map<string, Record<string, { current: number | null; projected: number | null }>> {
   if (targets.length === 0) return new Map();
 
@@ -203,7 +204,7 @@ export function computeProjectedRankingsBatch(
       const current = preVal > 0 || range === 'all' ? currentAbove + 1 : null;
       const projected = (myVal > 0 || extra > 0) ? projectedAbove + 1 : null;
 
-      const rankLimit = PROJECTED_RANK_LIMITS[range] ?? 100;
+      const rankLimit = (rankLimits ?? DEFAULT_RANK_LIMITS)[range] ?? 100;
       if (current !== null && current > rankLimit && (projected === null || projected > rankLimit)) {
         out[range] = { current: null, projected: null, displaced: [] };
         continue;

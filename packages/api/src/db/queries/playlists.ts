@@ -78,15 +78,13 @@ export function strategyTopRange(db: Db, userId: number, params: TopRangeParams)
   const uf = userFilter(userId);
   const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
 
-  const whereClause = rangeStart
-    ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
-    : sql`WHERE 1=1`;
+  const rw = rangeWhere(rangeStart, rangeEnd);
 
   const rows = db.all(sql`
     SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    ${whereClause} ${uf} ${NO_LOCAL}
+    WHERE 1=1 ${rw} ${uf} ${NO_LOCAL}
     GROUP BY lh.track_id
     ORDER BY ${ob} DESC
     LIMIT ${fetchLimit}
@@ -145,17 +143,13 @@ export function strategyTopGenre(db: Db, userId: number, params: TopGenreParams)
 export function strategyDeepCuts(db: Db, userId: number, params: DeepCutsParams): string[] {
   const { rangeStart, rangeEnd } = resolveRange(params);
   const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
-
-  const whereClause = rangeStart
-    ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
-    : sql`WHERE 1=1`;
+  const rw = rangeWhere(rangeStart, rangeEnd);
 
   const rows = db.all(sql`
     SELECT lh.track_id, count(*) as play_count, t.popularity
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
-    ${whereClause}
-      AND lh.user_id = ${userId}
+    WHERE lh.user_id = ${userId} ${rw}
       AND t.popularity IS NOT NULL
       AND t.popularity <= ${params.maxPopularity}
       ${NO_LOCAL}
@@ -172,10 +166,7 @@ export function strategyDeepCuts(db: Db, userId: number, params: DeepCutsParams)
 export function strategyTimeVibes(db: Db, userId: number, params: TimeVibesParams): string[] {
   const { rangeStart, rangeEnd } = resolveRange(params);
   const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
-
-  const whereClause = rangeStart
-    ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
-    : sql`WHERE 1=1`;
+  const rw = rangeWhere(rangeStart, rangeEnd);
 
   const dayPlaceholders = sql.join(params.days.map(d => sql`${d}`), sql`, `);
   const hourPlaceholders = sql.join(params.hours.map(h => sql`${h}`), sql`, `);
@@ -183,8 +174,7 @@ export function strategyTimeVibes(db: Db, userId: number, params: TimeVibesParam
   const rows = db.all(sql`
     SELECT lh.track_id, count(*) as play_count
     FROM listening_history lh
-    ${whereClause}
-      AND lh.user_id = ${userId}
+    WHERE lh.user_id = ${userId} ${rw}
       AND cast(strftime('%w', lh.played_at) as integer) IN (${dayPlaceholders})
       AND cast(strftime('%H', lh.played_at) as integer) IN (${hourPlaceholders})
       ${NO_LOCAL}
@@ -283,14 +273,12 @@ export function strategyTop(db: Db, userId: number, params: TopParams): string[]
   if (params.entityType === 'track') {
     const ob = orderByCol(params.sort);
     const uf = userFilter(userId);
-    const whereClause = rangeStart
-      ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
-      : sql`WHERE 1=1`;
+    const rw = rangeWhere(rangeStart, rangeEnd);
     const rows = db.all(sql`
       SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      ${whereClause} ${uf} ${NO_LOCAL}
+      WHERE 1=1 ${rw} ${uf} ${NO_LOCAL}
       GROUP BY lh.track_id
       ORDER BY ${ob} DESC
       LIMIT ${limit}

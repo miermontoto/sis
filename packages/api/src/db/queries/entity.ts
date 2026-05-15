@@ -36,13 +36,10 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
   const ob = orderByCol(sort);
   const uf = userFilter(userId);
 
+  const wr = rangeWhere(rangeStart, rangeEnd);
+
   if (entityType === 'artist') {
-    // dedup por play antes de agregar: evita doble count cuando un track tiene 2 artists
-    // que acaban mergeados al mismo target
     const mrJoin = entityMergeJoin('artist', userId);
-    const rangeFilter = rangeStart
-      ? (rangeEnd ? sql`AND lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`AND lh.played_at >= ${rangeStart}`)
-      : sql``;
 
     return db.all(sql`
       SELECT entity_id, count(*) as play_count, sum(duration_ms) as total_ms
@@ -52,7 +49,7 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
         ${mrJoin}
-        WHERE lh.user_id = ${userId} ${rangeFilter}
+        WHERE lh.user_id = ${userId} ${wr}
       )
       GROUP BY entity_id
       ORDER BY ${ob} DESC
@@ -60,16 +57,11 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
     `) as AggregateRow[];
   }
 
-  // album ó track
-  const rangeFilter = rangeStart
-    ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)
-    : sql`WHERE 1=1`;
-
   return db.all(sql`
     SELECT ${groupCol} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     ${resolvedPlayJoins(entityType, userId)}
-    ${rangeFilter} ${uf} ${albumNullFilter(entityType)}
+    WHERE 1=1 ${wr} ${uf} ${albumNullFilter(entityType)}
     GROUP BY entity_id
     ORDER BY ${ob} DESC
     LIMIT ${limit}
