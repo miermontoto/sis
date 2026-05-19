@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingEnabled, setSessionTrackingEnabled, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -28,7 +28,7 @@
   let sessionRankDisplayPref = $state<SessionRankDisplay>('all+ytd');
   let sessionRankLimitYearPref = $state('50');
   let sessionRankLimitAllPref = $state('200');
-  let sessionTrackingPref = $state(true);
+  let sessionTrackingDisplayPref = $state<SessionTrackingDisplay>('all');
   let nowPlayingDisplayPref = $state<NowPlayingDisplay>('auto');
   let socialVisibilityPref = $state<SocialVisibility>('visible');
 
@@ -71,7 +71,7 @@
     sessionRankDisplayPref = getSessionRankDisplay();
     sessionRankLimitYearPref = getSessionRankLimitYear();
     sessionRankLimitAllPref = getSessionRankLimitAll();
-    sessionTrackingPref = getSessionTrackingEnabled();
+    sessionTrackingDisplayPref = getSessionTrackingDisplay();
     nowPlayingDisplayPref = getNowPlayingDisplay();
     socialVisibilityPref = getSocialVisibility();
     try {
@@ -205,25 +205,26 @@
         </div>
         <div class="pref-control">
           <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!sessionTrackingPref} onclick={() => { sessionTrackingPref = false; setSessionTrackingEnabled(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={sessionTrackingPref} onclick={() => { sessionTrackingPref = true; setSessionTrackingEnabled(true); }}>On</button>
+            <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'off'} onclick={() => { sessionTrackingDisplayPref = 'off'; setSessionTrackingDisplay('off'); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'desktop'} onclick={() => { sessionTrackingDisplayPref = 'desktop'; setSessionTrackingDisplay('desktop'); }}>Desktop</button>
+            <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'all'} onclick={() => { sessionTrackingDisplayPref = 'all'; setSessionTrackingDisplay('all'); }}>Mobile+Desktop</button>
           </div>
         </div>
       </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!sessionTrackingPref}>
+      <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off'}>
         <div class="pref-info">
           <div class="pref-label">Rankings</div>
           <div class="pref-desc">Which projected ranking changes to show during a listening session</div>
         </div>
         <div class="pref-control">
           <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }} disabled={!sessionTrackingPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }} disabled={!sessionTrackingPref}>ALL</button>
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }} disabled={!sessionTrackingPref}>ALL+YTD</button>
+            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }} disabled={sessionTrackingDisplayPref === 'off'}>Off</button>
+            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }} disabled={sessionTrackingDisplayPref === 'off'}>ALL</button>
+            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }} disabled={sessionTrackingDisplayPref === 'off'}>ALL+YTD</button>
           </div>
         </div>
       </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!sessionTrackingPref || sessionRankDisplayPref === 'none'}>
+      <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
         <div class="pref-info">
           <div class="pref-label">Rank limit (ALL)</div>
           <div class="pref-desc">Only show all-time ranking changes for entities within this rank</div>
@@ -231,12 +232,12 @@
         <div class="pref-control">
           <div class="segmented">
             {#each ['25', '50', '100', '200'] as v}
-              <button class="segmented-btn" class:segmented-active={sessionRankLimitAllPref === v} onclick={() => { sessionRankLimitAllPref = v; setSessionRankLimitAll(v); }} disabled={!sessionTrackingPref || sessionRankDisplayPref === 'none'}>#{v}</button>
+              <button class="segmented-btn" class:segmented-active={sessionRankLimitAllPref === v} onclick={() => { sessionRankLimitAllPref = v; setSessionRankLimitAll(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
             {/each}
           </div>
         </div>
       </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!sessionTrackingPref || sessionRankDisplayPref === 'none'}>
+      <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
         <div class="pref-info">
           <div class="pref-label">Rank limit (YTD)</div>
           <div class="pref-desc">Only show year-to-date ranking changes for entities within this rank</div>
@@ -244,7 +245,7 @@
         <div class="pref-control">
           <div class="segmented">
             {#each ['25', '50', '100', '200'] as v}
-              <button class="segmented-btn" class:segmented-active={sessionRankLimitYearPref === v} onclick={() => { sessionRankLimitYearPref = v; setSessionRankLimitYear(v); }} disabled={!sessionTrackingPref || sessionRankDisplayPref === 'none'}>#{v}</button>
+              <button class="segmented-btn" class:segmented-active={sessionRankLimitYearPref === v} onclick={() => { sessionRankLimitYearPref = v; setSessionRankLimitYear(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
             {/each}
           </div>
         </div>

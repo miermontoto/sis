@@ -127,6 +127,7 @@ nowPlaying.get('/live', async (c) => {
   return c.json({
     playing: true,
     isPlaying: !!data.is_playing,
+    volumePercent: data.device?.volume_percent ?? null,
     track: {
       id: item.id,
       name: item.name,
@@ -211,6 +212,19 @@ nowPlaying.put('/play-context', async (c) => {
   return c.json({ success: false, error: 'spotify_error' });
 });
 
+// --- volumen ---
+
+nowPlaying.put('/volume', async (c) => {
+  const userId = c.get('userId');
+  const { volume_percent } = await c.req.json<{ volume_percent: number }>();
+  const clamped = Math.max(0, Math.min(100, Math.round(volume_percent)));
+  await spotifyFetchRaw(`/me/player/volume?volume_percent=${clamped}`, {
+    userId,
+    method: 'PUT',
+  });
+  return c.json({ success: true, volume_percent: clamped });
+});
+
 // --- dispositivos Spotify Connect ---
 
 nowPlaying.get('/devices', async (c) => {
@@ -272,6 +286,22 @@ nowPlaying.delete('/like/:trackId', async (c) => {
     return c.json({ success: false, error: 'spotify_rejected', status: res.status, detail }, res.status as 400);
   }
   return c.json({ success: true });
+});
+
+// --- playlist presence ---
+
+nowPlaying.get('/playlists/:trackId', (c) => {
+  const userId = c.get('userId');
+  const trackId = c.req.param('trackId');
+  const db = getDb();
+  const rows = db.all(sql`
+    SELECT sp.id, sp.spotify_id as spotifyId, sp.name, sp.image_url as imageUrl
+    FROM spotify_playlist_tracks spt
+    JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+    WHERE spt.track_id = ${trackId}
+    ORDER BY sp.name ASC
+  `) as Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null }>;
+  return c.json({ playlists: rows });
 });
 
 // --- add to queue ---

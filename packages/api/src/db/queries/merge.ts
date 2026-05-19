@@ -18,6 +18,36 @@ export function resolveEntityIds(db: Db, type: EntityType, entityId: string, use
   return [entityId, ...sources.map(r => r.source_id)];
 }
 
+/** Grupo bidireccional de merge para `entityId`: incluye target, hermanos (otros sources
+ *  del mismo target) y el propio ID, sin importar si `entityId` es target o source.
+ *  Útil para filtrar "todo lo que pertenece al mismo grupo" cuando no se sabe la dirección. */
+export function getEntityMergeGroup(db: Db, type: EntityType, entityId: string, userId: number): string[] {
+  const ids = new Set<string>([entityId]);
+
+  // si entityId es target, añadir sus sources
+  const sources = db.all(sql`
+    SELECT source_id FROM merge_rules
+    WHERE entity_type = ${type} AND target_id = ${entityId} AND user_id = ${userId}
+  `) as { source_id: string }[];
+  for (const r of sources) ids.add(r.source_id);
+
+  // si entityId es source, añadir target y hermanos
+  const target = db.all(sql`
+    SELECT target_id FROM merge_rules
+    WHERE entity_type = ${type} AND source_id = ${entityId} AND user_id = ${userId}
+  `)[0] as { target_id: string } | undefined;
+  if (target) {
+    ids.add(target.target_id);
+    const siblings = db.all(sql`
+      SELECT source_id FROM merge_rules
+      WHERE entity_type = ${type} AND target_id = ${target.target_id} AND user_id = ${userId}
+    `) as { source_id: string }[];
+    for (const r of siblings) ids.add(r.source_id);
+  }
+
+  return [...ids];
+}
+
 /** mergedFrom (sources que apuntan a este ID) + mergedInto (target si este ID es un source). */
 export function getEntityMergeInfo(db: Db, type: EntityType, entityId: string): MergeInfo {
   // tracks no tienen image_url propia — la toman del álbum

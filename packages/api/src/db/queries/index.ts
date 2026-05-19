@@ -17,7 +17,7 @@ export type { EntityTypeFilter } from './records.js';
 export { getChart, getChartPeaks, getAvailablePeriods, getEntityChartHistory } from './charts.js';
 
 // merge (genérico para albums / artists / tracks)
-export { resolveEntityIds, getEntityMergeInfo } from './merge.js';
+export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './merge.js';
 export type { MergeInfo } from './merge.js';
 
 // entity formatters

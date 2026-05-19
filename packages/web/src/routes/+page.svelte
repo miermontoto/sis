@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, getSessionTrackingEnabled, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric } from '$lib/api';
+  import { api, getRankingMetric, getSessionTrackingDisplay, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric } from '$lib/api';
   import TrackList from '$lib/components/TrackList.svelte';
   import CoverGrid from '$lib/components/CoverGrid.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
@@ -293,7 +293,7 @@
       {/each}
     </div>
   {:else if recentPlays.length > 0}
-    <TrackList items={recentPlays} showTime compact sessionStartedAt={getSessionTrackingEnabled() ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
+    <TrackList items={recentPlays} showTime compact sessionStartedAt={getSessionTrackingDisplay() !== 'off' ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
   {:else}
     <p class="empty-inline">No listening data yet.</p>
   {/if}

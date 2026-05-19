@@ -3,7 +3,7 @@
 export type {
   TrackInfo, FormattedArtist, FormattedAlbum,
   TopTrackItem, TopArtistItem, TopAlbumItem,
-  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility,
+  RankingMetric, WeekStartOption, Granularity, EntityType, DateRangeParams, LocaleSetting, RankChangeLookback, AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility,
   HistoryItem, HistoryResponse,
   NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendActivity, FriendsActivityResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
@@ -15,20 +15,20 @@ export type {
   ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, RemergePreviewPair, BatchMergeResult,
   ProjectedRankingsResponse, ProjectionResult, RankProjection,
 } from '@sis/shared';
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 import type {
-  RankingMetric, RankChangeLookback, WeekStartOption, LocaleSetting, AlbumTrackDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility, DateRangeParams,
+  RankingMetric, RankChangeLookback, WeekStartOption, LocaleSetting, AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay, NowPlayingDisplay, SocialVisibility, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPoint, RankingHistoryPointWithCrossovers, HealthData,
-  MergeRule, MergeSuggestion, MeResponse, UserRecord, ImportResult,
+  MergeRule, MergeSuggestion, RemergePreview, BatchMergeResult, MeResponse, UserRecord, ImportResult,
   PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
   ProjectedRankingsResponse,
@@ -124,7 +124,7 @@ interface SettingsData {
   sessionRankDisplay: SessionRankDisplay;
   sessionRankLimitYear: string;
   sessionRankLimitAll: string;
-  sessionTrackingEnabled: boolean;
+  sessionTrackingDisplay: SessionTrackingDisplay;
   nowPlayingDisplay: NowPlayingDisplay;
   socialVisibility: SocialVisibility;
   lastPeriodWeek: string | null;
@@ -145,7 +145,7 @@ const SETTINGS_DEFAULTS: SettingsData = {
   sessionRankDisplay: 'all+ytd',
   sessionRankLimitYear: '50',
   sessionRankLimitAll: '200',
-  sessionTrackingEnabled: true,
+  sessionTrackingDisplay: 'all',
   nowPlayingDisplay: 'auto',
   socialVisibility: 'visible',
   lastPeriodWeek: null,
@@ -242,11 +242,11 @@ export const onSessionRankDisplayChange = _srd.onChange;
 export const [getSessionRankLimitYear, setSessionRankLimitYear] = stringSetting('sessionRankLimitYear', '50');
 export const [getSessionRankLimitAll, setSessionRankLimitAll] = stringSetting('sessionRankLimitAll', '200');
 
-const [_getSessionTrackingEnabled, _setSessionTrackingEnabled] = boolSetting('sessionTrackingEnabled');
-const _ste = withNotify<boolean>(_setSessionTrackingEnabled);
-export const getSessionTrackingEnabled = _getSessionTrackingEnabled;
-export const setSessionTrackingEnabled = _ste.set;
-export const onSessionTrackingChange = _ste.onChange;
+const [_getSessionTrackingDisplay, _setSessionTrackingDisplay] = stringSetting<SessionTrackingDisplay>('sessionTrackingDisplay', 'all');
+const _std = withNotify<SessionTrackingDisplay>(_setSessionTrackingDisplay);
+export const getSessionTrackingDisplay = _getSessionTrackingDisplay;
+export const setSessionTrackingDisplay = _std.set;
+export const onSessionTrackingDisplayChange = _std.onChange;
 
 const [_getNowPlayingDisplay, _setNowPlayingDisplay] = stringSetting<NowPlayingDisplay>('nowPlayingDisplay', 'auto');
 const _npd = withNotify<NowPlayingDisplay>(_setNowPlayingDisplay);
@@ -397,9 +397,13 @@ export const api = {
     apiFetch<DevicesResponse>('/now-playing/devices'),
   playbackTransfer: (deviceId: string, play?: boolean) =>
     apiMutate<{ success: boolean }>('PUT', '/now-playing/device', { device_id: deviceId, play }),
+  playbackVolume: (volumePercent: number) =>
+    apiMutate<{ success: boolean; volume_percent: number }>('PUT', '/now-playing/volume', { volume_percent: volumePercent }),
   queueTrack: (trackId: string) =>
     apiMutate<{ success: boolean }>('POST', '/now-playing/queue', { uri: `spotify:track:${trackId}` }),
 
+  trackPlaylists: (trackId: string) =>
+    apiFetch<{ playlists: Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null }> }>(`/now-playing/playlists/${encodeURIComponent(trackId)}`),
   checkTrackLiked: (trackId: string) =>
     apiFetch<{ isLiked: boolean }>(`/now-playing/like/${encodeURIComponent(trackId)}`),
   likeTrack: (trackId: string) =>
@@ -443,6 +447,12 @@ export const api = {
     return apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', params);
   },
 
+  albumRemergePreview: (albumId: string) =>
+    apiFetch<RemergePreview>('/admin/album-remerge-preview', { album: albumId }),
+
+  batchMergeTracks: (trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }>) =>
+    apiMutate<BatchMergeResult>('POST', '/admin/batch-merge-tracks', { trackPairs }),
+
   // user management (admin)
   me: () => apiFetch<MeResponse>('/me'),
   listUsers: () => apiFetch<UserRecord[]>('/admin/users'),
@@ -452,6 +462,8 @@ export const api = {
   deleteUser: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/admin/users/${id}`),
   updateTrackDuration: (trackId: string, durationMs: number) =>
     apiMutate<{ success: boolean; durationMs: number }>('PATCH', `/admin/track/${encodeURIComponent(trackId)}`, { durationMs }),
+  refreshTrackDuration: (trackId: string) =>
+    apiMutate<{ success: boolean; durationMs: number; changed: boolean }>('POST', `/admin/track/${encodeURIComponent(trackId)}/refresh-duration`),
 
   // playlist API
   generatePlaylist: (body: { strategy: PlaylistStrategy; params: Record<string, unknown>; name?: string; preview?: boolean }) =>

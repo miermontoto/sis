@@ -9,7 +9,8 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
-  import { api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingEnabled, onSessionTrackingChange, type MeResponse, type NowPlayingDisplay } from '$lib/api';
+  import { api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
+  import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
@@ -49,14 +50,14 @@
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
   let tabbarRef = $state<HTMLElement | null>(null);
   let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
-  let sessionTrackingEnabled = $state(true);
+  let sessionTrackingDisplay = $state<SessionTrackingDisplay>('all');
   let sidebarEl = $state<HTMLElement | null>(null);
   let sidebarOverflows = $state(false);
 
   const unsubNpDisplay = onNowPlayingDisplayChange((v) => { nowPlayingDisplay = v; });
-  const unsubSessionTracking = onSessionTrackingChange(() => {
-    sessionTrackingEnabled = getSessionTrackingEnabled();
-    if (sessionTrackingEnabled) projectionsStore.startPolling();
+  const unsubSessionTracking = onSessionTrackingDisplayChange(() => {
+    sessionTrackingDisplay = getSessionTrackingDisplay();
+    if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
     else projectionsStore.stopPolling();
   });
   onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); });
@@ -69,7 +70,7 @@
   });
 
   $effect(() => {
-    if (!sessionTrackingEnabled) return;
+    if (sessionTrackingDisplay === 'off') return;
     nowPlayingStore.trackId;
     projectionsStore.onTrackChange();
   });
@@ -77,7 +78,18 @@
   $effect(() => {
     const el = sidebarEl;
     if (!el) return;
-    const check = () => { sidebarOverflows = el.scrollHeight > el.clientHeight; };
+    // histéresis para evitar feedback loop: NP compacto reduce scrollHeight,
+    // lo que haría que sidebarOverflows vuelva a false, agrandando NP de
+    // nuevo. Para volver a full, exigimos margen suficiente (~150px, la
+    // diferencia aproximada entre NP full y compacto).
+    const NP_HEIGHT_DIFF = 150;
+    const check = () => {
+      if (sidebarOverflows) {
+        sidebarOverflows = el.scrollHeight + NP_HEIGHT_DIFF > el.clientHeight;
+      } else {
+        sidebarOverflows = el.scrollHeight > el.clientHeight;
+      }
+    };
     check();
     const ro = new ResizeObserver(check);
     ro.observe(el);
@@ -118,10 +130,10 @@
           Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
             nowPlayingDisplay = getNowPlayingDisplay();
-            sessionTrackingEnabled = getSessionTrackingEnabled();
+            sessionTrackingDisplay = getSessionTrackingDisplay();
             closedChartsStore.refresh();
             nowPlayingStore.startPolling();
-            if (sessionTrackingEnabled) projectionsStore.startPolling();
+            if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
           });
         }
       })
@@ -239,6 +251,32 @@
     }
   }
 
+  const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
+  const ALLOWED_RANGES: Record<string, Set<string>> = {
+    'all': new Set(['all']),
+    'all+ytd': new Set(['all', 'thisYear']),
+  };
+
+  function marqueeBestChange(changes: RankProjection[]): RankProjection | null {
+    const mode = getSessionRankDisplay();
+    const allowed = ALLOWED_RANGES[mode];
+    if (!allowed) return null;
+    const filtered = changes.filter(c => allowed.has(c.range));
+    if (filtered.length === 0) return null;
+    return filtered.reduce((best, c) => Math.abs(c.delta) > Math.abs(best.delta) ? c : best);
+  }
+
+  let marqueeItems = $derived.by(() => {
+    const d = projectionsStore.data;
+    if (!d || d.sessionTrackCount === 0) return [];
+    const items: { r: ProjectionResult; best: RankProjection }[] = [];
+    for (const r of d.session) {
+      const best = marqueeBestChange(r.changes);
+      if (best) items.push({ r, best });
+    }
+    return items;
+  });
+
 </script>
 
 {#if page.url.pathname === '/login'}
@@ -270,6 +308,32 @@
           </div>
         {/each}
       </nav>
+      {#if sessionTrackingDisplay === 'all' && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
+        <div class="mobile-session-marquee">
+          <div class="mobile-session-marquee-inner">
+            <span class="mobile-session-marquee-content">
+              <span class="mobile-session-label">Session · {projectionsStore.data?.sessionTrackCount} tracks · {formatDuration(projectionsStore.data?.sessionTotalMs ?? 0)}</span>
+              {#each marqueeItems as { r, best }}
+                <span class="mobile-session-sep"></span>
+                <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item">
+                  <span class="mobile-session-entity">{r.entityName}</span>
+                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}</span>
+                </a>
+              {/each}
+            </span>
+            <span class="mobile-session-marquee-content" aria-hidden="true">
+              <span class="mobile-session-label">Session · {projectionsStore.data?.sessionTrackCount} tracks · {formatDuration(projectionsStore.data?.sessionTotalMs ?? 0)}</span>
+              {#each marqueeItems as { r, best }}
+                <span class="mobile-session-sep"></span>
+                <a href="/{r.r.entityType}/{r.r.entityId}" class="mobile-session-item" tabindex="-1">
+                  <span class="mobile-session-entity">{r.r.entityName}</span>
+                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}</span>
+                </a>
+              {/each}
+            </span>
+          </div>
+        </div>
+      {/if}
       {#if nowPlayingStore.data?.playing && nowPlayingStore.data.track}
         {@const npData = nowPlayingStore.data}
         <a href="/track/{npData.track.id}" class="mobile-mini-player">
@@ -362,7 +426,7 @@
       <div class="sidebar-friends">
         <FriendsActivity />
       </div>
-      {#if sessionTrackingEnabled && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
+      {#if sessionTrackingDisplay !== 'off' && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
         <div class="sidebar-projections">
           <ProjectedChanges />
         </div>
@@ -441,6 +505,7 @@
       target={mergeModal.target.target}
       parentId={mergeModal.target.parentId}
       existingMerges={mergeModal.target.existingMerges}
+      initialStep={mergeModal.target.initialStep}
       onMerged={() => { mergeModal.refresh(); mergeModal.notifyChange(); }}
     />
   {/if}

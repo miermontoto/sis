@@ -21,7 +21,7 @@ import type {
   TopParams, ChartParams,
 } from '../db/queries/index.js';
 import type { Sort } from '../db/queries/helpers.js';
-import type { RecordEntry, ArtistRecordEntry, WeekStartOption } from '@sis/shared';
+import type { RecordEntry, ArtistRecordEntry, WeekStartOption, RankingMetric } from '@sis/shared';
 import type { AppVariables } from '../app.js';
 
 const playlists = new Hono<{ Variables: AppVariables }>();
@@ -78,7 +78,7 @@ function resolveRecordTracks(db: ReturnType<typeof getDb>, userId: number, param
   const ws = (['monday', 'sunday', 'friday'].includes(params.weekStart as string)
     ? params.weekStart
     : 'monday') as WeekStartOption;
-  const sort = (params.sort === 'plays' ? 'plays' : 'time') as Sort;
+  const sort: RankingMetric = params.sort === 'plays' ? 'plays' : 'time';
   const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 50);
 
   if (!recordKey || UNSUPPORTED_RECORD_KEYS.has(recordKey)) {
@@ -89,7 +89,7 @@ function resolveRecordTracks(db: ReturnType<typeof getDb>, userId: number, param
   }
 
   const pluralTab = entityType === 'track' ? 'tracks' : entityType === 'album' ? 'albums' : 'artists';
-  const cached = getCachedRecords(userId, ws, sort, limit, pluralTab);
+  const cached = getCachedRecords(userId, ws, sort, limit, entityType);
   const tabData = cached?.[pluralTab] as Record<string, unknown> | undefined;
   const list = tabData?.[recordKey];
 

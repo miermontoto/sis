@@ -97,6 +97,7 @@ a:hover {
   overflow-y: auto;
   overflow-x: hidden;
   user-select: none;
+  z-index: 10;
 }
 
 .sidebar-top {
@@ -232,6 +233,10 @@ a:hover {
 }
 
 .mobile-mini-player {
+  display: none;
+}
+
+.mobile-session-marquee {
   display: none;
 }
 
@@ -941,6 +946,9 @@ a.track-item {
 }
 .duration-edit-btn:hover { color: var(--text-primary); border-color: var(--text-primary); }
 
+.duration-recheck { cursor: pointer; }
+.duration-recheck:hover { color: var(--text-primary); }
+
 .duration-input {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -1260,6 +1268,84 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   .sidebar-user-wrap,
   .sidebar-footer {
     display: none;
+  }
+
+  .mobile-session-marquee {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.02));
+    border-bottom: 1px solid rgba(74, 158, 255, 0.15);
+    mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
+  }
+
+  .mobile-session-marquee-inner {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: mobile-session-scroll 20s linear infinite;
+  }
+
+  .mobile-session-marquee-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    color: var(--text-secondary, #aaa);
+  }
+
+  .mobile-session-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.62rem;
+    color: var(--text-muted, #666);
+  }
+
+  .mobile-session-sep {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-muted, #555);
+    flex-shrink: 0;
+  }
+
+  .mobile-session-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .mobile-session-entity {
+    color: var(--text-secondary, #aaa);
+  }
+
+  .mobile-session-item:hover .mobile-session-entity {
+    color: var(--text-primary, #fff);
+  }
+
+  .mobile-session-rank {
+    font-weight: 600;
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-session-rank.up {
+    color: #1db954;
+  }
+
+  .mobile-session-rank.down {
+    color: #e34234;
+  }
+
+  @keyframes mobile-session-scroll {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-50%, 0, 0); }
   }
 
   .mobile-mini-player {

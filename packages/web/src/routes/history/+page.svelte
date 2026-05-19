@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getSessionTrackingEnabled, type HistoryItem } from '$lib/api';
+  import { api, createFetchController, getSessionTrackingDisplay, type HistoryItem } from '$lib/api';
   import { formatDate, formatFullDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -401,7 +401,7 @@
     showTime
     focusId={focusedPlayedAt}
     itemFocusKey={(i) => 'playedAt' in i ? i.playedAt : null}
-    sessionStartedAt={getSessionTrackingEnabled() ? projectionsStore.sessionStartedAt : null}
+    sessionStartedAt={getSessionTrackingDisplay() !== 'off' ? projectionsStore.sessionStartedAt : null}
   />
 {/if}
 

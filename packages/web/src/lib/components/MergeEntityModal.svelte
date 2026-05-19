@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch } from '$lib/api';
+  import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair } from '$lib/api';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -9,6 +9,7 @@
     target,
     parentId,
     existingMerges = [],
+    initialStep,
     onMerged = () => {},
   }: {
     show: boolean;
@@ -16,6 +17,7 @@
     target: { id: string; name: string; imageUrl: string | null };
     parentId?: string;
     existingMerges?: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
+    initialStep?: 'select' | 'remerge';
     onMerged?: () => void;
   } = $props();
 
@@ -35,10 +37,15 @@
   let searchQuery = $state('');
 
   // track matching step (albums only)
-  let step = $state<'select' | 'tracks'>('select');
+  let step = $state<'select' | 'tracks' | 'remerge'>('select');
   let trackPreview = $state<AlbumMergePreview | null>(null);
   let trackMatches = $state<Map<string, string>>(new Map());
   let loadingPreview = $state(false);
+
+  // remerge step (auto-merge tracks from already-merged albums)
+  let remergePairs = $state<(RemergePreviewPair & { checked: boolean })[]>([]);
+  let remergeLoading = $state(false);
+  let remergeApplying = $state(false);
 
   let existingIds = $derived(new Set(existingMerges.map(m => m.id)));
 
@@ -109,6 +116,7 @@
 
   // para el step de tracks: número de matches activos
   let activeTrackPairs = $derived(trackMatches.size);
+  let activeRemergePairs = $derived(remergePairs.filter(p => p.checked).length);
 
   // helpers para el step de tracks
   function getTargetTrackForSource(sourceId: string) {
@@ -135,6 +143,9 @@
     step = 'select';
     trackPreview = null;
     trackMatches = new Map();
+    remergePairs = [];
+    remergeLoading = false;
+    remergeApplying = false;
   }
 
   async function loadSuggestions() {
@@ -143,14 +154,17 @@
       const opts: { parent?: string; exclude?: string } = { exclude: target.id };
       if (entityType !== 'artist') {
         if (!parentId) {
+          console.warn('[merge] no parentId for', entityType, target.id);
           suggestions = [];
           return;
         }
         opts.parent = parentId;
       }
       const all = await api.mergeSuggestions(entityType, opts);
+      console.log('[merge] got', all.length, 'suggestions for', entityType, opts);
       suggestions = all.filter(a => a.id !== target.id && !existingIds.has(a.id));
-    } catch {
+    } catch (e) {
+      console.error('[merge] error loading suggestions:', e);
       suggestions = [];
     } finally {
       loading = false;
@@ -202,6 +216,45 @@
     error = '';
   }
 
+  async function loadRemergePreview() {
+    remergeLoading = true;
+    error = '';
+    try {
+      const preview = await api.albumRemergePreview(target.id);
+      remergePairs = preview.pairs.map(p => ({ ...p, checked: true }));
+      step = 'remerge';
+    } catch (e: any) {
+      error = e.message || 'Error loading remerge preview';
+    } finally {
+      remergeLoading = false;
+    }
+  }
+
+  async function applyRemerge() {
+    const selected = remergePairs.filter(p => p.checked);
+    if (selected.length === 0) return;
+    remergeApplying = true;
+    error = '';
+    try {
+      await api.batchMergeTracks(selected.map(p => ({
+        sourceTrackId: p.sourceTrack.id,
+        targetTrackId: p.targetTrack.id,
+      })));
+      onMerged();
+      close();
+    } catch (e: any) {
+      error = e.message || 'Error merging tracks';
+    } finally {
+      remergeApplying = false;
+    }
+  }
+
+  function goBackFromRemerge() {
+    step = 'select';
+    remergePairs = [];
+    error = '';
+  }
+
   async function doMerge() {
     if (selected.size === 0) return;
     merging = true;
@@ -238,16 +291,21 @@
   let showTrackStep = $derived(entityType === 'album' && selected.size === 1 && step === 'select');
 
   $effect(() => {
-    if (show) loadSuggestions();
+    if (show) {
+      loadSuggestions();
+      if (initialStep === 'remerge' && entityType === 'album') {
+        loadRemergePreview();
+      }
+    }
   });
 </script>
 
 {#if show}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="merge-overlay" onmousedown={(e) => { if (e.target === e.currentTarget) close(); }}>
-    <div class="merge-modal" class:merge-modal--wide={step === 'tracks'}>
+    <div class="merge-modal" class:merge-modal--wide={step === 'tracks' || step === 'remerge'}>
       <div class="merge-header">
-        <h3>{step === 'tracks' ? 'Match tracks' : labels.title}</h3>
+        <h3>{step === 'tracks' ? 'Match tracks' : step === 'remerge' ? 'Auto-merge tracks' : labels.title}</h3>
         <button class="merge-close" onclick={close}>&times;</button>
       </div>
 
@@ -286,6 +344,11 @@
               </div>
             {/each}
           </div>
+          {#if entityType === 'album'}
+            <button class="merge-remerge-btn" onclick={loadRemergePreview} disabled={remergeLoading}>
+              {remergeLoading ? 'Scanning...' : 'Scan for unmerged tracks'}
+            </button>
+          {/if}
         {/if}
 
         {#if loading}
@@ -418,6 +481,52 @@
             {merging ? 'Merging...' : `Merge album${activeTrackPairs > 0 ? ` + ${activeTrackPairs} tracks` : ''}`}
           </button>
         </div>
+
+      {:else if step === 'remerge'}
+        {#if error}
+          <div class="merge-error">{error}</div>
+        {/if}
+
+        {#if remergeLoading}
+          <div class="merge-loading"><div class="spinner"></div></div>
+        {:else if remergePairs.length === 0}
+          <div class="merge-empty">No unmerged track matches found.</div>
+        {:else}
+          <div class="merge-section-title">Track matches ({activeRemergePairs} of {remergePairs.length})</div>
+          <div class="merge-list">
+            {#each remergePairs as pair, i}
+              <button
+                class="track-pair"
+                class:track-pair--matched={pair.checked}
+                onclick={() => { remergePairs[i] = { ...pair, checked: !pair.checked }; }}
+              >
+                <div class="merge-check" class:merge-check--active={pair.checked}>
+                  {#if pair.checked}&#10003;{/if}
+                </div>
+                <div class="track-pair-content">
+                  <div class="track-pair-source">
+                    <span class="track-name">{pair.sourceTrack.name}</span>
+                    <span class="track-album-hint">{pair.sourceAlbumName}</span>
+                  </div>
+                  <div class="track-pair-arrow">&darr;</div>
+                  <div class="track-pair-target">
+                    <span class="track-name">{pair.targetTrack.name}</span>
+                    <span class="track-confidence" class:track-confidence--position={pair.confidence === 'position'}>
+                      {pair.confidence === 'position' ? '#' : '~'}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            {/each}
+          </div>
+
+          <div class="merge-footer merge-footer--split">
+            <button class="merge-back" onclick={goBackFromRemerge}>&larr; Back</button>
+            <button class="merge-confirm" disabled={remergeApplying || activeRemergePairs === 0} onclick={applyRemerge}>
+              {remergeApplying ? 'Merging...' : `Merge ${activeRemergePairs} tracks`}
+            </button>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
@@ -812,5 +921,37 @@
   .track-confidence--position {
     background: rgba(29, 185, 84, 0.15);
     color: var(--accent);
+  }
+
+  .merge-remerge-btn {
+    display: block;
+    width: calc(100% - 2.5rem);
+    margin: 0.4rem 1.25rem;
+    padding: 0.4rem 0.7rem;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.05s, color 0.05s;
+  }
+  .merge-remerge-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .merge-remerge-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .track-album-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

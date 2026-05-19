@@ -8,6 +8,7 @@
   import IconNext from '$lib/icons/IconNext.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
+  import IconVolume from '$lib/icons/IconVolume.svelte';
 
   let { compact = false, inline = false }: { compact?: boolean; inline?: boolean } = $props();
 
@@ -15,8 +16,11 @@
   let showDevices = $state(false);
   let trackEl = $state<HTMLElement | null>(null);
   let overflows = $state(false);
+  let showVolume = $state(false);
 
   let data = $derived(nowPlayingStore.data);
+  let vol = $derived(nowPlayingStore.volumePercent);
+  let volIcon = $derived<0 | 1 | 2>(vol === null || vol === 0 ? 0 : vol < 50 ? 1 : 2);
 
   $effect(() => {
     void data?.track?.name;
@@ -107,21 +111,63 @@
           <IconNext />
         </button>
       </div>
-      <button
-        class="ctrl-btn ctrl-btn--like"
-        class:ctrl-btn--liked={nowPlayingStore.isLiked}
-        title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-        disabled={nowPlayingStore.likeLoading}
-        onclick={() => nowPlayingStore.toggleLike()}
-      >
-        {#if nowPlayingStore.likeLoading}
-          <span class="btn-spinner"></span>
-        {:else if nowPlayingStore.isLiked}
-          <IconHeartFilled size={14} />
-        {:else}
-          <IconHeartOutline size={14} />
+      {#if vol !== null}
+        <div class="np-volume" class:np-volume--open={showVolume}>
+          <button
+            class="ctrl-btn ctrl-btn--vol"
+            class:ctrl-btn--muted={vol === 0}
+            title="Volume: {vol}%"
+            onclick={() => showVolume = !showVolume}
+          >
+            <IconVolume size={14} level={volIcon} />
+          </button>
+          {#if showVolume}
+            <input
+              type="range"
+              class="vol-slider"
+              min="0"
+              max="100"
+              value={vol}
+              oninput={(e) => nowPlayingStore.setVolume(Number((e.target as HTMLInputElement).value))}
+            />
+          {/if}
+        </div>
+      {/if}
+      <div class="like-wrap">
+        <button
+          class="ctrl-btn ctrl-btn--like"
+          class:ctrl-btn--liked={nowPlayingStore.isLiked}
+          title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+          disabled={nowPlayingStore.likeLoading}
+          onclick={() => nowPlayingStore.toggleLike()}
+        >
+          {#if nowPlayingStore.likeLoading}
+            <span class="btn-spinner"></span>
+          {:else if nowPlayingStore.isLiked}
+            <IconHeartFilled size={14} />
+          {:else}
+            <IconHeartOutline size={14} />
+          {/if}
+        </button>
+        {#if nowPlayingStore.playlists.length > 0}
+          <span class="like-badge">+{nowPlayingStore.playlists.length}</span>
+          <div class="like-popover">
+            <div class="like-popover-inner">
+              <div class="like-popover-title">In playlists</div>
+              {#each nowPlayingStore.playlists as playlist}
+                <a href="/playlists/{playlist.id}" class="like-popover-item">
+                  {#if playlist.imageUrl}
+                    <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
+                  {:else}
+                    <div class="like-popover-art"></div>
+                  {/if}
+                  <span>{playlist.name}</span>
+                </a>
+              {/each}
+            </div>
+          </div>
         {/if}
-      </button>
+      </div>
     </div>
   </div>
 {/if}
@@ -377,5 +423,62 @@
   .ctrl-btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+
+  .ctrl-btn--muted {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  .np-volume {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .vol-slider {
+    width: 70px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .vol-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: none;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+  }
+
+  .vol-slider:hover::-webkit-slider-thumb {
+    background: var(--accent);
+  }
+
+  .vol-slider:hover::-moz-range-thumb {
+    background: var(--accent);
+  }
+
+  .np--inline .vol-slider {
+    width: 50px;
+  }
+
+  .np--compact .np-volume {
+    order: -1;
   }
 </style>

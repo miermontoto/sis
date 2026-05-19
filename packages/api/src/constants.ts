@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w20c';
+export const VERSION = '26w21a';
 
 // re-exportar desde shared (single source of truth)
 export { MIN_PLAY_MS } from '@sis/shared';

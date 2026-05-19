@@ -17,7 +17,8 @@ const stats = new Hono<{ Variables: AppVariables }>();
 // helpers: parseo de query params comunes
 import type { WeekStartOption, RankingMetric, Granularity, EntityType } from '@sis/shared';
 type WeekStart = WeekStartOption;
-type Sort = RankingMetric;
+// Sort incluye 'natural' para sort de tracks por orden natural en albums
+type Sort = RankingMetric | 'natural';
 
 /** Convertir param plural ('tracks') a EntityType singular ('track') */
 function toEntityType(plural: string): EntityType {
@@ -31,7 +32,7 @@ function parseWeekStart(c: any): WeekStart {
   return ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday';
 }
 
-function parseSort(c: any): Sort {
+function parseSort(c: any): RankingMetric {
   return c.req.query('sort') === 'plays' ? 'plays' : 'time';
 }
 
@@ -510,7 +511,7 @@ stats.get('/projected-rankings', (c) => {
   const spotifyId = c.get('spotifyId');
   const sort = parseSort(c);
   const db = getDb();
-  const empty: ProjectedRankingsResponse = { nowPlaying: [], session: [], sessionTrackCount: 0, sessionTotalMs: 0 };
+  const empty: ProjectedRankingsResponse = { nowPlaying: [], session: [], sessionTrackCount: 0, sessionTotalMs: 0, sessionStartedAt: null };
 
   const settingsRows = db.select().from(userSettings)
     .where(eq(userSettings.userId, spotifyId))

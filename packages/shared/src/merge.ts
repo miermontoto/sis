@@ -45,3 +45,20 @@ export interface AlbumMergeResult {
   trackRules: Array<{ id: number; sourceTrackId: string; targetTrackId: string }>;
   skipped: string[];
 }
+
+export interface RemergePreviewPair {
+  sourceTrack: AlbumMergeTrack;
+  targetTrack: AlbumMergeTrack;
+  sourceAlbumName: string;
+  confidence: 'position' | 'name';
+}
+
+export interface RemergePreview {
+  pairs: RemergePreviewPair[];
+  sourceAlbums: Array<{ id: string; name: string }>;
+}
+
+export interface BatchMergeResult {
+  created: number;
+  skipped: string[];
+}

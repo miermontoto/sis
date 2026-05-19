@@ -1,7 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
@@ -43,6 +45,7 @@
   let likeActing = $state(false);
   let editingDuration = $state(false);
   let durationInput = $state('');
+  let recheckingDuration = $state(false);
   let ownedPlaylists = $state<Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null; containsTrack: boolean }>>([]);
   let playlistPopoverOpen = $state(false);
   let playlistActing = $state<number | null>(null);
@@ -88,6 +91,19 @@
   onMount(() => {
     metric = getRankingMetric();
     initialized = true;
+    shortcutStore.registerPageShortcuts(
+      [{ key: 'Q', description: 'Add to queue', category: 'page' }],
+      (e) => {
+        if (e.key.toLowerCase() === 'q' && isSpotifyId($page.params.id)) {
+          e.preventDefault();
+          api.queueTrack($page.params.id)
+            .then(() => toastStore.show('Added to queue'))
+            .catch(() => toastStore.show('Failed to add to queue'));
+          return true;
+        }
+        return false;
+      },
+    );
     function handleClickOutside(e: MouseEvent) {
       if (playlistPopoverOpen && !(e.target as Element)?.closest('.like-wrap')) {
         playlistPopoverOpen = false;
@@ -97,6 +113,7 @@
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   });
+  onDestroy(() => shortcutStore.unregisterPageShortcuts());
 
   $effect(() => {
     const id = $page.params.id;
@@ -157,6 +174,24 @@
       console.error('error actualizando duración:', e);
     }
     editingDuration = false;
+  }
+
+  async function recheckDuration() {
+    if (recheckingDuration || !data) return;
+    recheckingDuration = true;
+    try {
+      const res = await api.refreshTrackDuration($page.params.id);
+      data.track.durationMs = res.durationMs;
+      if (res.changed) {
+        toastStore.show(`Duración actualizada: ${formatTrackLength(res.durationMs)}`, 'success');
+      } else {
+        toastStore.show('Duración correcta', 'info');
+      }
+    } catch {
+      toastStore.show('Error al consultar Spotify', 'error');
+    } finally {
+      recheckingDuration = false;
+    }
   }
 
   let ownedIds = $derived(new Set(ownedPlaylists.map(p => p.id)));
@@ -244,7 +279,9 @@
                 {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
               </button>
             {:else}
-              <span class="detail-meta">{formatTrackLength(data.track.durationMs)}</span>
+              <span class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration}>
+                {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
+              </span>
             {/if}
           </p>
         {:else}
@@ -263,7 +300,9 @@
                 {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
               </button>
             {:else}
-              <span class="detail-meta">{formatTrackLength(data.track.durationMs)}</span>
+              <span class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration}>
+                {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
+              </span>
             {/if}
           </p>
         {/if}

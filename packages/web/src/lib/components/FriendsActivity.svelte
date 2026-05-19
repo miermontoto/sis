@@ -28,32 +28,21 @@
     const pr = parent.getBoundingClientRect();
     const gap = 6;
 
-    node.style.left = '0';
-    node.style.right = 'auto';
-    node.style.top = 'auto';
-    node.style.bottom = 'auto';
-
     const tr = node.getBoundingClientRect();
-
-    // vertical: prefer above, fall back to below
-    if (pr.top - gap - tr.height >= 0) {
-      node.style.bottom = `${pr.height + gap}px`;
-    } else {
-      node.style.top = `${pr.height + gap}px`;
-    }
-
-    // horizontal: center on avatar, clamp to viewport
-    const idealLeft = pr.width / 2 - tr.width / 2;
-    const absLeft = pr.left + idealLeft;
-    const absRight = absLeft + tr.width;
     const pad = 8;
 
-    let left = idealLeft;
-    if (absLeft < pad) {
-      left = idealLeft + (pad - absLeft);
-    } else if (absRight > window.innerWidth - pad) {
-      left = idealLeft - (absRight - (window.innerWidth - pad));
+    // vertical: prefer above, fall back to below
+    let top: number;
+    if (pr.top - gap - tr.height >= 0) {
+      top = pr.top - gap - tr.height;
+    } else {
+      top = pr.bottom + gap;
     }
+    node.style.top = `${top}px`;
+
+    // horizontal: center on avatar, clamp to viewport
+    let left = pr.left + pr.width / 2 - tr.width / 2;
+    left = Math.max(pad, Math.min(left, window.innerWidth - tr.width - pad));
     node.style.left = `${left}px`;
   }
 </script>
@@ -150,7 +139,7 @@
   }
 
   .friend-tooltip {
-    position: absolute;
+    position: fixed;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);

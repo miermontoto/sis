@@ -2,13 +2,83 @@ import { Hono } from 'hono';
 import { sql, eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { mergeRules, albums, artists, tracks, users } from '../db/schema.js';
+import { getEntityMergeGroup } from '../db/queries/merge.js';
 import { getAllUsers, updateUser, getUserById, hardDeleteUser } from '../services/user-manager.js';
+import { spotifyFetch } from '../services/spotify-client.js';
 import type { AppVariables } from '../app.js';
 import type { EntityType } from '@sis/shared';
 
 const admin = new Hono<{ Variables: AppVariables }>();
 
 const VALID_ENTITY_TYPES: EntityType[] = ['album', 'artist', 'track'];
+
+// --- track matching helpers (shared between album-merge-preview and album-remerge-preview) ---
+
+interface MatchableTrack {
+  id: string;
+  name: string;
+  trackNumber: number | null;
+  discNumber: number | null;
+  durationMs: number;
+}
+
+const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const trigrams = (s: string) => {
+  const t = new Set<string>();
+  const n = norm(s);
+  for (let i = 0; i <= n.length - 3; i++) t.add(n.slice(i, i + 3));
+  return t;
+};
+const trigramSimilarity = (a: Set<string>, b: Set<string>) => {
+  if (a.size === 0 || b.size === 0) return 0;
+  let common = 0;
+  for (const t of a) if (b.has(t)) common++;
+  return common / Math.max(a.size, b.size);
+};
+
+function autoMatchTracks(
+  sourceTracks: MatchableTrack[],
+  targetTracks: MatchableTrack[],
+): { sourceTrackId: string; targetTrackId: string; confidence: 'position' | 'name' }[] {
+  const matches: { sourceTrackId: string; targetTrackId: string; confidence: 'position' | 'name' }[] = [];
+  const usedSource = new Set<string>();
+  const usedTarget = new Set<string>();
+
+  // pass 1: match by track_number within same disc
+  for (const st of sourceTracks) {
+    if (st.trackNumber == null) continue;
+    const disc = st.discNumber ?? 1;
+    const match = targetTracks.find(tt =>
+      !usedTarget.has(tt.id) && tt.trackNumber === st.trackNumber && (tt.discNumber ?? 1) === disc
+    );
+    if (match) {
+      matches.push({ sourceTrackId: st.id, targetTrackId: match.id, confidence: 'position' });
+      usedSource.add(st.id);
+      usedTarget.add(match.id);
+    }
+  }
+
+  // pass 2: name similarity for unmatched
+  const candidates: { sourceId: string; targetId: string; sim: number }[] = [];
+  for (const st of sourceTracks) {
+    if (usedSource.has(st.id)) continue;
+    const stTri = trigrams(st.name);
+    for (const tt of targetTracks) {
+      if (usedTarget.has(tt.id)) continue;
+      const sim = trigramSimilarity(stTri, trigrams(tt.name));
+      if (sim >= 0.4) candidates.push({ sourceId: st.id, targetId: tt.id, sim });
+    }
+  }
+  candidates.sort((a, b) => b.sim - a.sim);
+  for (const c of candidates) {
+    if (usedSource.has(c.sourceId) || usedTarget.has(c.targetId)) continue;
+    matches.push({ sourceTrackId: c.sourceId, targetTrackId: c.targetId, confidence: 'name' });
+    usedSource.add(c.sourceId);
+    usedTarget.add(c.targetId);
+  }
+
+  return matches;
+}
 const isValidEntityType = (s: unknown): s is EntityType =>
   typeof s === 'string' && VALID_ENTITY_TYPES.includes(s as EntityType);
 
@@ -208,58 +278,7 @@ admin.get('/album-merge-preview', (c) => {
 
   const sourceTracks = getTracksForAlbum(sourceId);
   const targetTracks = getTracksForAlbum(targetId);
-
-  // auto-matching: position first, then name similarity
-  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const trigrams = (s: string) => {
-    const t = new Set<string>();
-    const n = norm(s);
-    for (let i = 0; i <= n.length - 3; i++) t.add(n.slice(i, i + 3));
-    return t;
-  };
-  const similarity = (a: Set<string>, b: Set<string>) => {
-    if (a.size === 0 || b.size === 0) return 0;
-    let common = 0;
-    for (const t of a) if (b.has(t)) common++;
-    return common / Math.max(a.size, b.size);
-  };
-
-  const matches: { sourceTrackId: string; targetTrackId: string; confidence: 'position' | 'name' }[] = [];
-  const usedSource = new Set<string>();
-  const usedTarget = new Set<string>();
-
-  // pass 1: match by track_number (within same disc)
-  for (const st of sourceTracks) {
-    if (st.trackNumber == null) continue;
-    const disc = st.discNumber ?? 1;
-    const match = targetTracks.find(tt =>
-      !usedTarget.has(tt.id) && tt.trackNumber === st.trackNumber && (tt.discNumber ?? 1) === disc
-    );
-    if (match) {
-      matches.push({ sourceTrackId: st.id, targetTrackId: match.id, confidence: 'position' });
-      usedSource.add(st.id);
-      usedTarget.add(match.id);
-    }
-  }
-
-  // pass 2: name similarity for unmatched
-  const candidates: { sourceId: string; targetId: string; sim: number }[] = [];
-  for (const st of sourceTracks) {
-    if (usedSource.has(st.id)) continue;
-    const stTri = trigrams(st.name);
-    for (const tt of targetTracks) {
-      if (usedTarget.has(tt.id)) continue;
-      const sim = similarity(stTri, trigrams(tt.name));
-      if (sim >= 0.4) candidates.push({ sourceId: st.id, targetId: tt.id, sim });
-    }
-  }
-  candidates.sort((a, b) => b.sim - a.sim);
-  for (const c of candidates) {
-    if (usedSource.has(c.sourceId) || usedTarget.has(c.targetId)) continue;
-    matches.push({ sourceTrackId: c.sourceId, targetTrackId: c.targetId, confidence: 'name' });
-    usedSource.add(c.sourceId);
-    usedTarget.add(c.targetId);
-  }
+  const matches = autoMatchTracks(sourceTracks, targetTracks);
 
   return c.json({
     source: { id: sourceId, name: sourceAlbum.name, imageUrl: sourceAlbum.imageUrl, tracks: sourceTracks },
@@ -337,6 +356,110 @@ admin.post('/merge-album', async (c) => {
   return c.json(result);
 });
 
+// preview de re-merge: detecta tracks sin mergear en álbumes ya mergeados hacia un target
+admin.get('/album-remerge-preview', (c) => {
+  const userId = c.get('userId');
+  const albumId = c.req.query('album');
+  if (!albumId) return c.json({ error: 'album query param is required' }, 400);
+
+  const db = getDb();
+
+  const sourceAlbumRows = db.all(sql`
+    SELECT mr.source_id, a.name, a.image_url
+    FROM merge_rules mr
+    JOIN albums a ON a.spotify_id = mr.source_id
+    WHERE mr.entity_type = 'album' AND mr.target_id = ${albumId} AND mr.user_id = ${userId}
+  `) as { source_id: string; name: string; image_url: string | null }[];
+
+  if (sourceAlbumRows.length === 0) return c.json({ pairs: [], sourceAlbums: [] });
+
+  const mergedTrackIds = new Set(
+    (db.all(sql`SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}`) as { source_id: string }[])
+      .map(r => r.source_id)
+  );
+
+  const getUnmergedTracks = (aid: string): MatchableTrack[] =>
+    (db.all(sql`
+      SELECT t.spotify_id as id, t.name, t.track_number, t.disc_number, t.duration_ms
+      FROM tracks t WHERE t.album_id = ${aid}
+      ORDER BY COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC
+    `) as { id: string; name: string; track_number: number | null; disc_number: number | null; duration_ms: number }[])
+      .filter(t => !mergedTrackIds.has(t.id))
+      .map(t => ({ id: t.id, name: t.name, trackNumber: t.track_number, discNumber: t.disc_number, durationMs: t.duration_ms }));
+
+  const targetTracks = getUnmergedTracks(albumId);
+
+  const pairs: Array<{
+    sourceTrack: MatchableTrack;
+    targetTrack: MatchableTrack;
+    sourceAlbumName: string;
+    confidence: 'position' | 'name';
+  }> = [];
+
+  const usedTargetIds = new Set<string>();
+
+  for (const sa of sourceAlbumRows) {
+    const sourceTracks = getUnmergedTracks(sa.source_id);
+    const availableTargets = targetTracks.filter(t => !usedTargetIds.has(t.id));
+    const matches = autoMatchTracks(sourceTracks, availableTargets);
+
+    for (const m of matches) {
+      const st = sourceTracks.find(t => t.id === m.sourceTrackId)!;
+      const tt = targetTracks.find(t => t.id === m.targetTrackId)!;
+      pairs.push({ sourceTrack: st, targetTrack: tt, sourceAlbumName: sa.name, confidence: m.confidence });
+      usedTargetIds.add(m.targetTrackId);
+    }
+  }
+
+  return c.json({
+    pairs,
+    sourceAlbums: sourceAlbumRows.map(r => ({ id: r.source_id, name: r.name })),
+  });
+});
+
+// batch merge de tracks (sin crear merge de álbum — para re-merge de tracks de álbumes ya mergeados)
+admin.post('/batch-merge-tracks', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{ trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }> }>();
+  const { trackPairs } = body;
+
+  if (!trackPairs?.length) return c.json({ error: 'trackPairs array is required' }, 400);
+
+  const db = getDb();
+
+  const result = db.transaction(() => {
+    let created = 0;
+    const skipped: string[] = [];
+
+    for (const pair of trackPairs) {
+      if (!pair.sourceTrackId || !pair.targetTrackId || pair.sourceTrackId === pair.targetTrackId) {
+        skipped.push(`${pair.sourceTrackId}: invalid pair`);
+        continue;
+      }
+
+      const src = db.select().from(tracks).where(eq(tracks.spotifyId, pair.sourceTrackId)).get();
+      const tgt = db.select().from(tracks).where(eq(tracks.spotifyId, pair.targetTrackId)).get();
+      if (!src || !tgt) { skipped.push(`${pair.sourceTrackId}: track not found`); continue; }
+
+      const tv = validateMergeRule(db, userId, 'track', pair.sourceTrackId, pair.targetTrackId);
+      if (!tv.ok) {
+        const reasons = { exists: 'already merged', source_is_target: 'is already a merge target', target_is_source: 'target already merged elsewhere' };
+        skipped.push(`${pair.sourceTrackId}: ${reasons[tv.reason]}`);
+        continue;
+      }
+
+      db.insert(mergeRules).values({
+        userId, entityType: 'track', sourceId: pair.sourceTrackId, targetId: pair.targetTrackId,
+      }).run();
+      created++;
+    }
+
+    return { created, skipped };
+  });
+
+  return c.json(result);
+});
+
 // sugerencias de merge unificadas.
 // Query params:
 //   entityType (required): 'album' | 'artist' | 'track'
@@ -362,6 +485,11 @@ admin.get('/merge-suggestions', (c) => {
 
   if (entityType === 'album') {
     if (!parent) return c.json({ error: 'parent (artistId) is required for album suggestions' }, 400);
+    // expandir parent al grupo de merge para incluir álbumes de artistas hermanos / target / sources
+    const parentIds = getEntityMergeGroup(db, 'artist', parent, userId);
+    const artistInClause = parentIds.length === 1
+      ? sql`ta.artist_id = ${parentIds[0]}`
+      : sql`ta.artist_id IN (${sql.join(parentIds.map(id => sql`${id}`), sql`, `)})`;
     rows = db.all(sql`
       SELECT e.spotify_id as id, e.name, e.image_url,
              COALESCE(s.play_count, 0) as plays
@@ -375,7 +503,7 @@ admin.get('/merge-suggestions', (c) => {
         WHERE tr.album_id IS NOT NULL AND lh.user_id = ${userId}
         GROUP BY tr.album_id
       ) s ON s.album_id = e.spotify_id
-      WHERE ta.artist_id = ${parent}
+      WHERE ${artistInClause}
         AND ${sourceFilter}
         AND ${importFilter}
         ${excludeClause}
@@ -403,6 +531,11 @@ admin.get('/merge-suggestions', (c) => {
   } else {
     // track
     if (!parent) return c.json({ error: 'parent (artistId) is required for track suggestions' }, 400);
+    // expandir parent al grupo de merge para incluir tracks de artistas hermanos / target / sources
+    const parentIds = getEntityMergeGroup(db, 'artist', parent, userId);
+    const artistInClause = parentIds.length === 1
+      ? sql`ta.artist_id = ${parentIds[0]}`
+      : sql`ta.artist_id IN (${sql.join(parentIds.map(id => sql`${id}`), sql`, `)})`;
     rows = db.all(sql`
       SELECT e.spotify_id as id, e.name, al.image_url as image_url,
              COALESCE(s.play_count, 0) as plays
@@ -413,7 +546,7 @@ admin.get('/merge-suggestions', (c) => {
         SELECT track_id, COUNT(*) as play_count
         FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
       ) s ON s.track_id = e.spotify_id
-      WHERE ta.artist_id = ${parent}
+      WHERE ${artistInClause}
         AND ${sourceFilter}
         AND ${importFilter}
         ${excludeClause}
@@ -518,6 +651,25 @@ admin.patch('/track/:id', async (c) => {
 
   db.update(tracks).set({ durationMs }).where(eq(tracks.spotifyId, trackId)).run();
   return c.json({ success: true, durationMs });
+});
+
+admin.post('/track/:id/refresh-duration', async (c) => {
+  const trackId = decodeURIComponent(c.req.param('id'));
+  const userId = c.get('userId');
+
+  const db = getDb();
+  const existing = db.select().from(tracks).where(eq(tracks.spotifyId, trackId)).get();
+  if (!existing) return c.json({ error: 'track no encontrado' }, 404);
+
+  const data = await spotifyFetch<{ duration_ms: number }>(`/tracks/${trackId}`, { userId });
+  if (!data) return c.json({ error: 'no se pudo obtener datos de Spotify' }, 502);
+
+  const newMs = data.duration_ms;
+  const changed = existing.durationMs !== newMs;
+  if (changed) {
+    db.update(tracks).set({ durationMs: newMs }).where(eq(tracks.spotifyId, trackId)).run();
+  }
+  return c.json({ success: true, durationMs: newMs, changed });
 });
 
 export default admin;

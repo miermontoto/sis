@@ -301,7 +301,9 @@ export interface ChartParams extends PlaylistStrategyParams {
 /** Chart entries → tracks playlist */
 export function strategyChart(db: Db, userId: number, params: ChartParams): string[] {
   const limit = Math.min(params.limit || 25, 50);
-  const entries = getRawRanking(db, params.entityType as EntityType, params.granularity, params.weekStart, params.period, params.sort, limit, userId);
+  // chart rankings sólo admiten 'plays' o 'time'; 'natural' no tiene sentido aquí
+  const chartSort = params.sort === 'plays' ? 'plays' : 'time';
+  const entries = getRawRanking(db, params.entityType as EntityType, params.granularity, params.weekStart, params.period, chartSort, limit, userId);
   const entityIds = entries.map(e => e.entity_id);
   if (params.entityType === 'track') {
     return entityIds.filter(id => !id.startsWith('local:'));

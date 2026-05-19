@@ -33,6 +33,7 @@
   let showCoverPicker = $state(false);
   let uploadingCover = $state(false);
   let showMergeModal = $state(false);
+  let mergeInitialStep = $state<'select' | 'remerge' | undefined>(undefined);
   let playActing = $state(false);
   let trackSort = $state<'ranked' | 'natural'>('ranked');
   let albumTrackDisplay = $state<AlbumTrackDisplay>('fill');
@@ -249,7 +250,8 @@
           ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', window.location.href) }] : []),
           { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
-          { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
+          { label: 'Manage merges', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
+          ...((data?.mergedFrom?.length ?? 0) > 0 ? [{ label: 'Auto-merge tracks', icon: IconMerge, onClick: () => { mergeInitialStep = 'remerge'; showMergeModal = true; } }] : []),
         ]}
       />
     </div>
@@ -295,7 +297,8 @@
     target={{ id: data.album.id, name: data.album.name, imageUrl: data.album.imageUrl }}
     parentId={data.artists[0]?.id ?? ''}
     existingMerges={data.mergedFrom}
-    onMerged={() => loadData($page.params.id)}
+    initialStep={mergeInitialStep}
+    onMerged={() => { mergeInitialStep = undefined; loadData($page.params.id); }}
   />
 {/if}
 

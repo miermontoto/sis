@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
-  import { formatDuration } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -36,7 +36,281 @@
   let topAlbums = $state<TopAlbumItem[]>([]);
   let loading = $state(true);
   let barColors = $state<[number, number, number][]>([]);
+  let chartMode = $state<'bar' | 'velocity'>('bar');
   const fetchCtrl = createFetchController();
+
+  // --- bar chart ---
+  async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[]) {
+    let urls: (string | null)[] = [];
+    if (tab === 'tracks') {
+      urls = tracks.slice(0, 10).map(t => t.track?.album?.imageUrl ?? null);
+    } else if (tab === 'artists') {
+      urls = artistsList.slice(0, 10).map(a => a.artist?.imageUrl ?? null);
+    } else {
+      urls = albumsList.slice(0, 10).map(a => a.album?.imageUrl ?? null);
+    }
+    return Promise.all(urls.map(u => u ? extractColor(u) : Promise.resolve<[number, number, number]>([29, 185, 84])));
+  }
+
+  function metricValue(item: { playCount: number; totalMs: number }): number {
+    return metric === 'plays' ? item.playCount : item.totalMs / 60_000;
+  }
+
+  function formatChartValue(ms: number): string {
+    if (metric === 'plays') return String(ms);
+    const h = Math.floor(ms / 60);
+    const m = Math.round(ms % 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  let chartEntityIds = $derived.by(() => {
+    if (activeTab === 'tracks') return topTracks.slice(0, 10).map(t => t.trackId).reverse();
+    if (activeTab === 'artists') return topArtists.slice(0, 10).map(a => a.artistId).reverse();
+    return topAlbums.slice(0, 10).map(a => a.albumId).reverse();
+  });
+
+  let barChartOption = $derived.by<EChartsOption>(() => {
+    let names: string[] = [];
+    let values: number[] = [];
+    let images: (string | null)[] = [];
+
+    if (activeTab === 'tracks') {
+      const top10 = topTracks.slice(0, 10);
+      names = top10.map(t => t.track?.name ?? 'Unknown');
+      values = top10.map(t => metricValue(t));
+      images = top10.map(t => t.track?.album?.imageUrl ?? null);
+    } else if (activeTab === 'artists') {
+      const top10 = topArtists.slice(0, 10);
+      names = top10.map(a => a.artist?.name ?? 'Unknown');
+      values = top10.map(a => metricValue(a));
+      images = top10.map(a => a.artist?.imageUrl ?? null);
+    } else {
+      const top10 = topAlbums.slice(0, 10);
+      names = top10.map(a => a.album?.name ?? 'Unknown');
+      values = top10.map(a => metricValue(a));
+      images = top10.map(a => a.album?.imageUrl ?? null);
+    }
+
+    const MAX_NAME = 18;
+    names = names.map(n => n.length > MAX_NAME ? n.slice(0, MAX_NAME - 1) + '…' : n);
+    names = names.slice().reverse();
+    values = values.slice().reverse();
+    images = images.slice().reverse();
+    const defaultRgb: [number, number, number] = [29, 185, 84];
+    const colors = barColors.length >= names.length
+      ? barColors.slice(0, names.length).slice().reverse()
+      : names.map(() => defaultRgb);
+
+    const rich: Record<string, any> = {
+      name: { fontSize: 12, color: '#e0e8e8', width: 100, overflow: 'truncate', align: 'left' },
+    };
+    images.forEach((url, i) => {
+      if (url) {
+        rich[`img${i}`] = { backgroundColor: { image: url }, width: 26, height: 26, borderRadius: activeTab === 'artists' ? 13 : 2, align: 'left' };
+      } else {
+        rich[`img${i}`] = { backgroundColor: '#1e2a2a', width: 26, height: 26, borderRadius: activeTab === 'artists' ? 13 : 2, align: 'left' };
+      }
+    });
+
+    return {
+      grid: { top: 10, bottom: 5, right: 55, containLabel: false, left: 160 },
+      tooltip: {
+        ...TOOLTIP_BASE,
+        axisPointer: { type: 'shadow' },
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          return `${p.name}<br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
+        },
+      },
+      xAxis: {
+        type: 'value',
+        splitLine: { ...SPLIT_LINE },
+        axisLabel: { ...AXIS_LABEL, formatter: (v: number) => metric === 'plays' ? String(v) : formatChartValue(v) },
+      },
+      yAxis: {
+        type: 'category',
+        data: names,
+        axisLine: { ...AXIS_LINE },
+        axisTick: { show: false },
+        axisLabel: {
+          rich,
+          align: 'left',
+          margin: 155,
+          formatter: (name: string) => {
+            const idx = names.indexOf(name);
+            return `{img${idx}|}  {name|${name}}`;
+          },
+        },
+        triggerEvent: true,
+      },
+      series: [{
+        type: 'bar',
+        data: values.map((v, i) => {
+          const [r, g, b] = colors[i] ?? defaultRgb;
+          return {
+            value: v,
+            itemStyle: {
+              color: {
+                type: 'linear' as const,
+                x: 0, y: 0, x2: 1, y2: 0,
+                colorStops: [
+                  { offset: 0, color: `rgba(${r},${g},${b},0.9)` },
+                  { offset: 1, color: `rgba(${r},${g},${b},0.3)` },
+                ],
+              },
+              borderRadius: [0, 2, 2, 0],
+            },
+          };
+        }),
+        barMaxWidth: 28,
+        cursor: 'pointer',
+        label: {
+          show: true,
+          position: 'right',
+          color: '#6a7a7a',
+          fontSize: 11,
+          formatter: (p: any) => metric === 'plays' ? `${p.value}` : formatChartValue(p.value),
+        },
+      }],
+    };
+  });
+
+  function handleBarChartClick(params: any) {
+    let dataIdx: number;
+    if (params.componentType === 'yAxis') {
+      const names = (barChartOption as any)?.yAxis?.data as string[] | undefined;
+      dataIdx = names ? names.indexOf(params.value) : -1;
+    } else {
+      dataIdx = params.dataIndex;
+    }
+    if (dataIdx == null || dataIdx < 0 || dataIdx >= chartEntityIds.length) return;
+    const id = chartEntityIds[dataIdx];
+    const prefix = activeTab === 'tracks' ? 'track' : activeTab === 'artists' ? 'artist' : 'album';
+    goto(`/${prefix}/${id}`);
+  }
+
+  // --- velocity chart (auto top 10) ---
+  const VELOCITY_PALETTE = [
+    '#1db954', '#ff1493', '#ff8c42', '#3b9bd9', '#a88bff',
+    '#ffd166', '#ef476f', '#06d6a0', '#e0e8e8', '#f95738',
+  ];
+  type VelEntry = { id: string; name: string; points: [string, number][] };
+  let velSeries = $state<VelEntry[]>([]);
+  let velLoading = $state(false);
+
+  function velMetricValue(s: { play_count: number; total_ms: number }): number {
+    return metric === 'plays' ? s.play_count : s.total_ms / 60_000;
+  }
+
+  function velFormatValue(v: number): string {
+    if (metric === 'plays') return formatNumber(Math.round(v));
+    const h = Math.floor(v / 60);
+    const m = Math.round(v % 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  function velFormatMetric(v: number): string {
+    return metric === 'plays' ? `${formatNumber(Math.round(v))} plays` : velFormatValue(v);
+  }
+
+  function seriesToCumulative(raw: { period: string; play_count: number; total_ms: number }[], id: string, name: string): VelEntry | null {
+    const sorted = [...raw].sort((a, b) => a.period.localeCompare(b.period));
+    let acc = 0;
+    const points: [string, number][] = sorted.map((s) => {
+      acc += velMetricValue(s);
+      return [s.period, acc];
+    });
+    return points.length > 0 ? { id, name, points } : null;
+  }
+
+  async function loadVelocity(tab: typeof activeTab, entries: { id: string; name: string }[], r: string) {
+    if (entries.length === 0) { velSeries = []; return; }
+    velLoading = true;
+    try {
+      const results = await Promise.all(entries.map(async ({ id, name }) => {
+        try {
+          let series: { period: string; play_count: number; total_ms: number }[];
+          if (tab === 'tracks') {
+            series = (await api.trackDetail(id, r)).series;
+          } else if (tab === 'artists') {
+            series = (await api.artistDetail(id, r)).series;
+          } else {
+            series = (await api.albumDetail(id, r)).series;
+          }
+          return seriesToCumulative(series, id, name);
+        } catch { return null; }
+      }));
+      velSeries = results.filter((s): s is VelEntry => s !== null);
+    } finally {
+      velLoading = false;
+    }
+  }
+
+  let velTop10 = $derived.by(() => {
+    if (activeTab === 'tracks') return topTracks.slice(0, 10).filter(t => t.track).map(t => ({ id: t.trackId, name: t.track!.name }));
+    if (activeTab === 'artists') return topArtists.slice(0, 10).filter(a => a.artist).map(a => ({ id: a.artistId, name: a.artist!.name }));
+    return topAlbums.slice(0, 10).filter(a => a.album).map(a => ({ id: a.albumId, name: a.album!.name }));
+  });
+
+  $effect(() => {
+    const tab = activeTab;
+    const entries = velTop10;
+    const r = range;
+    if (!loading && entries.length > 0) {
+      loadVelocity(tab, entries, r);
+    }
+  });
+
+  let velChartOption = $derived.by<EChartsOption>(() => {
+    if (velSeries.length === 0) return {} as EChartsOption;
+
+    const series = velSeries.map((s, i) => ({
+      name: s.name,
+      type: 'line' as const,
+      showSymbol: false,
+      smooth: false,
+      data: s.points,
+      lineStyle: { width: 2, color: VELOCITY_PALETTE[i % VELOCITY_PALETTE.length] },
+      itemStyle: { color: VELOCITY_PALETTE[i % VELOCITY_PALETTE.length] },
+      endLabel: {
+        show: true,
+        formatter: '{a}',
+        color: VELOCITY_PALETTE[i % VELOCITY_PALETTE.length],
+        fontWeight: 700 as const,
+        fontSize: 11,
+      },
+    }));
+
+    return {
+      grid: { ...GRID, right: 120, bottom: 30 },
+      tooltip: {
+        ...TOOLTIP_BASE,
+        formatter: (params: any) => {
+          const list = Array.isArray(params) ? params : [params];
+          if (list.length === 0) return '';
+          const header = formatShortDate(String(list[0].value[0]));
+          const rows = list
+            .sort((a: any, b: any) => b.value[1] - a.value[1])
+            .map((p: any) => `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${velFormatMetric(p.value[1])}</b>`)
+            .join('<br/>');
+          return `<b>${header}</b><br/>${rows}`;
+        },
+      },
+      xAxis: {
+        type: 'time',
+        axisLine: { ...AXIS_LINE },
+        axisLabel: { ...AXIS_LABEL },
+        splitLine: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        axisLine: { ...AXIS_LINE },
+        axisLabel: { ...AXIS_LABEL, formatter: (v: number) => velFormatValue(v) },
+        splitLine: { ...SPLIT_LINE },
+      },
+      series,
+    };
+  });
 
   function getCustomDates(): DateRangeParams | undefined {
     if (range === 'custom' && startDate && endDate) return { startDate, endDate };
@@ -52,18 +326,6 @@
   let pendingFocusId = $state<string | null>(null);
   let focusedId = $state<string | null>(null);
 
-  async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[]) {
-    let urls: (string | null)[] = [];
-    if (tab === 'tracks') {
-      urls = tracks.slice(0, 10).map(t => t.track?.album?.imageUrl ?? null);
-    } else if (tab === 'artists') {
-      urls = artistsList.slice(0, 10).map(a => a.artist?.imageUrl ?? null);
-    } else {
-      urls = albumsList.slice(0, 10).map(a => a.album?.imageUrl ?? null);
-    }
-    return Promise.all(urls.map(u => u ? extractColor(u) : Promise.resolve<[number, number, number]>([29, 185, 84])));
-  }
-
   async function loadData() {
     const signal = fetchCtrl.reset();
     loading = true;
@@ -78,7 +340,6 @@
       } else {
         topAlbums = await api.topAlbums(range, 200, metric, dates, lb, signal);
       }
-      // extraer colores en el mismo ciclo para evitar doble re-render del chart
       if (!signal.aborted) {
         barColors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums);
       }
@@ -231,164 +492,6 @@
     if (initialized) loadData();
   });
 
-  function metricValue(item: { playCount: number; totalMs: number }): number {
-    return metric === 'plays' ? item.playCount : item.totalMs / 60_000;
-  }
-
-  function formatChartValue(ms: number): string {
-    if (metric === 'plays') return String(ms);
-    const h = Math.floor(ms / 60);
-    const m = Math.round(ms % 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
-
-  let chartEntityIds = $derived.by(() => {
-    if (activeTab === 'tracks') return topTracks.slice(0, 10).map(t => t.trackId).reverse();
-    if (activeTab === 'artists') return topArtists.slice(0, 10).map(a => a.artistId).reverse();
-    return topAlbums.slice(0, 10).map(a => a.albumId).reverse();
-  });
-
-  let chartOption = $derived.by<EChartsOption>(() => {
-    let names: string[] = [];
-    let values: number[] = [];
-    let images: (string | null)[] = [];
-
-    if (activeTab === 'tracks') {
-      const top10 = topTracks.slice(0, 10);
-      names = top10.map(t => t.track?.name ?? 'Unknown');
-      values = top10.map(t => metricValue(t));
-      images = top10.map(t => t.track?.album?.imageUrl ?? null);
-    } else if (activeTab === 'artists') {
-      const top10 = topArtists.slice(0, 10);
-      names = top10.map(a => a.artist?.name ?? 'Unknown');
-      values = top10.map(a => metricValue(a));
-      images = top10.map(a => a.artist?.imageUrl ?? null);
-    } else {
-      const top10 = topAlbums.slice(0, 10);
-      names = top10.map(a => a.album?.name ?? 'Unknown');
-      values = top10.map(a => metricValue(a));
-      images = top10.map(a => a.album?.imageUrl ?? null);
-    }
-
-    // truncar nombres largos para que no invadan el chart
-    const MAX_NAME = 18;
-    names = names.map(n => n.length > MAX_NAME ? n.slice(0, MAX_NAME - 1) + '…' : n);
-
-    // invertir para que #1 quede arriba
-    names = names.slice().reverse();
-    values = values.slice().reverse();
-    images = images.slice().reverse();
-    const defaultRgb: [number, number, number] = [29, 185, 84];
-    const colors = barColors.length >= names.length
-      ? barColors.slice(0, names.length).slice().reverse()
-      : names.map(() => defaultRgb);
-
-    // rich styles para imágenes en las labels del eje Y
-    const rich: Record<string, any> = {
-      name: { fontSize: 12, color: '#e0e8e8', width: 100, overflow: 'truncate', align: 'left' },
-    };
-    images.forEach((url, i) => {
-      if (url) {
-        rich[`img${i}`] = {
-          backgroundColor: { image: url },
-          width: 26,
-          height: 26,
-          borderRadius: activeTab === 'artists' ? 13 : 2,
-          align: 'left',
-        };
-      } else {
-        rich[`img${i}`] = {
-          backgroundColor: '#1e2a2a',
-          width: 26,
-          height: 26,
-          borderRadius: activeTab === 'artists' ? 13 : 2,
-          align: 'left',
-        };
-      }
-    });
-
-    return {
-      grid: { top: 10, bottom: 5, right: 55, containLabel: false, left: 160 },
-      tooltip: {
-        ...TOOLTIP_BASE,
-        axisPointer: { type: 'shadow' },
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          return `${p.name}<br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
-        },
-      },
-      xAxis: {
-        type: 'value',
-        splitLine: { ...SPLIT_LINE },
-        axisLabel: {
-          ...AXIS_LABEL,
-          formatter: (v: number) => metric === 'plays' ? String(v) : formatChartValue(v),
-        },
-      },
-      yAxis: {
-        type: 'category',
-        data: names,
-        axisLine: { ...AXIS_LINE },
-        axisTick: { show: false },
-        axisLabel: {
-          rich,
-          align: 'left',
-          margin: 155,
-          formatter: (name: string) => {
-            const idx = names.indexOf(name);
-            return `{img${idx}|}  {name|${name}}`;
-          },
-        },
-        triggerEvent: true,
-      },
-      series: [{
-        type: 'bar',
-        data: values.map((v, i) => {
-          const [r, g, b] = colors[i] ?? defaultRgb;
-          return {
-            value: v,
-            itemStyle: {
-              color: {
-                type: 'linear' as const,
-                x: 0, y: 0, x2: 1, y2: 0,
-                colorStops: [
-                  { offset: 0, color: `rgba(${r},${g},${b},0.9)` },
-                  { offset: 1, color: `rgba(${r},${g},${b},0.3)` },
-                ],
-              },
-              borderRadius: [0, 2, 2, 0],
-            },
-          };
-        }),
-        barMaxWidth: 28,
-        cursor: 'pointer',
-        label: {
-          show: true,
-          position: 'right',
-          color: '#6a7a7a',
-          fontSize: 11,
-          fontFamily: 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
-          formatter: (p: any) => metric === 'plays' ? `${p.value}` : formatChartValue(p.value),
-        },
-      }],
-    };
-  });
-
-  function handleChartClick(params: any) {
-    const idx = params.dataIndex ?? (params.componentType === 'yAxis' ? chartEntityIds.length - 1 - (params.value ? chartEntityIds.indexOf(params.value) : -1) : -1);
-    let dataIdx: number;
-    if (params.componentType === 'yAxis') {
-      const names = (chartOption as any)?.yAxis?.data as string[] | undefined;
-      dataIdx = names ? names.indexOf(params.value) : -1;
-    } else {
-      dataIdx = params.dataIndex;
-    }
-    if (dataIdx == null || dataIdx < 0 || dataIdx >= chartEntityIds.length) return;
-    const id = chartEntityIds[dataIdx];
-    const prefix = activeTab === 'tracks' ? 'track' : activeTab === 'artists' ? 'artist' : 'album';
-    goto(`/${prefix}/${id}`);
-  }
-
   // --- playlist creation ---
   let creatingPlaylist = $state(false);
   let createdPlaylistId = $state<number | null>(null);
@@ -478,11 +581,19 @@
     <div class="spinner"></div>
   </div>
 {:else}
-  {#if (activeTab === 'tracks' && topTracks.length > 0) || (activeTab === 'artists' && topArtists.length > 0) || (activeTab === 'albums' && topAlbums.length > 0)}
-    <div class="card" style="margin-bottom: 1.5rem;">
-      <BaseChart option={chartOption} height="380px" onclick={handleChartClick} />
+  <div class="card chart-card">
+    <div class="chart-mode-toggle">
+      <button class:active={chartMode === 'bar'} onclick={() => chartMode = 'bar'}>Bar</button>
+      <button class:active={chartMode === 'velocity'} onclick={() => chartMode = 'velocity'}>Velocity</button>
     </div>
-  {/if}
+    {#if chartMode === 'bar'}
+      <BaseChart option={barChartOption} height="380px" onclick={handleBarChartClick} />
+    {:else if velLoading}
+      <div class="vel-loading"><div class="spinner"></div></div>
+    {:else if velSeries.length > 0}
+      <BaseChart option={velChartOption} height="380px" replaceMerge={['series']} />
+    {/if}
+  </div>
 
   {#if activeTab === 'tracks'}
     <TrackList items={topTracks.slice(0, visibleCount)} showRank {showRankChanges} {metric} {focusedId} />
@@ -576,5 +687,45 @@
   }
   .range-row :global(.time-range-selector) {
     display: contents;
+  }
+
+  .chart-card {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .chart-mode-toggle {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 1;
+    display: flex;
+    gap: 0.15rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.15rem;
+  }
+
+  .chart-mode-toggle button {
+    padding: 0.15rem 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+  }
+
+  .chart-mode-toggle button.active {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .vel-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 380px;
   }
 </style>

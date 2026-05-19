@@ -1,7 +1,7 @@
 import { getDb } from '../db/connection.js';
 import { getRecords } from '../db/queries/index.js';
 import { dbRead } from '../db/read-pool.js';
-import type { RecordsResponse, Accolade, AccoladesResponse } from '@sis/shared';
+import type { RecordsResponse, EntityRecords, Accolade, AccoladesResponse } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
@@ -120,7 +120,7 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
   const cached = cache.get(cacheKey(userId, weekStart, sort));
   if (!cached) return null;
 
-  const sliceBase = (e: RecordsResponse['tracks']) => ({
+  const sliceBase = (e: EntityRecords) => ({
     peakWeekPlays: e.peakWeekPlays.slice(0, limit),
     biggestDebuts: e.biggestDebuts.slice(0, limit),
     mostWeeksAtNo1: e.mostWeeksAtNo1.slice(0, limit),
@@ -155,9 +155,9 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
     oneHitWonders: e.oneHitWonders.slice(0, limit),
   });
 
-  if (type === 'tracks') return { tracks: sliceTrack(cached.tracks) };
-  if (type === 'albums') return { albums: sliceAlbum(cached.albums) };
-  if (type === 'artists') return { artists: sliceArtist(cached.artists) };
+  if (type === 'track') return { tracks: sliceTrack(cached.tracks) };
+  if (type === 'album') return { albums: sliceAlbum(cached.albums) };
+  if (type === 'artist') return { artists: sliceArtist(cached.artists) };
   return {
     tracks: sliceTrack(cached.tracks),
     albums: sliceAlbum(cached.albums),

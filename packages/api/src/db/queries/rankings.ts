@@ -118,7 +118,7 @@ export function computeProjectedRankingsBatch(
   db: Db, entityType: EntityType, targets: ProjectionTarget[],
   sort: Sort, userId: number, sessionStart?: string | null,
   rankLimits?: Record<string, number>
-): Map<string, Record<string, { current: number | null; projected: number | null }>> {
+): Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>> {
   if (targets.length === 0) return new Map();
 
   const uf = userFilter(userId);

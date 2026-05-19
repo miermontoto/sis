@@ -21,8 +21,8 @@ export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string 
   `) as { track_id: string; play_count: number; total_ms: number }[];
 }
 
-/** Top álbumes de un artista (solo donde es artista principal, position=0). Usa IDs pre-resueltos.
- *  resolvedPlayJoins('album') resuelve track merges + album merges automáticamente. */
+/** Top álbumes de un artista. Incluye álbumes donde es artista principal (position=0)
+ *  o está acreditado en el campo artist_ids del álbum (multi-artista). */
 export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number, artistIds?: string[]) {
   const wr = rangeWhere(rangeStart, rangeEnd);
   const ob = orderByCol(sort);
@@ -40,10 +40,16 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
       WHERE t.spotify_id IN (
         SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${artistCmp}
       ) AND t.album_id IS NOT NULL ${wr} ${uf}
-        AND t.album_id IN (
-          SELECT DISTINCT t2.album_id FROM tracks t2
-          JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id
-          WHERE ta2.artist_id ${artistCmp} AND ta2.position = 0
+        AND (
+          t.album_id IN (
+            SELECT DISTINCT t2.album_id FROM tracks t2
+            JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id
+            WHERE ta2.artist_id ${artistCmp} AND ta2.position = 0
+          )
+          OR t.album_id IN (
+            SELECT a2.spotify_id FROM albums a2, json_each(a2.artist_ids) je
+            WHERE je.value ${artistCmp}
+          )
         )
       GROUP BY ${resolvedEntityId('album', userId)}
     )

@@ -9,6 +9,7 @@ export interface MergeModalTarget {
   target: { id: string; name: string; imageUrl: string | null };
   parentId?: string;
   existingMerges: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
+  initialStep?: 'select' | 'remerge';
   /** Callback opcional invocado tras un cambio (merge creado o borrado). */
   onChanged?: () => void;
 }

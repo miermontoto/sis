@@ -147,7 +147,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
 
   if (isLastFmEntry(first)) {
     return (data as LastFmEntry[])
-      .map((entry) => {
+      .map((entry): NormalizedEntry | null => {
         if (entry['@attr']?.nowplaying === 'true') return null;
         if (!entry.date?.uts) return null;
         if (!entry.name || !entry.artist['#text']) return null;
@@ -175,7 +175,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
   const isExtended = 'ts' in first;
 
   return data
-    .map((raw) => {
+    .map((raw): NormalizedEntry | null => {
       if (isExtended) {
         const entry = raw as ExtendedEntry;
         const trackName = entry.master_metadata_track_name;
