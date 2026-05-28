@@ -1027,9 +1027,9 @@ a.track-item {
 .like-popover {
   display: none;
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   right: 0;
-  padding-top: 4px;
+  padding-bottom: 4px;
   z-index: 100;
 }
 .like-popover-inner {

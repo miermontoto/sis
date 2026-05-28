@@ -16,8 +16,14 @@
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
   import FriendsActivity from '$lib/components/FriendsActivity.svelte';
+  import RefreshingIndicator from '$lib/components/RefreshingIndicator.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
+  import { prewarmer, setUser, hydrateUser, bootCleanup } from '$lib/cache';
+
+  // hidrata el namespace del cache antes de cualquier apiFetch para que
+  // /me, /settings, /version hagan hit cuando vuelves al app.
+  hydrateUser();
   import IconPause from '$lib/icons/IconPause.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconPrev from '$lib/icons/IconPrev.svelte';
@@ -134,6 +140,10 @@
             closedChartsStore.refresh();
             nowPlayingStore.startPolling();
             if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
+            // namespacing del cache por usuario + limpieza foreign/LRU + prewarming
+            setUser(user?.userId ?? user?.spotifyId ?? null);
+            bootCleanup();
+            prewarmer.start();
           });
         }
       })
@@ -286,7 +296,7 @@
     <aside class="sidebar" bind:this={sidebarEl}>
       <div class="sidebar-top">
         <div class="sidebar-logo">
-          <span class="sidebar-logo-mark">SIS</span>
+          <span class="sidebar-logo-mark">SIS<RefreshingIndicator /></span>
           <span class="sidebar-logo-subtitle">listening stats</span>
         </div>
         <button class="sidebar-search" onclick={() => showSearch = true}>
@@ -325,8 +335,8 @@
               <span class="mobile-session-label">Session · {projectionsStore.data?.sessionTrackCount} tracks · {formatDuration(projectionsStore.data?.sessionTotalMs ?? 0)}</span>
               {#each marqueeItems as { r, best }}
                 <span class="mobile-session-sep"></span>
-                <a href="/{r.r.entityType}/{r.r.entityId}" class="mobile-session-item" tabindex="-1">
-                  <span class="mobile-session-entity">{r.r.entityName}</span>
+                <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item" tabindex="-1">
+                  <span class="mobile-session-entity">{r.entityName}</span>
                   <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}</span>
                 </a>
               {/each}
@@ -463,7 +473,7 @@
     </aside>
     <main class="main-content">
       <div class="mobile-header">
-        <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
+        <span class="mobile-header-title"><span class="mobile-header-logo">SIS<RefreshingIndicator /></span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">
           <button class="mobile-search-bar" onclick={() => showSearch = true}>
             Search...

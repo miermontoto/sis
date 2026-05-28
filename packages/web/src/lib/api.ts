@@ -34,60 +34,71 @@ import type {
   ProjectedRankingsResponse,
 } from '@sis/shared';
 
+// cache layer: L1 (memoria, ms) + L2 (IndexedDB, persistente) con SWR.
+// se enchufa vía lookup()/fetchAndStore(); ttls por endpoint en cache/config.ts.
+import * as cache from './cache/cache';
+import { isNoCache } from './cache/config';
+
 const BASE = '/api';
 
-// cache de respuestas con TTL corto para evitar refetches en navegación back/forward
-const responseCache = new Map<string, { data: unknown; ts: number }>();
+const responseCache = new Map<string, cache.L1Entry>();
 const inflightRequests = new Map<string, Promise<unknown>>();
-const CACHE_TTL = 30_000; // 30s
+const cacheDeps: cache.CacheDeps = { l1: responseCache, inflight: inflightRequests };
 
-// wrapper genérico para llamadas al API con deduplicación y cache
-async function apiFetch<T>(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<T> {
+// construye una cache key canónica (path + query ordenado).
+// independiente del origin para que sobreviva entre dominios.
+function buildKey(path: string, params?: Record<string, string>): string {
+  if (!params) return path;
+  const keys = Object.keys(params).sort();
+  const qs = keys.map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
+  return qs ? `${path}?${qs}` : path;
+}
+
+function buildUrl(path: string, params?: Record<string, string>): string {
   const url = new URL(`${BASE}${path}`, window.location.origin);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  return url.toString();
+}
+
+// fetch crudo (sin cache). Maneja 401 → redirect a login.
+async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, signal ? { signal } : undefined);
+  if (res.status === 401) {
+    window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
+    throw new Error('No autorizado');
+  }
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+// wrapper genérico para llamadas GET. SWR por defecto.
+//
+// con signal (AbortController): se omite el cache read (el caller quiere data
+// fresca y poder abortarla), pero la respuesta exitosa SÍ pobla el cache para
+// que navegaciones posteriores sin signal hagan hit.
+async function apiFetch<T>(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<T> {
+  const url = buildUrl(path, params);
+
+  if (isNoCache(path)) {
+    return rawFetch<T>(url, signal);
   }
 
-  const cacheKey = url.toString();
+  const cacheKey = buildKey(path, params);
+  const fetcher = () => rawFetch<unknown>(url, signal);
 
-  // endpoints que siempre necesitan data fresca
-  const noCache = path === '/now-playing' || path === '/now-playing/live' || path === '/now-playing/devices' || path === '/health';
-
-  // servir desde cache si es reciente
-  if (!noCache) {
-    const cached = responseCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      return cached.data as T;
-    }
-  }
-
-  // deduplicar requests idénticos en vuelo (solo si no hay signal propio)
-  if (!signal) {
-    const inflight = inflightRequests.get(cacheKey);
-    if (inflight) return inflight as Promise<T>;
-  }
-
-  const promise = (async () => {
-    const res = await fetch(url.toString(), signal ? { signal } : undefined);
-    if (res.status === 401) {
-      window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
-      throw new Error('No autorizado');
-    }
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const data = await res.json();
-    responseCache.set(cacheKey, { data, ts: Date.now() });
+  if (signal) {
+    // bypass del cache read + dedup (la dedup compartiría signal entre callers).
+    const data = await rawFetch<T>(url, signal);
+    cache.writeCache(cacheKey, data, cacheDeps);
     return data;
-  })();
-
-  if (!signal) {
-    inflightRequests.set(cacheKey, promise);
-    try {
-      return await promise;
-    } finally {
-      inflightRequests.delete(cacheKey);
-    }
   }
-  return promise;
+
+  // 1) intenta servir desde cache (L1 → L2, con SWR).
+  const hit = await cache.lookup<T>(path, cacheKey, fetcher, cacheDeps);
+  if (hit) return hit.data;
+
+  // 2) miss: fetch bloqueante con dedup + escritura en ambas capas.
+  return cache.fetchAndStore<T>(path, cacheKey, fetcher, cacheDeps);
 }
 
 // crea un AbortController vinculado a un entity ID; aborta el anterior al cambiar
@@ -267,19 +278,62 @@ export function setLastPeriod(gran: string, value: string) {
   updateSetting({ [settingKey]: value });
 }
 
-// invalidar cache (tras mutaciones o cuando se necesite data fresca)
-export function invalidateCache(pathPrefix?: string) {
+// invalidar cache (tras mutaciones o cuando se necesite data fresca).
+// limpia L1 + L2 por prefijo de path; sin prefijo → limpia todo L1 y dispara
+// purga de L2 a un prefijo amplio.
+export function invalidateCache(pathPrefix?: string): void {
   if (!pathPrefix) {
-    responseCache.clear();
+    cache.clearL1(cacheDeps);
+    cache.invalidateByPath('/', cacheDeps);
     return;
   }
-  const prefix = new URL(`${BASE}${pathPrefix}`, window.location.origin).toString();
-  for (const key of responseCache.keys()) {
-    if (key.startsWith(prefix)) responseCache.delete(key);
-  }
+  cache.invalidateByPath(pathPrefix, cacheDeps);
 }
 
-// POST/DELETE helper para mutaciones
+// mapeo de mutaciones → prefijos a invalidar. Match por método+prefijo de path.
+// orden importa: el primer match aplica. La lista es deliberadamente concisa;
+// `/` (último fallback para POST/PUT/DELETE desconocidos) limpia todo.
+const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: string[] }> = [
+  { method: 'POST',   prefix: '/import',                    clear: ['/stats/', '/now-playing/friends'] },
+  { method: 'DELETE', prefix: '/stats/history',             clear: ['/stats/'] },
+  { method: 'POST',   prefix: '/admin/merge-album',         clear: ['/stats/', '/playlists/'] },
+  { method: 'POST',   prefix: '/admin/batch-merge-tracks',  clear: ['/stats/', '/playlists/'] },
+  { method: 'POST',   prefix: '/admin/merge',               clear: ['/stats/', '/playlists/'] },
+  { method: 'DELETE', prefix: '/admin/merge/',              clear: ['/stats/', '/playlists/'] },
+  { method: 'PATCH',  prefix: '/admin/track/',              clear: ['/stats/'] },
+  { method: 'POST',   prefix: '/admin/track/',              clear: ['/stats/'] },
+  { method: 'POST',   prefix: '/admin/users',               clear: ['/admin/users'] },
+  { method: 'PUT',    prefix: '/admin/users/',              clear: ['/admin/users'] },
+  { method: 'DELETE', prefix: '/admin/users/',              clear: ['/admin/users'] },
+  { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
+  { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
+  { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
+  { method: 'DELETE', prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
+  { method: 'POST',   prefix: '/now-playing/queue',         clear: [] },
+  { method: 'PUT',    prefix: '/now-playing/',              clear: [] },
+  { method: 'POST',   prefix: '/now-playing/',              clear: [] },
+  { method: 'POST',   prefix: '/playlists/library/sync',    clear: ['/playlists/library'] },
+  { method: 'POST',   prefix: '/playlists/library/',        clear: ['/playlists/library', '/now-playing/playlists/'] },
+  { method: 'DELETE', prefix: '/playlists/library/',        clear: ['/playlists/library', '/now-playing/playlists/'] },
+  { method: 'POST',   prefix: '/playlists/generate',        clear: ['/playlists'] },
+  { method: 'POST',   prefix: '/playlists/',                clear: ['/playlists'] },
+  { method: 'DELETE', prefix: '/playlists/',                clear: ['/playlists'] },
+];
+
+function applyMutationInvalidation(method: string, path: string): void {
+  for (const rule of MUTATION_INVALIDATIONS) {
+    if (rule.method !== method) continue;
+    if (path === rule.prefix || path.startsWith(rule.prefix)) {
+      for (const p of rule.clear) cache.invalidateByPath(p, cacheDeps);
+      return;
+    }
+  }
+  // fallback: si no hay regla, conservador → limpia todo el cache.
+  cache.clearL1(cacheDeps);
+  cache.invalidateByPath('/', cacheDeps);
+}
+
+// POST/PUT/DELETE/PATCH helper para mutaciones.
 async function apiMutate<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -294,8 +348,7 @@ async function apiMutate<T>(method: string, path: string, body?: unknown): Promi
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `API error: ${res.status}`);
   }
-  // invalidar cache tras mutaciones
-  responseCache.clear();
+  applyMutationInvalidation(method, path);
   return res.json();
 }
 
@@ -507,6 +560,7 @@ export const api = {
       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(err.error || `API error: ${res.status}`);
     }
+    applyMutationInvalidation('POST', '/import');
     return res.json();
   },
 
@@ -524,6 +578,7 @@ export const api = {
       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(err.error || `API error: ${res.status}`);
     }
+    applyMutationInvalidation('POST', `/covers/${albumId}`);
     return res.json();
   },
 };

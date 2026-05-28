@@ -37,17 +37,32 @@
   let loading = $state(true);
   let barColors = $state<[number, number, number][]>([]);
   let chartMode = $state<'bar' | 'velocity'>('bar');
+  const CHART_COUNT_OPTIONS = [5, 10, 20, 30, 50] as const;
+  const DEFAULT_CHART_COUNT = 10;
+  const CHART_COUNT_KEY = 'sis:topChartCount';
+  let chartCount = $state(DEFAULT_CHART_COUNT);
   const fetchCtrl = createFetchController();
 
+  function loadChartCount(): number {
+    if (typeof localStorage === 'undefined') return DEFAULT_CHART_COUNT;
+    const v = Number(localStorage.getItem(CHART_COUNT_KEY));
+    return CHART_COUNT_OPTIONS.includes(v as any) ? v : DEFAULT_CHART_COUNT;
+  }
+
+  function setChartCount(n: number) {
+    chartCount = n;
+    if (typeof localStorage !== 'undefined') localStorage.setItem(CHART_COUNT_KEY, String(n));
+  }
+
   // --- bar chart ---
-  async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[]) {
+  async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[], count: number) {
     let urls: (string | null)[] = [];
     if (tab === 'tracks') {
-      urls = tracks.slice(0, 10).map(t => t.track?.album?.imageUrl ?? null);
+      urls = tracks.slice(0, count).map(t => t.track?.album?.imageUrl ?? null);
     } else if (tab === 'artists') {
-      urls = artistsList.slice(0, 10).map(a => a.artist?.imageUrl ?? null);
+      urls = artistsList.slice(0, count).map(a => a.artist?.imageUrl ?? null);
     } else {
-      urls = albumsList.slice(0, 10).map(a => a.album?.imageUrl ?? null);
+      urls = albumsList.slice(0, count).map(a => a.album?.imageUrl ?? null);
     }
     return Promise.all(urls.map(u => u ? extractColor(u) : Promise.resolve<[number, number, number]>([29, 185, 84])));
   }
@@ -64,9 +79,9 @@
   }
 
   let chartEntityIds = $derived.by(() => {
-    if (activeTab === 'tracks') return topTracks.slice(0, 10).map(t => t.trackId).reverse();
-    if (activeTab === 'artists') return topArtists.slice(0, 10).map(a => a.artistId).reverse();
-    return topAlbums.slice(0, 10).map(a => a.albumId).reverse();
+    if (activeTab === 'tracks') return topTracks.slice(0, chartCount).map(t => t.trackId).reverse();
+    if (activeTab === 'artists') return topArtists.slice(0, chartCount).map(a => a.artistId).reverse();
+    return topAlbums.slice(0, chartCount).map(a => a.albumId).reverse();
   });
 
   let barChartOption = $derived.by<EChartsOption>(() => {
@@ -75,20 +90,20 @@
     let images: (string | null)[] = [];
 
     if (activeTab === 'tracks') {
-      const top10 = topTracks.slice(0, 10);
-      names = top10.map(t => t.track?.name ?? 'Unknown');
-      values = top10.map(t => metricValue(t));
-      images = top10.map(t => t.track?.album?.imageUrl ?? null);
+      const top = topTracks.slice(0, chartCount);
+      names = top.map(t => t.track?.name ?? 'Unknown');
+      values = top.map(t => metricValue(t));
+      images = top.map(t => t.track?.album?.imageUrl ?? null);
     } else if (activeTab === 'artists') {
-      const top10 = topArtists.slice(0, 10);
-      names = top10.map(a => a.artist?.name ?? 'Unknown');
-      values = top10.map(a => metricValue(a));
-      images = top10.map(a => a.artist?.imageUrl ?? null);
+      const top = topArtists.slice(0, chartCount);
+      names = top.map(a => a.artist?.name ?? 'Unknown');
+      values = top.map(a => metricValue(a));
+      images = top.map(a => a.artist?.imageUrl ?? null);
     } else {
-      const top10 = topAlbums.slice(0, 10);
-      names = top10.map(a => a.album?.name ?? 'Unknown');
-      values = top10.map(a => metricValue(a));
-      images = top10.map(a => a.album?.imageUrl ?? null);
+      const top = topAlbums.slice(0, chartCount);
+      names = top.map(a => a.album?.name ?? 'Unknown');
+      values = top.map(a => metricValue(a));
+      images = top.map(a => a.album?.imageUrl ?? null);
     }
 
     const MAX_NAME = 18;
@@ -190,13 +205,46 @@
   }
 
   // --- velocity chart (auto top 10) ---
-  const VELOCITY_PALETTE = [
-    '#1db954', '#ff1493', '#ff8c42', '#3b9bd9', '#a88bff',
-    '#ffd166', '#ef476f', '#06d6a0', '#e0e8e8', '#f95738',
-  ];
+  // fallback cuando aún no hay color extraído de la portada
+  const DEFAULT_VEL_RGB: [number, number, number] = [29, 185, 84];
   type VelEntry = { id: string; name: string; points: [string, number][] };
   let velSeries = $state<VelEntry[]>([]);
   let velLoading = $state(false);
+  let velHiddenIds = $state<Set<string>>(new Set());
+
+  // mapa id -> { imageUrl, color } reusando los colores extraídos del bar chart.
+  // barColors está indexado por posición en topX.slice(0, chartCount), igual que las portadas.
+  let velMeta = $derived.by(() => {
+    type Meta = { imageUrl: string | null; rgb: [number, number, number] };
+    const meta = new Map<string, Meta>();
+    if (activeTab === 'tracks') {
+      topTracks.slice(0, chartCount).forEach((t, i) => {
+        meta.set(t.trackId, {
+          imageUrl: t.track?.album?.imageUrl ?? null,
+          rgb: barColors[i] ?? DEFAULT_VEL_RGB,
+        });
+      });
+    } else if (activeTab === 'artists') {
+      topArtists.slice(0, chartCount).forEach((a, i) => {
+        meta.set(a.artistId, {
+          imageUrl: a.artist?.imageUrl ?? null,
+          rgb: barColors[i] ?? DEFAULT_VEL_RGB,
+        });
+      });
+    } else {
+      topAlbums.slice(0, chartCount).forEach((a, i) => {
+        meta.set(a.albumId, {
+          imageUrl: a.album?.imageUrl ?? null,
+          rgb: barColors[i] ?? DEFAULT_VEL_RGB,
+        });
+      });
+    }
+    return meta;
+  });
+
+  function rgbToCss([r, g, b]: [number, number, number]): string {
+    return `rgb(${r},${g},${b})`;
+  }
 
   function velMetricValue(s: { play_count: number; total_ms: number }): number {
     return metric === 'plays' ? s.play_count : s.total_ms / 60_000;
@@ -246,15 +294,15 @@
     }
   }
 
-  let velTop10 = $derived.by(() => {
-    if (activeTab === 'tracks') return topTracks.slice(0, 10).filter(t => t.track).map(t => ({ id: t.trackId, name: t.track!.name }));
-    if (activeTab === 'artists') return topArtists.slice(0, 10).filter(a => a.artist).map(a => ({ id: a.artistId, name: a.artist!.name }));
-    return topAlbums.slice(0, 10).filter(a => a.album).map(a => ({ id: a.albumId, name: a.album!.name }));
+  let velTopEntries = $derived.by(() => {
+    if (activeTab === 'tracks') return topTracks.slice(0, chartCount).filter(t => t.track).map(t => ({ id: t.trackId, name: t.track!.name }));
+    if (activeTab === 'artists') return topArtists.slice(0, chartCount).filter(a => a.artist).map(a => ({ id: a.artistId, name: a.artist!.name }));
+    return topAlbums.slice(0, chartCount).filter(a => a.album).map(a => ({ id: a.albumId, name: a.album!.name }));
   });
 
   $effect(() => {
     const tab = activeTab;
-    const entries = velTop10;
+    const entries = velTopEntries;
     const r = range;
     if (!loading && entries.length > 0) {
       loadVelocity(tab, entries, r);
@@ -264,25 +312,59 @@
   let velChartOption = $derived.by<EChartsOption>(() => {
     if (velSeries.length === 0) return {} as EChartsOption;
 
-    const series = velSeries.map((s, i) => ({
-      name: s.name,
-      type: 'line' as const,
-      showSymbol: false,
-      smooth: false,
-      data: s.points,
-      lineStyle: { width: 2, color: VELOCITY_PALETTE[i % VELOCITY_PALETTE.length] },
-      itemStyle: { color: VELOCITY_PALETTE[i % VELOCITY_PALETTE.length] },
-      endLabel: {
-        show: true,
-        formatter: '{a}',
-        color: VELOCITY_PALETTE[i % VELOCITY_PALETTE.length],
-        fontWeight: 700 as const,
-        fontSize: 11,
-      },
-    }));
+    const isArtists = activeTab === 'artists';
+    const COVER = 18;
+
+    const series = velSeries
+      .filter((s) => !velHiddenIds.has(s.id))
+      .map((s) => {
+        const meta = velMeta.get(s.id);
+        const color = rgbToCss(meta?.rgb ?? DEFAULT_VEL_RGB);
+        const imageUrl = meta?.imageUrl ?? null;
+        const richKey = `img_${s.id.replace(/[^a-zA-Z0-9]/g, '')}`;
+        const MAX_NAME = 16;
+        const displayName = s.name.length > MAX_NAME ? s.name.slice(0, MAX_NAME - 1) + '…' : s.name;
+        const rich: Record<string, any> = {
+          name: { color, fontWeight: 700, fontSize: 11, padding: [0, 0, 0, 6], verticalAlign: 'middle' },
+        };
+        if (imageUrl) {
+          rich[richKey] = {
+            backgroundColor: { image: imageUrl },
+            width: COVER,
+            height: COVER,
+            borderRadius: isArtists ? COVER / 2 : 2,
+          };
+        } else {
+          rich[richKey] = {
+            backgroundColor: '#1e2a2a',
+            width: COVER,
+            height: COVER,
+            borderRadius: isArtists ? COVER / 2 : 2,
+          };
+        }
+        return {
+          id: s.id,
+          name: s.name,
+          type: 'line' as const,
+          showSymbol: false,
+          smooth: false,
+          cursor: 'pointer',
+          data: s.points,
+          lineStyle: { width: 2, color },
+          itemStyle: { color },
+          emphasis: { lineStyle: { width: 3 } },
+          labelLayout: { moveOverlap: 'shiftY' as const },
+          endLabel: {
+            show: true,
+            formatter: `{${richKey}|} {name|${displayName}}`,
+            rich,
+            padding: [2, 0, 0, 0],
+          },
+        };
+      });
 
     return {
-      grid: { ...GRID, right: 120, bottom: 30 },
+      grid: { ...GRID, right: 150, bottom: 30 },
       tooltip: {
         ...TOOLTIP_BASE,
         formatter: (params: any) => {
@@ -310,6 +392,45 @@
       },
       series,
     };
+  });
+
+  function handleVelocityClick(params: any) {
+    const id = params?.seriesId as string | undefined;
+    if (!id) return;
+    const next = new Set(velHiddenIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    velHiddenIds = next;
+  }
+
+  function showVelocityEntity(id: string) {
+    if (!velHiddenIds.has(id)) return;
+    const next = new Set(velHiddenIds);
+    next.delete(id);
+    velHiddenIds = next;
+  }
+
+  // limpiar items ocultos cuando cambia el dataset mostrado
+  $effect(() => {
+    void activeTab;
+    void range;
+    void metric;
+    void startDate;
+    void endDate;
+    void chartCount;
+    velHiddenIds = new Set();
+  });
+
+  // re-extraer colores cuando cambia chartCount (sin recargar datos)
+  $effect(() => {
+    const count = chartCount;
+    if (loading) return;
+    if (barColors.length === count) return;
+    const signal = fetchCtrl.signal;
+    (async () => {
+      const colors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums, count);
+      if (!signal?.aborted) barColors = colors;
+    })();
   });
 
   function getCustomDates(): DateRangeParams | undefined {
@@ -341,7 +462,7 @@
         topAlbums = await api.topAlbums(range, 200, metric, dates, lb, signal);
       }
       if (!signal.aborted) {
-        barColors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums);
+        barColors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums, chartCount);
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
@@ -435,6 +556,7 @@
     activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
     lookback = getRankChangeLookback();
+    chartCount = loadChartCount();
     pendingFocusId = getQueryParam('focus', '') || null;
     initialized = true;
 
@@ -582,16 +704,59 @@
   </div>
 {:else}
   <div class="card chart-card">
-    <div class="chart-mode-toggle">
-      <button class:active={chartMode === 'bar'} onclick={() => chartMode = 'bar'}>Bar</button>
-      <button class:active={chartMode === 'velocity'} onclick={() => chartMode = 'velocity'}>Velocity</button>
+    <div class="chart-controls">
+      <select
+        class="chart-count-select"
+        value={chartCount}
+        onchange={(e) => setChartCount(+(e.currentTarget as HTMLSelectElement).value)}
+        title="Number of entities shown"
+      >
+        {#each CHART_COUNT_OPTIONS as n}
+          <option value={n}>Top {n}</option>
+        {/each}
+      </select>
+      <div class="chart-mode-toggle">
+        <button class:active={chartMode === 'bar'} onclick={() => chartMode = 'bar'}>Bar</button>
+        <button class:active={chartMode === 'velocity'} onclick={() => chartMode = 'velocity'}>Velocity</button>
+      </div>
     </div>
     {#if chartMode === 'bar'}
-      <BaseChart option={barChartOption} height="380px" onclick={handleBarChartClick} />
+      <BaseChart option={barChartOption} height="{Math.max(chartCount * 44 + 30, 360)}px" onclick={handleBarChartClick} />
     {:else if velLoading}
-      <div class="vel-loading"><div class="spinner"></div></div>
+      <div class="vel-loading" style:height="{Math.max(chartCount * 22 + 180, 380)}px"><div class="spinner"></div></div>
     {:else if velSeries.length > 0}
-      <BaseChart option={velChartOption} height="380px" replaceMerge={['series']} />
+      <BaseChart option={velChartOption} height="{Math.max(chartCount * 22 + 180, 380)}px" replaceMerge={['series']} onclick={handleVelocityClick} />
+      {#if velHiddenIds.size > 0}
+        <div class="vel-hidden-row">
+          <span class="vel-hidden-label">Hidden:</span>
+          {#each velSeries as s (s.id)}
+            {#if velHiddenIds.has(s.id)}
+              {@const meta = velMeta.get(s.id)}
+              <button
+                class="vel-hidden-chip"
+                onclick={() => showVelocityEntity(s.id)}
+                title="Show {s.name}"
+                style:border-left-color={meta ? rgbToCss(meta.rgb) : undefined}
+              >
+                {#if meta?.imageUrl}
+                  <img
+                    class="vel-hidden-cover"
+                    class:vel-hidden-cover--round={activeTab === 'artists'}
+                    src={meta.imageUrl}
+                    alt=""
+                  />
+                {:else}
+                  <span
+                    class="vel-hidden-cover vel-hidden-cover--placeholder"
+                    class:vel-hidden-cover--round={activeTab === 'artists'}
+                  ></span>
+                {/if}
+                {s.name}
+              </button>
+            {/if}
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 
@@ -694,11 +859,32 @@
     margin-bottom: 1.5rem;
   }
 
-  .chart-mode-toggle {
+  .chart-controls {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
     z-index: 1;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .chart-count-select {
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .chart-count-select:hover {
+    color: var(--text);
+  }
+
+  .chart-mode-toggle {
     display: flex;
     gap: 0.15rem;
     background: var(--bg);
@@ -726,6 +912,58 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 380px;
+    min-height: 380px;
+  }
+
+  .vel-hidden-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .vel-hidden-label {
+    color: var(--text-muted);
+    margin-right: 0.15rem;
+  }
+
+  .vel-hidden-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.15rem 0.5rem 0.15rem 0.3rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: inherit;
+    transition: color 0.05s, border-color 0.05s, background 0.05s;
+  }
+
+  .vel-hidden-chip:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .vel-hidden-cover {
+    width: 18px;
+    height: 18px;
+    border-radius: 2px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .vel-hidden-cover--round {
+    border-radius: 50%;
+  }
+
+  .vel-hidden-cover--placeholder {
+    background: #1e2a2a;
+    display: inline-block;
   }
 </style>

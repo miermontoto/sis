@@ -62,6 +62,9 @@ importers:
       echarts:
         specifier: ^5.6.0
         version: 5.6.0
+      idb-keyval:
+        specifier: ^6.2.1
+        version: 6.2.4
     devDependencies:
       '@sveltejs/adapter-static':
         specifier: ^3.0.0
@@ -1892,6 +1895,9 @@ packages:
   hono@4.12.6:
     resolution: {integrity: sha512-KljEp+MeEEEIOT75qBo1UjqqB29fRMtlDEwCxcexOzdkUq6LR/vRvHk5pdROcxyOYyW1niq7Gb5pFVGy5R1eBw==}
     engines: {node: '>=16.9.0'}
+
+  idb-keyval@6.2.4:
+    resolution: {integrity: sha512-D/NzHWUmYJGXi++z67aMSrnisb9A3621CyRK5G89JyTlN13C8xf0g04DLxUKMufPem3e3L2JAXR6Z00OWy183Q==}
 
   idb@7.1.1:
     resolution: {integrity: sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ==}
@@ -4477,6 +4483,8 @@ snapshots:
       function-bind: 1.1.2
 
   hono@4.12.6: {}
+
+  idb-keyval@6.2.4: {}
 
   idb@7.1.1: {}
 
