@@ -111,6 +111,34 @@ export function getDb() {
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_polling_state_user_id ON polling_state(user_id)'); } catch {}
 
+  // social: follows (relación dirigida follower → followed)
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS follows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      follower_id INTEGER NOT NULL REFERENCES users(id),
+      followed_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_follows_pair ON follows(follower_id, followed_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_follows_followed ON follows(followed_id)'); } catch {}
+
+  // social: share links (tokens públicos revocables)
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS share_links (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      kind TEXT NOT NULL,
+      range TEXT,
+      label TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      revoked_at TEXT,
+      last_accessed_at TEXT
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_share_links_user ON share_links(user_id)'); } catch {}
+
   // FTS5: índice de búsqueda full-text para artistas, álbumes y tracks
   try {
     sqlite.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(

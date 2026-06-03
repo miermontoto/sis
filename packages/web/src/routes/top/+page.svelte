@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, afterNavigate } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
@@ -549,15 +549,36 @@
 
   let initialized = false;
 
+  // sincroniza el estado local con los query params; se llama al montar y en cada
+  // navegación posterior (los links a /top?focus=... no remontan el componente)
+  function syncFromUrl() {
+    const newRange = getQueryParam('range', 'month');
+    const newStartDate = getQueryParam('startDate', '');
+    const newEndDate = getQueryParam('endDate', '');
+    const newTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
+    const changed = newRange !== range || newStartDate !== startDate
+      || newEndDate !== endDate || newTab !== activeTab;
+    range = newRange;
+    startDate = newStartDate;
+    endDate = newEndDate;
+    activeTab = newTab;
+    const focus = getQueryParam('focus', '') || null;
+    if (!focus) return;
+    // si va a haber recarga de datos (o ya hay una en curso), loadData consume
+    // el focus al terminar; si no, los datos ya están y se puede enfocar directo
+    if (changed || loading) pendingFocusId = focus;
+    else void focusEntity(focus);
+  }
+
+  afterNavigate(() => {
+    if (initialized) syncFromUrl();
+  });
+
   onMount(() => {
-    range = getQueryParam('range', 'month');
-    startDate = getQueryParam('startDate', '');
-    endDate = getQueryParam('endDate', '');
-    activeTab = getQueryParam('tab', 'tracks') as 'tracks' | 'artists' | 'albums';
     metric = getRankingMetric();
     lookback = getRankChangeLookback();
     chartCount = loadChartCount();
-    pendingFocusId = getQueryParam('focus', '') || null;
+    syncFromUrl();
     initialized = true;
 
     observer = new IntersectionObserver(

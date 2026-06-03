@@ -118,6 +118,17 @@
     return () => fetchCtrl.abort();
   });
 
+  // hover-abrir solo con puntero real (ratón); en táctil el toggle del click manda,
+  // si no, el primer tap dispara mouseenter+click y se necesitan dos taps
+  function handlePointerEnter(e: PointerEvent) {
+    if (e.pointerType === 'touch') return;
+    open = true;
+  }
+  function handlePointerLeave(e: PointerEvent) {
+    if (e.pointerType === 'touch') return;
+    open = false;
+  }
+
   function handleOutside(e: PointerEvent) {
     if (rootEl && !rootEl.contains(e.target as Node)) open = false;
   }
@@ -141,8 +152,8 @@
   <div
     class="accolades-root"
     bind:this={rootEl}
-    onmouseenter={() => open = true}
-    onmouseleave={() => open = false}
+    onpointerenter={handlePointerEnter}
+    onpointerleave={handlePointerLeave}
   >
     <button
       type="button"

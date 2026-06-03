@@ -166,3 +166,29 @@ export const pollingState = sqliteTable('polling_state', {
   lastCurrentlyPlayingTrackId: text('last_currently_playing_track_id'),
   lastCurrentlyPlayingAt: text('last_currently_playing_at'),
 });
+
+// relación social dirigida (follower → followed), par único
+export const follows = sqliteTable('follows', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  followerId: integer('follower_id').notNull().references(() => users.id),
+  followedId: integer('followed_id').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  uniqueIndex('idx_follows_pair').on(table.followerId, table.followedId),
+  index('idx_follows_follower').on(table.followerId),
+  index('idx_follows_followed').on(table.followedId),
+]);
+
+// tokens públicos revocables que exponen un snapshot de perfil sin sesión
+export const shareLinks = sqliteTable('share_links', {
+  token: text('token').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  kind: text('kind').notNull(), // 'profile' (extensible en el futuro)
+  range: text('range'), // TimeRange congelado del enlace; null = lo elige el visitante
+  label: text('label'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  revokedAt: text('revoked_at'), // soft-revoke; null = activo
+  lastAccessedAt: text('last_accessed_at'),
+}, (table) => [
+  index('idx_share_links_user').on(table.userId),
+]);

@@ -1,8 +1,9 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w22b';
+export const VERSION = '26w23b';
 
 // re-exportar desde shared (single source of truth)
-export { MIN_PLAY_MS } from '@sis/shared';
+export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from '@sis/shared';
+export type { TimeRange } from '@sis/shared';
 
 // intervalos de polling en ms
 export const CURRENTLY_PLAYING_INTERVAL_MS = 30_000; // fallback en error
@@ -43,26 +44,6 @@ export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 export const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 export const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
-// rangos de tiempo para stats
-export const TIME_RANGES = {
-  week: 7,
-  month: 30,
-  '3months': 90,
-  '6months': 180,
-  year: 365,
-  thisYear: -1,
-  all: 0,
-} as const;
-
-export type TimeRange = keyof typeof TIME_RANGES;
-
-// tamaño del chart (cuántas posiciones tiene el billboard)
-export const CHART_SIZE = 25;
-
-// posiciones que cuentan como "record" (lo que muestra la página /records)
-// también es el tope para otorgar accolades en vistas de detalle
-export const RECORDS_LIMIT = 10;
-
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;
 
@@ -80,3 +61,15 @@ export const ARTIST_FIX_INTERVAL_MS = 30 * 60_000;
 
 // intervalo de sincronización de playlists de spotify (6h)
 export const PLAYLIST_SYNC_INTERVAL_MS = 6 * 60 * 60_000;
+
+// --- social / share links ---
+
+// dimensiones de la tarjeta OG (estándar open graph)
+export const OG_IMAGE_WIDTH = 1200;
+export const OG_IMAGE_HEIGHT = 630;
+
+// TTL del caché en memoria de imágenes OG generadas (10 min)
+export const OG_IMAGE_CACHE_MS = 10 * 60_000;
+
+// umbral de staleness para now-playing en superficies sociales (2 min)
+export const SOCIAL_NOW_PLAYING_STALE_MS = 2 * 60_000;

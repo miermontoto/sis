@@ -322,9 +322,13 @@ export function importHistory(data: unknown, userId: number): ImportResult {
           `);
         }
 
+        // NO sembrar duration_ms con msPlayed: es la duración de UN play (a menudo
+        // parcial), no la del track. Hacerlo marcaba como "over-long" todos los demás
+        // plays más largos. Se deja 0 y lo rellena el enrichment (import:→MusicBrainz,
+        // IDs reales→al reproducir vía polling).
         tx.run(sql`
           INSERT INTO tracks (spotify_id, name, album_id, duration_ms, updated_at)
-          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, ${entry.msPlayed ?? 0}, ${now})
+          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, 0, ${now})
           ON CONFLICT (spotify_id) DO NOTHING
         `);
 

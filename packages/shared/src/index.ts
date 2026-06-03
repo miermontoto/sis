@@ -18,7 +18,8 @@ export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRange
 export { LOCALE_OPTIONS } from './settings.js';
 
 // constantes compartidas
-export { MIN_PLAY_MS } from './constants.js';
+export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT } from './constants.js';
+export type { TimeRange } from './constants.js';
 
 // detalle de entidades
 export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } from './detail.js';
@@ -46,3 +47,7 @@ export type { RankProjection, ProjectionResult, ProjectedRankingsResponse } from
 
 // usuarios
 export type { MeResponse, UserRecord, ImportResult, HealthData } from './users.js';
+
+// social: perfiles, follows, feed, share links, compare
+export type { ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedItem, StreaksSummary, CompareResponse, DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse, ShareLink, ShareLinkListResponse, CreateShareLinkRequest } from './social.js';
+export { SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from './constants.js';

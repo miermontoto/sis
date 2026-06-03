@@ -52,8 +52,9 @@
     <span class="friends-label">Friends</span>
     <div class="friends-row">
       {#each friends as friend (friend.spotifyId)}
-        <div
+        <a
           class="friend-wrap"
+          href="/u/{encodeURIComponent(friend.spotifyId)}"
           onmouseenter={() => hoveredId = friend.spotifyId}
           onmouseleave={() => hoveredId = null}
         >
@@ -82,7 +83,7 @@
               {/if}
             </div>
           {/if}
-        </div>
+        </a>
       {/each}
     </div>
   </div>
@@ -110,6 +111,7 @@
 
   .friend-wrap {
     position: relative;
+    display: block;
   }
 
   .friend-avatar {
@@ -120,7 +122,11 @@
     border: 2px solid transparent;
     transition: border-color 0.15s, opacity 0.15s;
     opacity: 0.45;
-    cursor: default;
+    cursor: pointer;
+  }
+
+  .friend-wrap:hover .friend-avatar {
+    opacity: 1;
   }
 
   .friend-avatar.playing {

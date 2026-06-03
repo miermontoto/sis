@@ -21,10 +21,14 @@ export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './mer
 export type { MergeInfo } from './merge.js';
 
 // entity formatters
-export { lookupArtist, lookupAlbum, formatTopTrackRow, formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, formatRecentPlay, formatRecentPlays, formatArtistTrackRow, formatArtistTrackRows, formatArtistAlbumRow } from './formatters.js';
+export { lookupArtist, lookupAlbum, formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, formatRecentPlays, formatArtistTrackRows, formatArtistAlbumRow } from './formatters.js';
 
 // playlist library analytics
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';
+
+// social: perfil, compare, feed, streaks
+export { getProfileSummary, getUserComparison, getFeedActivity, getUserStreaks, getRecentPlaysForUsers, getUserPlayCount } from './social.js';
+export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRow, StreaksRow, FeedPlayRow } from './social.js';
 
 // inline queries extraídas de stats.ts
 export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, rebuildPlaylistSearchIndex } from './inline.js';

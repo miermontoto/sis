@@ -25,6 +25,9 @@ RUN pnpm --filter @sis/web build \
 FROM node:24-slim AS production
 WORKDIR /app/packages/api
 
+# fuentes para el renderizado de texto SVG de las tarjetas OG (sharp/librsvg)
+RUN apt-get update && apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+
 # copiar estructura necesaria (sin build tools)
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/packages/shared /app/packages/shared
@@ -36,7 +39,9 @@ RUN mkdir -p /app/data
 
 ENV NODE_ENV=production
 
+# liveness: el server responde = vivo. /api/health devuelve 401 sin sesión (gate del
+# frontend), así que tratamos cualquier respuesta no-5xx como sana; solo fallan 5xx o caída
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD node -e "fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://localhost:'+(process.env.PORT||3000)+'/api/health').then(r=>r.status<500?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
 CMD ["node", "dist/index.js"]

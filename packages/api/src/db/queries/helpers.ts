@@ -144,7 +144,12 @@ export function resolvedEntityId(type: EntityType, _userId?: number): SqlChunk {
 // --- helpers de SQL dinámico según tipo de entidad ---
 
 export function playDuration(): SqlChunk {
-  return sql`COALESCE(lh.duration_played_ms, t.duration_ms)`;
+  // tiempo escuchado por play, capado a la duración real del track: ms_played nunca
+  // debería superar la longitud del track, así que plays "over-long" (bucles o errores
+  // de import) no inflan el total. Si el track no tiene duración válida (<=0), no capar.
+  return sql`CASE WHEN t.duration_ms > 0
+    THEN MIN(COALESCE(lh.duration_played_ms, t.duration_ms), t.duration_ms)
+    ELSE lh.duration_played_ms END`;
 }
 
 export function orderByCol(sort: Sort): SqlChunk {

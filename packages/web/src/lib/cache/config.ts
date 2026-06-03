@@ -59,13 +59,18 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/playlists/',                   { ttl: 10 * MIN, maxStale: 24 * HOUR }],
   ['/playlists',                    { ttl: 10 * MIN, maxStale: 24 * HOUR }],
 
+  ['/social/users',                 { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
+  ['/social/profile/',              { ttl: 10 * MIN, maxStale: 24 * HOUR }],
+  ['/social/compare/',              { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
+  ['/social/follows',               { ttl: 1 * MIN,  maxStale: 10 * MIN }],
+  ['/social/feed',                  { ttl: 1 * MIN,  maxStale: 10 * MIN }],
+  ['/social/share-links',           { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
+
   ['/admin/merge-suggestions',      { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/album-merge-preview',    { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/album-remerge-preview',  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/merges',                 { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/users',                  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
-
-  ['/covers/album/',                { ttl: 1 * HOUR, maxStale: 7 * DAY }],
 ];
 
 export function isNoCache(path: string): boolean {

@@ -13,6 +13,9 @@ import importRoute from './routes/import.js';
 import admin from './routes/admin.js';
 import settingsRoute from './routes/settings.js';
 import playlists from './routes/playlists.js';
+import social from './routes/social.js';
+import publicRoutes from './routes/public.js';
+import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession } from './services/session.js';
@@ -69,6 +72,11 @@ app.route('/api/import', importRoute);
 app.route('/api/admin', admin);
 app.route('/api/settings', settingsRoute);
 app.route('/api/playlists', playlists);
+app.route('/api/social', social);
+
+// rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
+// exentas del auth gate; nunca devuelven 401
+app.route('/public', publicRoutes);
 
 // servir portadas descargadas desde data/covers/
 const coversDir = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
@@ -85,17 +93,6 @@ app.get('/api/covers/:filename', (c) => {
     'Content-Type': mime,
     'Cache-Control': 'public, max-age=604800, immutable',
   });
-});
-
-// listar portadas de un álbum
-app.get('/api/covers/album/:albumId', (c) => {
-  const albumId = c.req.param('albumId');
-  const db = getDb();
-  const covers = db.all(sql`
-    SELECT id, image_url, source, observed_at FROM album_covers
-    WHERE album_id = ${albumId} ORDER BY observed_at DESC
-  `) as any[];
-  return c.json({ covers: covers.map(r => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })) });
 });
 
 // seleccionar portada activa
@@ -186,6 +183,12 @@ app.get('/api/me', (c) => {
     scopes: getStoredScopes(userId),
   });
 });
+
+// OG meta para crawlers en rutas públicas (share / perfil).
+// DEBE registrarse antes de serveStatic para ganar el match de esas rutas;
+// para navegadores el HTML inyectado sigue arrancando el SPA igual que 200.html.
+app.get('/s/:token', (c) => renderOgHtml(c, { kind: 'share', token: c.req.param('token') }));
+app.get('/u/:spotifyId', (c) => renderOgHtml(c, { kind: 'profile', spotifyId: c.req.param('spotifyId') }));
 
 // servir archivos estáticos del build de SvelteKit
 app.use('/*', serveStatic({ root: './static' }));

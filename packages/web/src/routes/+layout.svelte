@@ -122,8 +122,13 @@
     }
   });
 
+  // rutas sin chrome ni auth gate: login + vistas públicas de share links
+  function isBareRoute(pathname: string): boolean {
+    return pathname === '/login' || pathname.startsWith('/s/');
+  }
+
   $effect(() => {
-    if (page.url.pathname === '/login') {
+    if (isBareRoute(page.url.pathname)) {
       authChecked = true;
       return;
     }
@@ -190,6 +195,13 @@
       items: [
         { href: '/playlists', label: 'Playlists', icon: '+' },
         { href: '/generators', label: 'Generators', icon: '&' },
+      ],
+    },
+    {
+      label: 'Social',
+      items: [
+        { href: '/users', label: 'Users', icon: '@' },
+        { href: '/feed', label: 'Feed', icon: '=' },
       ],
     },
   ];
@@ -289,7 +301,7 @@
 
 </script>
 
-{#if page.url.pathname === '/login'}
+{#if isBareRoute(page.url.pathname)}
   {@render children()}
 {:else if authChecked}
   <div class="app-layout">
