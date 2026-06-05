@@ -9,6 +9,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
+    "@platform/auth": "workspace:*",
+    "@platform/core-api": "workspace:*",
+    "@platform/db": "workspace:*",
     "@sis/shared": "workspace:*",
     "better-sqlite3": "^11.8.0",
     "dotenv": "^16.4.0",
@@ -17,6 +20,7 @@
     "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@platform/config": "workspace:*",
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
     "tsup": "^8.4.0",

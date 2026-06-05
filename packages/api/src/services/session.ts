@@ -1,7 +1,10 @@
-import crypto from 'crypto';
-import { eq, lt } from 'drizzle-orm';
+// sesiones de sis sobre el servicio compartido de @platform/auth. el user de la
+// sesión (spotifyId/isAdmin) se resuelve desde la tabla users — fuente de verdad —
+// en vez de denormalizarse en la fila de sesión como hacía la tabla `sessions` legacy.
+import { createSessionService } from '@platform/auth';
 import { getDb } from '../db/connection.js';
-import { sessions } from '../db/schema.js';
+import { authSessions } from '../db/schema.js';
+import { getUserById } from './user-manager.js';
 
 export interface Session {
   spotifyId: string;
@@ -12,44 +15,31 @@ export interface Session {
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60_000; // 7 días
 
-export function createSession(spotifyId: string, userId: number, isAdmin: boolean): string {
-  const token = crypto.randomBytes(32).toString('hex');
-  const db = getDb();
-  db.insert(sessions)
-    .values({ token, spotifyId, userId, isAdmin, createdAt: new Date().toISOString() })
-    .run();
-  return token;
+interface SessionUser {
+  spotifyId: string;
+  isAdmin: boolean;
+}
+
+const service = createSessionService<SessionUser>({
+  getDb,
+  table: authSessions,
+  ttlMs: SESSION_TTL_MS,
+  resolveUser: (userId) => {
+    const user = getUserById(userId);
+    return user ? { spotifyId: user.spotifyId, isAdmin: user.isAdmin } : null;
+  },
+});
+
+export function createSession(userId: number, userAgent?: string): string {
+  return service.createSession(userId, userAgent).token;
 }
 
 export function validateSession(token: string): Session | null {
-  const db = getDb();
-  const row = db.select().from(sessions).where(eq(sessions.token, token)).get();
-  if (!row) return null;
-
-  const createdAt = new Date(row.createdAt).getTime();
-  if (Date.now() - createdAt > SESSION_TTL_MS) {
-    db.delete(sessions).where(eq(sessions.token, token)).run();
-    return null;
-  }
-
-  return {
-    spotifyId: row.spotifyId,
-    userId: row.userId,
-    isAdmin: row.isAdmin,
-    createdAt,
-  };
+  const s = service.validateSession(token);
+  return s
+    ? { spotifyId: s.user.spotifyId, userId: s.userId, isAdmin: s.user.isAdmin, createdAt: s.createdAt }
+    : null;
 }
 
-export function deleteSession(token: string): void {
-  const db = getDb();
-  db.delete(sessions).where(eq(sessions.token, token)).run();
-}
-
-export function cleanupExpiredSessions(): void {
-  const db = getDb();
-  const cutoff = new Date(Date.now() - SESSION_TTL_MS).toISOString();
-  const result = db.delete(sessions).where(lt(sessions.createdAt, cutoff)).run();
-  if (result.changes > 0) {
-    console.log(`[session] limpiadas ${result.changes} sesiones expiradas`);
-  }
-}
+export const deleteSession = service.deleteSession;
+export const cleanupExpiredSessions = service.cleanupExpiredSessions;

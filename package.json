@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter @sis/api dev & pnpm --filter @sis/web dev & wait",
     "build": "pnpm --filter @sis/web build && pnpm run copy-static && pnpm --filter @sis/api build",
-    "copy-static": "cp -r packages/web/build/* packages/api/static/",
+    "copy-static": "mkdir -p packages/api/static && rm -rf packages/api/static/* && cp -r packages/web/build/* packages/api/static/",
     "start": "pnpm --filter @sis/api start",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

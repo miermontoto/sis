@@ -5,11 +5,12 @@ WORKDIR /app
 # dependencias de compilación para better-sqlite3
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
-# instalar dependencias
+# instalar dependencias (platform/ = submodule con los paquetes @platform/* en fuente ts)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/api/package.json packages/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/web/package.json packages/web/
+COPY platform/ platform/
 RUN pnpm install --frozen-lockfile
 
 # copiar código fuente

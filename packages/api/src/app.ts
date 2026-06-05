@@ -1,8 +1,7 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+// composición de la api de sis sobre el hono base de @platform/core-api:
+// gate de sesión spotify, rutas de dominio, portadas, og html y spa estática.
 import { getCookie } from 'hono/cookie';
-import { serveStatic } from '@hono/node-server/serve-static';
+import { createPlatformApp, mountSpa, sessionGate } from '@platform/core-api';
 import fs from 'fs';
 import path from 'path';
 import auth from './routes/auth.js';
@@ -18,7 +17,7 @@ import publicRoutes from './routes/public.js';
 import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
-import { validateSession } from './services/session.js';
+import { validateSession, type Session } from './services/session.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
@@ -30,38 +29,30 @@ export type AppVariables = {
   isAdmin: boolean;
 };
 
-const app = new Hono<{ Variables: AppVariables }>();
+type SisEnv = { Variables: AppVariables };
 
-app.use('*', logger());
-app.use('/api/*', cors());
+const app = createPlatformApp<SisEnv>();
 
 // auth gate: proteger todas las rutas /api/* excepto health y version
-app.use('/api/*', async (c, next) => {
-  // health check público (usado por el frontend para verificar auth)
-  if (c.req.path === '/api/health' || c.req.path === '/api/version') return next();
-
-  // si no hay usuarios, permitir acceso sin auth (bootstrap)
-  if (!hasAnyUsers()) return next();
-
-  const token = getCookie(c, 'sis_session');
-  if (!token) {
-    return c.json({ error: 'no autorizado' }, 401);
-  }
-
-  const session = validateSession(token);
-  if (!session) {
-    return c.json({ error: 'sesión expirada' }, 401);
-  }
-
-  c.set('userId', session.userId);
-  c.set('spotifyId', session.spotifyId);
-  c.set('isAdmin', session.isAdmin);
-
-  // startup diferido: playlist sync + records cache al primer request del usuario
-  triggerDeferredStartup(session.userId);
-
-  return next();
-});
+app.use(
+  '/api/*',
+  sessionGate<SisEnv, Session>({
+    cookieName: 'sis_session',
+    validate: validateSession,
+    // health check y versión públicos (el frontend los usa para verificar auth)
+    isPreAuth: (p) => p === '/api/health' || p === '/api/version',
+    // si no hay usuarios, permitir acceso sin auth (bootstrap)
+    bypass: () => !hasAnyUsers(),
+    hydrate: (c, session, next) => {
+      c.set('userId', session.userId);
+      c.set('spotifyId', session.spotifyId);
+      c.set('isAdmin', session.isAdmin);
+      // startup diferido: playlist sync + records cache al primer request del usuario
+      triggerDeferredStartup(session.userId);
+      return next();
+    },
+  }),
+);
 
 // rutas
 app.route('/auth', auth);
@@ -185,15 +176,12 @@ app.get('/api/me', (c) => {
 });
 
 // OG meta para crawlers en rutas públicas (share / perfil).
-// DEBE registrarse antes de serveStatic para ganar el match de esas rutas;
+// DEBE registrarse antes de la spa para ganar el match de esas rutas;
 // para navegadores el HTML inyectado sigue arrancando el SPA igual que 200.html.
 app.get('/s/:token', (c) => renderOgHtml(c, { kind: 'share', token: c.req.param('token') }));
 app.get('/u/:spotifyId', (c) => renderOgHtml(c, { kind: 'profile', spotifyId: c.req.param('spotifyId') }));
 
-// servir archivos estáticos del build de SvelteKit
-app.use('/*', serveStatic({ root: './static' }));
-
-// SPA fallback: cualquier ruta no encontrada → 200.html
-app.use('/*', serveStatic({ root: './static', path: '200.html' }));
+// spa estática del build de sveltekit con fallback a 200.html
+mountSpa(app);
 
 export default app;

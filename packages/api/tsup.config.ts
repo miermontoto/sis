@@ -4,5 +4,6 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/db/worker.ts'],
   format: ['esm'],
   dts: true,
-  noExternal: ['@sis/shared'],
+  // @sis/shared y los paquetes @platform/* se publican como fuente ts → bundlearlos
+  noExternal: ['@sis/shared', /^@platform\//],
 });

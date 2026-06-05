@@ -133,8 +133,8 @@ auth.get('/callback', async (c) => {
   // migrar datos existentes huérfanos al primer usuario
   migrateExistingData(user.id);
 
-  // crear sesión
-  const sessionToken = createSession(me.id, user.id, user.isAdmin);
+  // crear sesión (spotifyId/isAdmin se resuelven desde users al validar)
+  const sessionToken = createSession(user.id, c.req.header('user-agent'));
   const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
   setCookie(c, 'sis_session', sessionToken, {
     httpOnly: true,
