@@ -75,6 +75,27 @@
     }
   });
 
+  // oauth móvil (apk): el deep link info.mier.sis://auth/callback?code=... llega
+  // tras el login en el browser del sistema; canjear el código por la cookie de
+  // sesión (CapacitorHttp → cookie jar nativo) y recargar la spa autenticada.
+  // el scheme replica MOBILE_SCHEME de la api (copia mínima, sin lib compartida).
+  onMount(async () => {
+    const { Capacitor } = await import('@capacitor/core');
+    if (!Capacitor.isNativePlatform()) return;
+    const { onAuthDeepLink } = await import('@platform/mobile/deep-link');
+    await onAuthDeepLink('info.mier.sis', async (url) => {
+      const code = url.searchParams.get('code');
+      if (!code) return;
+      const res = await fetch(`${import.meta.env.VITE_API_BASE ?? ''}/auth/mobile/exchange`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      if (res.ok) window.location.href = '/';
+      else console.error('[auth] canje del código móvil falló:', res.status);
+    });
+  });
+
   $effect(() => {
     if (sessionTrackingDisplay === 'off') return;
     nowPlayingStore.trackId;

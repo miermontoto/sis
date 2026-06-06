@@ -1,10 +1,24 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { Capacitor } from '@capacitor/core';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
   import IconLock from '$lib/icons/IconLock.svelte';
 
   let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
+
+  // oauth móvil (apk): el login va al browser del sistema (custom tab) con
+  // mobile=1; el callback vuelve a la app por deep link (listener en +layout).
+  // preventDefault debe ser síncrono — el check nativo no puede esperar imports.
+  function nativeLogin(e: MouseEvent) {
+    if (!Capacitor.isNativePlatform()) return; // web: el anchor navega normal
+    e.preventDefault();
+    void (async () => {
+      const { openExternalLogin } = await import('@platform/mobile/deep-link');
+      const base = import.meta.env.VITE_API_BASE ?? '';
+      await openExternalLogin(`${base}/auth/login?mobile=1&returnTo=${encodeURIComponent(returnTo)}`);
+    })();
+  }
   let errorCode = $derived(page.url.searchParams.get('error'));
   let retryAfterSec = $derived(parseInt(page.url.searchParams.get('retryAfter') || '0', 10));
 
@@ -37,7 +51,7 @@
         <div class="login-error">{errorMessage}</div>
       {/if}
 
-      <a href={loginHref} class="login-btn">
+      <a href={loginHref} onclick={nativeLogin} class="login-btn">
         <IconSpotify />
         Sign in with Spotify
       </a>

@@ -72,6 +72,12 @@ importers:
 
   packages/web:
     dependencies:
+      '@capacitor/app':
+        specifier: ^7.0.0
+        version: 7.1.2(@capacitor/core@7.6.6)
+      '@capacitor/browser':
+        specifier: ^7.0.0
+        version: 7.0.5(@capacitor/core@7.6.6)
       '@capacitor/core':
         specifier: ^7.0.0
         version: 7.6.6
@@ -201,6 +207,12 @@ importers:
 
   platform/packages/mobile:
     dependencies:
+      '@capacitor/app':
+        specifier: ^7.0.0
+        version: 7.1.2(@capacitor/core@7.6.6)
+      '@capacitor/browser':
+        specifier: ^7.0.0
+        version: 7.0.5(@capacitor/core@7.6.6)
       '@capacitor/cli':
         specifier: ^7.0.0
         version: 7.6.6
@@ -737,6 +749,16 @@ packages:
     resolution: {integrity: sha512-PnO8NFjpJJmMINjQQicPwS+hTMWFReIYJcfj8dzb/rRPgElxj+PBJi+6p9X4LUHd2yin8O5FGuqjNOT5BrvWvw==}
     peerDependencies:
       '@capacitor/core': ^7.6.0
+
+  '@capacitor/app@7.1.2':
+    resolution: {integrity: sha512-d4I/oF/PRu4megL7/IGKYfe5j7yzSON1FRFgq6kH+m5kH6g7V+wyjHRLauCzGNjdRx4S+nWOumINds0qcRBtKg==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
+  '@capacitor/browser@7.0.5':
+    resolution: {integrity: sha512-YF/kC1m1e6c81X/agtAnYItVlqiQ/nXLG+Q3QXNDuiMoRynqa3Guu8ZaV9kWvqQcHoE2w18xz7WGpPOuh+R1fA==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
 
   '@capacitor/cli@7.6.6':
     resolution: {integrity: sha512-gZm1c40trhPKi4r6cGdgd/WaW20+yunq5XEmWm/ylHzG6Qd72gAxarihIdXptoxTz4rs9JIU6f60EnTNncvXeQ==}
@@ -3970,6 +3992,14 @@ snapshots:
       '@babel/helper-validator-identifier': 7.28.5
 
   '@capacitor/android@7.6.6(@capacitor/core@7.6.6)':
+    dependencies:
+      '@capacitor/core': 7.6.6
+
+  '@capacitor/app@7.1.2(@capacitor/core@7.6.6)':
+    dependencies:
+      '@capacitor/core': 7.6.6
+
+  '@capacitor/browser@7.0.5(@capacitor/core@7.6.6)':
     dependencies:
       '@capacitor/core': 7.6.6
 

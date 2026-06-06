@@ -1,5 +1,9 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w23h';
+export const VERSION = '26w23i';
+
+// scheme del deep link de la app android (oauth móvil): debe coincidir con el
+// intent-filter de AndroidManifest.xml y con el listener del cliente web
+export const MOBILE_SCHEME = 'info.mier.sis';
 
 // re-exportar desde shared (single source of truth)
 export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from '@sis/shared';

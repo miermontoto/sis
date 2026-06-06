@@ -5,14 +5,20 @@ import { storeTokens } from '../services/token-manager.js';
 import { restartPolling } from '../services/polling.js';
 import { markRateLimited } from '../services/spotify-client.js';
 import { createSession, deleteSession } from '../services/session.js';
+import { createOneTimeCodeStore } from '@platform/auth';
 import { findOrCreateUser, isAllowedUser, migrateExistingData } from '../services/user-manager.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
 import crypto from 'crypto';
+import { MOBILE_SCHEME } from '../constants.js';
 
 const auth = new Hono();
 
 // almacenar state para prevenir CSRF
 const pendingStates = new Set<string>();
+
+// oauth móvil: el callback emite un código de un solo uso que viaja en el deep
+// link; la app lo canjea por la cookie de sesión en POST /auth/mobile/exchange
+const mobileAuthCodes = createOneTimeCodeStore<string>({ ttlMs: 60_000 });
 
 auth.get('/login', (c) => {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -30,6 +36,17 @@ auth.get('/login', (c) => {
     path: '/',
     maxAge: 10 * 60, // 10 min, mismo que el state
   });
+
+  // flag de flujo móvil (apk): el callback redirige al deep link de la app en
+  // vez de a la spa. cookie del browser del sistema, misma vida que el state.
+  if (c.req.query('mobile') === '1') {
+    setCookie(c, 'sis_mobile', '1', {
+      httpOnly: true,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: 10 * 60,
+    });
+  }
 
   const state = crypto.randomBytes(16).toString('hex');
   pendingStates.add(state);
@@ -152,11 +169,38 @@ auth.get('/callback', async (c) => {
   const returnTo = getCookie(c, 'sis_return_to') || '/';
   deleteCookie(c, 'sis_return_to', { path: '/' });
 
+  // flujo móvil: entregar un código de un solo uso a la app via deep link; la
+  // sesión ya existe — la app la canjea por su cookie en /auth/mobile/exchange
+  if (getCookie(c, 'sis_mobile') === '1') {
+    deleteCookie(c, 'sis_mobile', { path: '/' });
+    const code = mobileAuthCodes.issue(sessionToken);
+    console.log('[auth] OAuth móvil completado, entregando código a la app');
+    return c.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
+  }
+
   // solo permitir rutas relativas para evitar open redirect
   const safePath = returnTo.startsWith('/') ? returnTo : '/';
 
   console.log('[auth] OAuth completado exitosamente');
   return c.redirect(safePath);
+});
+
+// canje del código del deep link por la cookie de sesión (apk). la llamada
+// llega por CapacitorHttp (capa nativa): la cookie queda en el jar nativo.
+auth.post('/mobile/exchange', async (c) => {
+  const body = await c.req.json<{ code?: string }>().catch(() => null);
+  if (!body?.code) return c.json({ error: 'code requerido' }, 400);
+  const sessionToken = mobileAuthCodes.redeem(body.code);
+  if (!sessionToken) return c.json({ error: 'código inválido o caducado' }, 400);
+  const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
+  setCookie(c, 'sis_session', sessionToken, {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+  return c.json({ ok: true });
 });
 
 auth.get('/logout', (c) => {
