@@ -5,7 +5,9 @@ import type { DateRangeParams } from '@sis/shared';
 import * as cache from '../cache/cache';
 import { isNoCache } from '../cache/config';
 
-const BASE = '/api';
+// VITE_API_BASE: vacía en web (same-origin); dominio público en builds móviles
+const API_ORIGIN = import.meta.env.VITE_API_BASE ?? '';
+const BASE = `${API_ORIGIN}/api`;
 
 const responseCache = new Map<string, cache.L1Entry>();
 const inflightRequests = new Map<string, Promise<unknown>>();
@@ -79,7 +81,7 @@ export class PublicShareError extends Error {
 // fetch para rutas públicas (/public/*, sin sesión): nunca redirige a /login
 // y no toca el cache namespaced por usuario. El HTTP cache del navegador basta.
 export async function publicFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(`/public${path}`, window.location.origin);
+  const url = new URL(`${API_ORIGIN}/public${path}`, window.location.origin);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString());
   if (res.status === 404 || res.status === 410) throw new PublicShareError(res.status);
