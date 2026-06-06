@@ -11,3 +11,12 @@ export async function shareEntity(title: string, url: string): Promise<void> {
     throw e;
   }
 }
+
+// url pública de la ruta actual: en el apk window.location.origin es el origen
+// local del webview (https://localhost) — la base pública sale de VITE_API_BASE
+// (la api sirve la spa en el mismo dominio). en web, href tal cual.
+export function publicHref(): string {
+  const base = import.meta.env.VITE_API_BASE;
+  if (!base) return window.location.href;
+  return `${base}${window.location.pathname}${window.location.search}`;
+}

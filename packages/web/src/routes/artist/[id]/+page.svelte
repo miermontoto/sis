@@ -22,7 +22,7 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
-  import { canShare, shareEntity } from '$lib/utils/share';
+  import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
   let data = $state<ArtistDetail | null>(null);
   let loading = $state(true);
@@ -132,7 +132,7 @@
         title="Actions"
         actions={[
           ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${$page.params.id}`, '_blank') }] : []),
-          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.name ?? 'Artist', window.location.href) }] : []),
+          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.name ?? 'Artist', publicHref()) }] : []),
           { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
         ]}
       />

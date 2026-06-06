@@ -21,7 +21,7 @@
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
-  import { canShare, shareEntity } from '$lib/utils/share';
+  import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
 
   let data = $state<AlbumDetail | null>(null);
@@ -248,7 +248,7 @@
         title="Actions"
         actions={[
           ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
-          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', window.location.href) }] : []),
+          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
           { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
           { label: 'Manage merges', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
           ...((data?.mergedFrom?.length ?? 0) > 0 ? [{ label: 'Auto-merge tracks', icon: IconMerge, onClick: () => { mergeInitialStep = 'remerge'; showMergeModal = true; } }] : []),

@@ -6,7 +6,7 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import CoverGrid from '$lib/components/CoverGrid.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
-  import { canShare, shareEntity } from '$lib/utils/share';
+  import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import IconShare from '$lib/icons/IconShare.svelte';
 
   let profile = $state<ProfileResponse | null>(null);
@@ -74,7 +74,7 @@
   }
 
   async function shareProfile() {
-    const url = window.location.href;
+    const url = publicHref();
     if (canShare()) {
       await shareEntity(profile?.summary.displayName ?? 'Profile', url);
     } else {

@@ -28,7 +28,7 @@
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
-  import { canShare, shareEntity } from '$lib/utils/share';
+  import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
 
 
@@ -430,7 +430,7 @@
             { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack($page.params.id) },
             { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${$page.params.id}`, '_blank') },
           ] : []),
-          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', window.location.href) }] : []),
+          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
           { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
         ]}
       />
