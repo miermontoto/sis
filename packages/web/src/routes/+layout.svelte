@@ -82,7 +82,9 @@
   onMount(async () => {
     const { Capacitor } = await import('@capacitor/core');
     if (!Capacitor.isNativePlatform()) return;
-    const { onAuthDeepLink } = await import('@platform/mobile/deep-link');
+    const { onAppLink, onAuthDeepLink } = await import('@platform/mobile/deep-link');
+    // app links https: navegar a la ruta del link (compartidos /s /u /artist...)
+    await onAppLink('sis.mier.info', (path) => goto(path));
     await onAuthDeepLink('info.mier.sis', async (url) => {
       const code = url.searchParams.get('code');
       if (!code) return;

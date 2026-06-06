@@ -31,6 +31,21 @@
                 <data android:scheme="info.mier.sis" />
             </intent-filter>
 
+            <!-- app links verificados (assetlinks.json en el dominio): los links
+                 de la app abren la app. paths enumerados a propósito — el dominio
+                 entero interceptaría callbacks oauth que viven en el browser -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="sis.mier.info" />
+                <data android:pathPrefix="/s" />
+                <data android:pathPrefix="/u" />
+                <data android:pathPrefix="/artist" />
+                <data android:pathPrefix="/track" />
+                <data android:pathPrefix="/album" />
+            </intent-filter>
+
         </activity>
 
         <provider
