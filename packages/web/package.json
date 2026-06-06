@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "mobile:build": "VITE_API_BASE=https://sis.mier.info vite build && cp build/200.html build/index.html && pnpm exec cap sync android",
-    "mobile:apk": "pnpm mobile:build && cd android && ./gradlew assembleDebug -q && echo APK: android/app/build/outputs/apk/debug/app-debug.apk"
+    "mobile:apk": "pnpm mobile:build && cd android && ./gradlew assembleDebug -q && echo APK: android/app/build/outputs/apk/debug/app-debug.apk",
+    "mobile:aab": "pnpm mobile:build && cd android && ./gradlew bundleRelease -q && echo AAB: android/app/build/outputs/bundle/release/app-release.aab"
   },
   "dependencies": {
     "@capacitor/app": "^7.0.0",
