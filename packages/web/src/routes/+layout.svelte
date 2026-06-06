@@ -9,7 +9,7 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
-  import { api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
+  import { API_BASE, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -155,7 +155,7 @@
     }
     if (authCheckDone) return;
     authCheckDone = true;
-    fetch('/api/health')
+    fetch(`${API_BASE}/health`)
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
         else {

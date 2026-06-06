@@ -33,7 +33,7 @@ export type {
 export { LOCALE_OPTIONS } from '@sis/shared';
 
 // --- client / settings / endpoints ---
-export { apiFetch, apiMutate, publicFetch, PublicShareError, rangeParams, createFetchController, invalidateCache } from './client.js';
+export { API_BASE, apiFetch, apiMutate, publicFetch, PublicShareError, rangeParams, createFetchController, invalidateCache } from './client.js';
 export {
   loadSettings, getLocale, setLastPeriod,
   getRankingMetric, setRankingMetric,
