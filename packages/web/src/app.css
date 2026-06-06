@@ -1685,3 +1685,14 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     padding-top: env(safe-area-inset-top);
   }
 }
+
+/* mapeo de tokens a las custom properties de los componentes de @platform/ui */
+:root {
+  --ui-text: var(--text);
+  --ui-text-muted: var(--text-muted);
+  --ui-accent: var(--accent);
+  --ui-border: var(--border);
+  --ui-bg-card: var(--bg-card);
+  --ui-bg-hover: var(--bg-hover);
+  --ui-radius: 8px;
+}

@@ -384,9 +384,21 @@ export function stopPolling() {
   console.log('[poll] polling detenido');
 }
 
-// re-iniciar polling (útil después de OAuth de nuevo usuario)
+// re-iniciar polling (útil después de OAuth de nuevo usuario).
+// solo asegura los timers por usuario: el mantenimiento global de catálogo
+// (dedup, cleanup, enrichment) ya corre desde el arranque y es síncrono y
+// costoso — re-ejecutarlo aquí bloqueaba el callback de OAuth ~20s por login.
 export function restartPolling() {
-  stopPolling();
   resetDeferredState();
-  startPolling();
+
+  // bootstrap: si el server arrancó sin usuarios, el polling global nunca se
+  // inició — arrancarlo completo (DB recién creada, los cleanups son baratos)
+  if (!metadataRefreshTimer) {
+    startPolling();
+    return;
+  }
+
+  for (const { userId } of getAllActiveUsersWithTokens()) {
+    startPollingForUser(userId); // no-op para usuarios ya activos
+  }
 }

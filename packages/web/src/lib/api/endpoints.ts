@@ -264,3 +264,14 @@ export const api = {
     return res.json();
   },
 };
+
+// sesiones de login activas (shape SessionInfo de @platform/auth)
+export interface SessionInfo {
+  hash: string;
+  createdAt: number;
+  expiresAt: number;
+  userAgent: string | null;
+  current: boolean;
+}
+export const listLoginSessions = () => apiFetch<{ sessions: SessionInfo[] }>('/settings/sessions');
+export const logoutOtherSessions = () => apiMutate<{ ok: true; deleted: number }>('POST', '/settings/sessions/logout-others');

@@ -42,4 +42,6 @@ export function validateSession(token: string): Session | null {
 }
 
 export const deleteSession = service.deleteSession;
+export const listSessions = service.listSessions;
+export const deleteOtherSessions = service.deleteOtherSessions;
 export const cleanupExpiredSessions = service.cleanupExpiredSessions;

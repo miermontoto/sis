@@ -1,4 +1,7 @@
 import { Hono } from 'hono';
+import { getCookie } from 'hono/cookie';
+import { toSessionInfos } from '@platform/auth';
+import { deleteOtherSessions, listSessions } from '../services/session.js';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { userSettings } from '../db/schema.js';
@@ -66,6 +69,20 @@ settings.put('/', async (c) => {
   }
 
   return c.json({ ok: true });
+});
+
+// sesiones de login activas del usuario (token solo hasheado, ver @platform/auth)
+settings.get('/sessions', (c) => {
+  const currentToken = getCookie(c, 'sis_session') ?? '';
+  return c.json({ sessions: toSessionInfos(listSessions(c.get('userId')), currentToken) });
+});
+
+// cierra las demás sesiones del usuario, preservando la actual
+settings.post('/sessions/logout-others', (c) => {
+  const currentToken = getCookie(c, 'sis_session');
+  if (!currentToken) return c.json({ error: 'sin sesión activa' }, 401);
+  const deleted = deleteOtherSessions(c.get('userId'), currentToken);
+  return c.json({ ok: true, deleted });
 });
 
 export default settings;

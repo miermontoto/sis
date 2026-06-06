@@ -52,4 +52,4 @@ export {
   getSessionTrackingDisplay, setSessionTrackingDisplay, onSessionTrackingDisplayChange,
   getNowPlayingDisplay, setNowPlayingDisplay, onNowPlayingDisplayChange,
 } from './settings.js';
-export { api } from './endpoints.js';
+export { api, listLoginSessions, logoutOtherSessions, type SessionInfo } from './endpoints.js';
