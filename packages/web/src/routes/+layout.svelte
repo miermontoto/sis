@@ -148,9 +148,10 @@
     }
   });
 
-  // rutas sin chrome ni auth gate: login + vistas públicas de share links
+  // rutas sin chrome ni auth gate: login + vistas públicas de share links +
+  // política de privacidad (debe ser accesible sin sesión, p.ej. revisión de stores)
   function isBareRoute(pathname: string): boolean {
-    return pathname === '/login' || pathname.startsWith('/s/');
+    return pathname === '/login' || pathname === '/privacy' || pathname.startsWith('/s/');
   }
 
   $effect(() => {
