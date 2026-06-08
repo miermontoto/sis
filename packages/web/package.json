@@ -28,7 +28,7 @@
     "@platform/config": "workspace:*",
     "@platform/mobile": "workspace:*",
     "@sveltejs/adapter-static": "^3.0.0",
-    "@sveltejs/kit": "^2.16.0",
+    "@sveltejs/kit": "^2.60.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/d3-hierarchy": "^3.1.7",
     "@vite-pwa/sveltekit": "^1.1.0",
