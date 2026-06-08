@@ -82,6 +82,9 @@
   onMount(async () => {
     const { Capacitor } = await import('@capacitor/core');
     if (!Capacitor.isNativePlatform()) return;
+    // tinta las system bars (status + navigation) con el fondo del tema (--bg)
+    const { observeSystemBars } = await import('@platform/mobile/system-bars');
+    observeSystemBars({ backgroundVar: '--bg' });
     const { onAppLink, onAuthDeepLink } = await import('@platform/mobile/deep-link');
     // app links https: navegar a la ruta del link (compartidos /s /u /artist...)
     await onAppLink('sis.mier.info', (path) => goto(path));
@@ -498,6 +501,7 @@
           </button>
           {#if showUserMenu}
             <div class="user-menu">
+              <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
               <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
               <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
             </div>
@@ -528,6 +532,7 @@
                     <span class="mobile-user-menu-name">{user.displayName ?? user.spotifyId}</span>
                     <span class="mobile-user-menu-id">{user.spotifyId}</span>
                   </div>
+                  <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
                   <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
                   <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
                 </div>
