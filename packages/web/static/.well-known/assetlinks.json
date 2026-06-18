@@ -1,14 +1,16 @@
 [
   {
     "relation": [
-      "delegate_permission/common.handle_all_urls"
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
     ],
     "target": {
       "namespace": "android_app",
       "package_name": "info.mier.sis",
       "sha256_cert_fingerprints": [
         "CB:46:04:78:84:EA:AE:46:76:3D:08:EC:A1:8D:6B:1B:5B:69:86:D7:BC:3F:2E:2E:6B:F4:D1:AD:2E:09:C7:0F",
-        "37:51:18:09:20:D4:C2:1A:90:07:7B:9D:20:0F:55:4F:0B:06:31:75:87:37:BC:01:E1:71:9B:64:1A:C4:CC:D8"
+        "37:51:18:09:20:D4:C2:1A:90:07:7B:9D:20:0F:55:4F:0B:06:31:75:87:37:BC:01:E1:71:9B:64:1A:C4:CC:D8",
+        "78:32:22:C3:03:34:52:35:50:EC:67:76:BE:19:5F:7A:55:94:9F:21:5D:4E:13:1A:45:20:61:FF:D1:AA:63:9D"
       ]
     }
   }
