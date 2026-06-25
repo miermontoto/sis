@@ -10,6 +10,7 @@
   "dependencies": {
     "@hono/node-server": "^1.14.0",
     "@platform/auth": "workspace:*",
+    "@platform/changelog": "workspace:*",
     "@platform/core-api": "workspace:*",
     "@platform/db": "workspace:*",
     "@sis/shared": "workspace:*",

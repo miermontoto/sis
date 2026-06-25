@@ -1,0 +1,40 @@
+// changelog "novedades" de sis: fuente de verdad hand-curated. el servicio
+// (services/changelog.ts) siembra estas entradas en la tabla al arrancar.
+// versión en formato snapshot (YYwWWx, igual que VERSION en constants.ts);
+// publishedAt ISO; orden libre (la query ordena por fecha). bilingüe es/en
+// aunque la UI de sis se renderiza en inglés.
+import type { ChangelogEntryInput } from '@platform/changelog';
+
+export const CHANGELOG: ChangelogEntryInput[] = [
+  {
+    version: '26w24b',
+    publishedAt: '2026-06-12',
+    title: 'SIS on Android',
+    changes: [
+      { type: 'feature', es: 'App de Android: instala SIS y entra con Spotify desde el móvil', en: 'Android app: install SIS and sign in with Spotify from your phone' },
+      { type: 'feature', es: 'Los enlaces de sis.mier.info abren directamente la app', en: 'sis.mier.info links open the app directly' },
+      { type: 'improvement', es: 'Las barras del sistema siguen el tema claro/oscuro de la app', en: 'System bars follow the app light/dark theme' },
+    ],
+  },
+  {
+    version: '26w24a',
+    publishedAt: '2026-06-08',
+    title: 'Settings & privacy',
+    changes: [
+      { type: 'feature', es: 'Ajustes reorganizados en pestañas (general, sesiones, admin)', en: 'Settings reorganized into tabs (general, sessions, admin)' },
+      { type: 'feature', es: 'Gestiona tus sesiones de login activas y cierra las demás', en: 'Manage your active login sessions and log out the others' },
+      { type: 'feature', es: 'Nueva página de política de privacidad', en: 'New privacy policy page' },
+    ],
+  },
+  {
+    version: '26w23a',
+    publishedAt: '2026-06-01',
+    title: 'Social',
+    changes: [
+      { type: 'feature', es: 'Sigue a otros usuarios y mira su actividad en el feed', en: 'Follow other users and see their activity in the feed' },
+      { type: 'feature', es: 'Perfiles públicos y comparativa de gustos entre usuarios', en: 'Public profiles and taste comparison between users' },
+      { type: 'feature', es: 'Enlaces para compartir tu perfil sin necesidad de cuenta', en: 'Shareable profile links that need no account' },
+      { type: 'fix', es: 'Compartir ya no copiaba URLs del origen local en el móvil', en: 'Sharing no longer copied local-origin URLs on mobile' },
+    ],
+  },
+];

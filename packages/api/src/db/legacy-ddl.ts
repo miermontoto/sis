@@ -249,4 +249,23 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_session_expires ON auth_session(expires_at)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_session_user ON auth_session(user_id)'); } catch {}
+
+  // changelog "novedades" de la plataforma (@platform/changelog). mismo motivo que
+  // auth_session: ddl ad-hoc en vez de migración drizzle. changes guarda json (TEXT),
+  // published_at/seen_at son timestamp_ms (INTEGER).
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS changelog_entry (
+      version TEXT PRIMARY KEY,
+      published_at INTEGER NOT NULL,
+      title TEXT,
+      changes TEXT NOT NULL
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_changelog_published ON changelog_entry(published_at)'); } catch {}
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS changelog_seen (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      seen_at INTEGER NOT NULL
+    )`);
+  } catch {}
 }

@@ -53,3 +53,4 @@ export {
   getNowPlayingDisplay, setNowPlayingDisplay, onNowPlayingDisplayChange,
 } from './settings.js';
 export { api, listLoginSessions, logoutOtherSessions, type SessionInfo } from './endpoints.js';
+export { getChangelog, markChangelogSeen, type ChangelogStateDTO, type ChangelogEntryDTO, type ChangelogChangeDTO } from './endpoints.js';

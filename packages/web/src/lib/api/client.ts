@@ -28,6 +28,37 @@ function buildUrl(path: string, params?: Record<string, string>): string {
   return url.toString();
 }
 
+// las portadas locales (álbumes sin spotify, subidas o sacadas de musicbrainz)
+// se sirven como rutas relativas `/api/covers/...`. En web resuelven same-origin,
+// pero en el apk el webview corre en https://localhost y resolverían contra ese
+// origen → 404 → se ve el alt en vez de la imagen. Reescribimos esas rutas al
+// dominio público (API_ORIGIN). En web API_ORIGIN es '' → no-op.
+const COVERS_PREFIX = '/api/covers/';
+function resolveAssets<T>(data: T): T {
+  if (API_ORIGIN) walkAssets(data);
+  return data;
+}
+
+// muta en sitio el JSON ya parseado (lo poseemos): prefija las rutas de portada.
+function walkAssets(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const v = value[i];
+      if (typeof v === 'string') {
+        if (v.startsWith(COVERS_PREFIX)) value[i] = API_ORIGIN + v;
+      } else walkAssets(v);
+    }
+  } else if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    for (const k in obj) {
+      const v = obj[k];
+      if (typeof v === 'string') {
+        if (v.startsWith(COVERS_PREFIX)) obj[k] = API_ORIGIN + v;
+      } else walkAssets(v);
+    }
+  }
+}
+
 // fetch crudo (sin cache). Maneja 401 → redirect a login.
 async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, signal ? { signal } : undefined);
@@ -36,7 +67,7 @@ async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
     throw new Error('No autorizado');
   }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+  return resolveAssets(await res.json());
 }
 
 // wrapper genérico para llamadas GET. SWR por defecto.
@@ -86,7 +117,7 @@ export async function publicFetch<T>(path: string, params?: Record<string, strin
   const res = await fetch(url.toString());
   if (res.status === 404 || res.status === 410) throw new PublicShareError(res.status);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+  return resolveAssets(await res.json());
 }
 
 // crea un AbortController vinculado a un entity ID; aborta el anterior al cambiar
@@ -152,6 +183,7 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'DELETE', prefix: '/social/follows/',           clear: ['/social/'] },
   { method: 'POST',   prefix: '/social/share-links',        clear: ['/social/share-links'] },
   { method: 'DELETE', prefix: '/social/share-links/',       clear: ['/social/share-links'] },
+  { method: 'POST',   prefix: '/changelog/seen',            clear: ['/changelog'] },
 ];
 
 export function applyMutationInvalidation(method: string, path: string): void {
@@ -183,6 +215,8 @@ export async function apiMutate<T>(method: string, path: string, body?: unknown)
     throw new Error(err.error || `API error: ${res.status}`);
   }
   applyMutationInvalidation(method, path);
+  // 204 No Content (ej. /changelog/seen): sin cuerpo que parsear
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 

@@ -9,7 +9,8 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
-  import { API_BASE, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
+  import Changelog from '@platform/ui/Changelog.svelte';
+  import { API_BASE, api, loadSettings, getChangelog, markChangelogSeen, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type RankProjection, type ProjectionResult, type ChangelogStateDTO } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -50,6 +51,9 @@
   let showSearch = $state(false);
   let user = $state<MeResponse | null>(null);
   let appVersion = $state('');
+  // changelog "novedades": estado del usuario + modal (auto-abre si hay no vistas)
+  let changelog = $state<ChangelogStateDTO | null>(null);
+  let showChangelog = $state(false);
   let showUserMenu = $state(false);
   let expandedGroup = $state<string | null>(null);
   let userMenuRef = $state<HTMLElement | null>(null);
@@ -130,6 +134,21 @@
     return () => { ro.disconnect(); mo.disconnect(); };
   });
 
+  // cierra el modal de novedades y marca todo como visto (avanza el corte)
+  async function dismissChangelog() {
+    showChangelog = false;
+    if (changelog && changelog.unseen > 0) {
+      changelog = { ...changelog, unseen: 0 };
+      try { await markChangelogSeen(); } catch {}
+    }
+  }
+
+  // reabre el modal desde el menú de usuario
+  function openChangelog() {
+    showUserMenu = false;
+    if (changelog) showChangelog = true;
+  }
+
   function handleClickOutside(e: MouseEvent) {
     if (showUserMenu) {
       const inDesktop = userMenuRef?.contains(e.target as Node);
@@ -165,7 +184,7 @@
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
         else {
-          Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
+          Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {}), getChangelog().then(c => { changelog = c; if (c.unseen > 0) showChangelog = true; }).catch(() => {})]).finally(() => {
             authChecked = true;
             nowPlayingDisplay = getNowPlayingDisplay();
             sessionTrackingDisplay = getSessionTrackingDisplay();
@@ -504,6 +523,7 @@
             <div class="user-menu">
               <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
               <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
+              <button type="button" class="user-menu-item menu-button" onclick={openChangelog}>What's new{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>
               <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
             </div>
           {/if}
@@ -535,6 +555,7 @@
                   </div>
                   <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
                   <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
+                  <button type="button" class="user-menu-item menu-button" onclick={openChangelog}>What's new{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>
                   <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
                 </div>
               {/if}
@@ -549,6 +570,12 @@
   <KeyboardShortcutsHelp />
   <ContextMenu />
   <Toast />
+  {#if showChangelog && changelog}
+    <!-- mapea las vars --ui-* del componente compartido al tema de sis -->
+    <div style="--ui-bg-card: var(--bg); --ui-border: var(--border); --ui-radius: var(--radius); --ui-text: var(--text); --ui-accent: var(--accent); --ui-accent-text: #fff; --ui-bg-hover: var(--bg-hover); --ui-danger: var(--danger);">
+      <Changelog entries={changelog.entries} lang="en" ondismiss={dismissChangelog} />
+    </div>
+  {/if}
   {#if mergeModal.target}
     <MergeEntityModal
       bind:show={mergeModalShow}
@@ -561,3 +588,26 @@
     />
   {/if}
 {/if}
+
+<style>
+  /* el item de novedades es un <button> con el estilo de .user-menu-item (anchor) */
+  .user-menu-item.menu-button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.8rem;
+  }
+  /* punto indicador de novedades sin ver junto a "What's new" */
+  .menu-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 0.4rem;
+    border-radius: 50%;
+    background: var(--accent, #1db954);
+    vertical-align: middle;
+  }
+</style>

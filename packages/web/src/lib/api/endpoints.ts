@@ -275,3 +275,23 @@ export interface SessionInfo {
 }
 export const listLoginSessions = () => apiFetch<{ sessions: SessionInfo[] }>('/settings/sessions');
 export const logoutOtherSessions = () => apiMutate<{ ok: true; deleted: number }>('POST', '/settings/sessions/logout-others');
+
+// changelog "novedades" (shape de @platform/changelog: estado por usuario)
+export interface ChangelogChangeDTO {
+  type: 'feature' | 'improvement' | 'fix' | 'breaking';
+  es: string;
+  en: string;
+}
+export interface ChangelogEntryDTO {
+  version: string;
+  publishedAt: number;
+  title: string | null;
+  changes: ChangelogChangeDTO[];
+}
+export interface ChangelogStateDTO {
+  entries: ChangelogEntryDTO[];
+  unseen: number;
+  lastSeenAt: number | null;
+}
+export const getChangelog = () => apiFetch<ChangelogStateDTO>('/changelog');
+export const markChangelogSeen = () => apiMutate<void>('POST', '/changelog/seen');

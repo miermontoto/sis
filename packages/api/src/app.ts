@@ -1,7 +1,7 @@
 // composición de la api de sis sobre el hono base de @platform/core-api:
 // gate de sesión spotify, rutas de dominio, portadas, og html y spa estática.
 import { getCookie } from 'hono/cookie';
-import { createPlatformApp, mountSpa, sessionGate } from '@platform/core-api';
+import { createPlatformApp, mountSpa, sessionGate, changelogRoutes } from '@platform/core-api';
 import fs from 'fs';
 import path from 'path';
 import auth from './routes/auth.js';
@@ -18,6 +18,7 @@ import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession, type Session } from './services/session.js';
+import { getChangelogState, markChangelogSeen } from './services/changelog.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
@@ -64,6 +65,17 @@ app.route('/api/admin', admin);
 app.route('/api/settings', settingsRoute);
 app.route('/api/playlists', playlists);
 app.route('/api/social', social);
+
+// changelog "novedades": estado + nº no vistas para el usuario actual (el gate
+// deja userId en el contexto). marcar visto avanza el corte de lectura.
+app.route(
+  '/api/changelog',
+  changelogRoutes<SisEnv>({
+    userId: (c) => c.get('userId'),
+    getState: getChangelogState,
+    markSeen: markChangelogSeen,
+  }),
+);
 
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401
