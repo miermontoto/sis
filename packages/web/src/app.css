@@ -268,19 +268,25 @@ a:hover {
   max-width: 1200px;
 }
 
-/* layout de detalle: en pantallas anchas, columna principal + rail derecho para
-   gráficas auxiliares (drill-down, versiones). por defecto (móvil/estrecho) es una
-   sola columna en flujo normal: primero .detail-main y luego .detail-rail (abajo). */
+/* layout de detalle: columna principal + rail derecho para gráficas auxiliares
+   (drill-down, versiones). por defecto (móvil/estrecho) una sola columna en flujo
+   normal: primero .detail-main y luego .detail-rail (abajo). */
 .detail-main {
   min-width: 0;
 }
 
-@media (min-width: 1200px) {
+/* a partir de ~1800px hay hueco a la derecha del contenido (el .main-content está
+   topado a 1200px y anclado a la izquierda). el rail se coloca EN ese hueco: el grid
+   se ensancha con calc() hacia la derecha, así la columna principal conserva su ancho
+   (alineada con hero/stats) y solo el rail invade el espacio libre. como el borde
+   derecho del contenido es fijo (~1420px), el rail nunca provoca scroll horizontal. */
+@media (min-width: 1800px) {
   .detail-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
     gap: 1.5rem;
     align-items: start;
+    width: calc(100% + 320px + 1.5rem);
   }
 }
 
