@@ -288,6 +288,11 @@ a:hover {
     align-items: start;
     width: calc(100% + 320px + 1.5rem);
   }
+  /* alinear el primer título del rail con la parte superior del hero (en móvil, donde
+     el rail va abajo, sí queremos el margen de separación) */
+  .detail-rail > .section-title:first-child {
+    margin-top: 0;
+  }
 }
 
 /* tarjetas y grids */

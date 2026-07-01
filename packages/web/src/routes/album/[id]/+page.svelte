@@ -178,6 +178,8 @@
   {#if heroColor}
     <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
   {/if}
+  <div class="detail-body">
+    <div class="detail-main">
   <div class="detail-hero-row">
     <div class="detail-hero">
       <div class="cover-container" bind:this={coverContainerEl}>
@@ -261,8 +263,6 @@
   <MergeBanners entityType="album" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
   <StatsGrid stats={data.stats} />
 
-  <div class="detail-body">
-    <div class="detail-main">
   {#if !data.mergedInto}
     <RankingBadges entityType="album" entityId={$page.params.id} bind:highlightedMonth />
     <ChartStats entityType="album" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
