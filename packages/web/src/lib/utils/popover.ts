@@ -2,7 +2,8 @@
 // (el elemento padre), evitando que se salga del viewport o lo recorte el
 // overflow de un ancestro. prefiere colocarse encima del ancla y cae debajo si
 // no hay hueco; alinea el borde derecho del popover con el del ancla y clampa en
-// horizontal. reposiciona en scroll/resize mientras el popover esté montado.
+// horizontal. reposiciona en scroll/resize y ante cambios de tamaño del propio
+// popover (contenido asíncrono, filtrado de búsqueda) mientras esté montado.
 const GAP = 4; // separación entre ancla y popover
 const PAD = 8; // margen mínimo a los bordes del viewport
 
@@ -36,9 +37,14 @@ export function positionPopover(node: HTMLElement) {
   // capture:true para captar scroll de cualquier contenedor, no solo window
   window.addEventListener('scroll', place, { passive: true, capture: true });
   window.addEventListener('resize', place, { passive: true });
+  // el contenido puede crecer tras montar (carga perezosa, búsqueda): recolocar
+  // cuando cambie el tamaño. place() sólo escribe top/left, así que no realimenta
+  const ro = new ResizeObserver(place);
+  ro.observe(node);
 
   return {
     destroy() {
+      ro.disconnect();
       window.removeEventListener('scroll', place, { capture: true } as EventListenerOptions);
       window.removeEventListener('resize', place);
     },
