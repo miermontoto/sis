@@ -9,6 +9,7 @@
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
+  import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
   import MergeBanners from '$lib/components/MergeBanners.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
@@ -517,6 +518,11 @@
     <h2 class="section-title">Listening history</h2>
   {/if}
   <ActivityChart series={data.series} {metric} height="260px" />
+
+  {#if data.series.length > 1}
+    <h2 class="section-title">History by year</h2>
+    <EntityHistoryChart series={data.series} {metric} height="260px" />
+  {/if}
 
   {#if data.recentPlays.length > 0}
     <h2 class="section-title"><a href="/history?track={$page.params.id}" class="section-link">Recent plays</a></h2>

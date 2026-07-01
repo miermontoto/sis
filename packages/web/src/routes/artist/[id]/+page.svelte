@@ -7,6 +7,7 @@
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
+  import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
   import MergeBanners from '$lib/components/MergeBanners.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
@@ -148,6 +149,11 @@
   {/if}
 
   <ActivityChart series={data.series} {metric} />
+
+  {#if data.series.length > 1}
+    <h2 class="section-title">History by year</h2>
+    <EntityHistoryChart series={data.series} {metric} />
+  {/if}
 
   {#if data.topTracks.length > 0}
     <div class="section-header">
