@@ -3,7 +3,7 @@ import type {
   AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay,
   NowPlayingDisplay, SocialVisibility,
 } from '@sis/shared';
-import { apiFetch } from './client.js';
+import { apiFetch, API_BASE } from './client.js';
 
 interface SettingsData {
   rankingMetric: RankingMetric;
@@ -79,7 +79,11 @@ export async function loadSettings(): Promise<void> {
 }
 
 function updateSetting(patch: Partial<Record<string, string>>) {
-  fetch(new URL('/api/settings', window.location.origin), {
+  // API_BASE, no window.location.origin: en el apk el webview corre en
+  // https://localhost y el PUT iría a un origen sin api → el ajuste no persiste
+  // en el server (y loadSettings lo revertiría al valor viejo en el siguiente
+  // arranque). API_BASE apunta al dominio público (CapacitorHttp mete la cookie).
+  fetch(`${API_BASE}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
