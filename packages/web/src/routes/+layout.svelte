@@ -143,7 +143,7 @@
     }
   }
 
-  // reabre el modal desde el menú de usuario
+  // reabre el modal al clicar el tag de versión en el footer
   function openChangelog() {
     showUserMenu = false;
     if (changelog) showChangelog = true;
@@ -523,13 +523,12 @@
             <div class="user-menu">
               <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
               <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
-              <button type="button" class="user-menu-item menu-button" onclick={openChangelog}>What's new{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>
               <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
             </div>
           {/if}
         </div>
       {/if}
-      <div class="sidebar-footer">{#if appVersion} <a href="https://github.com/miermontoto/sis" target="_blank" rel="noopener" class="sidebar-version">{appVersion}</a>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
+      <div class="sidebar-footer">{#if appVersion} <button type="button" class="sidebar-version" onclick={openChangelog}>{appVersion}{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content">
       <div class="mobile-header">
@@ -555,7 +554,6 @@
                   </div>
                   <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
                   <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
-                  <button type="button" class="user-menu-item menu-button" onclick={openChangelog}>What's new{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>
                   <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
                 </div>
               {/if}
@@ -590,17 +588,7 @@
 {/if}
 
 <style>
-  /* el item de novedades es un <button> con el estilo de .user-menu-item (anchor) */
-  .user-menu-item.menu-button {
-    width: 100%;
-    text-align: left;
-    background: transparent;
-    border: 0;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.8rem;
-  }
-  /* punto indicador de novedades sin ver junto a "What's new" */
+  /* punto indicador de novedades sin ver junto al tag de versión */
   .menu-dot {
     display: inline-block;
     width: 6px;
