@@ -34,6 +34,27 @@ type SisEnv = { Variables: AppVariables };
 
 const app = createPlatformApp<SisEnv>();
 
+// servir portadas descargadas desde data/covers/. va ANTES del gate: son assets
+// públicos (album art, ya visibles en share links) y las <img> del webview móvil
+// no las proxia CapacitorHttp → cruzan de origen sin cookie → 401 → se vería el
+// alt en vez de la imagen. registrada antes, el handler responde y el gate no
+// llega a correr para esta ruta. las mutaciones (POST/PUT) sí van tras el gate.
+const coversDir = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
+fs.mkdirSync(coversDir, { recursive: true });
+
+app.get('/api/covers/:filename', (c) => {
+  const filename = c.req.param('filename');
+  if (!/^[\w:.%-]+\.(jpg|png)$/.test(filename)) return c.notFound();
+  const filePath = path.join(coversDir, filename);
+  if (!fs.existsSync(filePath)) return c.notFound();
+  const ext = path.extname(filename).slice(1);
+  const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+  return c.body(fs.readFileSync(filePath), 200, {
+    'Content-Type': mime,
+    'Cache-Control': 'public, max-age=604800, immutable',
+  });
+});
+
 // auth gate: proteger todas las rutas /api/* excepto health y version
 app.use(
   '/api/*',
@@ -80,23 +101,6 @@ app.route(
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401
 app.route('/public', publicRoutes);
-
-// servir portadas descargadas desde data/covers/
-const coversDir = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
-fs.mkdirSync(coversDir, { recursive: true });
-
-app.get('/api/covers/:filename', (c) => {
-  const filename = c.req.param('filename');
-  if (!/^[\w:.%-]+\.(jpg|png)$/.test(filename)) return c.notFound();
-  const filePath = path.join(coversDir, filename);
-  if (!fs.existsSync(filePath)) return c.notFound();
-  const ext = path.extname(filename).slice(1);
-  const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
-  return c.body(fs.readFileSync(filePath), 200, {
-    'Content-Type': mime,
-    'Cache-Control': 'public, max-age=604800, immutable',
-  });
-});
 
 // seleccionar portada activa
 app.put('/api/covers/album/:albumId', async (c) => {
