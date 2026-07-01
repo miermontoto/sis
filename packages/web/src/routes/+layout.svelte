@@ -10,7 +10,7 @@
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import Changelog from '@platform/ui/Changelog.svelte';
-  import { API_BASE, api, loadSettings, getChangelog, markChangelogSeen, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type RankProjection, type ProjectionResult, type ChangelogStateDTO } from '$lib/api';
+  import { API_BASE, api, loadSettings, getChangelog, markChangelogSeen, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult, type ChangelogStateDTO } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -61,6 +61,7 @@
   let tabbarRef = $state<HTMLElement | null>(null);
   let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
   let sessionTrackingDisplay = $state<SessionTrackingDisplay>('all');
+  let sessionRankDisplay = $state<SessionRankDisplay>(getSessionRankDisplay());
   let sidebarEl = $state<HTMLElement | null>(null);
   let sidebarOverflows = $state(false);
 
@@ -70,7 +71,8 @@
     if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
     else projectionsStore.stopPolling();
   });
-  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); });
+  const unsubSessionRank = onSessionRankDisplayChange(() => { sessionRankDisplay = getSessionRankDisplay(); });
+  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); unsubSessionRank(); });
 
   onMount(async () => {
     if (pwaInfo) {
@@ -188,6 +190,7 @@
             authChecked = true;
             nowPlayingDisplay = getNowPlayingDisplay();
             sessionTrackingDisplay = getSessionTrackingDisplay();
+            sessionRankDisplay = getSessionRankDisplay();
             closedChartsStore.refresh();
             nowPlayingStore.startPolling();
             if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
@@ -326,12 +329,16 @@
   };
 
   function marqueeBestChange(changes: RankProjection[]): RankProjection | null {
-    const mode = getSessionRankDisplay();
-    const allowed = ALLOWED_RANGES[mode];
+    const allowed = ALLOWED_RANGES[sessionRankDisplay];
     if (!allowed) return null;
     const filtered = changes.filter(c => allowed.has(c.range));
     if (filtered.length === 0) return null;
     return filtered.reduce((best, c) => Math.abs(c.delta) > Math.abs(best.delta) ? c : best);
+  }
+
+  // en modo solo-ALL la etiqueta de rango es redundante (no hay YTD con qué contrastar)
+  function rangeLabel(range: string): string {
+    return sessionRankDisplay === 'all' ? '' : `${RANGE_LABELS[range] ?? range} `;
   }
 
   let marqueeItems = $derived.by(() => {
@@ -385,7 +392,7 @@
                 <span class="mobile-session-sep"></span>
                 <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item">
                   <span class="mobile-session-entity">{r.entityName}</span>
-                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}</span>
+                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
                 </a>
               {/each}
             </span>
@@ -395,7 +402,7 @@
                 <span class="mobile-session-sep"></span>
                 <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item" tabindex="-1">
                   <span class="mobile-session-entity">{r.entityName}</span>
-                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}</span>
+                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
                 </a>
               {/each}
             </span>

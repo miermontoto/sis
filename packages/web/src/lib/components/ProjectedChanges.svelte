@@ -28,6 +28,11 @@
     return changes.filter(c => allowed.has(c.range));
   }
 
+  // en modo solo-ALL la etiqueta de rango es redundante (no hay YTD con qué contrastar)
+  function rangeLabel(range: string): string {
+    return displayMode === 'all' ? '' : `${RANGE_LABELS[range] ?? range} `;
+  }
+
   function rankingHref(r: ProjectionResult, range: string): string {
     return `/top?tab=${TAB_MAP[r.entityType] ?? 'tracks'}&range=${range === 'thisYear' ? 'thisYear' : 'all'}&focus=${r.entityId}`;
   }
@@ -85,7 +90,7 @@
               <a href="/{r.entityType}/{r.entityId}" class="session-name" class:session-name--marquee={overflowing.has(r.entityId)} use:trackOverflow={r.entityId}><span class="session-name-text">{r.entityName}</span></a>
               <span class="session-change-wrap">
                 <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
-                  {RANGE_LABELS[best.range] ?? best.range} #{best.currentRank}→#{best.projectedRank}
+                  {rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}
                 </a>
                 {#if best.displaced.length > 0}
                   <div class="displaced-tooltip">
