@@ -1033,11 +1033,9 @@ a.track-item {
   cursor: pointer;
 }
 .like-popover {
-  display: none;
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  padding-bottom: 4px;
+  /* posición fija calculada por use:positionPopover para no salirse del viewport
+     ni ser recortado por el overflow de la sidebar */
+  position: fixed;
   z-index: 100;
 }
 .like-popover-inner {
@@ -1051,8 +1049,6 @@ a.track-item {
   overflow-y: auto;
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
-.like-wrap:hover .like-popover,
-.like-popover--open { display: block; }
 .like-popover-title {
   font-size: 0.65rem;
   font-weight: 600;

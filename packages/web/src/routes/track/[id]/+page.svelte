@@ -29,6 +29,7 @@
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
+  import { positionPopover } from '$lib/utils/popover';
 
 
 
@@ -48,8 +49,19 @@
   let recheckingDuration = $state(false);
   let ownedPlaylists = $state<Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null; containsTrack: boolean }>>([]);
   let playlistPopoverOpen = $state(false);
+  let playlistHover = $state(false);
   let playlistActing = $state<number | null>(null);
   let playlistSearch = $state('');
+  let playlistHideTimer: ReturnType<typeof setTimeout> | null = null;
+  // hover-intent: cierre retrasado para poder mover el ratón del trigger al
+  // popover (position: fixed). el click en la badge lo fija abierto aparte
+  function openPlaylistHover() {
+    if (playlistHideTimer) { clearTimeout(playlistHideTimer); playlistHideTimer = null; }
+    playlistHover = true;
+  }
+  function closePlaylistHover() {
+    playlistHideTimer = setTimeout(() => { playlistHover = false; }, 120);
+  }
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -113,7 +125,10 @@
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   });
-  onDestroy(() => shortcutStore.unregisterPageShortcuts());
+  onDestroy(() => {
+    shortcutStore.unregisterPageShortcuts();
+    if (playlistHideTimer) clearTimeout(playlistHideTimer);
+  });
 
   $effect(() => {
     const id = $page.params.id;
@@ -322,7 +337,7 @@
         >
           <IconPlay />
         </button>
-        <div class="like-wrap">
+        <div class="like-wrap" onmouseenter={openPlaylistHover} onmouseleave={closePlaylistHover}>
           <button
             class="like-btn"
             class:like-btn--liked={isLiked}
@@ -340,7 +355,8 @@
           </button>
           {#if data && (data.playlists.length > 0 || ownedPlaylists.length > 0)}
             <span class="like-badge" onclick={() => playlistPopoverOpen = !playlistPopoverOpen}>{#if data.playlists.length > 0}+{data.playlists.length}{/if}</span>
-            <div class="like-popover" class:like-popover--open={playlistPopoverOpen}>
+            {#if playlistPopoverOpen || playlistHover}
+            <div class="like-popover" use:positionPopover>
               <div class="like-popover-inner">
                 {#if data.playlists.length > 0}
                   <div class="like-popover-title">In playlists</div>
@@ -417,6 +433,7 @@
                 {/if}
               </div>
             </div>
+            {/if}
           {/if}
         </div>
       {/if}

@@ -9,8 +9,21 @@
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import IconVolume from '$lib/icons/IconVolume.svelte';
+  import { positionPopover } from '$lib/utils/popover';
 
   let { compact = false, inline = false }: { compact?: boolean; inline?: boolean } = $props();
+
+  // hover-intent para el popover de playlists: el cierre se retrasa para poder
+  // mover el ratón del trigger al popover (posicionado con position: fixed)
+  let showPlaylists = $state(false);
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  function openPlaylists() {
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    showPlaylists = true;
+  }
+  function closePlaylists() {
+    hideTimer = setTimeout(() => { showPlaylists = false; }, 120);
+  }
 
   let acting = $state(false);
   let showDevices = $state(false);
@@ -133,7 +146,7 @@
           {/if}
         </div>
       {/if}
-      <div class="like-wrap">
+      <div class="like-wrap" onmouseenter={openPlaylists} onmouseleave={closePlaylists}>
         <button
           class="ctrl-btn ctrl-btn--like"
           class:ctrl-btn--liked={nowPlayingStore.isLiked}
@@ -151,7 +164,8 @@
         </button>
         {#if nowPlayingStore.playlists.length > 0}
           <span class="like-badge">+{nowPlayingStore.playlists.length}</span>
-          <div class="like-popover">
+          {#if showPlaylists}
+          <div class="like-popover" use:positionPopover>
             <div class="like-popover-inner">
               <div class="like-popover-title">In playlists</div>
               {#each nowPlayingStore.playlists as playlist}
@@ -166,6 +180,7 @@
               {/each}
             </div>
           </div>
+          {/if}
         {/if}
       </div>
     </div>
