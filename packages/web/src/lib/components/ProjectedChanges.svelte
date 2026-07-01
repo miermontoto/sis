@@ -10,6 +10,8 @@
 
   const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
   const TAB_MAP: Record<string, string> = { track: 'tracks', artist: 'artists', album: 'albums' };
+  const DISPLACED_LIMIT = 5; // máximo de desplazados listados en el tooltip
+  const TOOLTIP_CLOSE_MS = 120; // margen para cruzar del cambio al tooltip sin cerrarlo
 
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
 
@@ -43,6 +45,28 @@
   }
 
   let data = $derived(projectionsStore.data);
+
+  // tooltip de desplazados: fixed (escapa el scroll del sidebar) posicionado por hover.
+  // se ancla al borde derecho/inferior del cambio para replicar el antiguo tooltip absoluto.
+  type Displaced = RankProjection['displaced'];
+  let displacedHover = $state<{ entityType: string; items: Displaced; x: number; y: number } | null>(null);
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function openDisplaced(e: MouseEvent, r: ProjectionResult, best: RankProjection) {
+    if (best.displaced.length === 0) return;
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    displacedHover = { entityType: r.entityType, items: best.displaced, x: rect.right, y: rect.bottom + 4 };
+  }
+
+  function keepDisplaced() {
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+  }
+
+  function scheduleClose() {
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => { displacedHover = null; closeTimer = null; }, TOOLTIP_CLOSE_MS);
+  }
 
   let nameEls = new Map<string, HTMLElement>();
   let overflowing = $state<Set<string>>(new Set());
@@ -81,36 +105,44 @@
           {@const best = bestChange(filterChanges(r.changes))}
           {#if best}
             <div class="session-row">
-              <span class="session-icon">
-                {#if r.entityType === 'track'}<IconTrack size={12} />
+              <span class="session-thumb" class:session-thumb--art={r.imageUrl} class:session-thumb--round={r.entityType === 'artist'}>
+                {#if r.imageUrl}
+                  <img src={r.imageUrl} alt="" loading="lazy" />
+                {:else if r.entityType === 'track'}<IconTrack size={12} />
                 {:else if r.entityType === 'artist'}<IconArtist size={12} />
                 {:else}<IconAlbum size={12} />
                 {/if}
               </span>
               <a href="/{r.entityType}/{r.entityId}" class="session-name" class:session-name--marquee={overflowing.has(r.entityId)} use:trackOverflow={r.entityId}><span class="session-name-text">{r.entityName}</span></a>
-              <span class="session-change-wrap">
+              <span class="session-change-wrap" onmouseenter={(e) => openDisplaced(e, r, best)} onmouseleave={scheduleClose}>
                 <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
                   {rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}
                 </a>
-                {#if best.displaced.length > 0}
-                  <div class="displaced-tooltip">
-                    {#each best.displaced.slice(0, 5) as d}
-                      <div class="displaced-row">
-                        <span class="displaced-arrow">▲</span>
-                        {#if d.imageUrl}<img class="displaced-img" src={d.imageUrl} alt="" />{/if}
-                        <a href="/{r.entityType}/{d.id}" class="displaced-name">{d.name}</a>
-                      </div>
-                    {/each}
-                    {#if best.displaced.length > 5}
-                      <div class="displaced-more">+{best.displaced.length - 5} más</div>
-                    {/if}
-                  </div>
-                {/if}
               </span>
             </div>
           {/if}
         {/each}
       </div>
+    {/if}
+  </div>
+{/if}
+
+{#if displacedHover}
+  <div
+    class="displaced-tooltip"
+    style="left: {displacedHover.x}px; top: {displacedHover.y}px;"
+    onmouseenter={keepDisplaced}
+    onmouseleave={scheduleClose}
+  >
+    {#each displacedHover.items.slice(0, DISPLACED_LIMIT) as d}
+      <div class="displaced-row">
+        <span class="displaced-arrow">▲</span>
+        {#if d.imageUrl}<img class="displaced-img" src={d.imageUrl} alt="" />{/if}
+        <a href="/{displacedHover.entityType}/{d.id}" class="displaced-name">{d.name}</a>
+      </div>
+    {/each}
+    {#if displacedHover.items.length > DISPLACED_LIMIT}
+      <div class="displaced-more">+{displacedHover.items.length - DISPLACED_LIMIT} más</div>
     {/if}
   </div>
 {/if}
@@ -136,6 +168,21 @@
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
+    /* tope ~5 filas; a partir de ahí scroll interno en vez de crecer sin límite */
+    max-height: 8rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  .session-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .session-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
   }
 
   .session-title {
@@ -160,13 +207,33 @@
     min-width: 0;
   }
 
-  .session-icon {
+  .session-thumb {
     flex-shrink: 0;
-    width: 1rem;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.6;
+    border-radius: 3px;
+    overflow: hidden;
+    opacity: 0.6; /* glifo de fallback atenuado */
+  }
+
+  /* con imagen real: plena opacidad y fondo tenue mientras carga */
+  .session-thumb--art {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* artistas en círculo, álbumes/tracks con esquinas suaves */
+  .session-thumb--round {
+    border-radius: 50%;
+  }
+
+  .session-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .session-name {
@@ -201,7 +268,6 @@
 
   .session-change-wrap {
     flex-shrink: 0;
-    position: relative;
   }
 
   .session-change {
@@ -223,13 +289,12 @@
     color: #e34234;
   }
 
+  /* fixed + translateX(-100%): ancla el borde derecho en la coordenada x del cambio,
+     escapando el overflow del sidebar y del scroll interno de la lista */
   .displaced-tooltip {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: 100%;
-    z-index: 100;
-    margin-top: 4px;
+    position: fixed;
+    transform: translateX(-100%);
+    z-index: 1000;
     padding: 0.4rem 0.5rem;
     background: var(--bg-elevated, #1e1e1e);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -237,10 +302,6 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     white-space: nowrap;
     min-width: max-content;
-  }
-
-  .session-change-wrap:hover .displaced-tooltip {
-    display: block;
   }
 
   .displaced-row {

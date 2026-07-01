@@ -208,6 +208,12 @@ records.get('/projected-rankings', (c) => {
 
     if (target.entityType === 'track') {
       entityName = trackNameMap.get(target.entityId) ?? '';
+      // el track no tiene imagen propia: usamos la portada de su álbum
+      const t = db.select({ albumId: tracks.albumId }).from(tracks).where(eq(tracks.spotifyId, target.entityId)).get();
+      if (t?.albumId) {
+        const al = db.select({ imageUrl: albums.imageUrl }).from(albums).where(eq(albums.spotifyId, t.albumId)).get();
+        imageUrl = al?.imageUrl ?? null;
+      }
     } else if (target.entityType === 'artist') {
       const a = db.select().from(artists).where(eq(artists.spotifyId, target.entityId)).get();
       entityName = a?.name ?? '';
