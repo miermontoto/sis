@@ -9,21 +9,9 @@
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import IconVolume from '$lib/icons/IconVolume.svelte';
-  import { positionPopover } from '$lib/utils/popover';
+  import PlaylistPopover from './PlaylistPopover.svelte';
 
   let { compact = false, inline = false }: { compact?: boolean; inline?: boolean } = $props();
-
-  // hover-intent para el popover de playlists: el cierre se retrasa para poder
-  // mover el ratón del trigger al popover (posicionado con position: fixed)
-  let showPlaylists = $state(false);
-  let hideTimer: ReturnType<typeof setTimeout> | null = null;
-  function openPlaylists() {
-    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-    showPlaylists = true;
-  }
-  function closePlaylists() {
-    hideTimer = setTimeout(() => { showPlaylists = false; }, 120);
-  }
 
   let acting = $state(false);
   let showDevices = $state(false);
@@ -146,43 +134,30 @@
           {/if}
         </div>
       {/if}
-      <div class="like-wrap" onmouseenter={openPlaylists} onmouseleave={closePlaylists}>
-        <button
-          class="ctrl-btn ctrl-btn--like"
-          class:ctrl-btn--liked={nowPlayingStore.isLiked}
-          title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-          disabled={nowPlayingStore.likeLoading}
-          onclick={() => nowPlayingStore.toggleLike()}
-        >
-          {#if nowPlayingStore.likeLoading}
-            <span class="btn-spinner"></span>
-          {:else if nowPlayingStore.isLiked}
-            <IconHeartFilled size={14} />
-          {:else}
-            <IconHeartOutline size={14} />
-          {/if}
-        </button>
-        {#if nowPlayingStore.playlists.length > 0}
-          <span class="like-badge">+{nowPlayingStore.playlists.length}</span>
-          {#if showPlaylists}
-          <div class="like-popover" use:positionPopover>
-            <div class="like-popover-inner">
-              <div class="like-popover-title">In playlists</div>
-              {#each nowPlayingStore.playlists as playlist}
-                <a href="/playlists/{playlist.id}" class="like-popover-item">
-                  {#if playlist.imageUrl}
-                    <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
-                  {:else}
-                    <div class="like-popover-art"></div>
-                  {/if}
-                  <span>{playlist.name}</span>
-                </a>
-              {/each}
-            </div>
-          </div>
-          {/if}
-        {/if}
-      </div>
+      <PlaylistPopover
+        trackId={data?.track?.id ?? null}
+        inPlaylists={nowPlayingStore.playlists}
+        onAdd={(pl) => { nowPlayingStore.playlists = [...nowPlayingStore.playlists, pl]; }}
+        onRemove={(id) => { nowPlayingStore.playlists = nowPlayingStore.playlists.filter(p => p.id !== id); }}
+      >
+        {#snippet likeButton()}
+          <button
+            class="ctrl-btn ctrl-btn--like"
+            class:ctrl-btn--liked={nowPlayingStore.isLiked}
+            title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+            disabled={nowPlayingStore.likeLoading}
+            onclick={() => nowPlayingStore.toggleLike()}
+          >
+            {#if nowPlayingStore.likeLoading}
+              <span class="btn-spinner"></span>
+            {:else if nowPlayingStore.isLiked}
+              <IconHeartFilled size={14} />
+            {:else}
+              <IconHeartOutline size={14} />
+            {/if}
+          </button>
+        {/snippet}
+      </PlaylistPopover>
     </div>
   </div>
 {/if}

@@ -27,10 +27,8 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
-  import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
-  import IconPlus from '$lib/icons/IconPlus.svelte';
+  import PlaylistPopover from '$lib/components/PlaylistPopover.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
-  import { positionPopover } from '$lib/utils/popover';
 
   let data = $state<TrackDetail | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
@@ -46,21 +44,6 @@
   let editingDuration = $state(false);
   let durationInput = $state('');
   let recheckingDuration = $state(false);
-  let ownedPlaylists = $state<Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null; containsTrack: boolean }>>([]);
-  let playlistPopoverOpen = $state(false);
-  let playlistHover = $state(false);
-  let playlistActing = $state<number | null>(null);
-  let playlistSearch = $state('');
-  let playlistHideTimer: ReturnType<typeof setTimeout> | null = null;
-  // hover-intent: cierre retrasado para poder mover el ratón del trigger al
-  // popover (position: fixed). el click en la badge lo fija abierto aparte
-  function openPlaylistHover() {
-    if (playlistHideTimer) { clearTimeout(playlistHideTimer); playlistHideTimer = null; }
-    playlistHover = true;
-  }
-  function closePlaylistHover() {
-    playlistHideTimer = setTimeout(() => { playlistHover = false; }, 120);
-  }
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -78,16 +61,6 @@
       } else {
         heroColor = '';
       }
-      api.libraryPlaylists(200, 0).then(res => {
-        if (signal.aborted) return;
-        const inIds = new Set(result.playlists.map(p => p.id));
-        ownedPlaylists = res.items
-          .filter(p => p.isOwned)
-          .map(p => ({
-            id: p.id, spotifyId: p.spotifyId, name: p.name, imageUrl: p.imageUrl,
-            containsTrack: inIds.has(p.id),
-          }));
-      }).catch(() => { ownedPlaylists = []; });
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;
@@ -115,18 +88,9 @@
         return false;
       },
     );
-    function handleClickOutside(e: MouseEvent) {
-      if (playlistPopoverOpen && !(e.target as Element)?.closest('.like-wrap')) {
-        playlistPopoverOpen = false;
-        playlistSearch = '';
-      }
-    }
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
   });
   onDestroy(() => {
     shortcutStore.unregisterPageShortcuts();
-    if (playlistHideTimer) clearTimeout(playlistHideTimer);
   });
 
   $effect(() => {
@@ -136,8 +100,6 @@
     if (id !== prevId) {
       data = null;
       chartHistoryData = null;
-      ownedPlaylists = [];
-      playlistPopoverOpen = false;
       prevId = id;
     }
     loadData(id);
@@ -205,48 +167,6 @@
       toastStore.show('Error al consultar Spotify', 'error');
     } finally {
       recheckingDuration = false;
-    }
-  }
-
-  let ownedIds = $derived(new Set(ownedPlaylists.map(p => p.id)));
-  let addablePlaylists = $derived(ownedPlaylists.filter(p => !p.containsTrack));
-  let addSearchResults = $derived.by(() => {
-    const q = playlistSearch.trim().toLowerCase();
-    if (!q) return addablePlaylists.slice(0, 3);
-    return addablePlaylists.filter(p => p.name.toLowerCase().includes(q));
-  });
-
-  async function addToPlaylist(playlistId: number) {
-    const trackId = $page.params.id;
-    if (!trackId || playlistActing) return;
-    playlistActing = playlistId;
-    try {
-      await api.addTrackToPlaylist(playlistId, trackId);
-      const pl = ownedPlaylists.find(p => p.id === playlistId);
-      if (pl) pl.containsTrack = true;
-      if (data && pl && !data.playlists.some(p => p.id === playlistId)) {
-        data.playlists = [...data.playlists, { id: pl.id, spotifyId: pl.spotifyId, name: pl.name, imageUrl: pl.imageUrl, isOwned: true }];
-      }
-    } catch (e) {
-      console.error('error al agregar a playlist:', e);
-    } finally {
-      playlistActing = null;
-    }
-  }
-
-  async function removeFromPlaylist(playlistId: number) {
-    const trackId = $page.params.id;
-    if (!trackId || playlistActing) return;
-    playlistActing = playlistId;
-    try {
-      await api.removeTrackFromPlaylist(playlistId, trackId);
-      const pl = ownedPlaylists.find(p => p.id === playlistId);
-      if (pl) pl.containsTrack = false;
-      if (data) data.playlists = data.playlists.filter(p => p.id !== playlistId);
-    } catch (e) {
-      console.error('error al eliminar de playlist:', e);
-    } finally {
-      playlistActing = null;
     }
   }
 
@@ -336,105 +256,30 @@
         >
           <IconPlay />
         </button>
-        <div class="like-wrap" onmouseenter={openPlaylistHover} onmouseleave={closePlaylistHover}>
-          <button
-            class="like-btn"
-            class:like-btn--liked={isLiked}
-            title={likeLoading ? 'Loading...' : isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-            disabled={likeActing || likeLoading}
-            onclick={toggleLike}
-          >
-            {#if likeLoading}
-              <span class="btn-spinner"></span>
-            {:else if isLiked}
-              <IconHeartFilled />
-            {:else}
-              <IconHeartOutline />
-            {/if}
-          </button>
-          {#if data && (data.playlists.length > 0 || ownedPlaylists.length > 0)}
-            <span class="like-badge" onclick={() => playlistPopoverOpen = !playlistPopoverOpen}>{#if data.playlists.length > 0}+{data.playlists.length}{/if}</span>
-            {#if playlistPopoverOpen || playlistHover}
-            <div class="like-popover" use:positionPopover>
-              <div class="like-popover-inner">
-                {#if data.playlists.length > 0}
-                  <div class="like-popover-title">In playlists</div>
-                {/if}
-                {#each data.playlists as playlist}
-                  {#if ownedIds.has(playlist.id)}
-                    <div class="like-popover-item like-popover-item--owned">
-                      <a href="/playlists/{playlist.id}" class="like-popover-item-link">
-                        {#if playlist.imageUrl}
-                          <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
-                        {:else}
-                          <div class="like-popover-art"></div>
-                        {/if}
-                        <span>{playlist.name}</span>
-                      </a>
-                      <button
-                        class="like-popover-action like-popover-action--remove"
-                        title="Remove from {playlist.name}"
-                        disabled={playlistActing === playlist.id}
-                        onclick={() => removeFromPlaylist(playlist.id)}
-                      >
-                        {#if playlistActing === playlist.id}
-                          <span class="btn-spinner"></span>
-                        {:else}
-                          <IconCheckSmall />
-                        {/if}
-                      </button>
-                    </div>
-                  {:else}
-                    <a href="/playlists/{playlist.id}" class="like-popover-item">
-                      {#if playlist.imageUrl}
-                        <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
-                      {:else}
-                        <div class="like-popover-art"></div>
-                      {/if}
-                      <span>{playlist.name}</span>
-                    </a>
-                  {/if}
-                {/each}
-                {#if ownedPlaylists.length > 0}
-                  <div class="like-popover-search">
-                    <input
-                      type="text"
-                      class="like-popover-search-input"
-                      placeholder="Add to playlist..."
-                      bind:value={playlistSearch}
-                      onclick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  {#each addSearchResults as playlist}
-                    <div class="like-popover-item like-popover-item--owned">
-                      <span class="like-popover-item-link">
-                        {#if playlist.imageUrl}
-                          <img class="like-popover-art" src={playlist.imageUrl} alt={playlist.name} />
-                        {:else}
-                          <div class="like-popover-art"></div>
-                        {/if}
-                        <span>{playlist.name}</span>
-                      </span>
-                      <button
-                        class="like-popover-action like-popover-action--add"
-                        title="Add to {playlist.name}"
-                        disabled={playlistActing === playlist.id}
-                        onclick={() => addToPlaylist(playlist.id)}
-                      >
-                        {#if playlistActing === playlist.id}
-                          <span class="btn-spinner"></span>
-                        {:else}
-                          <IconPlus />
-                        {/if}
-                      </button>
-                    </div>
-                  {/each}
-                {/if}
-              </div>
-            </div>
-            {/if}
-          {/if}
-        </div>
+        <PlaylistPopover
+          trackId={$page.params.id}
+          inPlaylists={data.playlists}
+          onAdd={(pl) => { if (data && !data.playlists.some(p => p.id === pl.id)) data.playlists = [...data.playlists, { ...pl, isOwned: true }]; }}
+          onRemove={(id) => { if (data) data.playlists = data.playlists.filter(p => p.id !== id); }}
+        >
+          {#snippet likeButton()}
+            <button
+              class="like-btn"
+              class:like-btn--liked={isLiked}
+              title={likeLoading ? 'Loading...' : isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+              disabled={likeActing || likeLoading}
+              onclick={toggleLike}
+            >
+              {#if likeLoading}
+                <span class="btn-spinner"></span>
+              {:else if isLiked}
+                <IconHeartFilled />
+              {:else}
+                <IconHeartOutline />
+              {/if}
+            </button>
+          {/snippet}
+        </PlaylistPopover>
       {/if}
       {#if !data.mergedInto}
         <Accolades entityType="track" entityId={$page.params.id} />

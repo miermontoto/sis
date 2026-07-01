@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w27j';
+export const VERSION = '26w27l';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -77,3 +77,14 @@ export const OG_IMAGE_CACHE_MS = 10 * 60_000;
 
 // umbral de staleness para now-playing en superficies sociales (2 min)
 export const SOCIAL_NOW_PLAYING_STALE_MS = 2 * 60_000;
+
+// --- notificaciones push ---
+
+// máximo de notificaciones por usuario y día (throttle de 'record' y 'number_one')
+export const NOTIFICATION_MAX_PER_DAY = 15;
+
+// categorías de records cuyo top-10 se vigila para disparar un 'record'
+export const RECORD_NOTIFY_CATEGORIES = ['peakWeekPlays', 'mostWeeksAtNo1', 'longestChartRun'] as const;
+
+// número de entradas del top incluidas en el recap de 'chart_closing'
+export const NOTIFY_CHART_TOP_N = 3;

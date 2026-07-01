@@ -168,6 +168,7 @@ export const nowPlayingStore = {
   get lastFinishedPlay() { return _lastFinishedPlay; },
   get volumePercent() { return _volumePercent; },
   get playlists() { return _playlists; },
+  set playlists(v: NpPlaylist[]) { _playlists = v; },
   startPolling,
   stopPolling,
   pollLive,
