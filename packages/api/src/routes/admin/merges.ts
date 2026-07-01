@@ -422,11 +422,14 @@ merges.get('/merge-suggestions', (c) => {
     const artistInClause = parentIds.length === 1
       ? sql`ta.artist_id = ${parentIds[0]}`
       : sql`ta.artist_id IN (${sql.join(parentIds.map(id => sql`${id}`), sql`, `)})`;
+    // matchear el artista en cualquier posición (no solo la principal): distintos releases
+    // de la misma canción acreditan al artista en distinto orden (ej. "The Line" en el álbum
+    // de la banda sonora vs. el single), y con position=0 no aparecerían como candidatos.
     rows = db.all(sql`
       SELECT e.spotify_id as id, e.name, al.image_url as image_url,
              COALESCE(s.play_count, 0) as plays
       FROM tracks e
-      JOIN track_artists ta ON ta.track_id = e.spotify_id AND ta.position = 0
+      JOIN track_artists ta ON ta.track_id = e.spotify_id
       LEFT JOIN albums al ON al.spotify_id = e.album_id
       LEFT JOIN (
         SELECT track_id, COUNT(*) as play_count
