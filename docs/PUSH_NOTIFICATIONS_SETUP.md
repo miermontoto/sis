@@ -180,11 +180,14 @@ recorded (nothing fires), so backfills/imports don't trigger a burst.
 - **Opt-in**: an event sends only if the user has `notificationsEnabled` on
   **and** the matching per-type toggle on (`notifyRecords`, `notifyNumberOne`,
   `notifyChartClosings`, `notifyBiggestDebut`).
-- **No devices**: if the user has no active device tokens, nothing is sent and
-  nothing is recorded — so the event can still fire once a device is registered.
-- **Throttle**: `record` and `number_one` are capped at
-  `NOTIFICATION_MAX_PER_DAY` (15) per user per rolling 24h.
-  `chart_closing` and `biggest_debut` bypass the cap.
+- **No deliverable channel**: if the user has no active device token *on a
+  configured transport* (no device at all, or FCM/VAPID creds not set for the
+  device's platform), nothing is sent and nothing is recorded — so the event can
+  still fire once a device is registered **and** credentials exist. This is why
+  events aren't "consumed" while you run credential-less.
+- **Throttle**: only `record` is capped at `NOTIFICATION_MAX_PER_DAY` (15) per
+  user per rolling 24h. The weekly-close events (`number_one`, `chart_closing`,
+  `biggest_debut`) bypass the cap so a busy records day can't swallow them.
 - **Dedup**: each `(user, type, entity, period)` is sent at most once.
 
 ---
