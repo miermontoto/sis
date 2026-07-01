@@ -1,4 +1,4 @@
-import { getRankingMetric, type ProjectedRankingsResponse } from '$lib/api';
+import { getRankingMetric, API_BASE, type ProjectedRankingsResponse } from '$lib/api';
 import { nowPlayingStore } from './now-playing.svelte';
 
 let _data = $state<ProjectedRankingsResponse | null>(null);
@@ -16,7 +16,9 @@ async function fetchProjections() {
   _pendingTrackId = trackId;
 
   try {
-    const url = `/api/stats/projected-rankings?sort=${getRankingMetric()}`;
+    // API_BASE (no url relativa): en el apk el webview corre en https://localhost
+    // y una ruta relativa iría a ese origen sin api → la sesión no proyecta nada.
+    const url = `${API_BASE}/stats/projected-rankings?sort=${getRankingMetric()}`;
     const res = await fetch(url, { signal: _controller.signal });
     if (!res.ok) return;
     const result: ProjectedRankingsResponse = await res.json();
