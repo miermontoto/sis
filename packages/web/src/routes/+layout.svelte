@@ -391,6 +391,7 @@
               {#each marqueeItems as { r, best }}
                 <span class="mobile-session-sep"></span>
                 <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item">
+                  {#if r.imageUrl}<img class="mobile-session-thumb" class:mobile-session-thumb--round={r.entityType === 'artist'} src={r.imageUrl} alt="" loading="lazy" />{/if}
                   <span class="mobile-session-entity">{r.entityName}</span>
                   <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
                 </a>
@@ -401,6 +402,7 @@
               {#each marqueeItems as { r, best }}
                 <span class="mobile-session-sep"></span>
                 <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item" tabindex="-1">
+                  {#if r.imageUrl}<img class="mobile-session-thumb" class:mobile-session-thumb--round={r.entityType === 'artist'} src={r.imageUrl} alt="" loading="lazy" />{/if}
                   <span class="mobile-session-entity">{r.entityName}</span>
                   <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
                 </a>

@@ -1352,6 +1352,20 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     color: inherit;
   }
 
+  /* thumbnail del ticker: artistas en círculo, álbumes/tracks con esquinas suaves */
+  .mobile-session-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .mobile-session-thumb--round {
+    border-radius: 50%;
+  }
+
   .mobile-session-entity {
     color: var(--text-secondary, #aaa);
   }
