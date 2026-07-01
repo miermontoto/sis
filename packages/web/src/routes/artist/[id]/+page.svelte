@@ -143,17 +143,14 @@
   <MergeBanners entityType="artist" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
   <StatsGrid stats={data.stats} />
 
+  <div class="detail-body">
+    <div class="detail-main">
   {#if !data.mergedInto}
     <RankingBadges entityType="artist" entityId={$page.params.id} bind:highlightedMonth />
     <ChartStats entityType="artist" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
   {/if}
 
   <ActivityChart series={data.series} {metric} />
-
-  {#if data.series.length > 1}
-    <h2 class="section-title">History by year</h2>
-    <EntityHistoryChart series={data.series} {metric} />
-  {/if}
 
   {#if data.topTracks.length > 0}
     <div class="section-header">
@@ -207,6 +204,15 @@
     <h2 class="section-title"><a href="/history?artist={$page.params.id}" class="section-link">Recent plays</a></h2>
     <TrackList items={data.recentPlays} showTime />
   {/if}
+    </div>
+
+    <aside class="detail-rail">
+      {#if data.series.length > 1}
+        <h2 class="section-title">History by year</h2>
+        <EntityHistoryChart series={data.series} {metric} />
+      {/if}
+    </aside>
+  </div>
 {/if}
 
 {#if data}

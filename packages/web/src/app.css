@@ -268,6 +268,22 @@ a:hover {
   max-width: 1200px;
 }
 
+/* layout de detalle: en pantallas anchas, columna principal + rail derecho para
+   gráficas auxiliares (drill-down, versiones). por defecto (móvil/estrecho) es una
+   sola columna en flujo normal: primero .detail-main y luego .detail-rail (abajo). */
+.detail-main {
+  min-width: 0;
+}
+
+@media (min-width: 1200px) {
+  .detail-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+}
+
 /* tarjetas y grids */
 .card {
   background: var(--bg-card);
