@@ -24,7 +24,7 @@ export type { TimeRange } from './constants.js';
 // detalle de entidades
 export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } from './detail.js';
 
-export type { VersionTag, TrackVersion } from './versions.js';
+export type { TrackVersion } from './versions.js';
 
 // charts
 export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';

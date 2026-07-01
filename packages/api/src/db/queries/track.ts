@@ -2,7 +2,7 @@ import { sql, eq, inArray } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import { rangeWhere, userFilter, playDuration } from './helpers.js';
 import { tracks, albums, artists, trackArtists } from '../schema.js';
-import { deriveVersion } from '../../services/versions.js';
+import { versionBaseKey } from '../../services/versions.js';
 import type { TrackVersion } from '@sis/shared';
 
 export interface EnrichedTrack {
@@ -100,7 +100,7 @@ export function getTrackVersions(db: Db, trackId: string, userId: number): Track
   `) as { artist_id: string | null; name: string; duration_ms: number; album_id: string | null; album_name: string | null; album_image: string | null } | undefined;
   if (!current || !current.artist_id) return [];
 
-  const currentBase = deriveVersion(current.name).base;
+  const currentBase = versionBaseKey(current.name);
 
   // todos los tracks reproducidos por el usuario cuyo artista principal coincide, con sus stats
   const rows = db.all(sql`
@@ -117,28 +117,22 @@ export function getTrackVersions(db: Db, trackId: string, userId: number): Track
     GROUP BY t.spotify_id
   `) as { spotify_id: string; name: string; duration_ms: number; album_id: string | null; album_name: string | null; album_image: string | null; play_count: number; total_ms: number | null }[];
 
-  const toVersion = (r: typeof rows[number]): TrackVersion => {
-    const v = deriveVersion(r.name);
-    return {
-      trackId: r.spotify_id,
-      name: r.name,
-      qualifier: v.qualifier,
-      tag: v.tag,
-      playCount: r.play_count,
-      totalMs: r.total_ms ?? 0,
-      durationMs: r.duration_ms,
-      album: r.album_id ? { id: r.album_id, name: r.album_name ?? '', imageUrl: r.album_image } : null,
-      isCurrent: r.spotify_id === trackId,
-    };
-  };
+  const toVersion = (r: typeof rows[number]): TrackVersion => ({
+    trackId: r.spotify_id,
+    name: r.name,
+    playCount: r.play_count,
+    totalMs: r.total_ms ?? 0,
+    durationMs: r.duration_ms,
+    album: r.album_id ? { id: r.album_id, name: r.album_name ?? '', imageUrl: r.album_image } : null,
+    isCurrent: r.spotify_id === trackId,
+  });
 
-  const members = rows.filter(r => deriveVersion(r.name).base === currentBase).map(toVersion);
+  const members = rows.filter(r => versionBaseKey(r.name) === currentBase).map(toVersion);
 
   // si el track actual no tiene plays del usuario no aparece en rows: añadirlo con stats a 0
   if (!members.some(m => m.isCurrent)) {
-    const v = deriveVersion(current.name);
     members.push({
-      trackId, name: current.name, qualifier: v.qualifier, tag: v.tag,
+      trackId, name: current.name,
       playCount: 0, totalMs: 0, durationMs: current.duration_ms,
       album: current.album_id ? { id: current.album_id, name: current.album_name ?? '', imageUrl: current.album_image } : null,
       isCurrent: true,
