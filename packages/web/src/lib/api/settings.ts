@@ -21,6 +21,11 @@ interface SettingsData {
   sessionTrackingDisplay: SessionTrackingDisplay;
   nowPlayingDisplay: NowPlayingDisplay;
   socialVisibility: SocialVisibility;
+  notificationsEnabled: boolean;
+  notifyRecords: boolean;
+  notifyNumberOne: boolean;
+  notifyChartClosings: boolean;
+  notifyBiggestDebut: boolean;
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
   lastPeriodYear: string | null;
@@ -42,6 +47,12 @@ const SETTINGS_DEFAULTS: SettingsData = {
   sessionTrackingDisplay: 'all',
   nowPlayingDisplay: 'auto',
   socialVisibility: 'visible',
+  // notificaciones push: master switch opt-in (off por defecto), tipos on
+  notificationsEnabled: false,
+  notifyRecords: true,
+  notifyNumberOne: true,
+  notifyChartClosings: true,
+  notifyBiggestDebut: true,
   lastPeriodWeek: null,
   lastPeriodMonth: null,
   lastPeriodYear: null,
@@ -97,9 +108,11 @@ function stringSetting<T extends string>(key: keyof SettingsData, defaultValue: 
   ] as const;
 }
 
-function boolSetting(key: keyof SettingsData) {
+// defaultValue: valor pre-carga cuando no hay nada en localStorage (true salvo
+// override, p.ej. el master switch de notificaciones que arranca en false)
+function boolSetting(key: keyof SettingsData, defaultValue = true) {
   return [
-    (): boolean => settingsLoaded ? settingsCache[key] as boolean : localStorage.getItem(`sis:${key}`) !== 'false',
+    (): boolean => settingsLoaded ? settingsCache[key] as boolean : (localStorage.getItem(`sis:${key}`) ?? String(defaultValue)) !== 'false',
     (v: boolean) => { (settingsCache as any)[key] = v; localStorage.setItem(`sis:${key}`, String(v)); updateSetting({ [key]: String(v) }); },
   ] as const;
 }
@@ -125,6 +138,13 @@ export const [getAlbumShowAccolades, setAlbumShowAccolades] = boolSetting('album
 export const [getArtistShowAlbumAccolades, setArtistShowAlbumAccolades] = boolSetting('artistShowAlbumAccolades');
 export const [getArtistShowTrackAccolades, setArtistShowTrackAccolades] = boolSetting('artistShowTrackAccolades');
 export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');
+
+// notificaciones push: master switch (off por defecto) + toggles por tipo
+export const [getNotificationsEnabled, setNotificationsEnabled] = boolSetting('notificationsEnabled', false);
+export const [getNotifyRecords, setNotifyRecords] = boolSetting('notifyRecords');
+export const [getNotifyNumberOne, setNotifyNumberOne] = boolSetting('notifyNumberOne');
+export const [getNotifyChartClosings, setNotifyChartClosings] = boolSetting('notifyChartClosings');
+export const [getNotifyBiggestDebut, setNotifyBiggestDebut] = boolSetting('notifyBiggestDebut');
 
 export function getLocale(): string {
   const raw = getRawLocale();

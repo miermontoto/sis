@@ -268,4 +268,45 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       seen_at INTEGER NOT NULL
     )`);
   } catch {}
+
+  // notificaciones push: tokens de dispositivo (FCM android/ios, PushSubscription web).
+  // ddl ad-hoc (path garantizado en runtime); drizzle migrate corre en modo warn.
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS device_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      token TEXT NOT NULL UNIQUE,
+      platform TEXT NOT NULL,
+      user_agent TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_active_at TEXT
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_device_tokens_user_active ON device_tokens(user_id, is_active)'); } catch {}
+
+  // notificaciones push: dedup de envíos. entity_id/period usan '' NOT NULL (no NULL)
+  // para que el UNIQUE deduplique (SQLite trata los NULL como distintos).
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS sent_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      notification_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL DEFAULT '',
+      period TEXT NOT NULL DEFAULT '',
+      rank INTEGER,
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, notification_type, entity_id, period)
+    )`);
+  } catch {}
+
+  // notificaciones push: último periodo (chart) procesado por usuario y granularidad
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS notification_period_state (
+      user_id INTEGER NOT NULL,
+      granularity TEXT NOT NULL,
+      last_period TEXT NOT NULL,
+      PRIMARY KEY(user_id, granularity)
+    )`);
+  } catch {}
 }

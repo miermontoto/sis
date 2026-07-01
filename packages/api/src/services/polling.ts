@@ -4,7 +4,8 @@ import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
 import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
-import { getAllActiveUsersWithTokens } from './user-manager.js';
+import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
+import { checkChartClosings } from './notification-events.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   CURRENTLY_PLAYING_MIN_MS,
@@ -209,6 +210,15 @@ function scheduleNextCurrentlyPlaying(userId: number, delayMs: number) {
 }
 
 async function pollRecentlyPlayed(userId: number) {
+  // cierre de chart (time-driven): debe correr cada ciclo aún sin datos nuevos, por eso
+  // va antes del early-return de recently-played. guardado para que nunca rompa el polling.
+  try {
+    const spotifyId = getUserById(userId)?.spotifyId;
+    if (spotifyId) checkChartClosings(userId, spotifyId);
+  } catch (err) {
+    console.error(`[poll:${userId}] error en checkChartClosings:`, err);
+  }
+
   try {
     const state = getPollingStateForUser(userId);
     const params: Record<string, string> = {

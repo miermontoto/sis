@@ -43,6 +43,10 @@ Required in `.env` at repo root:
 - `DATABASE_PATH` — default: `./data/sis.db` (relative to repo root)
 - `PORT` — default: `3000`
 
+Push notifications (optional — credential-gated; if unset the pipeline detects events but the sender no-ops + logs, never throws — see `docs/PUSH_NOTIFICATIONS_SETUP.md`):
+- `FIREBASE_SERVICE_ACCOUNT` — path to the Firebase service-account JSON (enables Android/FCM)
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — web push (VAPID) keys + `mailto:` subject (enables browser push)
+
 ## Key patterns
 
 ### API data flow

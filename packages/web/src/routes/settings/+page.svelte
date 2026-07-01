@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse, type ShareLink, type TimeRange } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse, type ShareLink, type TimeRange } from '$lib/api';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -31,6 +31,43 @@
   let sessionTrackingDisplayPref = $state<SessionTrackingDisplay>('all');
   let nowPlayingDisplayPref = $state<NowPlayingDisplay>('auto');
   let socialVisibilityPref = $state<SocialVisibility>('visible');
+
+  // notificaciones push: master switch + toggles por tipo
+  let notifEnabledPref = $state(false);
+  let notifRecordsPref = $state(true);
+  let notifNumberOnePref = $state(true);
+  let notifChartClosingsPref = $state(true);
+  let notifBiggestDebutPref = $state(true);
+  // bloquea el master mientras se pide permiso al SO/navegador (evita doble click)
+  let notifBusy = $state(false);
+
+  // master switch: al activar pide permiso + registra el token; si se deniega o
+  // no hay soporte, revierte el toggle (no persiste true). al desactivar solo
+  // persiste la preferencia (el server deja de enviar; el token sigue registrado).
+  async function toggleNotificationsEnabled(next: boolean) {
+    if (notifBusy) return;
+    if (!next) {
+      notifEnabledPref = false;
+      setNotificationsEnabled(false);
+      return;
+    }
+    notifBusy = true;
+    try {
+      const { initPush } = await import('$lib/push');
+      const granted = await initPush();
+      if (!granted) {
+        notifEnabledPref = false;
+        return;
+      }
+      notifEnabledPref = true;
+      setNotificationsEnabled(true);
+    } catch (e) {
+      console.error('[push] fallo al activar notificaciones:', e);
+      notifEnabledPref = false;
+    } finally {
+      notifBusy = false;
+    }
+  }
 
   // share links
   let shareLinks = $state<ShareLink[]>([]);
@@ -116,6 +153,11 @@
     sessionTrackingDisplayPref = getSessionTrackingDisplay();
     nowPlayingDisplayPref = getNowPlayingDisplay();
     socialVisibilityPref = getSocialVisibility();
+    notifEnabledPref = getNotificationsEnabled();
+    notifRecordsPref = getNotifyRecords();
+    notifNumberOnePref = getNotifyNumberOne();
+    notifChartClosingsPref = getNotifyChartClosings();
+    notifBiggestDebutPref = getNotifyBiggestDebut();
     try {
       [health, streaks, me] = await Promise.all([
         api.health(),
@@ -217,6 +259,70 @@
               </option>
             {/each}
           </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="prefs-subtitle">Notifications</div>
+    <div class="prefs-list">
+      <div class="pref-row">
+        <div class="pref-info">
+          <div class="pref-label">Push notifications</div>
+          <div class="pref-desc">Get notified about new records, chart-toppers, weekly recaps and big debuts</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifEnabledPref} onclick={() => toggleNotificationsEnabled(false)} disabled={notifBusy}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifEnabledPref} onclick={() => toggleNotificationsEnabled(true)} disabled={notifBusy}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+        <div class="pref-info">
+          <div class="pref-label">Records</div>
+          <div class="pref-desc">When a track, album or artist enters an all-time record top-10</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifRecordsPref} onclick={() => { notifRecordsPref = false; setNotifyRecords(false); }} disabled={!notifEnabledPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifRecordsPref} onclick={() => { notifRecordsPref = true; setNotifyRecords(true); }} disabled={!notifEnabledPref}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+        <div class="pref-info">
+          <div class="pref-label">New #1</div>
+          <div class="pref-desc">When a new track tops your weekly chart</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifNumberOnePref} onclick={() => { notifNumberOnePref = false; setNotifyNumberOne(false); }} disabled={!notifEnabledPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifNumberOnePref} onclick={() => { notifNumberOnePref = true; setNotifyNumberOne(true); }} disabled={!notifEnabledPref}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+        <div class="pref-info">
+          <div class="pref-label">Weekly recap</div>
+          <div class="pref-desc">A summary of your top tracks when the week's chart closes</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifChartClosingsPref} onclick={() => { notifChartClosingsPref = false; setNotifyChartClosings(false); }} disabled={!notifEnabledPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifChartClosingsPref} onclick={() => { notifChartClosingsPref = true; setNotifyChartClosings(true); }} disabled={!notifEnabledPref}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+        <div class="pref-info">
+          <div class="pref-label">Biggest debut</div>
+          <div class="pref-desc">The highest-charting new entry when the week's chart closes</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = false; setNotifyBiggestDebut(false); }} disabled={!notifEnabledPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = true; setNotifyBiggestDebut(true); }} disabled={!notifEnabledPref}>On</button>
+          </div>
         </div>
       </div>
     </div>

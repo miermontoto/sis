@@ -13,6 +13,8 @@ import admin from './routes/admin.js';
 import settingsRoute from './routes/settings.js';
 import playlists from './routes/playlists.js';
 import social from './routes/social.js';
+import deviceTokens from './routes/device-tokens.js';
+import push from './routes/push.js';
 import publicRoutes from './routes/public.js';
 import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
@@ -86,6 +88,8 @@ app.route('/api/admin', admin);
 app.route('/api/settings', settingsRoute);
 app.route('/api/playlists', playlists);
 app.route('/api/social', social);
+app.route('/api/device-tokens', deviceTokens);
+app.route('/api/push', push);
 
 // changelog "novedades": estado + nº no vistas para el usuario actual (el gate
 // deja userId en el contexto). marcar visto avanza el corte de lectura.

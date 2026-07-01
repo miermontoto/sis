@@ -5,6 +5,8 @@ import type { RecordsResponse, EntityRecords, Accolade, AccoladesResponse } from
 import { userSettings } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
+import { emitRecordEvents } from './notification-events.js';
+import { hasDeliverableChannel } from './push-dispatch.js';
 import { RECORDS_LIMIT } from '../constants.js';
 
 import type { RankingMetric, WeekStartOption, EntityType } from '@sis/shared';
@@ -16,6 +18,10 @@ type EntityTypeFilter = EntityType;
 const cache = new Map<string, RecordsResponse>();
 // marca de agua: MAX(played_at) en el momento de la última computación por usuario
 const lastDataTs = new Map<number, string>();
+// baseline del diff de notificaciones 'record': último snapshot con el que se emitió.
+// solo avanza cuando hay dispositivos activos, para que un instante transitorio sin tokens
+// no consuma el edge (la entrada nueva se re-detecta cuando aparece un dispositivo).
+const notifyBaseline = new Map<number, RecordsResponse>();
 
 function cacheKey(userId: number, ws: WeekStart, sort: Sort) {
   return `${userId}:${ws}:${sort}`;
@@ -47,6 +53,21 @@ function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string)
     weekStart: (map.get('weekStart') as WeekStart) || 'friday',
     sort: ((map.get('rankingMetric') === 'plays' ? 'plays' : 'time') as Sort),
   };
+}
+
+// ejecuta el diff de 'record' contra el baseline de notificaciones. envuelto para que
+// nunca lance hacia el path de la cache. sin canal entregable (sin dispositivo activo o
+// sin credenciales) no emite ni avanza el baseline (edge preservado); la primera vez con
+// canal entregable siembra sin emitir para evitar el spam de backfill.
+function runRecordNotifications(userId: number, spotifyId: string, result: RecordsResponse) {
+  if (!hasDeliverableChannel(userId)) return;
+
+  const base = notifyBaseline.get(userId);
+  if (base) {
+    try { emitRecordEvents(userId, spotifyId, base, result); }
+    catch (err) { console.error('[records-cache] error en emitRecordEvents:', err); }
+  }
+  notifyBaseline.set(userId, result);
 }
 
 /** Computa records para todos los usuarios activos (síncrono, bloquea el event loop) */
@@ -82,6 +103,10 @@ export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: num
     if (key.startsWith(`${userId}:`)) cache.delete(key);
   }
   cache.set(k, result);
+
+  // notificaciones: 'record' cuando una entidad entra por primera vez al top de una
+  // categoría. el baseline del diff solo avanza si hay dispositivos activos.
+  runRecordNotifications(userId, spotifyId, result);
 }
 
 /** Computa records en worker threads (prod) para no bloquear el event loop principal.
@@ -113,6 +138,10 @@ export async function computeAndCacheForUserAsync(userId: number, spotifyId: str
     if (key.startsWith(`${userId}:`)) cache.delete(key);
   }
   cache.set(k, result);
+
+  // notificaciones: 'record' cuando una entidad entra por primera vez al top de una
+  // categoría. el baseline del diff solo avanza si hay dispositivos activos.
+  runRecordNotifications(userId, spotifyId, result);
 }
 
 /** Devuelve records cacheados para un usuario, o null si no hay cache */

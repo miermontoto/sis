@@ -57,9 +57,29 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- push notifications (FCM via @capacitor/push-notifications).
+             icono de la notificación: usamos el launcher que ya existe.
+             sin este meta-data FCM cae al icono de la app igualmente. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+
+        <!-- opcionales: activar sólo tras crear los recursos correspondientes
+             (un @color/... y un @string/... con el channel id), si no rompen el build.
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/colorPrimary" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/default_notification_channel_id" />
+        -->
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- push notifications: requerido en Android 13+ (API 33) para mostrar notificaciones -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

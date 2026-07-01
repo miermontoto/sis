@@ -183,6 +183,48 @@ export const follows = sqliteTable('follows', {
   index('idx_follows_followed').on(table.followedId),
 ]);
 
+// notificaciones push: tokens de dispositivo (FCM android/ios, PushSubscription web)
+// para web el token = JSON.stringify(PushSubscription). FK a users.id (INTEGER).
+export const deviceTokens = sqliteTable('device_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  token: text('token').notNull().unique(),
+  platform: text('platform').notNull(), // 'android' | 'ios' | 'web'
+  userAgent: text('user_agent'),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  lastActiveAt: text('last_active_at'),
+}, (table) => [
+  index('idx_device_tokens_user_active').on(table.userId, table.isActive),
+]);
+
+// notificaciones push: dedup de envíos. entity_id/period usan '' NOT NULL (no NULL)
+// para que el UNIQUE deduplique (SQLite trata los NULL como distintos).
+export const sentNotifications = sqliteTable('sent_notifications', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  notificationType: text('notification_type').notNull(),
+  entityId: text('entity_id').notNull().default(''),
+  period: text('period').notNull().default(''),
+  rank: integer('rank'),
+  // formato 'YYYY-MM-DD HH:MM:SS' UTC igual que datetime('now') del DDL, para que la
+  // comparación de string del throttle (sent_at >= datetime('now','-1 day')) sea correcta
+  // aunque se inserte vía drizzle (el runtime usa raw SQL y el default del DDL)
+  sentAt: text('sent_at').notNull().$defaultFn(() => new Date().toISOString().slice(0, 19).replace('T', ' ')),
+}, (table) => [
+  uniqueIndex('idx_sent_notifications_dedup').on(table.userId, table.notificationType, table.entityId, table.period),
+]);
+
+// notificaciones push: último periodo (chart) procesado por usuario y granularidad,
+// para detectar cierres de chart en el tick de polling sin refirar.
+export const notificationPeriodState = sqliteTable('notification_period_state', {
+  userId: integer('user_id').notNull(),
+  granularity: text('granularity').notNull(), // 'week' (extensible a 'month'|'year')
+  lastPeriod: text('last_period').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.granularity] }),
+]);
+
 // tokens públicos revocables que exponen un snapshot de perfil sin sesión
 export const shareLinks = sqliteTable('share_links', {
   token: text('token').primaryKey(),

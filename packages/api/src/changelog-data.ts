@@ -7,6 +7,15 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w27k',
+    publishedAt: '2026-07-01',
+    title: 'Push notifications',
+    changes: [
+      { type: 'feature', es: 'Notificaciones push que te avisan de tus hitos: nuevos récords, cuando llegas al número 1 y el cierre semanal de tus listas', en: 'Push notifications that alert you to your milestones: new records, reaching number one and your weekly chart closings' },
+      { type: 'feature', es: 'Activa las notificaciones y elige qué tipos recibir desde Ajustes (en el móvil y en el navegador)', en: 'Enable notifications and choose which types to receive from Settings (on mobile and in the browser)' },
+    ],
+  },
+  {
     version: '26w24b',
     publishedAt: '2026-06-12',
     title: 'SIS on Android',

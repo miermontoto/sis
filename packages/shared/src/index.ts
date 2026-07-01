@@ -26,6 +26,9 @@ export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail } fro
 
 export type { TrackVersion } from './versions.js';
 
+// notificaciones push
+export type { NotificationType, DevicePlatform, PushPayload, DeviceTokenRecord, NotificationPreferences } from './notifications.js';
+
 // charts
 export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';
 

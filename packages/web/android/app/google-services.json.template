@@ -1,0 +1,31 @@
+{
+  "_README": "PLANTILLA / PLACEHOLDER — NO es el fichero real. Descarga el google-services.json real desde Firebase Console (Project settings > Your apps > Android app info.mier.sis) y guardalo como 'google-services.json' (sin .template) en este mismo directorio (packages/web/android/app/). Solo entonces build.gradle (lineas ~70-76) aplica el plugin com.google.gms.google-services y FCM se activa. Con este .template en su lugar, el plugin queda OFF y el build sigue funcionando sin push.",
+  "_VALUES": "Todos los valores de abajo son DUMMY. Reemplazalos usando el fichero real de Firebase; no edites este template a mano.",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "REEMPLAZAR-firebase-project-id",
+    "storage_bucket": "REEMPLAZAR-firebase-project-id.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "info.mier.sis"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REEMPLAZAR-android-api-key"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
