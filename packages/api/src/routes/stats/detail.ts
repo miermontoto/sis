@@ -124,7 +124,7 @@ detail.get('/track/:id', async (c) => {
   const trackIds = await dbRead<string[]>('resolveEntityIds', 'track', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [albumRaw, arts, statsRow, series, recentRaw, albumBreakdownRaw, playlists, mergeInfo] = await Promise.all([
+  const [albumRaw, arts, statsRow, series, recentRaw, albumBreakdownRaw, playlists, mergeInfo, versions] = await Promise.all([
     track.album_id ? dbRead<any>('lookupAlbumById', track.album_id) : Promise.resolve(null),
     dbRead<any[]>('getTrackArtists', id),
     dbRead<any>('getEntityStats', 'track', id, rangeStart, rangeEnd, trackIds, userId),
@@ -133,6 +133,7 @@ detail.get('/track/:id', async (c) => {
     dbRead<any[]>('getTrackAlbumBreakdown', id, rangeStart, rangeEnd, userId, trackIds),
     dbRead<any>('getTrackPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'track', id),
+    dbRead<any[]>('getTrackVersions', id, userId),
   ]);
 
   const [recentPlays, albumBreakdowns] = await Promise.all([
@@ -159,6 +160,7 @@ detail.get('/track/:id', async (c) => {
     recentPlays,
     ...formatMerge(mergeInfo),
     playlists,
+    versions,
   });
 });
 

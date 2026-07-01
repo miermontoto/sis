@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { onMount, onDestroy } from 'svelte';
-  import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, type VersionTag, getRankingMetric } from '$lib/api';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
@@ -31,7 +31,17 @@
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import { positionPopover } from '$lib/utils/popover';
 
-
+  // etiquetas y colores del badge por tipo de versión (sección "Versions")
+  const VERSION_TAG_LABELS: Record<VersionTag, string> = {
+    original: 'Original', live: 'Live', acoustic: 'Acoustic', remix: 'Remix',
+    remaster: 'Remaster', radio: 'Radio', extended: 'Extended', instrumental: 'Instrumental',
+    demo: 'Demo', deluxe: 'Deluxe', edit: 'Edit', feat: 'Feat.', other: 'Version',
+  };
+  const VERSION_TAG_COLORS: Record<VersionTag, string> = {
+    original: '#8b8b8b', live: '#ef4444', acoustic: '#f59e0b', remix: '#8b5cf6',
+    remaster: '#10b981', radio: '#3b82f6', extended: '#0ea5e9', instrumental: '#14b8a6',
+    demo: '#9ca3af', deluxe: '#eab308', edit: '#64748b', feat: '#ec4899', other: '#8b8b8b',
+  };
 
   let data = $state<TrackDetail | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
@@ -486,6 +496,38 @@
     </div>
   {/if}
 
+  {#if data.versions.length > 0}
+    <h2 class="section-title">Versions</h2>
+    <div class="track-list">
+      {#each data.versions as v, i}
+        <svelte:element
+          this={v.isCurrent ? 'div' : 'a'}
+          {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}
+          class="track-item"
+          class:track-item--current={v.isCurrent}
+        >
+          <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+          {#if v.album?.imageUrl}
+            <img class="track-art" src={v.album.imageUrl} alt={v.album.name} />
+          {:else}
+            <div class="track-art"></div>
+          {/if}
+          <div class="track-info">
+            <div class="track-name">
+              <span class="vtag" style:--vtag-color={VERSION_TAG_COLORS[v.tag]}>{VERSION_TAG_LABELS[v.tag]}</span>
+              {v.name}{#if v.isCurrent}<span class="version-current">· this one</span>{/if}
+            </div>
+            <div class="track-artist">{v.album?.name ?? ''}</div>
+          </div>
+          <div class="track-meta">
+            <div class="track-plays">{metric === 'plays' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
+            <div class="track-time">{metric === 'time' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
+          </div>
+        </svelte:element>
+      {/each}
+    </div>
+  {/if}
+
   {#if data.series.length > 1}
     <h2 class="section-title">Listening history</h2>
   {/if}
@@ -507,4 +549,32 @@
     onMerged={() => loadData($page.params.id)}
   />
 {/if}
+
+<style>
+  /* badge de tipo de versión: pill con el color del tag */
+  .vtag {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.06rem 0.36rem;
+    border-radius: 4px;
+    color: var(--vtag-color);
+    background: color-mix(in srgb, var(--vtag-color) 16%, transparent);
+    margin-right: 0.45rem;
+    vertical-align: middle;
+  }
+  /* resaltar la versión que se está viendo ahora mismo */
+  .track-item--current {
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+    border-radius: 8px;
+  }
+  .version-current {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+    margin-left: 0.35rem;
+  }
+</style>
 

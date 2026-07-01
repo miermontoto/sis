@@ -11,7 +11,7 @@ export { computeRankings, computeProjectedRankings, computeProjectedRankingsBatc
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
 export { getAlbumArtists, getAlbumTracks } from './album.js';
-export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown } from './track.js';
+export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';
 export { getChart, getChartPeaks, getAvailablePeriods, getEntityChartHistory } from './charts.js';

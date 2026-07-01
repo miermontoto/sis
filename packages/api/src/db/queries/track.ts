@@ -2,6 +2,8 @@ import { sql, eq, inArray } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import { rangeWhere, userFilter, playDuration } from './helpers.js';
 import { tracks, albums, artists, trackArtists } from '../schema.js';
+import { deriveVersion } from '../../services/versions.js';
+import type { TrackVersion } from '@sis/shared';
 
 export interface EnrichedTrack {
   id: string;
@@ -80,4 +82,72 @@ export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: stri
     GROUP BY t.album_id
     ORDER BY play_count DESC
   `) as { album_id: string; play_count: number; total_ms: number }[];
+}
+
+/** Otras versiones del mismo tema (live, remix, remaster...) que el usuario ha escuchado.
+ *  Agrupa por artista principal (position=0, misma clave que dedup) + título base normalizado.
+ *  Devuelve todas las versiones del cluster (incluida la actual, marcada isCurrent) ordenadas por
+ *  plays; vacío si no hay ninguna otra versión. Siempre all-time (la página de track es all-time). */
+export function getTrackVersions(db: Db, trackId: string, userId: number): TrackVersion[] {
+  // artista principal + nombre/álbum del track actual
+  const current = db.get(sql`
+    SELECT (SELECT MIN(artist_id) FROM track_artists WHERE track_id = t.spotify_id AND position = 0) as artist_id,
+           t.name as name, t.duration_ms as duration_ms,
+           al.spotify_id as album_id, al.name as album_name, al.image_url as album_image
+    FROM tracks t
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    WHERE t.spotify_id = ${trackId}
+  `) as { artist_id: string | null; name: string; duration_ms: number; album_id: string | null; album_name: string | null; album_image: string | null } | undefined;
+  if (!current || !current.artist_id) return [];
+
+  const currentBase = deriveVersion(current.name).base;
+
+  // todos los tracks reproducidos por el usuario cuyo artista principal coincide, con sus stats
+  const rows = db.all(sql`
+    SELECT t.spotify_id, t.name, t.duration_ms,
+           al.spotify_id as album_id, al.name as album_name, al.image_url as album_image,
+           count(*) as play_count, sum(${playDuration()}) as total_ms
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    WHERE lh.user_id = ${userId}
+      AND t.spotify_id IN (
+        SELECT track_id FROM track_artists WHERE artist_id = ${current.artist_id} AND position = 0
+      )
+    GROUP BY t.spotify_id
+  `) as { spotify_id: string; name: string; duration_ms: number; album_id: string | null; album_name: string | null; album_image: string | null; play_count: number; total_ms: number | null }[];
+
+  const toVersion = (r: typeof rows[number]): TrackVersion => {
+    const v = deriveVersion(r.name);
+    return {
+      trackId: r.spotify_id,
+      name: r.name,
+      qualifier: v.qualifier,
+      tag: v.tag,
+      playCount: r.play_count,
+      totalMs: r.total_ms ?? 0,
+      durationMs: r.duration_ms,
+      album: r.album_id ? { id: r.album_id, name: r.album_name ?? '', imageUrl: r.album_image } : null,
+      isCurrent: r.spotify_id === trackId,
+    };
+  };
+
+  const members = rows.filter(r => deriveVersion(r.name).base === currentBase).map(toVersion);
+
+  // si el track actual no tiene plays del usuario no aparece en rows: añadirlo con stats a 0
+  if (!members.some(m => m.isCurrent)) {
+    const v = deriveVersion(current.name);
+    members.push({
+      trackId, name: current.name, qualifier: v.qualifier, tag: v.tag,
+      playCount: 0, totalMs: 0, durationMs: current.duration_ms,
+      album: current.album_id ? { id: current.album_id, name: current.album_name ?? '', imageUrl: current.album_image } : null,
+      isCurrent: true,
+    });
+  }
+
+  // solo tiene sentido mostrar la sección si existe al menos otra versión
+  if (members.filter(m => !m.isCurrent).length === 0) return [];
+
+  members.sort((a, b) => b.playCount - a.playCount || b.totalMs - a.totalMs);
+  return members;
 }
