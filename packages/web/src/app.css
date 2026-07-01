@@ -1352,18 +1352,42 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     color: inherit;
   }
 
-  /* thumbnail del ticker: artistas en círculo, álbumes/tracks con esquinas suaves */
-  .mobile-session-thumb {
+  /* thumbnail del ticker con badge de tipo superpuesto */
+  .mobile-session-thumb-wrap {
+    position: relative;
+    flex-shrink: 0;
     width: 16px;
     height: 16px;
+  }
+
+  .mobile-session-thumb {
+    display: block;
+    width: 100%;
+    height: 100%;
     border-radius: 3px;
     object-fit: cover;
-    flex-shrink: 0;
     background: rgba(255, 255, 255, 0.05);
   }
 
-  .mobile-session-thumb--round {
+  /* artistas en círculo, álbumes/tracks con esquinas suaves */
+  .mobile-session-thumb--round .mobile-session-thumb {
     border-radius: 50%;
+  }
+
+  /* badge de tipo, igual que en la lista de escritorio: recupera track vs álbum vs artista */
+  .mobile-session-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    color: var(--text, #e0e8e8);
+    background: var(--bg, #080a0c);
+    box-shadow: 0 0 0 1.5px var(--bg-card, #0f1214);
   }
 
   .mobile-session-entity {

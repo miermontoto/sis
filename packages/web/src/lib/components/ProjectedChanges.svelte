@@ -107,7 +107,13 @@
             <div class="session-row">
               <span class="session-thumb" class:session-thumb--art={r.imageUrl} class:session-thumb--round={r.entityType === 'artist'}>
                 {#if r.imageUrl}
-                  <img src={r.imageUrl} alt="" loading="lazy" />
+                  <img class="session-thumb-img" src={r.imageUrl} alt="" loading="lazy" />
+                  <span class="session-thumb-badge" aria-hidden="true">
+                    {#if r.entityType === 'track'}<IconTrack size={8} />
+                    {:else if r.entityType === 'artist'}<IconArtist size={8} />
+                    {:else}<IconAlbum size={8} />
+                    {/if}
+                  </span>
                 {:else if r.entityType === 'track'}<IconTrack size={12} />
                 {:else if r.entityType === 'artist'}<IconArtist size={12} />
                 {:else}<IconAlbum size={12} />
@@ -208,32 +214,49 @@
   }
 
   .session-thumb {
+    position: relative;
     flex-shrink: 0;
     width: 18px;
     height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
-    overflow: hidden;
     opacity: 0.6; /* glifo de fallback atenuado */
   }
 
-  /* con imagen real: plena opacidad y fondo tenue mientras carga */
+  /* con imagen real: plena opacidad */
   .session-thumb--art {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.05);
   }
 
-  /* artistas en círculo, álbumes/tracks con esquinas suaves */
-  .session-thumb--round {
-    border-radius: 50%;
-  }
-
-  .session-thumb img {
+  .session-thumb-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.05); /* fondo tenue mientras carga */
+  }
+
+  /* artistas en círculo, álbumes/tracks con esquinas suaves */
+  .session-thumb--round .session-thumb-img {
+    border-radius: 50%;
+  }
+
+  /* badge de tipo sobre la portada: recupera la diferenciación track/álbum/artista
+     que antes daba el icono, ahora que la miniatura ocupa su lugar */
+  .session-thumb-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    color: var(--text, #e0e8e8);
+    background: var(--bg, #080a0c);
+    box-shadow: 0 0 0 1.5px var(--bg-card, #0f1214);
   }
 
   .session-name {

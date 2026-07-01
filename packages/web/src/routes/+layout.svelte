@@ -16,6 +16,9 @@
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
+  import IconTrack from '$lib/icons/IconTrack.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import FriendsActivity from '$lib/components/FriendsActivity.svelte';
   import RefreshingIndicator from '$lib/components/RefreshingIndicator.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
@@ -391,7 +394,17 @@
               {#each marqueeItems as { r, best }}
                 <span class="mobile-session-sep"></span>
                 <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item">
-                  {#if r.imageUrl}<img class="mobile-session-thumb" class:mobile-session-thumb--round={r.entityType === 'artist'} src={r.imageUrl} alt="" loading="lazy" />{/if}
+                  {#if r.imageUrl}
+                    <span class="mobile-session-thumb-wrap" class:mobile-session-thumb--round={r.entityType === 'artist'}>
+                      <img class="mobile-session-thumb" src={r.imageUrl} alt="" loading="lazy" />
+                      <span class="mobile-session-badge" aria-hidden="true">
+                        {#if r.entityType === 'track'}<IconTrack size={7} />
+                        {:else if r.entityType === 'artist'}<IconArtist size={7} />
+                        {:else}<IconAlbum size={7} />
+                        {/if}
+                      </span>
+                    </span>
+                  {/if}
                   <span class="mobile-session-entity">{r.entityName}</span>
                   <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
                 </a>
@@ -402,7 +415,17 @@
               {#each marqueeItems as { r, best }}
                 <span class="mobile-session-sep"></span>
                 <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item" tabindex="-1">
-                  {#if r.imageUrl}<img class="mobile-session-thumb" class:mobile-session-thumb--round={r.entityType === 'artist'} src={r.imageUrl} alt="" loading="lazy" />{/if}
+                  {#if r.imageUrl}
+                    <span class="mobile-session-thumb-wrap" class:mobile-session-thumb--round={r.entityType === 'artist'}>
+                      <img class="mobile-session-thumb" src={r.imageUrl} alt="" loading="lazy" />
+                      <span class="mobile-session-badge" aria-hidden="true">
+                        {#if r.entityType === 'track'}<IconTrack size={7} />
+                        {:else if r.entityType === 'artist'}<IconArtist size={7} />
+                        {:else}<IconAlbum size={7} />
+                        {/if}
+                      </span>
+                    </span>
+                  {/if}
                   <span class="mobile-session-entity">{r.entityName}</span>
                   <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
                 </a>
