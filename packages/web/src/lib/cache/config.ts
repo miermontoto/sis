@@ -16,11 +16,17 @@ const DAY = 24 * HOUR;
 const DEFAULT_CONFIG: EndpointConfig = { ttl: 10 * MIN, maxStale: 24 * HOUR };
 
 // endpoints que nunca se cachean — siempre red.
+// `/settings` es el bootstrap de preferencias: debe ser autoritativo en cada
+// arranque, no servirse de un snapshot viejo de IndexedDB (que en el apk
+// sobrevive a los cold starts). Cachearlo revertía cambios de ajustes y, con el
+// marcador de charts cerrados, impedía respetar un descarte hecho en otro
+// dispositivo. Offline: loadSettings cae a localStorage vía su try/catch.
 const NO_CACHE_PATHS = new Set<string>([
   '/now-playing',
   '/now-playing/live',
   '/now-playing/devices',
   '/health',
+  '/settings',
 ]);
 
 // matcher prefijo → config (orden importa: primer match gana).

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w27w';
+export const VERSION = '26w27x';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -47,6 +47,27 @@ export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-modify-publ
 export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 export const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 export const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
+
+// --- last.fm ---
+
+// URLs de la API y del flujo de autorización web de last.fm
+export const LASTFM_API_BASE = 'https://ws.audioscrobbler.com/2.0/';
+export const LASTFM_AUTH_URL = 'https://www.last.fm/api/auth/';
+
+// intervalo del sync de scrobbles (mismo ritmo que recently-played)
+export const LASTFM_POLL_INTERVAL_MS = 5 * 60_000;
+
+// máximo de scrobbles por página de user.getRecentTracks
+export const LASTFM_PAGE_LIMIT = 200;
+
+// espaciado mínimo entre requests (~4 req/s, bajo el límite de last.fm)
+export const LASTFM_REQUEST_SPACING_MS = 260;
+
+// tope de páginas por tick del sync incremental (el backfill no lo usa)
+export const LASTFM_SYNC_MAX_PAGES = 10;
+
+// prefijo del spotify_id sintético de usuarios que solo tienen last.fm
+export const LASTFM_ID_PREFIX = 'lastfm:';
 
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;
