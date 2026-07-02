@@ -35,7 +35,10 @@
 <svelte:head><title>Sessions — SIS</title></svelte:head>
 
 <div class="sessions-page">
-  <h2>Active sessions</h2>
+  <div class="page-header">
+    <h2>Active sessions</h2>
+    <a href="/settings" class="back-link">← Settings</a>
+  </div>
   {#if error}<p class="error">{error}</p>{/if}
   <SessionsPanel
     {sessions}
@@ -58,9 +61,24 @@
     margin: 0 auto;
     padding: 0 1rem;
   }
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
   .sessions-page h2 {
     font-size: 1rem;
-    margin: 0 0 0.75rem;
+    margin: 0;
+  }
+  .back-link {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .back-link:hover {
+    color: var(--accent);
   }
   .error {
     color: var(--danger, #c33);

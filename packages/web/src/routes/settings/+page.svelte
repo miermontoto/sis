@@ -747,6 +747,18 @@
     </div>
   </div>
 
+  <div class="card section-card">
+    <div class="pref-row" style="padding: 0;">
+      <div class="pref-info">
+        <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Active sessions</h3>
+        <div class="pref-desc">Devices signed in to your account</div>
+      </div>
+      <div class="pref-control">
+        <a href="/settings/sessions" class="action-btn action-btn--secondary">Manage</a>
+      </div>
+    </div>
+  </div>
+
   {#if me?.isAdmin}
     <div class="card section-card">
       <div class="pref-row" style="padding: 0;">
