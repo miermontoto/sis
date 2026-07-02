@@ -178,6 +178,12 @@
     return pathname === '/login' || pathname === '/privacy' || pathname.startsWith('/s/');
   }
 
+  // páginas de detalle de entidad: en pantallas anchas ensanchan el contenido más allá
+  // del cap de 1200px para llenar el ancho disponible y dar sitio al rail de gráficas.
+  function isDetailRoute(pathname: string): boolean {
+    return /^\/(artist|album|track)\//.test(pathname);
+  }
+
   $effect(() => {
     if (isBareRoute(page.url.pathname)) {
       authChecked = true;
@@ -562,7 +568,7 @@
       {/if}
       <div class="sidebar-footer">{#if appVersion} <button type="button" class="sidebar-version" onclick={openChangelog}>{appVersion}{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
-    <main class="main-content">
+    <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)}>
       <div class="mobile-header">
         <span class="mobile-header-title"><span class="mobile-header-logo">SIS<RefreshingIndicator /></span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">
