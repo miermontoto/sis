@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w27y',
+    publishedAt: '2026-07-02',
+    title: 'Last.fm integration',
+    changes: [
+      { type: 'feature', es: 'Inicia sesión con Last.fm: nuevas cuentas sin depender del límite de usuarios de Spotify', en: 'Sign in with Last.fm: new accounts without depending on the Spotify user cap' },
+      { type: 'feature', es: 'Vincula tu cuenta de Last.fm en Ajustes: los scrobbles rellenan los huecos que el sondeo de Spotify pierde', en: 'Link your Last.fm account in Settings: scrobbles fill the gaps Spotify polling misses' },
+      { type: 'feature', es: 'Importa tu historial completo de scrobbles con un clic', en: 'Import your full scrobble history in one click' },
+    ],
+  },
+  {
     version: '26w27k',
     publishedAt: '2026-07-01',
     title: 'Push notifications',

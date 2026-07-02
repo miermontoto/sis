@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { users } from '../../db/schema.js';
 import { getAllUsers, updateUser, getUserById, hardDeleteUser } from '../../services/user-manager.js';
+import { LASTFM_ID_PREFIX } from '../../constants.js';
 import { adminRouter } from './_shared.js';
 
 const usersRoute = adminRouter();
@@ -14,20 +15,24 @@ usersRoute.get('/users', (c) => {
 usersRoute.post('/users', async (c) => {
   if (!c.get('isAdmin')) return c.json({ error: 'forbidden' }, 403);
 
-  const body = await c.req.json<{ spotifyId: string }>();
-  if (!body.spotifyId?.trim()) {
-    return c.json({ error: 'spotifyId is required' }, 400);
+  // alta por spotify id o por username de last.fm (placeholder lastfm:<user>
+  // que se completa en el primer login vía sso de last.fm)
+  const body = await c.req.json<{ spotifyId?: string; lastfmUsername?: string }>();
+  const spotifyId = body.spotifyId?.trim()
+    || (body.lastfmUsername?.trim() ? LASTFM_ID_PREFIX + body.lastfmUsername.trim() : '');
+  if (!spotifyId) {
+    return c.json({ error: 'spotifyId or lastfmUsername is required' }, 400);
   }
 
   const db = getDb();
-  const existing = db.select().from(users).where(eq(users.spotifyId, body.spotifyId.trim())).get();
+  const existing = db.select().from(users).where(eq(users.spotifyId, spotifyId)).get();
   if (existing) {
     return c.json({ error: 'user already exists' }, 409);
   }
 
   const now = new Date().toISOString();
   const result = db.insert(users).values({
-    spotifyId: body.spotifyId.trim(),
+    spotifyId,
     isAdmin: false,
     isActive: true,
     createdAt: now,

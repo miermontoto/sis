@@ -26,6 +26,9 @@ import {
 import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { computeAndCacheRecords } from './records-cache.js';
 import { resetDeferredState } from './deferred-startup.js';
+import { isLastfmConfigured } from './lastfm-client.js';
+import { syncAllLastfmAccounts } from './lastfm-sync.js';
+import { LASTFM_POLL_INTERVAL_MS } from '../constants.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
   SpotifyRecentlyPlayedResponse,
@@ -88,6 +91,17 @@ let resolveImportsTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
+let lastfmSyncTimer: ReturnType<typeof setInterval> | null = null;
+
+// sync de scrobbles last.fm: loop global independiente del polling de spotify —
+// las cuentas last.fm no requieren tokens de spotify (usuarios solo-last.fm)
+function startLastfmPolling() {
+  if (lastfmSyncTimer || !isLastfmConfigured()) return;
+  const tick = () => syncAllLastfmAccounts().catch(err => console.error('[lastfm] error en sync:', err));
+  lastfmSyncTimer = setInterval(tick, LASTFM_POLL_INTERVAL_MS);
+  tick();
+  console.log(`[poll] last.fm sync cada ${LASTFM_POLL_INTERVAL_MS / 1000}s`);
+}
 
 function getPollingStateForUser(userId: number) {
   const db = getDb();
@@ -299,6 +313,9 @@ function getAnyActiveUserId(): number | null {
 }
 
 export function startPolling() {
+  // arranca aunque no haya usuarios spotify: las cuentas last.fm van aparte
+  startLastfmPolling();
+
   const activeUsers = getAllActiveUsersWithTokens();
   if (activeUsers.length === 0) {
     console.log('[poll] sin usuarios con tokens, polling desactivado');
@@ -386,11 +403,13 @@ export function stopPolling() {
   if (artistFixTimer) clearInterval(artistFixTimer);
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
   if (playlistSyncTimer) clearInterval(playlistSyncTimer);
+  if (lastfmSyncTimer) clearInterval(lastfmSyncTimer);
   metadataRefreshTimer = null;
   resolveImportsTimer = null;
   artistFixTimer = null;
   recordsCacheTimer = null;
   playlistSyncTimer = null;
+  lastfmSyncTimer = null;
   console.log('[poll] polling detenido');
 }
 
@@ -400,6 +419,9 @@ export function stopPolling() {
 // costoso — re-ejecutarlo aquí bloqueaba el callback de OAuth ~20s por login.
 export function restartPolling() {
   resetDeferredState();
+
+  // cuentas last.fm recién vinculadas (no-op si el loop ya corre)
+  startLastfmPolling();
 
   // bootstrap: si el server arrancó sin usuarios, el polling global nunca se
   // inició — arrancarlo completo (DB recién creada, los cleanups son baratos)

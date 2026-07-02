@@ -1,22 +1,35 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { Capacitor } from '@capacitor/core';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
+  import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconLock from '$lib/icons/IconLock.svelte';
 
   let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
+  let lastfmHref = $derived('/auth/lastfm/login?returnTo=' + encodeURIComponent(returnTo));
+
+  // el botón de last.fm solo aparece si el server tiene credenciales
+  let lastfmEnabled = $state(false);
+  onMount(async () => {
+    try {
+      const base = import.meta.env.VITE_API_BASE ?? '';
+      const res = await fetch(`${base}/auth/lastfm/enabled`);
+      lastfmEnabled = (await res.json()).enabled === true;
+    } catch {}
+  });
 
   // oauth móvil (apk): el login va al browser del sistema (custom tab) con
   // mobile=1; el callback vuelve a la app por deep link (listener en +layout).
   // preventDefault debe ser síncrono — el check nativo no puede esperar imports.
-  function nativeLogin(e: MouseEvent) {
+  function nativeLogin(e: MouseEvent, path = '/auth/login') {
     if (!Capacitor.isNativePlatform()) return; // web: el anchor navega normal
     e.preventDefault();
     void (async () => {
       const { openExternalLogin } = await import('@platform/mobile/deep-link');
       const base = import.meta.env.VITE_API_BASE ?? '';
-      await openExternalLogin(`${base}/auth/login?mobile=1&returnTo=${encodeURIComponent(returnTo)}`);
+      await openExternalLogin(`${base}${path}?mobile=1&returnTo=${encodeURIComponent(returnTo)}`);
     })();
   }
   let errorCode = $derived(page.url.searchParams.get('error'));
@@ -55,6 +68,13 @@
         <IconSpotify />
         Sign in with Spotify
       </a>
+
+      {#if lastfmEnabled}
+        <a href={lastfmHref} onclick={(e) => nativeLogin(e, '/auth/lastfm/login')} class="login-btn login-btn--lastfm">
+          <IconLastfm />
+          Sign in with Last.fm
+        </a>
+      {/if}
 
       <div class="access-notice">
         <IconLock />
@@ -143,6 +163,19 @@
 
   .login-btn:active {
     transform: translateY(0);
+  }
+
+  .login-btn--lastfm {
+    margin-top: 0.6rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .login-btn--lastfm:hover {
+    background: transparent;
+    border-color: #d51007;
+    color: #d51007;
   }
 
   .access-notice {

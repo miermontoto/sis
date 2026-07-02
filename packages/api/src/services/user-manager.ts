@@ -1,6 +1,6 @@
 import { eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
-import { users, listeningHistory, authTokens, pollingState, mergeRules } from '../db/schema.js';
+import { users, listeningHistory, authTokens, pollingState, mergeRules, lastfmAccounts } from '../db/schema.js';
 
 export interface User {
   id: number;
@@ -92,6 +92,7 @@ export function hardDeleteUser(id: number): void {
   db.delete(authTokens).where(eq(authTokens.userId, id)).run();
   db.delete(pollingState).where(eq(pollingState.userId, id)).run();
   db.delete(mergeRules).where(eq(mergeRules.userId, id)).run();
+  db.delete(lastfmAccounts).where(eq(lastfmAccounts.userId, id)).run();
   db.delete(users).where(eq(users.id, id)).run();
 }
 

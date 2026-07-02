@@ -24,6 +24,7 @@ const DEFAULT_CONFIG: EndpointConfig = { ttl: 10 * MIN, maxStale: 24 * HOUR };
 const NO_CACHE_PATHS = new Set<string>([
   '/now-playing',
   '/now-playing/live',
+  '/lastfm',
   '/now-playing/devices',
   '/health',
   '/settings',

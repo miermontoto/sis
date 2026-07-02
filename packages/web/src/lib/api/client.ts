@@ -184,6 +184,8 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'POST',   prefix: '/social/share-links',        clear: ['/social/share-links'] },
   { method: 'DELETE', prefix: '/social/share-links/',       clear: ['/social/share-links'] },
   { method: 'POST',   prefix: '/changelog/seen',            clear: ['/changelog'] },
+  { method: 'POST',   prefix: '/lastfm',                    clear: ['/me'] },
+  { method: 'DELETE', prefix: '/lastfm',                    clear: ['/me'] },
 ];
 
 export function applyMutationInvalidation(method: string, path: string): void {

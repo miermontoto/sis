@@ -8,6 +8,7 @@
   let health = $state<HealthData | null>(null);
   let users = $state<UserRecord[]>([]);
   let newSpotifyId = $state('');
+  let newUserKind = $state<'spotify' | 'lastfm'>('spotify');
   let addingUser = $state(false);
   let userError = $state<string | null>(null);
   let loading = $state(true);
@@ -21,7 +22,7 @@
     addingUser = true;
     userError = null;
     try {
-      await api.addUser(newSpotifyId.trim());
+      await api.addUser(newSpotifyId.trim(), newUserKind);
       newSpotifyId = '';
       await loadUsers();
     } catch (err: any) {
@@ -152,13 +153,17 @@
       <div class="pref-row">
         <div class="pref-info">
           <div class="pref-label">Add user to whitelist</div>
-          <div class="pref-desc">Enter a Spotify user ID. They can log in once added.</div>
+          <div class="pref-desc">Enter a Spotify user ID or a Last.fm username. They can log in once added.</div>
         </div>
         <div class="pref-control input-control">
+          <select class="kind-select" bind:value={newUserKind}>
+            <option value="spotify">Spotify</option>
+            <option value="lastfm">Last.fm</option>
+          </select>
           <input
             class="text-input"
             type="text"
-            placeholder="Spotify user ID..."
+            placeholder={newUserKind === 'lastfm' ? 'Last.fm username...' : 'Spotify user ID...'}
             bind:value={newSpotifyId}
             onkeydown={(e) => { if (e.key === 'Enter') handleAddUser(); }}
           />
@@ -332,6 +337,20 @@
   }
   .text-input::placeholder {
     color: var(--text-muted);
+  }
+
+  .kind-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+    outline: none;
+    cursor: pointer;
+  }
+  .kind-select:focus {
+    border-color: var(--accent);
   }
 
   .user-error {

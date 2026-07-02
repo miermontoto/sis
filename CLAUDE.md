@@ -47,6 +47,10 @@ Push notifications (optional — credential-gated; if unset the pipeline detects
 - `FIREBASE_SERVICE_ACCOUNT` — path to the Firebase service-account JSON (enables Android/FCM)
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` — web push (VAPID) keys + `mailto:` subject (enables browser push)
 
+Last.fm integration (optional — credential-gated, no-ops if unset; enables Last.fm SSO + scrobble sync):
+- `LASTFM_API_KEY`, `LASTFM_API_SECRET` — from https://www.last.fm/api/account/create
+- `LASTFM_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/lastfm/callback`
+
 ## Key patterns
 
 ### API data flow

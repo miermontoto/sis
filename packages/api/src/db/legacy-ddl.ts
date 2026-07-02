@@ -309,4 +309,18 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       PRIMARY KEY(user_id, granularity)
     )`);
   } catch {}
+
+  // last.fm: cuentas vinculadas (sso + sync de scrobbles). ddl ad-hoc como el
+  // resto: drizzle migrate corre en modo warn.
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS lastfm_accounts (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      username TEXT NOT NULL UNIQUE,
+      session_key TEXT,
+      last_scrobble_uts INTEGER,
+      backfill_done INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
 }

@@ -51,7 +51,7 @@ export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, A
 export type { RankProjection, ProjectionResult, ProjectedRankingsResponse } from './projections.js';
 
 // usuarios
-export type { MeResponse, UserRecord, ImportResult, HealthData } from './users.js';
+export type { MeResponse, UserRecord, ImportResult, HealthData, LastfmStatus, LastfmBackfillProgress } from './users.js';
 
 // social: perfiles, follows, feed, share links, compare
 export type { ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedItem, StreaksSummary, CompareResponse, DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse, ShareLink, ShareLinkListResponse, CreateShareLinkRequest } from './social.js';

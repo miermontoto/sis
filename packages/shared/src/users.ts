@@ -6,6 +6,26 @@ export interface MeResponse {
   imageUrl?: string | null;
   isAdmin?: boolean;
   scopes?: string[];
+  lastfmUsername?: string | null;
+}
+
+export interface LastfmBackfillProgress {
+  running: boolean;
+  phase: 'fetching' | 'importing' | 'done' | 'error';
+  page: number;
+  totalPages: number;
+  imported: number;
+  error?: string;
+}
+
+export interface LastfmStatus {
+  configured: boolean;
+  account: {
+    username: string;
+    lastScrobbleUts: number | null;
+    backfillDone: boolean;
+    backfill: LastfmBackfillProgress | null;
+  } | null;
 }
 
 export interface UserRecord {

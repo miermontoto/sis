@@ -15,6 +15,7 @@ import playlists from './routes/playlists.js';
 import social from './routes/social.js';
 import deviceTokens from './routes/device-tokens.js';
 import push from './routes/push.js';
+import lastfm from './routes/lastfm.js';
 import publicRoutes from './routes/public.js';
 import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
@@ -22,6 +23,7 @@ import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession, type Session } from './services/session.js';
 import { getChangelogState, markChangelogSeen } from './services/changelog.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
+import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
 import { VERSION } from './constants.js';
@@ -90,6 +92,7 @@ app.route('/api/playlists', playlists);
 app.route('/api/social', social);
 app.route('/api/device-tokens', deviceTokens);
 app.route('/api/push', push);
+app.route('/api/lastfm', lastfm);
 
 // changelog "novedades": estado + nº no vistas para el usuario actual (el gate
 // deja userId en el contexto). marcar visto avanza el corte de lectura.
@@ -192,6 +195,7 @@ app.get('/api/me', (c) => {
     imageUrl: user?.imageUrl ?? null,
     isAdmin: c.get('isAdmin'),
     scopes: getStoredScopes(userId),
+    lastfmUsername: getLastfmAccount(userId)?.username ?? null,
   });
 });
 

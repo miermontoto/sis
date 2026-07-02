@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { page } from '$app/state';
+  import IconLastfm from '$lib/icons/IconLastfm.svelte';
+  import type { LastfmStatus } from '$lib/api';
   import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse, type ShareLink, type TimeRange } from '$lib/api';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
@@ -111,6 +114,61 @@
     } catch {}
   }
 
+  // last.fm: estado de la conexión + backfill
+  let lastfmStatus = $state<LastfmStatus | null>(null);
+  let lastfmBusy = $state(false);
+  let lastfmError = $state<string | null>(
+    page.url.searchParams.get('lastfm') === 'already_linked'
+      ? 'That Last.fm account is already linked to another user.'
+      : null
+  );
+  let lastfmPollTimer: ReturnType<typeof setInterval> | null = null;
+
+  async function refreshLastfm() {
+    try {
+      lastfmStatus = await api.lastfmStatus();
+      const running = lastfmStatus?.account?.backfill?.running;
+      if (running && !lastfmPollTimer) {
+        lastfmPollTimer = setInterval(refreshLastfm, 3000);
+      } else if (!running && lastfmPollTimer) {
+        clearInterval(lastfmPollTimer);
+        lastfmPollTimer = null;
+      }
+    } catch {}
+  }
+
+  async function startLastfmBackfill() {
+    if (lastfmBusy) return;
+    lastfmBusy = true;
+    lastfmError = null;
+    try {
+      await api.lastfmBackfill();
+      await refreshLastfm();
+    } catch (err: any) {
+      lastfmError = err.message || 'Backfill failed';
+    } finally {
+      lastfmBusy = false;
+    }
+  }
+
+  async function disconnectLastfm() {
+    if (!confirm('Disconnect Last.fm? Imported plays are kept, but scrobbles will stop syncing.')) return;
+    lastfmBusy = true;
+    lastfmError = null;
+    try {
+      await api.lastfmDisconnect();
+      await refreshLastfm();
+    } catch (err: any) {
+      lastfmError = err.message || 'Disconnect failed';
+    } finally {
+      lastfmBusy = false;
+    }
+  }
+
+  onDestroy(() => {
+    if (lastfmPollTimer) clearInterval(lastfmPollTimer);
+  });
+
   // estado del import
   let importFiles = $state<FileList | null>(null);
   let importing = $state(false);
@@ -166,6 +224,7 @@
       ]);
       api.listMerges().then(m => { mergeCount = m.length; }).catch(() => {});
       api.listShareLinks().then(l => { shareLinks = l.filter(s => !s.revokedAt); }).catch(() => {});
+      refreshLastfm();
     } catch (err: any) {
       error = err.message || 'Failed to load settings';
     } finally {
@@ -550,6 +609,54 @@
       </div>
     </div>
   </div>
+
+  {#if lastfmStatus && (lastfmStatus.configured || lastfmStatus.account)}
+    <div class="card section-card">
+      <h3 class="section-card-title">Connections</h3>
+      <div class="section-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label lastfm-label"><IconLastfm size={16} /> Last.fm</div>
+            <div class="pref-desc">
+              {#if lastfmStatus.account}
+                Connected as <strong>{lastfmStatus.account.username}</strong> — scrobbles sync every few minutes and fill gaps Spotify polling misses
+              {:else}
+                Sync your scrobbles as a second source — fills gaps Spotify polling misses
+              {/if}
+            </div>
+          </div>
+          <div class="pref-control lastfm-control">
+            {#if lastfmStatus.account}
+              {@const backfill = lastfmStatus.account.backfill}
+              {#if backfill?.running}
+                <span class="lastfm-progress">
+                  {backfill.phase === 'fetching'
+                    ? `Fetching scrobbles… page ${backfill.page}/${backfill.totalPages || '?'}`
+                    : 'Importing…'}
+                </span>
+              {:else}
+                <button class="action-btn action-btn--secondary" disabled={lastfmBusy} onclick={startLastfmBackfill}>
+                  {lastfmStatus.account.backfillDone ? 'Re-import history' : 'Import full history'}
+                </button>
+              {/if}
+              <button class="action-btn action-btn--danger" disabled={lastfmBusy || backfill?.running} onclick={disconnectLastfm}>Disconnect</button>
+            {:else}
+              <a href="/auth/lastfm/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
+            {/if}
+          </div>
+        </div>
+        {#if lastfmStatus.account?.backfill?.phase === 'done'}
+          <div class="lastfm-note">Backfill complete: {formatNumber(lastfmStatus.account.backfill.imported)} plays imported.</div>
+        {/if}
+        {#if lastfmStatus.account?.backfill?.error}
+          <div class="import-error">Backfill failed: {lastfmStatus.account.backfill.error}</div>
+        {/if}
+        {#if lastfmError}
+          <div class="import-error">{lastfmError}</div>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <div class="card section-card">
     <h3 class="section-card-title">Data</h3>
@@ -937,6 +1044,29 @@
     border-top: 1px solid var(--border);
     padding-top: 0.75rem;
     margin-top: 0.25rem;
+  }
+
+  .lastfm-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .lastfm-control {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .lastfm-progress {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .lastfm-note {
+    font-size: 0.8rem;
+    color: var(--accent);
+    padding-top: 0.5rem;
   }
 
   @media (max-width: 768px) {

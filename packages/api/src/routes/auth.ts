@@ -1,12 +1,14 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES } from '../constants.js';
+import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES, LASTFM_AUTH_URL, LASTFM_ID_PREFIX } from '../constants.js';
 import { storeTokens } from '../services/token-manager.js';
 import { restartPolling } from '../services/polling.js';
 import { markRateLimited } from '../services/spotify-client.js';
-import { createSession, deleteSession } from '../services/session.js';
+import { createSession, deleteSession, validateSession } from '../services/session.js';
 import { createOneTimeCodeStore } from '@platform/auth';
-import { findOrCreateUser, isAllowedUser, migrateExistingData } from '../services/user-manager.js';
+import { findOrCreateUser, findUserBySpotifyId, getUserById, hasAnyUsers, isAllowedUser, migrateExistingData, updateUser } from '../services/user-manager.js';
+import { isLastfmConfigured, getAuthSession } from '../services/lastfm-client.js';
+import { findLastfmAccountByUsername, upsertLastfmAccount } from '../services/lastfm-sync.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
 import crypto from 'crypto';
 import { MOBILE_SCHEME } from '../constants.js';
@@ -20,14 +22,9 @@ const pendingStates = new Set<string>();
 // link; la app lo canjea por la cookie de sesión en POST /auth/mobile/exchange
 const mobileAuthCodes = createOneTimeCodeStore<string>({ ttlMs: 60_000 });
 
-auth.get('/login', (c) => {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
-
-  if (!clientId || !redirectUri) {
-    return c.json({ error: 'faltan variables de entorno SPOTIFY_CLIENT_ID o SPOTIFY_REDIRECT_URI' }, 500);
-  }
-
+// cookies previas al redirect de autorización (returnTo + flag móvil),
+// compartidas por los flujos de spotify y last.fm
+function setLoginCookies(c: Context): void {
   // guardar returnTo en cookie para recuperar después del callback
   const returnTo = c.req.query('returnTo') || '/';
   setCookie(c, 'sis_return_to', returnTo, {
@@ -47,12 +44,62 @@ auth.get('/login', (c) => {
       maxAge: 10 * 60,
     });
   }
+}
 
+function issueState(): string {
   const state = crypto.randomBytes(16).toString('hex');
   pendingStates.add(state);
-
   // limpiar states viejos después de 10 min
   setTimeout(() => pendingStates.delete(state), 10 * 60_000);
+  return state;
+}
+
+// tramo final común de los callbacks: sesión + cookie, polling y redirect
+// (deep link móvil o returnTo web)
+function finishLogin(c: Context, userId: number): Response {
+  const sessionToken = createSession(userId, c.req.header('user-agent'));
+  const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
+  setCookie(c, 'sis_session', sessionToken, {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+
+  // reiniciar polling para incluir al nuevo usuario
+  restartPolling();
+
+  // recuperar returnTo y limpiar cookie
+  const returnTo = getCookie(c, 'sis_return_to') || '/';
+  deleteCookie(c, 'sis_return_to', { path: '/' });
+
+  // flujo móvil: entregar un código de un solo uso a la app via deep link; la
+  // sesión ya existe — la app la canjea por su cookie en /auth/mobile/exchange
+  if (getCookie(c, 'sis_mobile') === '1') {
+    deleteCookie(c, 'sis_mobile', { path: '/' });
+    const code = mobileAuthCodes.issue(sessionToken);
+    console.log('[auth] login completado, entregando código a la app');
+    return c.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
+  }
+
+  // solo permitir rutas relativas para evitar open redirect
+  const safePath = returnTo.startsWith('/') ? returnTo : '/';
+
+  console.log('[auth] login completado exitosamente');
+  return c.redirect(safePath);
+}
+
+auth.get('/login', (c) => {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+
+  if (!clientId || !redirectUri) {
+    return c.json({ error: 'faltan variables de entorno SPOTIFY_CLIENT_ID o SPOTIFY_REDIRECT_URI' }, 500);
+  }
+
+  setLoginCookies(c);
+  const state = issueState();
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -151,38 +198,97 @@ auth.get('/callback', async (c) => {
   migrateExistingData(user.id);
 
   // crear sesión (spotifyId/isAdmin se resuelven desde users al validar)
-  const sessionToken = createSession(user.id, c.req.header('user-agent'));
-  const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
-  setCookie(c, 'sis_session', sessionToken, {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60,
-  });
-  console.log(`[auth] sesi��n creada para usuario ${me.id} (id: ${user.id})`);
+  console.log(`[auth] sesión creada para usuario ${me.id} (id: ${user.id})`);
+  return finishLogin(c, user.id);
+});
 
-  // reiniciar polling para incluir al nuevo usuario
-  restartPolling();
+// --- last.fm: sso + vinculación de cuenta ---
 
-  // recuperar returnTo y limpiar cookie
-  const returnTo = getCookie(c, 'sis_return_to') || '/';
-  deleteCookie(c, 'sis_return_to', { path: '/' });
+// url del callback: derivada del redirect de spotify (mismo host), overridable
+function lastfmCallbackUrl(): string {
+  if (process.env.LASTFM_REDIRECT_URI) return process.env.LASTFM_REDIRECT_URI;
+  const spotifyCb = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+  return new URL('/auth/lastfm/callback', spotifyCb).toString();
+}
 
-  // flujo móvil: entregar un código de un solo uso a la app via deep link; la
-  // sesión ya existe — la app la canjea por su cookie en /auth/mobile/exchange
-  if (getCookie(c, 'sis_mobile') === '1') {
-    deleteCookie(c, 'sis_mobile', { path: '/' });
-    const code = mobileAuthCodes.issue(sessionToken);
-    console.log('[auth] OAuth móvil completado, entregando código a la app');
-    return c.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
+// público (fuera del gate /api/*): el login decide si mostrar el botón
+auth.get('/lastfm/enabled', (c) => c.json({ enabled: isLastfmConfigured() }));
+
+auth.get('/lastfm/login', (c) => {
+  if (!isLastfmConfigured()) {
+    return c.json({ error: 'faltan variables de entorno LASTFM_API_KEY o LASTFM_API_SECRET' }, 503);
   }
 
-  // solo permitir rutas relativas para evitar open redirect
-  const safePath = returnTo.startsWith('/') ? returnTo : '/';
+  setLoginCookies(c);
 
-  console.log('[auth] OAuth completado exitosamente');
-  return c.redirect(safePath);
+  // last.fm no soporta state propio: viaja como query param del callback
+  const cb = new URL(lastfmCallbackUrl());
+  cb.searchParams.set('state', issueState());
+
+  const params = new URLSearchParams({
+    api_key: process.env.LASTFM_API_KEY!,
+    cb: cb.toString(),
+  });
+  return c.redirect(`${LASTFM_AUTH_URL}?${params.toString()}`);
+});
+
+auth.get('/lastfm/callback', async (c) => {
+  const token = c.req.query('token');
+  const state = c.req.query('state');
+
+  if (!token) return c.json({ error: 'falta parámetro token de last.fm' }, 400);
+  if (!state || !pendingStates.has(state)) {
+    return c.json({ error: 'state inválido, posible CSRF' }, 403);
+  }
+  pendingStates.delete(state);
+
+  let lfm: { name: string; key: string };
+  try {
+    lfm = await getAuthSession(token);
+  } catch (err) {
+    console.error('[auth] error en auth.getSession de last.fm:', err);
+    return c.json({ error: 'error al verificar identidad con last.fm' }, 500);
+  }
+
+  // modo vinculación: con sesión sis activa, conectar la cuenta al usuario actual
+  const sessionCookie = getCookie(c, 'sis_session');
+  const current = sessionCookie ? validateSession(sessionCookie) : null;
+  if (current) {
+    deleteCookie(c, 'sis_return_to', { path: '/' });
+    deleteCookie(c, 'sis_mobile', { path: '/' });
+    const owner = findLastfmAccountByUsername(lfm.name);
+    if (owner && owner.userId !== current.userId) {
+      console.warn(`[auth] last.fm ${lfm.name} ya vinculado al usuario ${owner.userId}`);
+      return c.redirect('/settings?lastfm=already_linked');
+    }
+    upsertLastfmAccount(current.userId, lfm.name, lfm.key);
+    restartPolling();
+    return c.redirect('/settings?lastfm=linked');
+  }
+
+  // modo login: cuenta ya vinculada, placeholder pre-creado por un admin
+  // (spotify_id sintético lastfm:<username>) o bootstrap del primer usuario
+  const linked = findLastfmAccountByUsername(lfm.name);
+  let user = linked ? getUserById(linked.userId) : findUserBySpotifyId(LASTFM_ID_PREFIX + lfm.name);
+  if (!user && !hasAnyUsers()) {
+    user = findOrCreateUser(LASTFM_ID_PREFIX + lfm.name, lfm.name, null);
+  }
+
+  if (!user) {
+    console.warn(`[auth] usuario last.fm ${lfm.name} no está autorizado`);
+    return c.json({ error: 'usuario no autorizado' }, 403);
+  }
+  if (!user.isActive) {
+    console.warn(`[auth] usuario last.fm ${lfm.name} está desactivado`);
+    return c.json({ error: 'usuario desactivado' }, 403);
+  }
+
+  // placeholders pre-creados no tienen displayName hasta el primer login
+  if (!user.displayName) updateUser(user.id, { displayName: lfm.name });
+  upsertLastfmAccount(user.id, lfm.name, lfm.key);
+
+  console.log(`[auth] sesión creada para usuario last.fm ${lfm.name} (id: ${user.id})`);
+  return finishLogin(c, user.id);
 });
 
 // canje del código del deep link por la cookie de sesión (apk). la llamada
