@@ -6,6 +6,7 @@
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
+  import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
   import MergeBanners from '$lib/components/MergeBanners.svelte';
@@ -209,8 +210,7 @@
       {/if}
 
       {#if data.recentPlays.length > 0}
-        <h2 class="section-title"><a href="/history?artist={$page.params.id}" class="section-link">Recent plays</a></h2>
-        <TrackList items={data.recentPlays} showTime />
+        <RecentPlaysRail entityType="artist" entityId={$page.params.id} initial={data.recentPlays} historyHref={`/history?artist=${$page.params.id}`} />
       {/if}
     </aside>
   </div>
