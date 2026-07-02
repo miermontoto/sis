@@ -64,6 +64,15 @@ let settingsLoaded = false;
 const lsKey = (key: string) =>
   key.startsWith('lastPeriod') ? `sis:lastPeriod:${key.slice(10).toLowerCase()}` : `sis:${key}`;
 
+// high-water mark monótono para los marcadores lastPeriod*: gana el mayor
+// (null = sin marca). los formatos YYYY / YYYY-MM / YYYY-Www van year-first y
+// zero-padded, así que el orden lexicográfico coincide con el cronológico.
+function maxMarker(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return a >= b ? a : b;
+}
+
 export async function loadSettings(): Promise<void> {
   let data: Record<string, string> = {};
   try {
@@ -76,16 +85,30 @@ export async function loadSettings(): Promise<void> {
   }
 
   settingsCache = { ...SETTINGS_DEFAULTS };
+  // marcadores lastPeriod* que el estado local adelanta al server y hay que
+  // sanar (su PUT fire-and-forget pudo abortarse al recargar la página)
+  const healPatch: Record<string, string> = {};
   for (const [key, def] of Object.entries(SETTINGS_DEFAULTS)) {
     const raw = data[key];
     if (typeof def === 'boolean') (settingsCache as any)[key] = raw !== undefined ? raw !== 'false' : def;
-    else if (def === null) (settingsCache as any)[key] = raw || null;
+    else if (def === null) {
+      // marcador monótono (lastPeriod*): reconciliamos server vs localStorage
+      // con el máximo. así un descarte local reciente no se pierde si su PUT
+      // no llegó al server, y a la vez respetamos un descarte de otro
+      // dispositivo. si lo local va por delante, sanamos el server.
+      const server = raw || null;
+      const local = localStorage.getItem(lsKey(key));
+      const merged = maxMarker(server, local);
+      (settingsCache as any)[key] = merged;
+      if (merged !== null && merged !== server) healPatch[key] = merged;
+    }
     else (settingsCache as any)[key] = raw || def;
   }
 
   for (const [key, val] of Object.entries(settingsCache)) {
     if (val !== null) localStorage.setItem(lsKey(key), String(val));
   }
+  if (Object.keys(healPatch).length > 0) updateSetting(healPatch);
   settingsLoaded = true;
 }
 
