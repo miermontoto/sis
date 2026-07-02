@@ -20,7 +20,7 @@
     "@platform/ui": "workspace:*",
     "@sis/shared": "workspace:*",
     "d3-hierarchy": "^3.1.2",
-    "echarts": "^5.6.0",
+    "echarts": "^6.1.0",
     "idb-keyval": "^6.2.1"
   },
   "devDependencies": {
