@@ -75,12 +75,13 @@ export interface RecentTracksPage {
   total: number;
 }
 
-export async function getRecentTracks(username: string, opts: { from?: number; page?: number; limit?: number } = {}): Promise<RecentTracksPage> {
+export async function getRecentTracks(username: string, opts: { from?: number; to?: number; page?: number; limit?: number } = {}): Promise<RecentTracksPage> {
   const params: Record<string, string> = {
     user: username,
     limit: String(opts.limit ?? LASTFM_PAGE_LIMIT),
   };
   if (opts.from) params.from = String(opts.from);
+  if (opts.to) params.to = String(opts.to);
   if (opts.page) params.page = String(opts.page);
 
   const data = await lastfmRequest<{

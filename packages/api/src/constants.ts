@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w27ae';
+export const VERSION = '26w27af';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -65,6 +65,12 @@ export const LASTFM_REQUEST_SPACING_MS = 260;
 
 // tope de páginas por tick del sync incremental (el backfill no lo usa)
 export const LASTFM_SYNC_MAX_PAGES = 10;
+
+// periodo de gracia antes de ingerir un scrobble (usuarios con spotify): el
+// scrobble lleva timestamp de inicio y menos info (sin duración ni IDs), así
+// que se espera a que el pipeline de spotify registre el play primero (fin de
+// track + poll de 5 min) y el scrobble solo entra si sigue faltando
+export const LASTFM_SYNC_GRACE_MS = 20 * 60_000;
 
 // prefijo del spotify_id sintético de usuarios que solo tienen last.fm
 export const LASTFM_ID_PREFIX = 'lastfm:';

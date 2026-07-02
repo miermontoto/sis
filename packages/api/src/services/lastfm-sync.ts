@@ -7,8 +7,9 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { lastfmAccounts } from '../db/schema.js';
 import { importHistory } from './history-import.js';
+import { getStoredTokens } from './token-manager.js';
 import { getRecentTracks, type LastfmRecentTrack } from './lastfm-client.js';
-import { LASTFM_SYNC_MAX_PAGES } from '../constants.js';
+import { LASTFM_SYNC_MAX_PAGES, LASTFM_SYNC_GRACE_MS } from '../constants.js';
 
 export interface LastfmAccount {
   userId: number;
@@ -103,13 +104,21 @@ export async function syncRecentScrobbles(userId: number): Promise<number> {
   const account = getLastfmAccount(userId);
   if (!account) return 0;
 
+  // spotify tiene prioridad como fuente (timestamps de fin, duración, IDs
+  // reales): si el usuario tiene tokens, los scrobbles recientes se retienen
+  // hasta que su play de spotify haya tenido tiempo de registrarse — el
+  // scrobble solo entra (dedup mediante) si spotify no lo cubrió
+  const grace = getStoredTokens(userId) ? LASTFM_SYNC_GRACE_MS : 0;
   const from = account.lastScrobbleUts ?? Math.floor(Date.now() / 1000);
+  const to = Math.floor((Date.now() - grace) / 1000);
+  if (to <= from) return 0; // todo dentro del periodo de gracia todavía
+
   const collected: LastfmRecentTrack[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    const res = await getRecentTracks(account.username, { from, page });
+    const res = await getRecentTracks(account.username, { from, to, page });
     collected.push(...res.tracks.filter(t => t.date?.uts));
     totalPages = Math.min(res.totalPages, LASTFM_SYNC_MAX_PAGES);
     page++;
@@ -165,11 +174,15 @@ export async function backfillHistory(userId: number): Promise<void> {
   console.log(`[lastfm:${userId}] iniciando backfill de ${account.username}...`);
 
   try {
+    // `to` fijo: congela el snapshot durante la paginación (los scrobbles que
+    // lleguen mientras tanto no desplazan páginas) y aplica el mismo periodo
+    // de gracia que el sync incremental
+    const to = Math.floor((Date.now() - (getStoredTokens(userId) ? LASTFM_SYNC_GRACE_MS : 0)) / 1000);
     const collected: LastfmRecentTrack[] = [];
     let page = 1;
     let totalPages = 1;
     do {
-      const res = await getRecentTracks(account.username, { page });
+      const res = await getRecentTracks(account.username, { to, page });
       collected.push(...res.tracks.filter(t => t.date?.uts));
       totalPages = res.totalPages;
       progress.page = page;

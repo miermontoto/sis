@@ -85,6 +85,11 @@ const MIN_PLAYED_MS = MIN_PLAY_MS;
 const BATCH_SIZE = 500;
 const DEDUP_WINDOW_S = 300;
 
+// dedup de scrobbles: el play equivalente de spotify llega hasta una duración
+// de track después del timestamp del scrobble — se mira hacia delante hasta
+// este tope para no duplicar tracks más largos que DEDUP_WINDOW_S
+const SCROBBLE_FORWARD_S = 20 * 60;
+
 const IMPORT_PREFIX = 'import:';
 
 interface ExtendedEntry {
@@ -133,6 +138,9 @@ interface NormalizedEntry {
   artistId: string;
   albumId: string | null;
   msPlayed: number | null;
+  // scrobbles de last.fm: timestamp de INICIO de reproducción (spotify y
+  // extended usan fin) → activa la ventana de dedup asimétrica hacia delante
+  isScrobble?: boolean;
 }
 
 function isLastFmEntry(item: unknown): item is LastFmEntry {
@@ -167,6 +175,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
           artistId,
           albumId: albumName ? resolveAlbumId(artistId, artistName, albumName) : null,
           msPlayed: null,
+          isScrobble: true,
         };
       })
       .filter((e): e is NormalizedEntry => e !== null);
@@ -260,6 +269,19 @@ function hasNearbyPlay(index: Map<string, number[]>, trackName: string, playedAt
   return false;
 }
 
+// ¿existe algún play del track en el rango [fromS, toS]? (búsqueda binaria)
+function hasPlayInRange(index: Map<string, number[]>, trackName: string, fromS: number, toS: number): boolean {
+  const arr = index.get(trackName.toLowerCase());
+  if (!arr || arr.length === 0) return false;
+  let lo = 0, hi = arr.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < fromS) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return lo < arr.length && arr[lo] <= toS;
+}
+
 function addToIndex(index: Map<string, number[]>, trackName: string, playedAtS: number) {
   const key = trackName.toLowerCase();
   const arr = index.get(key);
@@ -292,6 +314,12 @@ export function importHistory(data: unknown, userId: number): ImportResult {
       for (const entry of batch) {
         const playedAtS = Math.floor(new Date(entry.playedAt).getTime() / 1000);
         if (hasNearbyPlay(playIndex, entry.trackName, playedAtS)) {
+          result.duplicates++;
+          continue;
+        }
+        // scrobble (ts de inicio) vs play de spotify (ts de fin): el play
+        // equivalente cae hasta una duración de track por delante
+        if (entry.isScrobble && hasPlayInRange(playIndex, entry.trackName, playedAtS + DEDUP_WINDOW_S, playedAtS + SCROBBLE_FORWARD_S)) {
           result.duplicates++;
           continue;
         }
