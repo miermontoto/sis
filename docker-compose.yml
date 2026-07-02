@@ -5,10 +5,10 @@ services:
       - "3004:3000"
     volumes:
       - sis-data:/app/data
-      # service-account JSON de firebase para push FCM (opcional): descomentar,
-      # ajustar la ruta del host y apuntar FIREBASE_SERVICE_ACCOUNT a la ruta
-      # del contenedor (p.ej. /app/secrets/firebase-service-account.json)
-      # - ./secrets/firebase-service-account.json:/app/secrets/firebase-service-account.json:ro
+      # service-account JSON de firebase para push FCM. montado read-only desde su
+      # ubicación actual (gitignored por *firebase-adminsdk*.json) al path que apunta
+      # FIREBASE_SERVICE_ACCOUNT dentro del contenedor.
+      - ./packages/web/android/app/laravel10-567da-firebase-adminsdk-fbsvc-9d7625bcd8.json:/app/secrets/firebase-service-account.json:ro
     env_file: .env
     environment:
       - DATABASE_PATH=/app/data/sis.db

@@ -6,3 +6,5 @@ packages/api/dist
 packages/api/static
 data
 .env
+# secreto de firebase: se monta como volumen en runtime, no se hornea en la imagen
+*firebase-adminsdk*.json
