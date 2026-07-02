@@ -90,6 +90,10 @@ const DEDUP_WINDOW_S = 300;
 // este tope para no duplicar tracks más largos que DEDUP_WINDOW_S
 const SCROBBLE_FORWARD_S = 20 * 60;
 
+// umbral de entradas a partir del cual compensa construir el índice completo
+// de plays en memoria; por debajo (ticks del sync) se consulta por SQL
+const INDEX_BUILD_THRESHOLD = 200;
+
 const IMPORT_PREFIX = 'import:';
 
 interface ExtendedEntry {
@@ -254,21 +258,6 @@ function buildPlayIndex(userId: number): Map<string, number[]> {
   return index;
 }
 
-function hasNearbyPlay(index: Map<string, number[]>, trackName: string, playedAtS: number): boolean {
-  const arr = index.get(trackName.toLowerCase());
-  if (!arr || arr.length === 0) return false;
-  let lo = 0, hi = arr.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (arr[mid] < playedAtS) lo = mid + 1;
-    else hi = mid - 1;
-  }
-  for (const i of [lo - 1, lo]) {
-    if (i >= 0 && i < arr.length && Math.abs(arr[i] - playedAtS) <= DEDUP_WINDOW_S) return true;
-  }
-  return false;
-}
-
 // ¿existe algún play del track en el rango [fromS, toS]? (búsqueda binaria)
 function hasPlayInRange(index: Map<string, number[]>, trackName: string, fromS: number, toS: number): boolean {
   const arr = index.get(trackName.toLowerCase());
@@ -280,6 +269,24 @@ function hasPlayInRange(index: Map<string, number[]>, trackName: string, fromS: 
     else hi = mid - 1;
   }
   return lo < arr.length && arr[lo] <= toS;
+}
+
+// variante puntual por SQL sobre idx (user_id, played_at): para batches
+// pequeños (ticks del sync de last.fm) evita reconstruir el índice completo
+// de plays del usuario (~350k filas ≈ 1s bloqueando el event loop por tick).
+// las filas insertadas en la misma transacción son visibles (misma conexión)
+function hasPlayInRangeSql(userId: number, trackName: string, fromS: number, toS: number): boolean {
+  const db = getDb();
+  const row = db.get(sql`
+    SELECT 1 FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE lh.user_id = ${userId}
+      AND lh.played_at >= ${new Date(fromS * 1000).toISOString()}
+      AND lh.played_at <= ${new Date(toS * 1000).toISOString()}
+      AND LOWER(t.name) = LOWER(${trackName})
+    LIMIT 1
+  `);
+  return !!row;
 }
 
 function addToIndex(index: Map<string, number[]>, trackName: string, playedAtS: number) {
@@ -302,7 +309,11 @@ export function importHistory(data: unknown, userId: number): ImportResult {
   const entries = normalizeEntries(flat);
   const result: ImportResult = { total: flat.length, imported: 0, duplicates: 0, skipped: flat.length - entries.length };
 
-  const playIndex = buildPlayIndex(userId);
+  // por debajo del umbral las consultas puntuales indexadas ganan de largo al
+  // escaneo completo; por encima (imports masivos) el índice se amortiza
+  const playIndex = entries.length > INDEX_BUILD_THRESHOLD ? buildPlayIndex(userId) : null;
+  const hasPlay = (name: string, fromS: number, toS: number): boolean =>
+    playIndex ? hasPlayInRange(playIndex, name, fromS, toS) : hasPlayInRangeSql(userId, name, fromS, toS);
 
   const db = getDb();
 
@@ -313,26 +324,27 @@ export function importHistory(data: unknown, userId: number): ImportResult {
     db.transaction((tx) => {
       for (const entry of batch) {
         const playedAtS = Math.floor(new Date(entry.playedAt).getTime() / 1000);
-        if (hasNearbyPlay(playIndex, entry.trackName, playedAtS)) {
+        if (hasPlay(entry.trackName, playedAtS - DEDUP_WINDOW_S, playedAtS + DEDUP_WINDOW_S)) {
           result.duplicates++;
           continue;
         }
         // scrobble (ts de inicio) vs play de spotify (ts de fin): el play
         // equivalente cae hasta una duración de track por delante
-        if (entry.isScrobble && hasPlayInRange(playIndex, entry.trackName, playedAtS + DEDUP_WINDOW_S, playedAtS + SCROBBLE_FORWARD_S)) {
+        if (entry.isScrobble && hasPlay(entry.trackName, playedAtS + DEDUP_WINDOW_S, playedAtS + SCROBBLE_FORWARD_S)) {
           result.duplicates++;
           continue;
         }
         // Basic endTime ≈ Extended ts + duration → comprobar también desplazado
         if (entry.msPlayed && entry.msPlayed > 0) {
           const offsetS = Math.round(entry.msPlayed / 1000);
-          if (hasNearbyPlay(playIndex, entry.trackName, playedAtS - offsetS) ||
-              hasNearbyPlay(playIndex, entry.trackName, playedAtS + offsetS)) {
+          if (hasPlay(entry.trackName, playedAtS - offsetS - DEDUP_WINDOW_S, playedAtS - offsetS + DEDUP_WINDOW_S) ||
+              hasPlay(entry.trackName, playedAtS + offsetS - DEDUP_WINDOW_S, playedAtS + offsetS + DEDUP_WINDOW_S)) {
             result.duplicates++;
             continue;
           }
         }
-        addToIndex(playIndex, entry.trackName, playedAtS);
+        // en la vía SQL no hace falta: las filas insertadas ya son visibles
+        if (playIndex) addToIndex(playIndex, entry.trackName, playedAtS);
 
         if (entry.artistName) {
           tx.run(sql`
