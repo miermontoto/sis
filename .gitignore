@@ -13,3 +13,6 @@ packages/web/.svelte-kit/
 .DS_Store
 .claude/settings.local.json
 .codex
+
+# firebase service-account keys (secretos del backend FCM, nunca commitear)
+*firebase-adminsdk*.json
