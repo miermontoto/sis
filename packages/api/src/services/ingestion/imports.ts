@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { artists, albums, trackArtists } from '../../db/schema.js';
 import { spotifyFetch, isRateLimited } from '../spotify-client.js';
+import { mergeTrackArtists } from './upsert.js';
 import type { SpotifyTrack, SpotifySearchArtistResult, SpotifySearchAlbumResult } from '../../types/spotify.js';
 
 const now = () => new Date().toISOString();
@@ -454,9 +455,7 @@ export function mergeImportTracks() {
     try {
       db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${real_id} WHERE track_id = ${import_id}`);
       db.run(sql`DELETE FROM listening_history WHERE track_id = ${import_id}`);
-      db.run(sql`INSERT OR IGNORE INTO track_artists (track_id, artist_id, position)
-        SELECT ${real_id}, artist_id, position FROM track_artists WHERE track_id = ${import_id}`);
-      db.run(sql`DELETE FROM track_artists WHERE track_id = ${import_id}`);
+      mergeTrackArtists(db, import_id, real_id);
       db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${real_id} WHERE track_id = ${import_id}`);
       db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${import_id}`);
       db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${real_id} WHERE track_id = ${import_id}`);

@@ -175,6 +175,32 @@ export function upsertTrack(track: SpotifyTrack) {
   });
 }
 
+// fusiona la relación track-artistas de un track origen en uno destino al unificar
+// duplicados. el destino (canónico) es la fuente de verdad de sus artistas: solo se
+// heredan los del origen si el destino no tiene ninguno (defensivo). así se evita el
+// bug de arrastrar artistas de grabaciones homónimas distintas (p.ej. una versión en
+// directo con feats. distintos) al canónico —que además colisionaban en la posición,
+// no única en la PK (track_id, artist_id)—. reutiliza la conexión/transacción del
+// llamante (no llama a getDb).
+export function mergeTrackArtists(db: ReturnType<typeof getDb>, sourceTrackId: string, targetTrackId: string) {
+  const targetCount = (db.get(
+    sql`SELECT COUNT(*) as c FROM track_artists WHERE track_id = ${targetTrackId}`
+  ) as { c: number }).c;
+
+  // destino sin artistas: heredar los del origen con posiciones consecutivas limpias
+  if (targetCount === 0) {
+    const sourceArtists = db.all(
+      sql`SELECT artist_id FROM track_artists WHERE track_id = ${sourceTrackId} ORDER BY position`
+    ) as { artist_id: string }[];
+    sourceArtists.forEach((a, i) => {
+      db.run(sql`INSERT OR IGNORE INTO track_artists (track_id, artist_id, position)
+        VALUES (${targetTrackId}, ${a.artist_id}, ${i})`);
+    });
+  }
+
+  db.run(sql`DELETE FROM track_artists WHERE track_id = ${sourceTrackId}`);
+}
+
 function findNearbyPlay(db: ReturnType<typeof getDb>, trackId: string, playedAt: string, userId: number) {
   return db.get(sql`
     SELECT id, duration_played_ms FROM listening_history
