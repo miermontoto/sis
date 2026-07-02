@@ -347,7 +347,7 @@
 
       {#if data.versions.length > 0}
         <h2 class="section-title">Versions</h2>
-        <div class="track-list">
+        <div class="track-list versions-list">
           {#each data.versions as v, i}
             <svelte:element
               this={v.isCurrent ? 'div' : 'a'}

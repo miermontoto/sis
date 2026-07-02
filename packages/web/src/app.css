@@ -305,12 +305,19 @@ a:hover {
     flex-direction: column;
     min-height: 0;
   }
-  /* recent plays crece hasta terminar donde acaba el main; nunca lo sobrepasa
-     (min-height:0 permite que encoja y haga scroll interno en vez de alargar la página) */
+  /* recent plays crece hasta terminar donde acaba el main; con hueco de sobra
+     absorbe el resto, pero mantiene un mínimo para que siempre se vean varias
+     filas (aunque versions sea largo) */
   .detail-rail .recent-scroll {
     flex: 1 1 0;
-    min-height: 0;
+    min-height: 12rem;
     max-height: none;
+  }
+  /* si versions es largo cede el espacio (scroll propio) en vez de aplastar a
+     recent plays; con sitio de sobra (flex-grow 0) se muestra entera sin estirarse */
+  .detail-rail .versions-list {
+    min-height: 0;
+    overflow-y: auto;
   }
   /* alinear el primer título del rail con la parte superior del hero (en móvil, donde
      el rail va abajo, sí queremos el margen de separación) */
