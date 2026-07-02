@@ -342,7 +342,7 @@
     <aside class="detail-rail">
       {#if data.series.length > 1}
         <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={data.series} {metric} height="260px" />
+        <EntityHistoryChart series={data.series} {metric} />
       {/if}
 
       {#if data.versions.length > 0}

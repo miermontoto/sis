@@ -11,7 +11,7 @@
   let {
     series,
     metric,
-    height = '250px',
+    height = '180px',
   }: {
     series: { period: string; play_count: number; total_ms: number }[];
     metric: RankingMetric;
@@ -104,27 +104,24 @@
 
 {#if yearTotals.length > 0}
   <div class="card chart-card">
-    <div class="history-head">
-      {#if userDrilled}
+    {#if userDrilled}
+      <div class="history-head">
         <button class="history-back" onclick={() => (drillYear = null)}>‹ all years</button>
-      {/if}
-      <span class="history-label">{effectiveYear ?? 'By year — click to drill in'}</span>
-    </div>
+      </div>
+    {/if}
     <BaseChart option={chartOption} {height} onclick={handleClick} replaceMerge={['xAxis', 'series']} />
   </div>
 {/if}
 
 <style>
   .chart-card {
-    margin-bottom: 1.5rem;
-    padding: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
   }
   .history-head {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.5rem;
-    min-height: 1.6rem;
+    margin-bottom: 0.4rem;
   }
   .history-back {
     background: none;
@@ -139,10 +136,5 @@
   .history-back:hover {
     color: var(--text);
     border-color: var(--text-muted);
-  }
-  .history-label {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    font-variant-numeric: tabular-nums;
   }
 </style>
