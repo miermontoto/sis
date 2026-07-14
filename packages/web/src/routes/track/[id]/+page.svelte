@@ -182,8 +182,14 @@
     <div class="detail-main">
   <div class="detail-hero-row">
     <div class="detail-hero">
-      {#if data.track.album?.imageUrl}
-        <img class="detail-image" src={data.track.album.imageUrl} alt={data.track.album?.name ?? ''} />
+      {#if data.track.album}
+        <a class="cover-link" href="/album/{data.track.album.id}" aria-label="View album {data.track.album.name}">
+          {#if data.track.album.imageUrl}
+            <img class="detail-image" src={data.track.album.imageUrl} alt={data.track.album.name} />
+          {:else}
+            <div class="detail-image detail-image--placeholder"></div>
+          {/if}
+        </a>
       {:else}
         <div class="detail-image detail-image--placeholder"></div>
       {/if}
@@ -397,6 +403,17 @@
   .track-item--current {
     background: color-mix(in srgb, var(--accent) 9%, transparent);
     border-radius: 8px;
+  }
+  /* la portada enlaza al álbum: el track hereda su carátula, no hay nada que editar aquí */
+  .cover-link {
+    display: block;
+    line-height: 0;
+    flex-shrink: 0;
+    border-radius: var(--radius);
+    transition: opacity 0.05s;
+  }
+  .cover-link:hover {
+    opacity: 0.85;
   }
 </style>
 
