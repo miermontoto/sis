@@ -20,7 +20,6 @@
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import FriendsActivity from '$lib/components/FriendsActivity.svelte';
-  import RefreshingIndicator from '$lib/components/RefreshingIndicator.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { prewarmer, setUser, hydrateUser, bootCleanup } from '$lib/cache';
@@ -392,7 +391,7 @@
       <div class="sidebar-top">
         <div class="sidebar-head">
           <div class="sidebar-logo">
-            <span class="sidebar-logo-mark">SIS<RefreshingIndicator /></span>
+            <span class="sidebar-logo-mark">SIS</span>
             <span class="sidebar-logo-subtitle">listening stats</span>
           </div>
           <button
@@ -603,7 +602,7 @@
     </aside>
     <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)}>
       <div class="mobile-header">
-        <span class="mobile-header-title"><span class="mobile-header-logo">SIS<RefreshingIndicator /></span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
+        <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">
           <button class="mobile-search-bar" onclick={() => showSearch = true}>
             Search...
