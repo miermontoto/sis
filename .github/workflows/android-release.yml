@@ -1,0 +1,49 @@
+# caller fino: build + firma del .aab. la lógica real vive en el workflow reutilizable
+# del repo platform (se corrige UNA vez para todas las apps):
+#   https://github.com/miermontoto/platform/blob/main/.github/workflows/android-release.yml
+# la lista de secrets (keystore, etc.) está documentada en su cabecera; hay que
+# configurarlos en este repo antes del primer run (falla rápido si faltan).
+#
+# la subida automática a Play está apagada por defecto: falta crear la app en la Play
+# Console y configurar el service account (secret ANDROID_PLAY_SERVICE_ACCOUNT_JSON).
+#
+# iOS: sin workflow todavía — el login de sis es oauth de spotify, que en el webview
+# requiere browser del sistema + deep link de vuelta (pendiente en el roadmap de la
+# plataforma); tampoco hay script mobile:build:ios ni app record en App Store Connect.
+
+name: Android release
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Subir a Google Play (requiere ANDROID_PLAY_SERVICE_ACCOUNT_JSON, aún sin configurar).'
+        type: boolean
+        default: false
+      track:
+        description: 'Track de Play donde publicar el aab.'
+        type: choice
+        default: internal
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+  push:
+    tags:
+      - 'android-v*'
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    uses: miermontoto/platform/.github/workflows/android-release.yml@main
+    with:
+      app: sis
+      package_name: info.mier.sis
+      # sin service account de Play todavía: en push de tag también queda en false.
+      upload: ${{ inputs.upload || false }}
+      track: ${{ inputs.track || 'internal' }}
+    secrets: inherit

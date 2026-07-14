@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "875759943388",
+    "project_id": "laravel10-567da",
+    "storage_bucket": "laravel10-567da.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:875759943388:android:9d2ab300a767537e6f7e19",
+        "android_client_info": {
+          "package_name": "info.mier.sis"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9Gx_phWONf90FEZkAtBn3LGy7SsdPSfs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
