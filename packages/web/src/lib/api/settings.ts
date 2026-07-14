@@ -21,6 +21,7 @@ interface SettingsData {
   sessionTrackingDisplay: SessionTrackingDisplay;
   nowPlayingDisplay: NowPlayingDisplay;
   socialVisibility: SocialVisibility;
+  sidebarCollapsed: boolean;
   notificationsEnabled: boolean;
   notifyRecords: boolean;
   notifyNumberOne: boolean;
@@ -47,6 +48,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   sessionTrackingDisplay: 'all',
   nowPlayingDisplay: 'auto',
   socialVisibility: 'visible',
+  // rail izquierdo colapsado (solo iconos): off por defecto
+  sidebarCollapsed: false,
   // notificaciones push: master switch opt-in (off por defecto), tipos on
   notificationsEnabled: false,
   notifyRecords: true,
@@ -194,6 +197,13 @@ const _npd = withNotify<NowPlayingDisplay>(_setNowPlayingDisplay);
 export const getNowPlayingDisplay = _getNowPlayingDisplay;
 export const setNowPlayingDisplay = _npd.set;
 export const onNowPlayingDisplayChange = _npd.onChange;
+
+// rail colapsado: bool con notificación para que el layout reaccione al toggle
+const [_getSidebarCollapsed, _setSidebarCollapsed] = boolSetting('sidebarCollapsed', false);
+const _sbc = withNotify<boolean>(_setSidebarCollapsed);
+export const getSidebarCollapsed = _getSidebarCollapsed;
+export const setSidebarCollapsed = _sbc.set;
+export const onSidebarCollapsedChange = _sbc.onChange;
 
 const LAST_PERIOD_SETTING_KEY: Record<string, string> = {
   week: 'lastPeriodWeek',

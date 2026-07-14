@@ -10,7 +10,7 @@ import type { AppVariables } from '../app.js';
 
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyBiggestDebut'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyBiggestDebut'] as const;
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
@@ -26,6 +26,8 @@ const DEFAULTS: Record<string, string> = {
   sessionRankLimitAll: '200',
   nowPlayingDisplay: 'auto',
   socialVisibility: 'visible',
+  // rail izquierdo colapsado (solo iconos): preferencia de escritorio, off por defecto
+  sidebarCollapsed: 'false',
   // notificaciones push: master switch opt-in (default off) + toggles por tipo
   notificationsEnabled: 'false',
   notifyRecords: 'true',

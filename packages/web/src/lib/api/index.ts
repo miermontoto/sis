@@ -56,6 +56,7 @@ export {
   getSessionRankLimitAll, setSessionRankLimitAll,
   getSessionTrackingDisplay, setSessionTrackingDisplay, onSessionTrackingDisplayChange,
   getNowPlayingDisplay, setNowPlayingDisplay, onNowPlayingDisplayChange,
+  getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange,
 } from './settings.js';
 export { api, listLoginSessions, logoutOtherSessions, type SessionInfo } from './endpoints.js';
 export { getChangelog, markChangelogSeen, type ChangelogStateDTO, type ChangelogEntryDTO, type ChangelogChangeDTO } from './endpoints.js';

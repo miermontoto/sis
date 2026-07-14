@@ -10,7 +10,7 @@
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import Changelog from '@platform/ui/Changelog.svelte';
-  import { API_BASE, api, loadSettings, getChangelog, markChangelogSeen, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult, type ChangelogStateDTO } from '$lib/api';
+  import { API_BASE, api, loadSettings, getChangelog, markChangelogSeen, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult, type ChangelogStateDTO } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -65,17 +65,23 @@
   let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
   let sessionTrackingDisplay = $state<SessionTrackingDisplay>('all');
   let sessionRankDisplay = $state<SessionRankDisplay>(getSessionRankDisplay());
+  // rail izquierdo colapsado (solo iconos): preferencia de escritorio persistida
+  let sidebarCollapsed = $state<boolean>(getSidebarCollapsed());
   let sidebarEl = $state<HTMLElement | null>(null);
   let sidebarOverflows = $state(false);
 
   const unsubNpDisplay = onNowPlayingDisplayChange((v) => { nowPlayingDisplay = v; });
+  const unsubSidebarCollapsed = onSidebarCollapsedChange((v) => { sidebarCollapsed = v; });
   const unsubSessionTracking = onSessionTrackingDisplayChange(() => {
     sessionTrackingDisplay = getSessionTrackingDisplay();
     if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
     else projectionsStore.stopPolling();
   });
   const unsubSessionRank = onSessionRankDisplayChange(() => { sessionRankDisplay = getSessionRankDisplay(); });
-  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); unsubSessionRank(); });
+  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); unsubSessionRank(); unsubSidebarCollapsed(); });
+
+  // alterna el rail colapsado; el setter persiste (localStorage + PUT /settings)
+  function toggleSidebar() { setSidebarCollapsed(!sidebarCollapsed); }
 
   onMount(async () => {
     if (pwaInfo) {
@@ -200,6 +206,7 @@
             nowPlayingDisplay = getNowPlayingDisplay();
             sessionTrackingDisplay = getSessionTrackingDisplay();
             sessionRankDisplay = getSessionRankDisplay();
+            sidebarCollapsed = getSidebarCollapsed();
             closedChartsStore.refresh();
             nowPlayingStore.startPolling();
             if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
@@ -366,14 +373,26 @@
 {#if isBareRoute(page.url.pathname)}
   {@render children()}
 {:else if authChecked}
-  <div class="app-layout">
+  <div class="app-layout" class:sidebar-collapsed={sidebarCollapsed}>
     <aside class="sidebar" bind:this={sidebarEl}>
       <div class="sidebar-top">
-        <div class="sidebar-logo">
-          <span class="sidebar-logo-mark">SIS<RefreshingIndicator /></span>
-          <span class="sidebar-logo-subtitle">listening stats</span>
+        <div class="sidebar-head">
+          <div class="sidebar-logo">
+            <span class="sidebar-logo-mark">SIS<RefreshingIndicator /></span>
+            <span class="sidebar-logo-subtitle">listening stats</span>
+          </div>
+          <button
+            type="button"
+            class="sidebar-collapse-toggle"
+            onclick={toggleSidebar}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-pressed={sidebarCollapsed}
+          >
+            <span aria-hidden="true">{sidebarCollapsed ? '»' : '«'}</span>
+          </button>
         </div>
-        <button class="sidebar-search" onclick={() => showSearch = true}>
+        <button class="sidebar-search" onclick={() => showSearch = true} title="Search">
           <span class="sidebar-search-icon">?</span>
           <span>Search</span>
           <kbd>⌘K</kbd>
@@ -384,7 +403,7 @@
           <div class="sidebar-nav-section">
             <span class="sidebar-nav-heading">{group.label}</span>
             {#each group.items as item}
-              <a href={item.href} class:active={isNavActive(item.href)}>
+              <a href={item.href} class:active={isNavActive(item.href)} title={item.label}>
                 <span class="sidebar-nav-icon" aria-hidden="true">{item.icon}</span>
                 <span>{item.label}</span>
               </a>

@@ -79,12 +79,20 @@ a:hover {
 
 /* layout principal */
 .app-layout {
+  /* ancho del rail: driver único para sidebar + margen del main, animan juntos.
+     colapsado = solo iconos. */
+  --sidebar-w: 220px;
+  --sidebar-w-collapsed: 64px;
   display: flex;
   min-height: 100vh;
 }
 
+.app-layout.sidebar-collapsed {
+  --sidebar-w: var(--sidebar-w-collapsed);
+}
+
 .sidebar {
-  width: 220px;
+  width: var(--sidebar-w);
   background: var(--bg-card);
   border-right: 1px solid var(--border);
   padding: 0;
@@ -98,11 +106,43 @@ a:hover {
   overflow-x: hidden;
   user-select: none;
   z-index: 10;
+  transition: width 0.16s ease;
 }
 
 .sidebar-top {
   padding: 1.25rem 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+/* fila cabecera: logo + botón de colapsar. en colapsado apila y centra. */
+.sidebar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sidebar-collapse-toggle {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.05s;
+}
+
+.sidebar-collapse-toggle:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+  background: var(--bg-hover);
 }
 
 .sidebar-logo {
@@ -260,12 +300,77 @@ a:hover {
   color: var(--accent);
 }
 
+/* --- rail colapsado (solo iconos) --- */
+/* cabecera: apila logo + toggle centrados y oculta el subtítulo */
+.sidebar-collapsed .sidebar-head {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sidebar-collapsed .sidebar-top {
+  padding: 1rem 0.4rem;
+}
+
+.sidebar-collapsed .sidebar-logo {
+  align-items: center;
+  padding: 0;
+}
+
+.sidebar-collapsed .sidebar-logo-subtitle {
+  display: none;
+}
+
+/* búsqueda: solo el icono, centrado */
+.sidebar-collapsed .sidebar-search {
+  justify-content: center;
+  gap: 0;
+  padding: 0.45rem;
+}
+
+.sidebar-collapsed .sidebar-search > span:not(.sidebar-search-icon),
+.sidebar-collapsed .sidebar-search kbd {
+  display: none;
+}
+
+/* nav: oculta encabezados de grupo y etiquetas, centra los iconos */
+.sidebar-collapsed .sidebar-nav {
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  gap: 0.5rem;
+}
+
+.sidebar-collapsed .sidebar-nav-heading {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-nav a {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-collapsed .sidebar-nav a > span:not(.sidebar-nav-icon) {
+  display: none;
+}
+
+/* secciones ricas del pie: no reducen a un icono → se ocultan colapsadas */
+.sidebar-collapsed .sidebar-friends,
+.sidebar-collapsed .sidebar-projections,
+.sidebar-collapsed .sidebar-now-playing,
+.sidebar-collapsed .sidebar-user-wrap,
+.sidebar-collapsed .sidebar-footer {
+  display: none;
+}
+
 .main-content {
-  margin-left: 220px;
+  margin-left: var(--sidebar-w);
   flex: 1;
   min-width: 0;
   padding: 2rem;
   max-width: 1200px;
+  transition: margin-left 0.16s ease;
 }
 
 /* layout de detalle: columna principal + rail derecho para gráficas auxiliares
