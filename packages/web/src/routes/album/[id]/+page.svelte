@@ -184,13 +184,18 @@
   <div class="detail-hero-row">
     <div class="detail-hero">
       <div class="cover-container" bind:this={coverContainerEl}>
-        <div class="cover-wrapper">
+        <button
+          class="cover-wrapper"
+          onclick={() => { showCoverPicker = !showCoverPicker; }}
+          aria-label={hasMultipleCovers ? 'Change cover' : 'Upload cover'}
+        >
           {#if data.album.imageUrl}
             <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
           {:else}
             <div class="detail-image detail-image--placeholder"></div>
           {/if}
-        </div>
+          <span class="cover-edit-hint"><IconImage /></span>
+        </button>
         {#if showCoverPicker}
           <div class="cover-picker">
             {#each data.covers ?? [] as cover}
@@ -323,6 +328,12 @@
   .cover-wrapper {
     cursor: pointer;
     position: relative;
+    display: block;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
   }
   .cover-edit-hint {
     position: absolute;
