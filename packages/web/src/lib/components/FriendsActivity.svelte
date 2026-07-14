@@ -1,8 +1,11 @@
 <script lang="ts">
   import { api, type FriendActivity } from '$lib/api';
+  import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
 
   let friends = $state<FriendActivity[]>([]);
+  // no renderizar hasta el primer poll: evita el flash de "discover" en usuarios con friends
+  let loaded = $state(false);
   let intervalId: ReturnType<typeof setInterval> | null = null;
   let hoveredId = $state<string | null>(null);
 
@@ -11,7 +14,15 @@
       friends = await api.friendsActivity();
     } catch {
       friends = [];
+    } finally {
+      loaded = true;
     }
+  }
+
+  // el contenedor entero navega al feed; los clics en avatares (anchors) van al perfil
+  function openFeed(e: MouseEvent | KeyboardEvent) {
+    if (e.target instanceof Element && e.target.closest('a')) return;
+    goto('/feed');
   }
 
   onMount(() => {
@@ -47,9 +58,19 @@
   }
 </script>
 
-{#if friends.length > 0}
-  <div class="friends-activity">
+{#if loaded}
+  <div
+    class="friends-activity"
+    role="link"
+    tabindex="0"
+    title="Open feed"
+    onclick={openFeed}
+    onkeydown={(e) => { if (e.key === 'Enter') openFeed(e); }}
+  >
     <span class="friends-label">Friends</span>
+    {#if friends.length === 0}
+      <span class="friends-empty">Discover users in the feed</span>
+    {/if}
     <div class="friends-row">
       {#each friends as friend (friend.spotifyId)}
         <a
@@ -92,6 +113,12 @@
 <style>
   .friends-activity {
     padding: 0.25rem 0;
+    cursor: pointer;
+  }
+
+  .friends-activity:hover .friends-label,
+  .friends-activity:focus-visible .friends-label {
+    color: var(--accent);
   }
 
   .friends-label {
@@ -101,6 +128,14 @@
     letter-spacing: 0.06em;
     color: var(--text-muted);
     margin-bottom: 0.35rem;
+    transition: color 0.15s;
+  }
+
+  .friends-empty {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
   }
 
   .friends-row {

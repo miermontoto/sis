@@ -1,11 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { api, type FeedResponse, type FeedPlayItem } from '$lib/api';
+  import { api, type FeedResponse, type FeedPlayItem, type DirectoryUser } from '$lib/api';
   import { formatDuration, formatNumber, timeAgo } from '$lib/utils/format';
+  import { toastStore } from '$lib/stores/toast.svelte';
 
   let feed = $state<FeedResponse | null>(null);
   let loading = $state(true);
   let intervalId: ReturnType<typeof setInterval> | null = null;
+  // directorio de la instancia filtrado a no-seguidos (sustituye a la vista Users);
+  // se congela al cargar: seguir a alguien no lo saca de la lista, permite deshacer
+  let discover = $state<DirectoryUser[]>([]);
+  let acting = $state<string | null>(null);
 
   async function poll() {
     try {
@@ -17,9 +22,29 @@
     }
   }
 
+  async function toggleFollow(user: DirectoryUser) {
+    if (acting) return;
+    acting = user.spotifyId;
+    const wasFollowing = user.isFollowing;
+    discover = discover.map(u => u.spotifyId === user.spotifyId ? { ...u, isFollowing: !wasFollowing } : u);
+    try {
+      if (wasFollowing) await api.unfollow(user.spotifyId);
+      else await api.follow(user.spotifyId);
+      poll();
+    } catch {
+      discover = discover.map(u => u.spotifyId === user.spotifyId ? { ...u, isFollowing: wasFollowing } : u);
+      toastStore.show('Error updating follow');
+    } finally {
+      acting = null;
+    }
+  }
+
   onMount(() => {
     poll();
     intervalId = setInterval(poll, 30_000);
+    api.socialUsers()
+      .then(users => { discover = users.filter(u => !u.isFollowing); })
+      .catch(() => { discover = []; });
   });
 
   onDestroy(() => {
@@ -60,7 +85,7 @@
   <div class="loading"><div class="spinner"></div></div>
 {:else if !feed || feed.users.length === 0}
   <div class="empty-state">
-    <p>Nothing here yet — follow someone from <a href="/users">Users</a> to see their activity.</p>
+    <p>Nothing here yet — follow someone{#if discover.length > 0}&nbsp;below{/if} to see their activity.</p>
   </div>
 {:else}
   <!-- strip de usuarios seguidos: quién está sonando ahora + resumen semanal -->
@@ -128,6 +153,38 @@
       {/each}
     </div>
   {/if}
+{/if}
+
+<!-- usuarios de la instancia aún sin seguir: único punto de descubrimiento -->
+{#if discover.length > 0}
+  <div class="discover">
+    <span class="discover-title">Discover</span>
+    <div class="discover-row">
+      {#each discover as user (user.spotifyId)}
+        <div class="discover-user">
+          <a href="/u/{encodeURIComponent(user.spotifyId)}" class="discover-link">
+            {#if user.imageUrl}
+              <img class="discover-avatar" src={user.imageUrl} alt={user.displayName || user.spotifyId} />
+            {:else}
+              <div class="discover-avatar discover-avatar--empty">
+                {(user.displayName || user.spotifyId).charAt(0).toUpperCase()}
+              </div>
+            {/if}
+            <span class="discover-name">{user.displayName || user.spotifyId}</span>
+            <span class="discover-plays">{formatNumber(user.totalPlays)} plays</span>
+          </a>
+          <button
+            class="discover-btn"
+            class:discover-btn--active={user.isFollowing}
+            disabled={acting === user.spotifyId}
+            onclick={() => toggleFollow(user)}
+          >
+            {user.isFollowing ? 'Following' : 'Follow'}
+          </button>
+        </div>
+      {/each}
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -326,5 +383,103 @@
     color: var(--text-muted);
     font-family: var(--font-mono);
     flex-shrink: 0;
+  }
+
+  .discover {
+    margin-top: 1.5rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .discover-title {
+    display: block;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+  }
+
+  .discover-row {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .discover-user {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    width: 92px;
+    flex-shrink: 0;
+  }
+
+  .discover-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    text-decoration: none;
+    color: inherit;
+    max-width: 100%;
+  }
+
+  .discover-link:hover .discover-name {
+    color: var(--accent);
+  }
+
+  .discover-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .discover-avatar--empty {
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1.2rem;
+  }
+
+  .discover-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .discover-plays {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .discover-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 0.25rem 0.7rem;
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .discover-btn:hover {
+    border-color: var(--accent);
+  }
+
+  .discover-btn--active {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>

@@ -262,10 +262,12 @@
         { href: '/generators', label: 'Generators', icon: '&' },
       ],
     },
+    // el feed entra por el contenedor de friends del sidebar (desktop); en móvil
+    // no hay sidebar, así que conserva un tab propio
     {
-      label: 'Social',
+      label: 'Feed',
+      desktopHidden: true,
       items: [
-        { href: '/users', label: 'Users', icon: '@' },
         { href: '/feed', label: 'Feed', icon: '=' },
       ],
     },
@@ -399,7 +401,7 @@
         </button>
       </div>
       <nav class="sidebar-nav sidebar-nav--desktop" aria-label="Primary navigation">
-        {#each navGroups as group}
+        {#each navGroups.filter(g => !('desktopHidden' in g)) as group}
           <div class="sidebar-nav-section">
             <span class="sidebar-nav-heading">{group.label}</span>
             {#each group.items as item}

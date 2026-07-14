@@ -356,12 +356,22 @@ a:hover {
 }
 
 /* secciones ricas del pie: no reducen a un icono → se ocultan colapsadas */
-.sidebar-collapsed .sidebar-friends,
 .sidebar-collapsed .sidebar-projections,
 .sidebar-collapsed .sidebar-now-playing,
 .sidebar-collapsed .sidebar-user-wrap,
 .sidebar-collapsed .sidebar-footer {
   display: none;
+}
+
+/* friends sí reduce a iconos (avatares): colapsada mantiene la columna de
+   avatares como acceso al feed, sin label ni hint */
+.sidebar-collapsed .sidebar-friends .friends-label,
+.sidebar-collapsed .sidebar-friends .friends-empty {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-friends .friends-row {
+  justify-content: center;
 }
 
 .main-content {
