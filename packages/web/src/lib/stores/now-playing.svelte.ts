@@ -16,6 +16,10 @@ let _playlists = $state<NpPlaylist[]>([]);
 let _lastPlaylistTrackId: string | null = null;
 
 const LIVE_TRACK_GUARD_MS = 35_000;
+// backoff de reintentos tras un comando de reproducción: spotify es
+// eventualmente consistente y una lectura temprana suele devolver aún el
+// estado anterior
+const PLAY_REFRESH_DELAYS_MS = [500, 1000, 2000, 4000];
 
 type NowPlayingSource = 'cached' | 'live' | 'local';
 
@@ -116,12 +120,35 @@ function stopPolling() {
   }
 }
 
+// tras lanzar reproducción, reintenta la lectura en vivo hasta observar un
+// cambio real respecto al estado previo. las lecturas que aún muestran el
+// estado anterior se descartan sin aplicar: aplicarlas como 'live' armaba el
+// guard con el track viejo y bloqueaba el update cacheado correcto durante 35s
+async function refreshAfterPlayback() {
+  const prevTrackId = trackIdOf(_data);
+  const prevIsPlaying = !!(_data?.playing && _data.isPlaying);
+  for (const delayMs of PLAY_REFRESH_DELAYS_MS) {
+    await new Promise(r => setTimeout(r, delayMs));
+    try {
+      const live = await api.nowPlayingLive();
+      const changed = trackIdOf(live) !== prevTrackId || (!!live?.isPlaying && !prevIsPlaying);
+      if (!changed) continue;
+      applyNowPlaying(live, 'live');
+      checkLiked(_data?.track?.id);
+      checkPlaylists(_data?.track?.id);
+      return;
+    } catch {
+      // error puntual: siguiente intento
+    }
+  }
+  // sin cambio observado (p.ej. replay del mismo track): aplicar la verdad actual
+  await pollLive();
+}
+
 async function playContext(opts: PlayContextRequest): Promise<PlayContextResponse | null> {
   try {
     const result = await api.playbackPlayContext(opts);
-    if (result?.success) {
-      setTimeout(() => pollLive(), 500);
-    }
+    if (result?.success) refreshAfterPlayback();
     return result;
   } catch {
     return null;
