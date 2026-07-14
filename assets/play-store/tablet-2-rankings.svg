@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1200" viewBox="0 0 1920 1200" font-family="monospace">
+  <!-- mockup tablet 2 (rankings) — tokens sis -->
+  <rect width="1920" height="1200" fill="#080a0c"/>
+
+  <!-- sidebar -->
+  <rect x="0" y="0" width="340" height="1200" fill="#0b0e10"/>
+  <line x1="340" y1="0" x2="340" y2="1200" stroke="#1e2a2a" stroke-width="2"/>
+  <g transform="translate(40,48)">
+    <rect x="0" y="0" width="56" height="56" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="28" y="37" font-size="22" font-weight="700" letter-spacing="1" fill="#1db954" text-anchor="middle">SIS</text>
+    <text x="74" y="26" font-size="30" font-weight="700" fill="#e0e8e8">sis</text>
+    <text x="74" y="50" font-size="16" fill="#6a7a7a">listening stats</text>
+  </g>
+  <g transform="translate(40,168)" font-size="22">
+    <text x="0" y="0" font-size="15" fill="#5a6a6a" letter-spacing="2">LISTEN</text>
+    <text x="8" y="54" fill="#9aa8a8">~  Dashboard</text>
+    <text x="8" y="116" fill="#9aa8a8">#  History</text>
+    <text x="0" y="186" font-size="15" fill="#5a6a6a" letter-spacing="2">STATS</text>
+    <rect x="-12" y="208" width="264" height="48" rx="4" fill="#13241a"/>
+    <text x="8" y="240" fill="#1db954">*  Rankings</text>
+    <text x="8" y="302" fill="#9aa8a8">%  Charts</text>
+    <text x="0" y="372" font-size="15" fill="#5a6a6a" letter-spacing="2">HIGHLIGHTS</text>
+    <text x="8" y="426" fill="#9aa8a8">!  Insights</text>
+    <text x="8" y="488" fill="#9aa8a8">^  Records</text>
+    <text x="0" y="558" font-size="15" fill="#5a6a6a" letter-spacing="2">LIBRARY</text>
+    <text x="8" y="612" fill="#9aa8a8">+  Playlists</text>
+    <text x="8" y="674" fill="#9aa8a8">@  Users</text>
+  </g>
+  <g transform="translate(40,1140)">
+    <circle cx="10" cy="-8" r="8" fill="#1db954"/>
+    <text x="30" y="-2" font-size="16" fill="#6a7a7a">syncing · live</text>
+  </g>
+
+  <!-- content -->
+  <g transform="translate(400,56)">
+    <text x="0" y="36" font-size="40" font-weight="700" fill="#e0e8e8">tus tops, por reproducciones</text>
+    <text x="0" y="86" font-size="40" font-weight="700" fill="#1db954">o tiempo, en cualquier rango</text>
+
+    <!-- tabs + range -->
+    <g transform="translate(0,128)">
+      <rect x="0" y="0" width="160" height="58" rx="4" fill="#13241a" stroke="#1db954" stroke-width="2"/>
+      <text x="80" y="38" font-size="24" font-weight="700" fill="#1db954" text-anchor="middle">Tracks</text>
+      <text x="250" y="38" font-size="24" fill="#6a7a7a" text-anchor="middle">Albums</text>
+      <text x="430" y="38" font-size="24" fill="#6a7a7a" text-anchor="middle">Artists</text>
+      <!-- chips -->
+      <g font-size="20" transform="translate(560,0)">
+        <rect x="0" y="0" width="70" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="35" y="37" fill="#6a7a7a" text-anchor="middle">7D</text>
+        <rect x="82" y="0" width="82" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="123" y="37" fill="#6a7a7a" text-anchor="middle">30D</text>
+        <rect x="176" y="0" width="70" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="211" y="37" fill="#6a7a7a" text-anchor="middle">3M</text>
+        <rect x="258" y="0" width="70" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="293" y="37" fill="#6a7a7a" text-anchor="middle">6M</text>
+        <rect x="340" y="0" width="70" height="58" rx="4" fill="#13241a" stroke="#1db954" stroke-width="2"/><text x="375" y="37" fill="#1db954" text-anchor="middle">1Y</text>
+        <rect x="422" y="0" width="82" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="463" y="37" fill="#6a7a7a" text-anchor="middle">YTD</text>
+        <rect x="516" y="0" width="74" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="553" y="37" fill="#6a7a7a" text-anchor="middle">All</text>
+      </g>
+      <text x="1456" y="38" font-size="22" fill="#1db954" text-anchor="end">metric: plays</text>
+    </g>
+
+    <!-- bar chart -->
+    <g transform="translate(0,222)">
+      <rect width="1456" height="846" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="36" y="56" font-size="28" font-weight="700" fill="#e0e8e8">Top tracks · last 12 months</text>
+      <text x="1420" y="56" font-size="22" fill="#6a7a7a" text-anchor="end">Top 10</text>
+      <g transform="translate(36,92)" font-size="24">
+        <!-- row template: rank, thumb, name, bar, value. bar zone x520..1360 -->
+        <g><text x="0" y="46" font-size="28" font-weight="700" fill="#f0c040">1</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#2a4d6e"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Paper Cities</text><text x="104" y="62" font-size="17" fill="#6a7a7a">The North Wing</text><rect x="520" y="22" width="840" height="42" rx="2" fill="#1ed760"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">612</text></g>
+        <g transform="translate(0,72)"><text x="0" y="46" font-size="28" font-weight="700" fill="#c8c8c8">2</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#6e3a55"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Neon Tide</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Violet Lake</text><rect x="520" y="22" width="742" height="42" rx="2" fill="#1db954"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">541</text></g>
+        <g transform="translate(0,144)"><text x="0" y="46" font-size="28" font-weight="700" fill="#b07a3a">3</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#3a6e4a"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Glass Harbor</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Marina Foss</text><rect x="520" y="22" width="648" height="42" rx="2" fill="#179c47"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">473</text></g>
+        <g transform="translate(0,216)"><text x="0" y="46" font-size="28" font-weight="700" fill="#6a7a7a">4</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#6e5a2a"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Saltwater Run</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Empty Pools</text><rect x="520" y="22" width="546" height="42" rx="2" fill="#147f3b"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">398</text></g>
+        <g transform="translate(0,288)"><text x="0" y="46" font-size="28" font-weight="700" fill="#6a7a7a">5</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#3a4d6e"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Low Ceiling</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Hours Apart</text><rect x="520" y="22" width="482" height="42" rx="2" fill="#11682f"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">351</text></g>
+        <g transform="translate(0,360)"><text x="0" y="46" font-size="28" font-weight="700" fill="#6a7a7a">6</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#5a2e6e"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Cold Signal</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Aria Bloom</text><rect x="520" y="22" width="396" height="42" rx="2" fill="#10592a"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">288</text></g>
+        <g transform="translate(0,432)"><text x="0" y="46" font-size="28" font-weight="700" fill="#6a7a7a">7</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#2e6e6a"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Half Light</text><text x="104" y="62" font-size="17" fill="#6a7a7a">The North Wing</text><rect x="520" y="22" width="330" height="42" rx="2" fill="#0e4a24"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">241</text></g>
+        <g transform="translate(0,504)"><text x="0" y="46" font-size="28" font-weight="700" fill="#6a7a7a">8</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#6e4a2e"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Pale Static</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Marina Foss</text><rect x="520" y="22" width="282" height="42" rx="2" fill="#0e4a24"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">205</text></g>
+        <g transform="translate(0,576)"><text x="0" y="46" font-size="28" font-weight="700" fill="#6a7a7a">9</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#3a4d6e"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">First Frost</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Violet Lake</text><rect x="520" y="22" width="244" height="42" rx="2" fill="#0c3d1e"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">177</text></g>
+        <g transform="translate(0,648)"><text x="-6" y="46" font-size="28" font-weight="700" fill="#6a7a7a">10</text><rect x="36" y="18" width="50" height="50" rx="4" fill="#4d3a6e"/><text x="104" y="38" font-weight="700" fill="#e0e8e8">Open Water</text><text x="104" y="62" font-size="17" fill="#6a7a7a">Empty Pools</text><rect x="520" y="22" width="208" height="42" rx="2" fill="#0c3d1e"/><text x="1404" y="52" font-weight="700" fill="#e0e8e8" text-anchor="end">152</text></g>
+      </g>
+    </g>
+  </g>
+</svg>

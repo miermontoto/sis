@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="monospace">
+  <!-- mockup phone 4 (history) — tokens sis -->
+  <rect width="1080" height="1920" fill="#080a0c"/>
+
+  <!-- caption marketing (localizable) -->
+  <text x="64" y="120" font-size="46" font-weight="700" fill="#e0e8e8">every play, grouped</text>
+  <text x="64" y="178" font-size="46" font-weight="700" fill="#1db954">by session</text>
+
+  <!-- app bar -->
+  <g transform="translate(0,232)">
+    <rect x="64" y="0" width="60" height="60" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="94" y="40" font-size="24" font-weight="700" letter-spacing="1" fill="#1db954" text-anchor="middle">SIS</text>
+    <text x="140" y="34" font-size="36" font-weight="700" fill="#e0e8e8">Listening History</text>
+    <text x="142" y="62" font-size="18" fill="#6a7a7a">every track you've played</text>
+  </g>
+
+  <!-- date control -->
+  <g transform="translate(64,322)">
+    <rect x="0" y="0" width="300" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="24" y="38" font-size="22" fill="#9aa8a8">Jun 7, 2024</text>
+    <rect x="772" y="0" width="180" height="58" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="862" y="38" font-size="22" fill="#6a7a7a" text-anchor="middle">Edit</text>
+  </g>
+
+  <!-- session 1 header -->
+  <g transform="translate(64,420)">
+    <text x="0" y="28" font-size="24" font-weight="700" fill="#1db954">Evening session</text>
+    <text x="952" y="28" font-size="20" fill="#6a7a7a" text-anchor="end">9 tracks · 38m</text>
+    <line x1="0" y1="46" x2="952" y2="46" stroke="#1e2a2a" stroke-width="1"/>
+  </g>
+  <g transform="translate(64,484)">
+    <!-- play rows -->
+    <g>
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#6e3a55"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Neon Tide</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Violet Lake · Slow Horizons</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">21:48</text>
+    </g>
+    <g transform="translate(0,92)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#2a4d6e"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Paper Cities</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">The North Wing · Foldout</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">21:44</text>
+    </g>
+    <g transform="translate(0,184)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#3a6e4a"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Glass Harbor</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Marina Foss · Tideline</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">21:40</text>
+    </g>
+    <g transform="translate(0,276)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#6e5a2a"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Saltwater Run</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Empty Pools · Low Tide</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">21:36</text>
+    </g>
+    <g transform="translate(0,368)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#3a4d6e"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Low Ceiling</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Hours Apart · Quiet Years</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">21:31</text>
+    </g>
+  </g>
+
+  <!-- session 2 header -->
+  <g transform="translate(64,1010)">
+    <text x="0" y="28" font-size="24" font-weight="700" fill="#1db954">Afternoon session</text>
+    <text x="952" y="28" font-size="20" fill="#6a7a7a" text-anchor="end">17 tracks · 1h 04m</text>
+    <line x1="0" y1="46" x2="952" y2="46" stroke="#1e2a2a" stroke-width="1"/>
+  </g>
+  <g transform="translate(64,1074)">
+    <g>
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#5a2e6e"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Cold Signal</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Aria Bloom · Static Garden</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">16:52</text>
+    </g>
+    <g transform="translate(0,92)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#2e6e6a"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Half Light</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">The North Wing · Foldout</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">16:48</text>
+    </g>
+    <g transform="translate(0,184)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#6e4a2e"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Pale Static</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Marina Foss · Tideline</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">16:43</text>
+    </g>
+    <g transform="translate(0,276)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#3a4d6e"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">First Frost</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Violet Lake · Slow Horizons</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">16:39</text>
+    </g>
+    <g transform="translate(0,368)">
+      <rect x="14" y="14" width="64" height="64" rx="4" fill="#4d3a6e"/>
+      <text x="100" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Open Water</text>
+      <text x="100" y="74" font-size="20" fill="#6a7a7a">Empty Pools · Low Tide</text>
+      <text x="952" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">16:34</text>
+    </g>
+  </g>
+
+  <!-- bottom nav -->
+  <g transform="translate(0,1788)">
+    <rect x="0" y="0" width="1080" height="132" fill="#0b0e10"/>
+    <line x1="0" y1="0" x2="1080" y2="0" stroke="#1e2a2a" stroke-width="2"/>
+    <g text-anchor="middle">
+      <text x="180" y="56" font-size="30" fill="#1db954">#</text>
+      <text x="180" y="94" font-size="18" fill="#1db954">History</text>
+      <text x="420" y="56" font-size="30" fill="#6a7a7a">*</text>
+      <text x="420" y="94" font-size="18" fill="#6a7a7a">Rankings</text>
+      <text x="660" y="56" font-size="30" fill="#6a7a7a">%</text>
+      <text x="660" y="94" font-size="18" fill="#6a7a7a">Charts</text>
+      <text x="900" y="56" font-size="30" fill="#6a7a7a">!</text>
+      <text x="900" y="94" font-size="18" fill="#6a7a7a">Insights</text>
+    </g>
+  </g>
+</svg>

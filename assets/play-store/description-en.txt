@@ -1,0 +1,24 @@
+SHORT DESCRIPTION (80 chars max)
+Self-hosted Spotify tracker — your listening history, stats and trends.
+
+FULL DESCRIPTION (4000 chars max)
+SIS records every song you play on Spotify and turns it into a private dashboard of your own listening — running on your own server, with your data staying yours.
+
+Connect your Spotify account and SIS logs every play to its own database:
+• Now playing — your current track, live, polled every 30 seconds
+• History — every play you've ever made, grouped by session, with infinite scroll
+• Top tracks, artists and albums — ranked by play count or total listening time
+• Trends — daily, weekly and monthly listening over any time range
+• Insights — hourly and daily heatmaps, genre breakdowns, listening streaks and discovery metrics
+• Export — download everything as JSON or CSV, or import your Spotify data dump
+
+Built for the way you listen
+Switch any ranking between plays and time. Filter by all-time, year, 6 months, 3 months, month, week, day or a custom range. Jump to any track, artist or album for its own detail page and history.
+
+Fast and focused
+A dense, monospace dashboard with charts that load instantly, keyboard shortcuts for power users, and a global search to find anything in seconds.
+
+Yours, privately
+SIS is self-hosted: it talks to Spotify with your credentials and keeps your entire listening history in a database you control. No third-party analytics, no selling your taste back to you.
+
+Note: SIS requires a Spotify account and your own server to run. It is an independent project and is not affiliated with or endorsed by Spotify.

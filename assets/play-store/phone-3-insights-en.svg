@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="monospace">
+  <!-- mockup phone 3 (insights) — tokens sis -->
+  <rect width="1080" height="1920" fill="#080a0c"/>
+
+  <!-- caption marketing (localizable) -->
+  <text x="64" y="120" font-size="46" font-weight="700" fill="#e0e8e8">when you listen,</text>
+  <text x="64" y="178" font-size="46" font-weight="700" fill="#1db954">at a glance</text>
+
+  <!-- app bar -->
+  <g transform="translate(0,232)">
+    <rect x="64" y="0" width="60" height="60" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="94" y="40" font-size="24" font-weight="700" letter-spacing="1" fill="#1db954" text-anchor="middle">SIS</text>
+    <text x="140" y="38" font-size="38" font-weight="700" fill="#e0e8e8">Insights</text>
+    <text x="142" y="66" font-size="18" fill="#6a7a7a">listening patterns and habits</text>
+  </g>
+
+  <!-- stat cards (2x2) -->
+  <g transform="translate(64,332)">
+    <g>
+      <rect x="0" y="0" width="462" height="150" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="32" y="86" font-size="50" font-weight="700" fill="#e0e8e8">284h</text>
+      <text x="32" y="122" font-size="20" fill="#6a7a7a">total listening</text>
+    </g>
+    <g transform="translate(490,0)">
+      <rect x="0" y="0" width="462" height="150" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="32" y="86" font-size="50" font-weight="700" fill="#e0e8e8">6,910</text>
+      <text x="32" y="122" font-size="20" fill="#6a7a7a">total plays</text>
+    </g>
+    <g transform="translate(0,168)">
+      <rect x="0" y="0" width="462" height="150" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="32" y="86" font-size="50" font-weight="700" fill="#e0e8e8">2h 36m</text>
+      <text x="32" y="122" font-size="20" fill="#6a7a7a">daily average</text>
+    </g>
+    <g transform="translate(490,168)">
+      <rect x="0" y="0" width="462" height="150" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="32" y="86" font-size="50" font-weight="700" fill="#1db954">9d</text>
+      <text x="32" y="122" font-size="20" fill="#6a7a7a">current streak</text>
+    </g>
+  </g>
+
+  <!-- listening heatmap -->
+  <g transform="translate(64,704)">
+    <rect width="952" height="556" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="32" y="56" font-size="28" font-weight="700" fill="#e0e8e8">Listening heatmap</text>
+    <text x="916" y="56" font-size="20" fill="#6a7a7a" text-anchor="end">hour × day</text>
+    <!-- grid: 7 days (rows) x 24 hours (cols). cell ~33px wide -->
+    <g transform="translate(96,92)">
+      <!-- day labels -->
+      <g font-size="18" fill="#6a7a7a" text-anchor="end">
+        <text x="-16" y="44">Mon</text>
+        <text x="-16" y="106">Tue</text>
+        <text x="-16" y="168">Wed</text>
+        <text x="-16" y="230">Thu</text>
+        <text x="-16" y="292">Fri</text>
+        <text x="-16" y="354">Sat</text>
+        <text x="-16" y="416">Sun</text>
+      </g>
+      <!-- generated-looking cells via rows; colors hand-tuned to look like a real heatmap -->
+      <!-- Mon -->
+      <g transform="translate(0,24)">
+        <rect width="32" height="32" rx="2" fill="#10231a"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="140" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="175" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="210" width="32" height="32" rx="2" fill="#123a22"/><rect x="245" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="280" width="32" height="32" rx="2" fill="#1db954"/><rect x="315" width="32" height="32" rx="2" fill="#155c30"/><rect x="350" width="32" height="32" rx="2" fill="#123a22"/><rect x="385" width="32" height="32" rx="2" fill="#155c30"/><rect x="420" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="455" width="32" height="32" rx="2" fill="#123a22"/><rect x="490" width="32" height="32" rx="2" fill="#10231a"/><rect x="525" width="32" height="32" rx="2" fill="#123a22"/><rect x="560" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="595" width="32" height="32" rx="2" fill="#22d860"/><rect x="630" width="32" height="32" rx="2" fill="#1db954"/><rect x="665" width="32" height="32" rx="2" fill="#155c30"/><rect x="700" width="32" height="32" rx="2" fill="#123a22"/><rect x="735" width="32" height="32" rx="2" fill="#10231a"/><rect x="770" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- Tue -->
+      <g transform="translate(0,86)">
+        <rect width="32" height="32" rx="2" fill="#0e1f17"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="140" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="175" width="32" height="32" rx="2" fill="#10231a"/><rect x="210" width="32" height="32" rx="2" fill="#155c30"/><rect x="245" width="32" height="32" rx="2" fill="#1db954"/><rect x="280" width="32" height="32" rx="2" fill="#22d860"/><rect x="315" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="350" width="32" height="32" rx="2" fill="#123a22"/><rect x="385" width="32" height="32" rx="2" fill="#123a22"/><rect x="420" width="32" height="32" rx="2" fill="#155c30"/><rect x="455" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="490" width="32" height="32" rx="2" fill="#123a22"/><rect x="525" width="32" height="32" rx="2" fill="#155c30"/><rect x="560" width="32" height="32" rx="2" fill="#1db954"/><rect x="595" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="630" width="32" height="32" rx="2" fill="#155c30"/><rect x="665" width="32" height="32" rx="2" fill="#123a22"/><rect x="700" width="32" height="32" rx="2" fill="#10231a"/><rect x="735" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="770" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- Wed -->
+      <g transform="translate(0,148)">
+        <rect width="32" height="32" rx="2" fill="#0e1f17"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="140" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="175" width="32" height="32" rx="2" fill="#10231a"/><rect x="210" width="32" height="32" rx="2" fill="#123a22"/><rect x="245" width="32" height="32" rx="2" fill="#155c30"/><rect x="280" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="315" width="32" height="32" rx="2" fill="#1db954"/><rect x="350" width="32" height="32" rx="2" fill="#155c30"/><rect x="385" width="32" height="32" rx="2" fill="#123a22"/><rect x="420" width="32" height="32" rx="2" fill="#123a22"/><rect x="455" width="32" height="32" rx="2" fill="#155c30"/><rect x="490" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="525" width="32" height="32" rx="2" fill="#1db954"/><rect x="560" width="32" height="32" rx="2" fill="#22d860"/><rect x="595" width="32" height="32" rx="2" fill="#22d860"/><rect x="630" width="32" height="32" rx="2" fill="#1db954"/><rect x="665" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="700" width="32" height="32" rx="2" fill="#123a22"/><rect x="735" width="32" height="32" rx="2" fill="#10231a"/><rect x="770" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- Thu -->
+      <g transform="translate(0,210)">
+        <rect width="32" height="32" rx="2" fill="#0e1f17"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="140" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="175" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="210" width="32" height="32" rx="2" fill="#123a22"/><rect x="245" width="32" height="32" rx="2" fill="#155c30"/><rect x="280" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="315" width="32" height="32" rx="2" fill="#155c30"/><rect x="350" width="32" height="32" rx="2" fill="#123a22"/><rect x="385" width="32" height="32" rx="2" fill="#123a22"/><rect x="420" width="32" height="32" rx="2" fill="#10231a"/><rect x="455" width="32" height="32" rx="2" fill="#123a22"/><rect x="490" width="32" height="32" rx="2" fill="#155c30"/><rect x="525" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="560" width="32" height="32" rx="2" fill="#1db954"/><rect x="595" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="630" width="32" height="32" rx="2" fill="#155c30"/><rect x="665" width="32" height="32" rx="2" fill="#123a22"/><rect x="700" width="32" height="32" rx="2" fill="#10231a"/><rect x="735" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="770" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- Fri -->
+      <g transform="translate(0,272)">
+        <rect width="32" height="32" rx="2" fill="#0e1f17"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="140" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="175" width="32" height="32" rx="2" fill="#10231a"/><rect x="210" width="32" height="32" rx="2" fill="#123a22"/><rect x="245" width="32" height="32" rx="2" fill="#155c30"/><rect x="280" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="315" width="32" height="32" rx="2" fill="#1db954"/><rect x="350" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="385" width="32" height="32" rx="2" fill="#155c30"/><rect x="420" width="32" height="32" rx="2" fill="#155c30"/><rect x="455" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="490" width="32" height="32" rx="2" fill="#1db954"/><rect x="525" width="32" height="32" rx="2" fill="#22d860"/><rect x="560" width="32" height="32" rx="2" fill="#2cee6e"/><rect x="595" width="32" height="32" rx="2" fill="#22d860"/><rect x="630" width="32" height="32" rx="2" fill="#1db954"/><rect x="665" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="700" width="32" height="32" rx="2" fill="#155c30"/><rect x="735" width="32" height="32" rx="2" fill="#123a22"/><rect x="770" width="32" height="32" rx="2" fill="#10231a"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- Sat -->
+      <g transform="translate(0,334)">
+        <rect width="32" height="32" rx="2" fill="#0e1f17"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#10231a"/><rect x="140" width="32" height="32" rx="2" fill="#123a22"/><rect x="175" width="32" height="32" rx="2" fill="#155c30"/><rect x="210" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="245" width="32" height="32" rx="2" fill="#1db954"/><rect x="280" width="32" height="32" rx="2" fill="#22d860"/><rect x="315" width="32" height="32" rx="2" fill="#1db954"/><rect x="350" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="385" width="32" height="32" rx="2" fill="#155c30"/><rect x="420" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="455" width="32" height="32" rx="2" fill="#1db954"/><rect x="490" width="32" height="32" rx="2" fill="#22d860"/><rect x="525" width="32" height="32" rx="2" fill="#2cee6e"/><rect x="560" width="32" height="32" rx="2" fill="#22d860"/><rect x="595" width="32" height="32" rx="2" fill="#1db954"/><rect x="630" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="665" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="700" width="32" height="32" rx="2" fill="#155c30"/><rect x="735" width="32" height="32" rx="2" fill="#123a22"/><rect x="770" width="32" height="32" rx="2" fill="#10231a"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- Sun -->
+      <g transform="translate(0,396)">
+        <rect width="32" height="32" rx="2" fill="#0e1f17"/><rect x="35" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="70" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="105" width="32" height="32" rx="2" fill="#10231a"/><rect x="140" width="32" height="32" rx="2" fill="#123a22"/><rect x="175" width="32" height="32" rx="2" fill="#155c30"/><rect x="210" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="245" width="32" height="32" rx="2" fill="#155c30"/><rect x="280" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="315" width="32" height="32" rx="2" fill="#1db954"/><rect x="350" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="385" width="32" height="32" rx="2" fill="#155c30"/><rect x="420" width="32" height="32" rx="2" fill="#123a22"/><rect x="455" width="32" height="32" rx="2" fill="#155c30"/><rect x="490" width="32" height="32" rx="2" fill="#1a6b38"/><rect x="525" width="32" height="32" rx="2" fill="#155c30"/><rect x="560" width="32" height="32" rx="2" fill="#123a22"/><rect x="595" width="32" height="32" rx="2" fill="#155c30"/><rect x="630" width="32" height="32" rx="2" fill="#123a22"/><rect x="665" width="32" height="32" rx="2" fill="#10231a"/><rect x="700" width="32" height="32" rx="2" fill="#10231a"/><rect x="735" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="770" width="32" height="32" rx="2" fill="#0e1f17"/><rect x="805" width="32" height="32" rx="2" fill="#0e1f17"/>
+      </g>
+      <!-- hour axis labels -->
+      <g font-size="16" fill="#5a6a6a" text-anchor="middle">
+        <text x="16" y="478">0</text>
+        <text x="226" y="478">6</text>
+        <text x="436" y="478">12</text>
+        <text x="646" y="478">18</text>
+        <text x="821" y="478">23</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- distribution polar (by hour) + genre donut -->
+  <g transform="translate(64,1282)">
+    <!-- genres -->
+    <rect width="462" height="410" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="32" y="52" font-size="26" font-weight="700" fill="#e0e8e8">Genres</text>
+    <g transform="translate(150,232)">
+      <!-- donut segments -->
+      <circle r="100" fill="none" stroke="#1ed760" stroke-width="44" stroke-dasharray="220 408" transform="rotate(-90)"/>
+      <circle r="100" fill="none" stroke="#1db954" stroke-width="44" stroke-dasharray="150 408" stroke-dashoffset="-220" transform="rotate(-90)"/>
+      <circle r="100" fill="none" stroke="#147f3b" stroke-width="44" stroke-dasharray="120 408" stroke-dashoffset="-370" transform="rotate(-90)"/>
+      <circle r="100" fill="none" stroke="#0e4a24" stroke-width="44" stroke-dasharray="138 408" stroke-dashoffset="-490" transform="rotate(-90)"/>
+    </g>
+    <g font-size="19" transform="translate(300,150)">
+      <rect x="0" y="0" width="16" height="16" rx="2" fill="#1ed760"/><text x="26" y="14" fill="#9aa8a8">indie</text>
+      <rect x="0" y="34" width="16" height="16" rx="2" fill="#1db954"/><text x="26" y="48" fill="#9aa8a8">electronic</text>
+      <rect x="0" y="68" width="16" height="16" rx="2" fill="#147f3b"/><text x="26" y="82" fill="#9aa8a8">ambient</text>
+      <rect x="0" y="102" width="16" height="16" rx="2" fill="#0e4a24"/><text x="26" y="116" fill="#9aa8a8">other</text>
+    </g>
+
+    <!-- by hour polar -->
+    <g transform="translate(490,0)">
+      <rect width="462" height="410" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="32" y="52" font-size="26" font-weight="700" fill="#e0e8e8">By hour</text>
+      <g transform="translate(231,230)">
+        <circle r="130" fill="none" stroke="#1e2a2a" stroke-width="1"/>
+        <circle r="86" fill="none" stroke="#1e2a2a" stroke-width="1"/>
+        <!-- 24 radial bars -->
+        <g stroke="#1db954" stroke-width="9">
+          <line x1="0" y1="-30" x2="0" y2="-46" transform="rotate(0)"/>
+          <line x1="0" y1="-30" x2="0" y2="-44" transform="rotate(15)"/>
+          <line x1="0" y1="-30" x2="0" y2="-40" transform="rotate(30)"/>
+          <line x1="0" y1="-30" x2="0" y2="-38" transform="rotate(45)"/>
+          <line x1="0" y1="-30" x2="0" y2="-36" transform="rotate(60)"/>
+          <line x1="0" y1="-30" x2="0" y2="-34" transform="rotate(75)"/>
+          <line x1="0" y1="-30" x2="0" y2="-50" transform="rotate(90)"/>
+          <line x1="0" y1="-30" x2="0" y2="-66" transform="rotate(105)"/>
+          <line x1="0" y1="-30" x2="0" y2="-92" transform="rotate(120)"/>
+          <line x1="0" y1="-30" x2="0" y2="-118" transform="rotate(135)"/>
+          <line x1="0" y1="-30" x2="0" y2="-108" transform="rotate(150)"/>
+          <line x1="0" y1="-30" x2="0" y2="-86" transform="rotate(165)"/>
+          <line x1="0" y1="-30" x2="0" y2="-72" transform="rotate(180)"/>
+          <line x1="0" y1="-30" x2="0" y2="-94" transform="rotate(195)"/>
+          <line x1="0" y1="-30" x2="0" y2="-120" transform="rotate(210)"/>
+          <line x1="0" y1="-30" x2="0" y2="-150" transform="rotate(225)"/>
+          <line x1="0" y1="-30" x2="0" y2="-132" transform="rotate(240)"/>
+          <line x1="0" y1="-30" x2="0" y2="-100" transform="rotate(255)"/>
+          <line x1="0" y1="-30" x2="0" y2="-74" transform="rotate(270)"/>
+          <line x1="0" y1="-30" x2="0" y2="-58" transform="rotate(285)"/>
+          <line x1="0" y1="-30" x2="0" y2="-48" transform="rotate(300)"/>
+          <line x1="0" y1="-30" x2="0" y2="-42" transform="rotate(315)"/>
+          <line x1="0" y1="-30" x2="0" y2="-40" transform="rotate(330)"/>
+          <line x1="0" y1="-30" x2="0" y2="-38" transform="rotate(345)"/>
+        </g>
+        <circle r="30" fill="#0f1214" stroke="#1e2a2a" stroke-width="1"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- bottom nav -->
+  <g transform="translate(0,1788)">
+    <rect x="0" y="0" width="1080" height="132" fill="#0b0e10"/>
+    <line x1="0" y1="0" x2="1080" y2="0" stroke="#1e2a2a" stroke-width="2"/>
+    <g text-anchor="middle">
+      <text x="180" y="56" font-size="30" fill="#6a7a7a">~</text>
+      <text x="180" y="94" font-size="18" fill="#6a7a7a">Dashboard</text>
+      <text x="420" y="56" font-size="30" fill="#6a7a7a">*</text>
+      <text x="420" y="94" font-size="18" fill="#6a7a7a">Rankings</text>
+      <text x="660" y="56" font-size="30" fill="#6a7a7a">%</text>
+      <text x="660" y="94" font-size="18" fill="#6a7a7a">Charts</text>
+      <text x="900" y="56" font-size="30" fill="#1db954">!</text>
+      <text x="900" y="94" font-size="18" fill="#1db954">Insights</text>
+    </g>
+  </g>
+</svg>

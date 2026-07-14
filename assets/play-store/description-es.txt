@@ -1,0 +1,24 @@
+DESCRIPCIÓN CORTA (80 caracteres máx)
+Registro de escucha de Spotify autoalojado: historial, estadísticas y más.
+
+DESCRIPCIÓN COMPLETA (4000 caracteres máx)
+SIS registra cada canción que reproduces en Spotify y la convierte en un panel privado de tu propia escucha — en tu propio servidor, con tus datos siempre tuyos.
+
+Conecta tu cuenta de Spotify y SIS guarda cada reproducción en su propia base de datos:
+• Sonando ahora — tu canción actual, en vivo, consultada cada 30 segundos
+• Historial — todas tus reproducciones, agrupadas por sesión, con scroll infinito
+• Top de canciones, artistas y álbumes — ordenados por número de reproducciones o tiempo total
+• Tendencias — escucha diaria, semanal y mensual en cualquier rango
+• Insights — mapas de calor por hora y día, desglose por géneros, rachas y métricas de descubrimiento
+• Exportación — descarga todo en JSON o CSV, o importa tu volcado de datos de Spotify
+
+Pensado para cómo escuchas
+Cambia cualquier ranking entre reproducciones y tiempo. Filtra por histórico, año, 6 meses, 3 meses, mes, semana, día o un rango personalizado. Entra en cualquier canción, artista o álbum para ver su página de detalle e historial.
+
+Rápido y directo
+Un panel denso en monoespaciada con gráficos que cargan al instante, atajos de teclado y una búsqueda global para encontrar lo que sea en segundos.
+
+Tuyo, en privado
+SIS es autoalojado: habla con Spotify con tus credenciales y mantiene todo tu historial en una base de datos que controlas tú. Sin analíticas de terceros.
+
+Nota: SIS requiere una cuenta de Spotify y tu propio servidor. Es un proyecto independiente sin afiliación ni respaldo de Spotify.

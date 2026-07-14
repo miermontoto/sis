@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="monospace">
+  <!-- mockup phone 1 (dashboard) — tokens sis (bg #080a0c, accent #1db954) -->
+  <rect width="1080" height="1920" fill="#080a0c"/>
+
+  <!-- caption marketing (localizable) -->
+  <text x="64" y="120" font-size="46" font-weight="700" fill="#e0e8e8">tu música, registrada</text>
+  <text x="64" y="178" font-size="46" font-weight="700" fill="#1db954">al instante</text>
+
+  <!-- app bar -->
+  <g transform="translate(0,232)">
+    <rect x="64" y="0" width="60" height="60" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="94" y="40" font-size="24" font-weight="700" letter-spacing="1" fill="#1db954" text-anchor="middle">SIS</text>
+    <text x="140" y="30" font-size="34" font-weight="700" fill="#e0e8e8">sis</text>
+    <text x="140" y="54" font-size="18" fill="#6a7a7a">listening stats</text>
+    <circle cx="990" cy="30" r="9" fill="#1db954"/>
+    <text x="966" y="36" font-size="18" fill="#6a7a7a" text-anchor="end">live</text>
+  </g>
+
+  <!-- now playing card -->
+  <g transform="translate(64,330)">
+    <rect width="952" height="240" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <rect x="28" y="28" width="184" height="184" rx="4" fill="#1f5c3a"/>
+    <rect x="28" y="28" width="184" height="184" rx="4" fill="#1db954" opacity="0.18"/>
+    <!-- eq bars -->
+    <g fill="#1ed760">
+      <rect x="60" y="150" width="10" height="38" rx="2"/>
+      <rect x="80" y="130" width="10" height="58" rx="2"/>
+      <rect x="100" y="160" width="10" height="28" rx="2"/>
+      <rect x="120" y="120" width="10" height="68" rx="2"/>
+    </g>
+    <text x="248" y="70" font-size="20" fill="#1db954">now playing</text>
+    <text x="248" y="120" font-size="38" font-weight="700" fill="#e0e8e8">Neon Tide</text>
+    <text x="248" y="158" font-size="26" fill="#9aa8a8">Violet Lake</text>
+    <text x="248" y="198" font-size="22" fill="#6a7a7a">Slow Horizons · 2024</text>
+  </g>
+
+  <!-- stats bar -->
+  <g transform="translate(64,602)">
+    <rect width="952" height="150" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <g text-anchor="middle">
+      <text x="120" y="66" font-size="44" font-weight="700" fill="#e0e8e8">37</text>
+      <text x="120" y="104" font-size="19" fill="#6a7a7a">plays today</text>
+      <text x="310" y="66" font-size="44" font-weight="700" fill="#e0e8e8">2h 14m</text>
+      <text x="310" y="104" font-size="19" fill="#6a7a7a">listened today</text>
+      <text x="500" y="66" font-size="44" font-weight="700" fill="#e0e8e8">11h</text>
+      <text x="500" y="104" font-size="19" fill="#6a7a7a">this week</text>
+      <text x="690" y="66" font-size="44" font-weight="700" fill="#1db954">9d</text>
+      <text x="690" y="104" font-size="19" fill="#6a7a7a">streak</text>
+      <text x="868" y="66" font-size="44" font-weight="700" fill="#e0e8e8">48.2k</text>
+      <text x="868" y="104" font-size="19" fill="#6a7a7a">total plays</text>
+    </g>
+    <g stroke="#1e2a2a" stroke-width="1">
+      <line x1="216" y1="36" x2="216" y2="114"/>
+      <line x1="406" y1="36" x2="406" y2="114"/>
+      <line x1="596" y1="36" x2="596" y2="114"/>
+      <line x1="780" y1="36" x2="780" y2="114"/>
+    </g>
+  </g>
+
+  <!-- top tracks this week -->
+  <g transform="translate(64,790)">
+    <text x="0" y="34" font-size="30" font-weight="700" fill="#e0e8e8">Top tracks this week</text>
+    <text x="952" y="34" font-size="22" fill="#1db954" text-anchor="end">plays</text>
+  </g>
+  <g transform="translate(64,840)">
+    <!-- rows -->
+    <g>
+      <rect x="0" y="0" width="952" height="116" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="40" y="74" font-size="34" font-weight="700" fill="#f0c040" text-anchor="middle">1</text>
+      <rect x="72" y="22" width="72" height="72" rx="4" fill="#2a4d6e"/>
+      <text x="168" y="58" font-size="28" font-weight="700" fill="#e0e8e8">Paper Cities</text>
+      <text x="168" y="90" font-size="22" fill="#6a7a7a">The North Wing</text>
+      <text x="912" y="74" font-size="30" font-weight="700" fill="#e0e8e8" text-anchor="end">52</text>
+    </g>
+    <g transform="translate(0,128)">
+      <rect x="0" y="0" width="952" height="116" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="40" y="74" font-size="34" font-weight="700" fill="#c8c8c8" text-anchor="middle">2</text>
+      <rect x="72" y="22" width="72" height="72" rx="4" fill="#6e3a55"/>
+      <text x="168" y="58" font-size="28" font-weight="700" fill="#e0e8e8">Neon Tide</text>
+      <text x="168" y="90" font-size="22" fill="#6a7a7a">Violet Lake</text>
+      <text x="912" y="74" font-size="30" font-weight="700" fill="#e0e8e8" text-anchor="end">44</text>
+    </g>
+    <g transform="translate(0,256)">
+      <rect x="0" y="0" width="952" height="116" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="40" y="74" font-size="34" font-weight="700" fill="#b07a3a" text-anchor="middle">3</text>
+      <rect x="72" y="22" width="72" height="72" rx="4" fill="#3a6e4a"/>
+      <text x="168" y="58" font-size="28" font-weight="700" fill="#e0e8e8">Glass Harbor</text>
+      <text x="168" y="90" font-size="22" fill="#6a7a7a">Marina Foss</text>
+      <text x="912" y="74" font-size="30" font-weight="700" fill="#e0e8e8" text-anchor="end">39</text>
+    </g>
+    <g transform="translate(0,384)">
+      <rect x="0" y="0" width="952" height="116" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="40" y="74" font-size="34" font-weight="700" fill="#6a7a7a" text-anchor="middle">4</text>
+      <rect x="72" y="22" width="72" height="72" rx="4" fill="#6e5a2a"/>
+      <text x="168" y="58" font-size="28" font-weight="700" fill="#e0e8e8">Saltwater Run</text>
+      <text x="168" y="90" font-size="22" fill="#6a7a7a">Empty Pools</text>
+      <text x="912" y="74" font-size="30" font-weight="700" fill="#e0e8e8" text-anchor="end">31</text>
+    </g>
+    <g transform="translate(0,512)">
+      <rect x="0" y="0" width="952" height="116" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <text x="40" y="74" font-size="34" font-weight="700" fill="#6a7a7a" text-anchor="middle">5</text>
+      <rect x="72" y="22" width="72" height="72" rx="4" fill="#3a4d6e"/>
+      <text x="168" y="58" font-size="28" font-weight="700" fill="#e0e8e8">Low Ceiling</text>
+      <text x="168" y="90" font-size="22" fill="#6a7a7a">Hours Apart</text>
+      <text x="912" y="74" font-size="30" font-weight="700" fill="#e0e8e8" text-anchor="end">27</text>
+    </g>
+  </g>
+
+  <!-- recent plays -->
+  <g transform="translate(64,1512)">
+    <text x="0" y="28" font-size="30" font-weight="700" fill="#e0e8e8">Recent plays</text>
+    <g transform="translate(0,52)">
+      <rect x="0" y="0" width="952" height="92" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <rect x="20" y="16" width="60" height="60" rx="4" fill="#6e3a55"/>
+      <text x="104" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Neon Tide</text>
+      <text x="104" y="74" font-size="20" fill="#6a7a7a">Violet Lake</text>
+      <text x="932" y="56" font-size="22" fill="#6a7a7a" text-anchor="end">now</text>
+    </g>
+    <g transform="translate(0,156)">
+      <rect x="0" y="0" width="952" height="92" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <rect x="20" y="16" width="60" height="60" rx="4" fill="#2a4d6e"/>
+      <text x="104" y="46" font-size="26" font-weight="700" fill="#e0e8e8">Paper Cities</text>
+      <text x="104" y="74" font-size="20" fill="#6a7a7a">The North Wing</text>
+      <text x="932" y="56" font-size="22" fill="#6a7a7a" text-anchor="end">4m ago</text>
+    </g>
+  </g>
+
+  <!-- bottom nav -->
+  <g transform="translate(0,1788)">
+    <rect x="0" y="0" width="1080" height="132" fill="#0b0e10"/>
+    <line x1="0" y1="0" x2="1080" y2="0" stroke="#1e2a2a" stroke-width="2"/>
+    <g text-anchor="middle">
+      <text x="180" y="56" font-size="30" fill="#1db954">~</text>
+      <text x="180" y="94" font-size="18" fill="#1db954">Dashboard</text>
+      <text x="420" y="56" font-size="30" fill="#6a7a7a">*</text>
+      <text x="420" y="94" font-size="18" fill="#6a7a7a">Rankings</text>
+      <text x="660" y="56" font-size="30" fill="#6a7a7a">%</text>
+      <text x="660" y="94" font-size="18" fill="#6a7a7a">Charts</text>
+      <text x="900" y="56" font-size="30" fill="#6a7a7a">!</text>
+      <text x="900" y="94" font-size="18" fill="#6a7a7a">Insights</text>
+    </g>
+  </g>
+</svg>

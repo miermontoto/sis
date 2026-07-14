@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <!-- feature graphic de sis (en) — tokens reales (bg #080a0c, accent #1db954) -->
+  <rect width="1024" height="500" fill="#080a0c"/>
+
+  <!-- mark: monograma SIS (rounded square + texto verde) -->
+  <rect x="72" y="160" width="120" height="120" rx="22" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+  <text x="132" y="239" font-family="monospace" font-weight="700" font-size="50" letter-spacing="2" fill="#1db954" text-anchor="middle">SIS</text>
+
+  <!-- wordmark + tagline -->
+  <text x="222" y="222" font-family="monospace" font-weight="700" font-size="86" fill="#e0e8e8" letter-spacing="-2">sis</text>
+  <text x="226" y="262" font-family="monospace" font-weight="400" font-size="22" fill="#6a7a7a">your listening history,</text>
+  <text x="226" y="291" font-family="monospace" font-weight="400" font-size="22" fill="#6a7a7a">self-hosted</text>
+  <text x="226" y="334" font-family="monospace" font-weight="400" font-size="14" fill="#5a6a6a" letter-spacing="1">history&#160;·&#160;top charts&#160;·&#160;trends</text>
+
+  <!-- motivo: top tracks como barras ranqueadas (panel derecho contenido) -->
+  <g font-family="monospace">
+    <!-- fila 1 -->
+    <text x="582" y="172" font-size="20" fill="#5a6a6a" text-anchor="end">1</text>
+    <rect x="600" y="150" width="22" height="22" rx="2" fill="#1e2a2a"/>
+    <rect x="632" y="152" width="316" height="18" rx="2" fill="#1ed760"/>
+    <text x="942" y="166" font-size="14" fill="#080a0c" text-anchor="end">312</text>
+    <!-- fila 2 -->
+    <text x="582" y="228" font-size="20" fill="#5a6a6a" text-anchor="end">2</text>
+    <rect x="600" y="206" width="22" height="22" rx="2" fill="#1e2a2a"/>
+    <rect x="632" y="208" width="258" height="18" rx="2" fill="#1db954"/>
+    <text x="880" y="222" font-size="14" fill="#080a0c" text-anchor="end">274</text>
+    <!-- fila 3 -->
+    <text x="582" y="284" font-size="20" fill="#5a6a6a" text-anchor="end">3</text>
+    <rect x="600" y="262" width="22" height="22" rx="2" fill="#1e2a2a"/>
+    <rect x="632" y="264" width="198" height="18" rx="2" fill="#179c47"/>
+    <text x="820" y="278" font-size="14" fill="#e0e8e8" text-anchor="end">203</text>
+    <!-- fila 4 -->
+    <text x="582" y="340" font-size="20" fill="#5a6a6a" text-anchor="end">4</text>
+    <rect x="600" y="318" width="22" height="22" rx="2" fill="#1e2a2a"/>
+    <rect x="632" y="320" width="148" height="18" rx="2" fill="#147f3b"/>
+    <text x="770" y="334" font-size="14" fill="#e0e8e8" text-anchor="end">161</text>
+    <!-- fila 5 -->
+    <text x="582" y="396" font-size="20" fill="#5a6a6a" text-anchor="end">5</text>
+    <rect x="600" y="374" width="22" height="22" rx="2" fill="#1e2a2a"/>
+    <rect x="632" y="376" width="114" height="18" rx="2" fill="#11682f"/>
+    <text x="736" y="390" font-size="14" fill="#e0e8e8" text-anchor="end">128</text>
+  </g>
+</svg>

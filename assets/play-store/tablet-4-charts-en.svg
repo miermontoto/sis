@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1200" viewBox="0 0 1920 1200" font-family="monospace">
+  <!-- mockup tablet 4 (charts) — tokens sis -->
+  <rect width="1920" height="1200" fill="#080a0c"/>
+
+  <!-- sidebar -->
+  <rect x="0" y="0" width="340" height="1200" fill="#0b0e10"/>
+  <line x1="340" y1="0" x2="340" y2="1200" stroke="#1e2a2a" stroke-width="2"/>
+  <g transform="translate(40,48)">
+    <rect x="0" y="0" width="56" height="56" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+    <text x="28" y="37" font-size="22" font-weight="700" letter-spacing="1" fill="#1db954" text-anchor="middle">SIS</text>
+    <text x="74" y="26" font-size="30" font-weight="700" fill="#e0e8e8">sis</text>
+    <text x="74" y="50" font-size="16" fill="#6a7a7a">listening stats</text>
+  </g>
+  <g transform="translate(40,168)" font-size="22">
+    <text x="0" y="0" font-size="15" fill="#5a6a6a" letter-spacing="2">LISTEN</text>
+    <text x="8" y="54" fill="#9aa8a8">~  Dashboard</text>
+    <text x="8" y="116" fill="#9aa8a8">#  History</text>
+    <text x="0" y="186" font-size="15" fill="#5a6a6a" letter-spacing="2">STATS</text>
+    <text x="8" y="240" fill="#9aa8a8">*  Rankings</text>
+    <rect x="-12" y="270" width="264" height="48" rx="4" fill="#13241a"/>
+    <text x="8" y="302" fill="#1db954">%  Charts</text>
+    <text x="0" y="372" font-size="15" fill="#5a6a6a" letter-spacing="2">HIGHLIGHTS</text>
+    <text x="8" y="426" fill="#9aa8a8">!  Insights</text>
+    <text x="8" y="488" fill="#9aa8a8">^  Records</text>
+    <text x="0" y="558" font-size="15" fill="#5a6a6a" letter-spacing="2">LIBRARY</text>
+    <text x="8" y="612" fill="#9aa8a8">+  Playlists</text>
+    <text x="8" y="674" fill="#9aa8a8">@  Users</text>
+  </g>
+  <g transform="translate(40,1140)">
+    <circle cx="10" cy="-8" r="8" fill="#1db954"/>
+    <text x="30" y="-2" font-size="16" fill="#6a7a7a">syncing · live</text>
+  </g>
+
+  <!-- content -->
+  <g transform="translate(400,56)">
+    <text x="0" y="36" font-size="40" font-weight="700" fill="#e0e8e8">weekly charts with peaks,</text>
+    <text x="0" y="86" font-size="40" font-weight="700" fill="#1db954">weeks-on-chart and movement</text>
+
+    <!-- controls: granularity + period nav -->
+    <g transform="translate(0,128)">
+      <rect x="0" y="0" width="110" height="56" rx="4" fill="#13241a" stroke="#1db954" stroke-width="2"/><text x="55" y="36" font-size="22" font-weight="700" fill="#1db954" text-anchor="middle">Week</text>
+      <rect x="122" y="0" width="120" height="56" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="182" y="36" font-size="22" fill="#6a7a7a" text-anchor="middle">Month</text>
+      <rect x="254" y="0" width="100" height="56" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="304" y="36" font-size="22" fill="#6a7a7a" text-anchor="middle">Year</text>
+      <!-- period nav -->
+      <text x="1010" y="36" font-size="28" fill="#6a7a7a" text-anchor="middle">&#8592;</text>
+      <rect x="1050" y="0" width="240" height="56" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/><text x="1170" y="36" font-size="22" fill="#e0e8e8" text-anchor="middle">2024-W23</text>
+      <text x="1330" y="36" font-size="28" fill="#6a7a7a" text-anchor="middle">&#8594;</text>
+      <text x="1456" y="36" font-size="22" fill="#6a7a7a" text-anchor="end">Jun 3 – 9</text>
+    </g>
+
+    <!-- chart card -->
+    <g transform="translate(0,212)">
+      <rect width="1456" height="856" rx="4" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
+      <!-- column header -->
+      <g transform="translate(36,48)" font-size="18" fill="#5a6a6a">
+        <text x="0" y="0">#</text>
+        <text x="180" y="0">TRACK</text>
+        <text x="1010" y="0" text-anchor="end">PEAK</text>
+        <text x="1160" y="0" text-anchor="end">WKS</text>
+        <text x="1420" y="0" text-anchor="end">PLAYS</text>
+      </g>
+      <line x1="36" y1="66" x2="1420" y2="66" stroke="#1e2a2a" stroke-width="1"/>
+      <g transform="translate(36,84)" font-size="24">
+        <!-- row: rank, cover, name/artist, peak, wks, plays -->
+        <g><text x="6" y="50" font-size="28" font-weight="700" fill="#f0c040">1</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#2a4d6e"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Paper Cities</text><text x="116" y="66" font-size="17" fill="#6a7a7a">The North Wing</text><text x="1010" y="50" fill="#f0c040" text-anchor="end" font-weight="700">PEAK</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">7 (4)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">52</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">3h 18m</text></g>
+        <g transform="translate(0,86)"><text x="6" y="50" font-size="28" font-weight="700" fill="#c8c8c8">2</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#6e3a55"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Neon Tide</text><text x="116" y="66" font-size="17" fill="#6a7a7a">Violet Lake</text><text x="970" y="50" fill="#3acc6a" text-anchor="end" font-size="20">&#9650;3</text><text x="1010" y="50" fill="#c8c8c8" text-anchor="end">1</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">12 (2)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">44</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">2h 47m</text></g>
+        <g transform="translate(0,172)"><text x="6" y="50" font-size="28" font-weight="700" fill="#b07a3a">3</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#3a6e4a"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Glass Harbor</text><text x="116" y="66" font-size="17" fill="#6a7a7a">Marina Foss</text><text x="970" y="50" fill="#e05a5a" text-anchor="end" font-size="20">&#9660;1</text><text x="1010" y="50" fill="#c8c8c8" text-anchor="end">2</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">5 (5)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">39</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">2h 31m</text></g>
+        <g transform="translate(0,258)"><text x="6" y="50" font-size="28" font-weight="700" fill="#6a7a7a">4</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#6e5a2a"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Saltwater Run</text><text x="116" y="66" font-size="17" fill="#6a7a7a">Empty Pools</text><text x="970" y="50" fill="#3acc6a" text-anchor="end" font-size="20">&#9650;6</text><text x="1010" y="50" fill="#9aa8a8" text-anchor="end">4</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">3 (1)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">31</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">1h 58m</text></g>
+        <g transform="translate(0,344)"><text x="6" y="50" font-size="28" font-weight="700" fill="#6a7a7a">5</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#3a4d6e"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Low Ceiling</text><text x="116" y="66" font-size="17" fill="#6a7a7a">Hours Apart</text><text x="970" y="50" fill="#1db954" text-anchor="end" font-size="18" font-weight="700">NEW</text><text x="1010" y="50" fill="#9aa8a8" text-anchor="end">5</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">1 (1)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">27</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">1h 42m</text></g>
+        <g transform="translate(0,430)"><text x="6" y="50" font-size="28" font-weight="700" fill="#6a7a7a">6</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#5a2e6e"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Cold Signal</text><text x="116" y="66" font-size="17" fill="#6a7a7a">Aria Bloom</text><text x="970" y="50" fill="#e05a5a" text-anchor="end" font-size="20">&#9660;2</text><text x="1010" y="50" fill="#9aa8a8" text-anchor="end">3</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">8 (3)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">24</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">1h 29m</text></g>
+        <g transform="translate(0,516)"><text x="6" y="50" font-size="28" font-weight="700" fill="#6a7a7a">7</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#2e6e6a"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Half Light</text><text x="116" y="66" font-size="17" fill="#6a7a7a">The North Wing</text><text x="970" y="50" fill="#3acc6a" text-anchor="end" font-size="20">&#9650;1</text><text x="1010" y="50" fill="#9aa8a8" text-anchor="end">6</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">4 (2)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">21</text><text x="1420" y="68" font-size="16" fill="#6a7a7a" text-anchor="end">1h 17m</text></g>
+        <!-- dropouts -->
+        <line x1="0" y1="606" x2="1384" y2="606" stroke="#1e2a2a" stroke-width="1"/>
+        <text x="6" y="640" font-size="18" fill="#5a6a6a">DROPPED OFF</text>
+        <g transform="translate(0,648)" opacity="0.55"><text x="6" y="50" font-size="28" font-weight="700" fill="#6a7a7a">—</text><rect x="48" y="20" width="50" height="50" rx="4" fill="#4d3a6e"/><text x="116" y="42" font-weight="700" fill="#e0e8e8">Open Water</text><text x="116" y="66" font-size="17" fill="#6a7a7a">Empty Pools</text><text x="970" y="50" fill="#e05a5a" text-anchor="end" font-size="18" font-weight="700">OUT</text><text x="1010" y="50" fill="#9aa8a8" text-anchor="end">8</text><text x="1160" y="50" fill="#9aa8a8" text-anchor="end">6 (0)</text><text x="1420" y="46" font-weight="700" fill="#e0e8e8" text-anchor="end">12</text></g>
+      </g>
+    </g>
+  </g>
+</svg>
