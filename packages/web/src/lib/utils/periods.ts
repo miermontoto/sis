@@ -68,28 +68,44 @@ function granLabel(gran: Granularity): string {
   return 'Yearly';
 }
 
-/** Detectar charts cerrados comparando periodo actual vs último visto en localStorage */
+/**
+ * Periodo cerrado más reciente: el inmediatamente anterior al actual.
+ * Es un periodo pasado y absoluto, no depende de la hora local de cada
+ * dispositivo (a diferencia de `current`).
+ */
+function justClosedPeriod(gran: Granularity, ws: WeekStartOption): string | null {
+  return prevPeriod(computeCurrentPeriod(gran, ws), gran);
+}
+
+/**
+ * El marcador guardado (`lsKey`) es el último periodo cerrado que el usuario
+ * descartó. Comparamos por orden — los formatos YYYY, YYYY-MM y YYYY-Www van
+ * zero-padded y year-first, así que el orden lexicográfico = orden cronológico.
+ * Al comparar periodos pasados absolutos (no `current`), el resultado es
+ * idéntico en todos los dispositivos: descartar en uno se respeta en el resto.
+ */
 export function getClosedCharts(weekStart?: WeekStartOption): ClosedChart[] {
   const ws = weekStart ?? getWeekStart();
   const closed: ClosedChart[] = [];
 
   for (const gran of GRANULARITIES) {
-    const current = computeCurrentPeriod(gran, ws);
-    const lastSeen = localStorage.getItem(lsKey(gran));
+    const justClosed = justClosedPeriod(gran, ws);
+    if (justClosed === null) continue;
+    const marker = localStorage.getItem(lsKey(gran));
 
-    if (lastSeen === null) {
-      // primera vez — guardar periodo actual, no notificar
-      localStorage.setItem(lsKey(gran), current);
-      setLastPeriod(gran, current);
+    if (marker === null) {
+      // primera vez — marcar el cierre actual como visto, no notificar
+      localStorage.setItem(lsKey(gran), justClosed);
+      setLastPeriod(gran, justClosed);
       continue;
     }
 
-    if (lastSeen !== current) {
-      // el periodo cambió — lastSeen es el chart que acaba de cerrar
+    if (justClosed > marker) {
+      // hay un cierre más reciente que el último descartado
       closed.push({
         granularity: gran,
-        period: lastSeen,
-        label: `${granLabel(gran)} chart closed — ${periodLabel(lastSeen, gran)}`,
+        period: justClosed,
+        label: `${granLabel(gran)} chart closed — ${periodLabel(justClosed, gran)}`,
       });
     }
   }
@@ -100,9 +116,10 @@ export function getClosedCharts(weekStart?: WeekStartOption): ClosedChart[] {
 /** Descartar notificación de un chart cerrado */
 export function dismissClosedChart(gran: Granularity, weekStart?: WeekStartOption) {
   const ws = weekStart ?? getWeekStart();
-  const current = computeCurrentPeriod(gran, ws);
-  localStorage.setItem(lsKey(gran), current);
-  setLastPeriod(gran, current);
+  const justClosed = justClosedPeriod(gran, ws);
+  if (justClosed === null) return;
+  localStorage.setItem(lsKey(gran), justClosed);
+  setLastPeriod(gran, justClosed);
 }
 
 /** Descartar todas las notificaciones de charts cerrados */
