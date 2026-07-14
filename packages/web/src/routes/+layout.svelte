@@ -83,6 +83,18 @@
   // alterna el rail colapsado; el setter persiste (localStorage + PUT /settings)
   function toggleSidebar() { setSidebarCollapsed(!sidebarCollapsed); }
 
+  // badge de usuario: en el rail solo se ve la foto y el menú no cabe (64px, con
+  // overflow oculto), así que al pulsarla expandimos el rail y abrimos el menú
+  // ya legible; expandido, simplemente lo alterna.
+  function handleUserBadgeClick() {
+    if (sidebarCollapsed) {
+      setSidebarCollapsed(false);
+      showUserMenu = true;
+    } else {
+      showUserMenu = !showUserMenu;
+    }
+  }
+
   onMount(async () => {
     if (pwaInfo) {
       const { registerSW } = await import('virtual:pwa-register');
@@ -560,12 +572,12 @@
       {/if}
       {#if nowPlayingDisplay !== 'off'}
         <div class="sidebar-now-playing">
-          <NowPlaying compact inline={nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && sidebarOverflows)} />
+          <NowPlaying compact rail={sidebarCollapsed} inline={nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && sidebarOverflows)} />
         </div>
       {/if}
       {#if user?.authenticated}
         <div class="sidebar-user-wrap" bind:this={userMenuRef}>
-          <button class="sidebar-user" onclick={() => showUserMenu = !showUserMenu}>
+          <button class="sidebar-user" onclick={handleUserBadgeClick}>
             {#if user.imageUrl}
               <img class="sidebar-user-avatar" src={user.imageUrl} alt="" />
             {:else}

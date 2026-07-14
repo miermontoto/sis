@@ -355,11 +355,30 @@ a:hover {
   display: none;
 }
 
-/* secciones ricas del pie: no reducen a un icono → se ocultan colapsadas */
+/* secciones ricas del pie que no reducen a un icono → ocultas colapsadas */
 .sidebar-collapsed .sidebar-projections,
-.sidebar-collapsed .sidebar-now-playing,
-.sidebar-collapsed .sidebar-user-wrap,
 .sidebar-collapsed .sidebar-footer {
+  display: none;
+}
+
+/* now playing: card mini (carátula + controles verticales), padding ajustado */
+.sidebar-collapsed .sidebar-now-playing {
+  padding: 0.35rem 0.3rem;
+}
+
+/* user badge: solo la foto centrada; al pulsarla el rail se expande y abre el menú */
+.sidebar-collapsed .sidebar-user-wrap {
+  padding: 0 0.3rem 0.4rem;
+}
+
+.sidebar-collapsed .sidebar-user {
+  justify-content: center;
+  padding: 0.3rem;
+}
+
+.sidebar-collapsed .sidebar-user-info,
+.sidebar-collapsed .sidebar-user-dots,
+.sidebar-collapsed .sidebar-admin-badge {
   display: none;
 }
 

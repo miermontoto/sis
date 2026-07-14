@@ -11,7 +11,7 @@
   import IconVolume from '$lib/icons/IconVolume.svelte';
   import PlaylistPopover from './PlaylistPopover.svelte';
 
-  let { compact = false, inline = false }: { compact?: boolean; inline?: boolean } = $props();
+  let { compact = false, inline = false, rail = false }: { compact?: boolean; inline?: boolean; rail?: boolean } = $props();
 
   let acting = $state(false);
   let showDevices = $state(false);
@@ -72,6 +72,30 @@
 </script>
 
 {#if data?.playing && data.track}
+  {#if rail}
+    <!-- variante rail (sidebar colapsada): solo carátula + controles de
+         transporte en vertical. sin info, volumen, like ni popovers (que se
+         recortarían en un rail de 64px con overflow oculto). -->
+    <div class="np np--rail">
+      {#if data.track.album?.imageUrl}
+        <a href="/album/{data.track.album.id}" class="np-art-link" title={data.track.name}>
+          <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
+          {#if data.isPlaying}
+            <div class="np-eq"><span></span><span></span><span></span></div>
+          {/if}
+        </a>
+      {:else}
+        <div class="np-art"></div>
+      {/if}
+      <div class="np-controls np-controls--vertical">
+        <button class="ctrl-btn" title="Previous" disabled={acting} onclick={previous}><IconPrev /></button>
+        <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
+          {#if data.isPlaying}<IconPause />{:else}<IconPlay />{/if}
+        </button>
+        <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}><IconNext /></button>
+      </div>
+    </div>
+  {:else}
   <div class="np" class:np--compact={compact} class:np--inline={inline}>
     <div class="np-row-info">
       {#if data.track.album?.imageUrl}
@@ -160,6 +184,7 @@
       </PlaylistPopover>
     </div>
   </div>
+  {/if}
 {/if}
 
 <style>
@@ -178,6 +203,31 @@
     align-items: stretch;
     gap: 0.5rem;
     padding: 0.6rem;
+  }
+
+  /* variante rail: carátula a todo el ancho + controles verticales bajo ella */
+  .np--rail {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem;
+  }
+
+  .np--rail .np-art-link {
+    width: 100%;
+    display: block;
+  }
+
+  .np--rail .np-art {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: var(--radius);
+  }
+
+  .np-controls--vertical {
+    flex-direction: column;
+    gap: 0.1rem;
   }
 
   .np--compact:not(.np--inline) .np-art {
