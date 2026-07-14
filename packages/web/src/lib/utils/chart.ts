@@ -106,6 +106,35 @@ export function dualAxisGrid(overrides?: Record<string, any>) {
   return { ...GRID, ...overrides };
 }
 
+// --- Zoom ---
+
+// dataZoom sobre el eje X: rueda/arrastre (inside) + slider visible abajo.
+// filterMode 'filter' hace que el eje Y se reescale a la ventana visible,
+// útil en gráficas acumuladas donde las series arrancan apelotonadas en cero.
+export function zoomX(): NonNullable<EChartsOption['dataZoom']> {
+  // cast final: los typings de echarts exigen handleLabel junto a handleStyle en
+  // emphasis; solo queremos el color, así que se relaja el chequeo del literal
+  return [
+    { type: 'inside', xAxisIndex: 0, filterMode: 'filter' },
+    {
+      type: 'slider',
+      xAxisIndex: 0,
+      filterMode: 'filter',
+      height: 16,
+      bottom: 6,
+      borderColor: '#1e2a2a',
+      backgroundColor: 'transparent',
+      fillerColor: 'rgba(29,185,84,0.10)',
+      dataBackground: { lineStyle: { color: '#1e2a2a' }, areaStyle: { color: '#162020' } },
+      selectedDataBackground: { lineStyle: { color: GREEN }, areaStyle: { color: 'rgba(29,185,84,0.12)' } },
+      handleStyle: { color: GREEN, borderColor: GREEN },
+      moveHandleStyle: { color: GREEN },
+      emphasis: { handleStyle: { color: GREEN } },
+      textStyle: { color: '#6a7a7a', fontSize: 10 },
+    },
+  ] as unknown as NonNullable<EChartsOption['dataZoom']>;
+}
+
 // --- Trend line ---
 
 export function linearRegression(values: number[]): { line: number[]; r2: number } {

@@ -9,7 +9,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
-  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, zoomX } from '$lib/utils/chart';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import RankChange from '$lib/components/RankChange.svelte';
@@ -364,7 +364,8 @@
       });
 
     return {
-      grid: { ...GRID, right: 150, bottom: 30 },
+      grid: { ...GRID, right: 150, bottom: 52 },
+      dataZoom: zoomX(),
       tooltip: {
         ...TOOLTIP_BASE,
         formatter: (params: any) => {

@@ -11,6 +11,7 @@
     CalendarComponent,
     RadarComponent as RadarComp,
     PolarComponent,
+    DataZoomComponent,
   } from 'echarts/components';
   import type { EChartsOption } from 'echarts';
 
@@ -30,6 +31,7 @@
     CalendarComponent,
     RadarComp,
     PolarComponent,
+    DataZoomComponent,
   ]);
 
   interface Props {

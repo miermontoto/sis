@@ -3,7 +3,7 @@
   import { api, createFetchController, getRankingMetric, type TopArtistItem, type ArtistDetail, type RankingMetric } from '$lib/api';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, zoomX } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
 
   // paleta fija de colores asignados por orden de selección
@@ -145,7 +145,8 @@
       });
 
     return {
-      grid: { ...GRID, right: 120, bottom: 40 },
+      grid: { ...GRID, right: 120, bottom: 56 },
+      dataZoom: zoomX(),
       tooltip: {
         ...TOOLTIP_BASE,
         formatter: (params: any) => {
