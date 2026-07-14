@@ -18,6 +18,7 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_ta_artist_position ON track_artists(artist_id, position)'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN session_started_at TEXT'); } catch {}
+  try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN progress_ms INTEGER'); } catch {}
   try { sqlite.exec('ALTER TABLE albums ADD COLUMN artist_ids TEXT'); } catch {}
 
   // multi-user: tabla de usuarios

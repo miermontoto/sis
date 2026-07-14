@@ -53,11 +53,12 @@ nowPlaying.get('/', (c) => {
   );
   const artistList = sortedArtistIds.map(id => artistMap.get(id)).filter(Boolean);
 
-  const isPlayingRow = db.get(sql`SELECT is_playing FROM polling_state WHERE user_id = ${userId}`) as { is_playing: number } | undefined;
+  const isPlayingRow = db.get(sql`SELECT is_playing, progress_ms FROM polling_state WHERE user_id = ${userId}`) as { is_playing: number; progress_ms: number | null } | undefined;
 
   return c.json({
     playing: true,
     isPlaying: !!(isPlayingRow?.is_playing),
+    progressMs: isPlayingRow?.progress_ms ?? null,
     track: {
       id: track.spotifyId,
       name: track.name,
@@ -127,6 +128,7 @@ nowPlaying.get('/live', async (c) => {
   return c.json({
     playing: true,
     isPlaying: !!data.is_playing,
+    progressMs: data.progress_ms ?? null,
     volumePercent: data.device?.volume_percent ?? null,
     track: {
       id: item.id,

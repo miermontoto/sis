@@ -11,6 +11,9 @@ let _liveTrackGuardId: string | null = null;
 let _trackStartedAt = 0;
 let _lastFinishedPlay = $state<HistoryItem | null>(null);
 let _volumePercent = $state<number | null>(null);
+// base de progreso del track: valor conocido + instante (reloj cliente) en que
+// se conoció; el progreso mostrado se extrapola desde aquí mientras suena
+let _progress = $state<{ baseMs: number; baseAtMs: number; playing: boolean } | null>(null);
 type NpPlaylist = { id: number; spotifyId: string; name: string; imageUrl: string | null };
 let _playlists = $state<NpPlaylist[]>([]);
 let _lastPlaylistTrackId: string | null = null;
@@ -25,6 +28,13 @@ type NowPlayingSource = 'cached' | 'live' | 'local';
 
 function trackIdOf(data: NowPlayingResponse | null): string | null {
   return data?.playing && data.track ? data.track.id : null;
+}
+
+// progreso extrapolado en el instante nowMs, acotado a la duración del track
+function progressMsAt(nowMs: number): number | null {
+  if (!_progress || !_data?.playing || !_data.track) return null;
+  const raw = _progress.playing ? _progress.baseMs + (nowMs - _progress.baseAtMs) : _progress.baseMs;
+  return Math.max(0, Math.min(raw, _data.track.durationMs));
 }
 
 function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSource) {
@@ -54,6 +64,19 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
 
   _data = data;
   if (data?.volumePercent != null) _volumePercent = data.volumePercent;
+
+  // progreso: live/cached traen base fresca (extrapolada por la edad de
+  // updatedAt); los updates locales (pause/resume) arrastran un progressMs
+  // obsoleto, así que congelan el valor extrapolado actual en su lugar
+  if (!data?.playing || !data.track) {
+    _progress = null;
+  } else if (typeof data.progressMs === 'number' && source !== 'local') {
+    const updatedAtMs = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
+    const ageMs = Number.isFinite(updatedAtMs) ? Math.max(0, Date.now() - updatedAtMs) : 0;
+    _progress = { baseMs: data.progressMs + (data.isPlaying ? ageMs : 0), baseAtMs: Date.now(), playing: !!data.isPlaying };
+  } else if (_progress) {
+    _progress = { baseMs: progressMsAt(Date.now()) ?? _progress.baseMs, baseAtMs: Date.now(), playing: !!data.isPlaying };
+  }
 
   if (source === 'live') {
     _liveTrackGuardId = nextTrackId;
@@ -194,6 +217,7 @@ export const nowPlayingStore = {
   get likeLoading() { return _likeLoading; },
   get lastFinishedPlay() { return _lastFinishedPlay; },
   get volumePercent() { return _volumePercent; },
+  progressMsAt,
   get playlists() { return _playlists; },
   set playlists(v: NpPlaylist[]) { _playlists = v; },
   startPolling,

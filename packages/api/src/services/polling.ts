@@ -151,12 +151,12 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
           lastCurrentlyPlayingTrackId: null,
           lastCurrentlyPlayingAt: null,
         });
-        db.run(sql`UPDATE polling_state SET is_playing = 0, session_started_at = NULL WHERE user_id = ${userId}`);
+        db.run(sql`UPDATE polling_state SET is_playing = 0, session_started_at = NULL, progress_ms = NULL WHERE user_id = ${userId}`);
       } else {
         updatePollingStateForUser(userId, {
           lastCurrentlyPlayingTrackId: null,
         });
-        db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
+        db.run(sql`UPDATE polling_state SET is_playing = 0, progress_ms = NULL WHERE user_id = ${userId}`);
       }
       return CURRENTLY_PLAYING_IDLE_MS;
     }
@@ -201,7 +201,7 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
       lastCurrentlyPlayingAt: new Date().toISOString(),
     });
     const db = getDb();
-    db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0} WHERE user_id = ${userId}`);
+    db.run(sql`UPDATE polling_state SET is_playing = ${data.is_playing ? 1 : 0}, progress_ms = ${progressMs} WHERE user_id = ${userId}`);
 
     // nueva sesión: si el track anterior era null (idle → playing)
     if (trackChanged && !state?.lastCurrentlyPlayingTrackId) {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { formatTrackLength } from '$lib/utils/format';
   import DevicePicker from './DevicePicker.svelte';
   import IconPrev from '$lib/icons/IconPrev.svelte';
   import IconPause from '$lib/icons/IconPause.svelte';
@@ -22,6 +23,19 @@
   let data = $derived(nowPlayingStore.data);
   let vol = $derived(nowPlayingStore.volumePercent);
   let volIcon = $derived<0 | 1 | 2>(vol === null || vol === 0 ? 0 : vol < 50 ? 1 : 2);
+
+  // tick de 1s para animar el progreso extrapolado mientras suena
+  let nowMs = $state(Date.now());
+  $effect(() => {
+    if (!data?.playing || !data.isPlaying) return;
+    nowMs = Date.now();
+    const id = setInterval(() => { nowMs = Date.now(); }, 1000);
+    return () => clearInterval(id);
+  });
+  let progressMs = $derived(nowPlayingStore.progressMsAt(nowMs));
+  let progressPct = $derived(
+    progressMs != null && data?.track?.durationMs ? Math.min(100, (progressMs / data.track.durationMs) * 100) : null
+  );
 
   $effect(() => {
     void data?.track?.name;
@@ -71,6 +85,14 @@
   }
 </script>
 
+{#snippet progressBar()}
+  {#if progressPct != null && data?.track}
+    <div class="np-progress" title="{formatTrackLength(progressMs ?? 0)} / {formatTrackLength(data.track.durationMs)}">
+      <div class="np-progress-fill" style="width: {progressPct.toFixed(2)}%"></div>
+    </div>
+  {/if}
+{/snippet}
+
 {#if data?.playing && data.track}
   {#if rail}
     <!-- variante rail (sidebar colapsada): solo carátula + controles de
@@ -94,6 +116,7 @@
         </button>
         <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}><IconNext /></button>
       </div>
+      {@render progressBar()}
     </div>
   {:else}
   <div class="np" class:np--compact={compact} class:np--inline={inline}>
@@ -183,12 +206,14 @@
         {/snippet}
       </PlaylistPopover>
     </div>
+    {@render progressBar()}
   </div>
   {/if}
 {/if}
 
 <style>
   .np {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -196,6 +221,25 @@
     background: linear-gradient(135deg, rgba(29, 185, 84, 0.08), rgba(29, 185, 84, 0.02));
     border: 1px solid rgba(29, 185, 84, 0.15);
     border-radius: var(--radius);
+  }
+
+  /* barra de progreso del track en el filo inferior de la card: el ancho se
+     recalcula cada tick y la transición lineal lo desliza entre ticks */
+  .np-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden;
+    background: rgba(29, 185, 84, 0.15);
+  }
+
+  .np-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 1s linear;
   }
 
   .np--compact {

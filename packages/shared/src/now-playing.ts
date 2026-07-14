@@ -3,6 +3,8 @@ import type { TrackInfo } from './entities.js';
 export interface NowPlayingResponse {
   playing: boolean;
   isPlaying: boolean;
+  // progreso del track en el momento de updatedAt; el cliente extrapola
+  progressMs?: number | null;
   volumePercent?: number | null;
   track?: TrackInfo;
   updatedAt?: string;

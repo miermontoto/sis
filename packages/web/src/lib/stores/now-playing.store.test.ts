@@ -60,3 +60,31 @@ describe('nowPlayingStore.playContext', () => {
     expect(nowPlayingStore.data?.track?.id).toBe('track-b');
   });
 });
+
+describe('nowPlayingStore.progressMsAt', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.nowPlayingLive.mockReset();
+  });
+
+  it('extrapola el progreso mientras suena y lo congela al pausar', async () => {
+    mocks.nowPlayingLive.mockResolvedValue({ ...makeResponse('track-c', 'Song'), progressMs: 10_000 });
+    await nowPlayingStore.pollLive();
+
+    expect(nowPlayingStore.progressMsAt(Date.now())).toBe(10_000);
+
+    // sonando: el progreso avanza con el reloj
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(nowPlayingStore.progressMsAt(Date.now())).toBe(15_000);
+
+    // pausa local (spread con progressMs obsoleto): congela el valor extrapolado
+    nowPlayingStore.data = { ...nowPlayingStore.data!, isPlaying: false };
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(nowPlayingStore.progressMsAt(Date.now())).toBe(15_000);
+
+    // nunca supera la duración del track
+    nowPlayingStore.data = { ...nowPlayingStore.data!, isPlaying: true };
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(nowPlayingStore.progressMsAt(Date.now())).toBe(200_000);
+  });
+});
