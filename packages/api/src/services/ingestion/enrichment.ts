@@ -2,7 +2,8 @@ import { sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../../db/connection.js';
-import { artists, albums, tracks, trackArtists } from '../../db/schema.js';
+import { artists, albums, tracks } from '../../db/schema.js';
+import { reconcileTrackArtists } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumTracksResponse } from '../../types/spotify.js';
 
@@ -52,12 +53,7 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
       })
       .run();
 
-    item.artists.forEach((artist, i) => {
-      db.insert(trackArtists)
-        .values({ trackId: item.id, artistId: artist.id, position: i })
-        .onConflictDoNothing()
-        .run();
-    });
+    reconcileTrackArtists(db, item.id, item.artists.filter(a => a.id).map(a => a.id));
   }
 
   let next = data.next;
@@ -85,12 +81,7 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
           set: { name: item.name, trackNumber: item.track_number, discNumber: item.disc_number, durationMs: item.duration_ms, updatedAt: now() },
         })
         .run();
-      item.artists.forEach((artist, i) => {
-        db.insert(trackArtists)
-          .values({ trackId: item.id, artistId: artist.id, position: i })
-          .onConflictDoNothing()
-          .run();
-      });
+      reconcileTrackArtists(db, item.id, item.artists.filter(a => a.id).map(a => a.id));
     }
     next = page.next;
   }

@@ -162,17 +162,37 @@ export function upsertTrack(track: SpotifyTrack) {
     })
     .run();
 
-  // upsert relación track-artistas
-  track.artists.forEach((artist, i) => {
+  // relación track-artistas: para tracks reales la respuesta de la API es autoritativa
+  // (reconciliar, borrando créditos obsoletos); para archivos locales los ids se
+  // resuelven por nombre y pueden variar entre plays, así que solo se acumulan
+  const creditIds = track.artists.filter(a => a.id).map(a => a.id);
+  if (track.is_local) {
+    creditIds.forEach((artistId, i) => {
+      db.insert(trackArtists)
+        .values({ trackId: track.id, artistId, position: i })
+        .onConflictDoNothing()
+        .run();
+    });
+  } else {
+    reconcileTrackArtists(db, track.id, creditIds);
+  }
+}
+
+// reconcilia los créditos de un track con la lista autoritativa de spotify: upsert de
+// cada artista en su posición y borrado de los que ya no figuran. spotify a veces
+// migra un track a otra entidad homónima del mismo artista; acumular sin borrar
+// (PK (track_id, artist_id), posición no única) deja dos artistas en la misma
+// posición y el artista obsoleto duplica filas en los charts
+export function reconcileTrackArtists(db: ReturnType<typeof getDb>, trackId: string, artistIds: string[]) {
+  if (artistIds.length === 0) return;
+  artistIds.forEach((artistId, i) => {
     db.insert(trackArtists)
-      .values({
-        trackId: track.id,
-        artistId: artist.id,
-        position: i,
-      })
-      .onConflictDoNothing()
+      .values({ trackId, artistId, position: i })
+      .onConflictDoUpdate({ target: [trackArtists.trackId, trackArtists.artistId], set: { position: i } })
       .run();
   });
+  const ph = sql.join(artistIds.map(id => sql`${id}`), sql`, `);
+  db.run(sql`DELETE FROM track_artists WHERE track_id = ${trackId} AND artist_id NOT IN (${ph})`);
 }
 
 // fusiona la relación track-artistas de un track origen en uno destino al unificar
