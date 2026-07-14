@@ -5,9 +5,18 @@
   let label = $derived(`Sincronizando (${refreshing.count})`);
 </script>
 
-{#if visible}
-  <span class="refreshing-dot" title={label} aria-label={label} role="status"></span>
-{/if}
+<!-- siempre montado para reservar su hueco: al empezar/terminar el sync no
+     reflowa el título (antes, con {#if}, aparecía y desplazaba las letras
+     cuando el título va centrado, p.ej. el rail colapsado). la visibilidad
+     se controla por opacidad, no por montaje. -->
+<span
+  class="refreshing-dot"
+  class:is-visible={visible}
+  title={visible ? label : null}
+  aria-label={visible ? label : null}
+  role="status"
+  aria-hidden={!visible}
+></span>
 
 <style>
   .refreshing-dot {
@@ -17,10 +26,16 @@
     margin-left: 0.4em;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.6);
-    animation: refreshing-pulse 1.4s ease-in-out infinite;
     vertical-align: middle;
     flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .refreshing-dot.is-visible {
+    opacity: 0.85;
+    box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.6);
+    animation: refreshing-pulse 1.4s ease-in-out infinite;
   }
 
   @keyframes refreshing-pulse {
@@ -37,7 +52,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .refreshing-dot {
+    .refreshing-dot.is-visible {
       animation: none;
       opacity: 0.85;
     }
