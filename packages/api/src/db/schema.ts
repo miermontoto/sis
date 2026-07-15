@@ -107,6 +107,12 @@ export const generatedPlaylists = sqliteTable('generated_playlists', {
   strategy: text('strategy').notNull(), // 'top_tracks' | 'deep_cuts' | 'time_vibes' | 'rediscovery'
   params: text('params', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
   trackCount: integer('track_count').notNull().default(0),
+  // auto-regeneración programada: si autoRegenerate, el scheduler reejecuta la
+  // estrategia cada regenerateIntervalMs (daily/weekly/monthly). lastRegeneratedAt
+  // ancla el cálculo de "próxima ejecución" (fallback a createdAt si null)
+  autoRegenerate: integer('auto_regenerate', { mode: 'boolean' }).notNull().default(false),
+  regenerateIntervalMs: integer('regenerate_interval_ms'),
+  lastRegeneratedAt: text('last_regenerated_at'),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => [

@@ -42,7 +42,7 @@ export type { Accolade, AccoladesResponse } from './accolades.js';
 export type { SearchResults } from './search.js';
 
 // playlists
-export type { PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse, LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail } from './playlists.js';
+export type { PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse, LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail } from './playlists.js';
 
 // merge
 export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergePreview, RemergePreviewPair, BatchMergeResult } from './merge.js';

@@ -11,10 +11,17 @@ export interface GeneratedPlaylist {
   strategy: PlaylistStrategy;
   params: Record<string, unknown>;
   trackCount: number;
+  // auto-regeneración programada (opcional; presente en list/detail)
+  autoRegenerate?: boolean;
+  regenerateIntervalMs?: number | null;
+  lastRegeneratedAt?: string | null;
   tracks?: { position: number; track: TrackInfo | null }[];
   createdAt: string;
   updatedAt: string;
 }
+
+// cadencias de auto-regeneración ofrecidas al usuario
+export type RegenerateInterval = 'daily' | 'weekly' | 'monthly';
 
 export interface PlaylistListResponse {
   items: GeneratedPlaylist[];

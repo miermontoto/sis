@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { api, type PlaylistStrategy, type GeneratedPlaylist, type PlaylistPreviewResponse, type TrackInfo, type GenreItem, type MeResponse, type LibraryPlaylist } from '$lib/api';
+  import { api, type PlaylistStrategy, type RegenerateInterval, type GeneratedPlaylist, type PlaylistPreviewResponse, type TrackInfo, type GenreItem, type MeResponse, type LibraryPlaylist } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import { formatDate, formatDuration, formatNumber } from '$lib/utils/format';
@@ -240,6 +240,38 @@
       const plData = await api.listPlaylists();
       savedPlaylists = plData.items;
       if (expandedPlaylist === id) expandedPlaylist = null;
+    } catch (err: any) {
+      error = err.message;
+    }
+  }
+
+  // cadencias de auto-regeneración (ms) — espejo de REGENERATE_INTERVALS_MS del backend
+  const DAY_MS = 86_400_000;
+  const INTERVAL_MS: Record<RegenerateInterval, number> = { daily: DAY_MS, weekly: 7 * DAY_MS, monthly: 30 * DAY_MS };
+
+  // resuelve el preset a partir del intervalo en ms (default semanal si no coincide)
+  function intervalKeyFromMs(ms?: number | null): RegenerateInterval {
+    return (Object.entries(INTERVAL_MS).find(([, v]) => v === ms)?.[0] as RegenerateInterval) ?? 'weekly';
+  }
+
+  // activar/desactivar auto-regeneración (al activar, hereda su cadencia o semanal)
+  async function handleToggleSchedule(pl: GeneratedPlaylist, enabled: boolean) {
+    try {
+      const interval = enabled ? intervalKeyFromMs(pl.regenerateIntervalMs) : undefined;
+      await api.setPlaylistSchedule(pl.id, enabled, interval);
+      const plData = await api.listPlaylists();
+      savedPlaylists = plData.items;
+    } catch (err: any) {
+      error = err.message;
+    }
+  }
+
+  // cambiar la cadencia de una playlist ya en auto-regeneración
+  async function handleSetInterval(pl: GeneratedPlaylist, interval: RegenerateInterval) {
+    try {
+      await api.setPlaylistSchedule(pl.id, true, interval);
+      const plData = await api.listPlaylists();
+      savedPlaylists = plData.items;
     } catch (err: any) {
       error = err.message;
     }
@@ -522,6 +554,29 @@
             <button class="action-btn small secondary" onclick={() => handleRegenerate(pl.id)}>Regenerar</button>
             <button class="action-btn small danger" onclick={() => handleDelete(pl.id)}>Eliminar</button>
           </div>
+          {#if pl.spotifyPlaylistId}
+            <div class="playlist-schedule">
+              <label class="schedule-toggle">
+                <input
+                  type="checkbox"
+                  checked={pl.autoRegenerate ?? false}
+                  onchange={(e) => handleToggleSchedule(pl, e.currentTarget.checked)}
+                />
+                <span>Auto-regenerar</span>
+              </label>
+              {#if pl.autoRegenerate}
+                <select
+                  class="schedule-select"
+                  value={intervalKeyFromMs(pl.regenerateIntervalMs)}
+                  onchange={(e) => handleSetInterval(pl, e.currentTarget.value as RegenerateInterval)}
+                >
+                  <option value="daily">Diaria</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensual</option>
+                </select>
+              {/if}
+            </div>
+          {/if}
           {#if expandedPlaylist === pl.id && pl.spotifyPlaylistId}
             <div class="playlist-embed">
               <iframe
@@ -1052,6 +1107,38 @@
     display: flex;
     gap: 0.5rem;
     padding: 0 1rem 0.75rem;
+  }
+
+  .playlist-schedule {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .schedule-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .schedule-toggle input {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .schedule-select {
+    background: var(--bg-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.2rem 0.4rem;
+    font-size: 0.8rem;
+    cursor: pointer;
   }
 
   .spotify-link {

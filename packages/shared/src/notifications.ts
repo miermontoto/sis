@@ -3,7 +3,8 @@
 // - number_one: nuevo número 1 en el chart semanal recién cerrado
 // - chart_closing: recap del top-N del chart semanal recién cerrado
 // - biggest_debut: mejor debut (isNew) del chart semanal recién cerrado
-export type NotificationType = 'record' | 'number_one' | 'chart_closing' | 'biggest_debut';
+// - playlist_regenerated: una playlist generada se auto-regeneró en segundo plano
+export type NotificationType = 'record' | 'number_one' | 'chart_closing' | 'biggest_debut' | 'playlist_regenerated';
 
 // plataformas soportadas para el registro de tokens de dispositivo
 export type DevicePlatform = 'android' | 'ios' | 'web';

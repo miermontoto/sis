@@ -16,7 +16,7 @@ export type {
   FriendActivity, FriendsActivityResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
   HealthData, MeResponse, UserRecord, ImportResult,
-  PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
+  PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
   ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, Rankings,

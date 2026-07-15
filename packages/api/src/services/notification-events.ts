@@ -23,6 +23,7 @@ import {
   numberOneMessage,
   chartClosingMessage,
   biggestDebutMessage,
+  playlistRegeneratedMessage,
 } from './notification-messages.js';
 import type {
   NotificationType,
@@ -55,6 +56,10 @@ const EVENT_RECORD: NotificationType = 'record';
 const EVENT_NUMBER_ONE: NotificationType = 'number_one';
 const EVENT_CHART_CLOSING: NotificationType = 'chart_closing';
 const EVENT_BIGGEST_DEBUT: NotificationType = 'biggest_debut';
+const EVENT_PLAYLIST_REGENERATED: NotificationType = 'playlist_regenerated';
+
+// ruta de deep link a la vista de playlists (destino al abrir la notificación)
+const PLAYLISTS_ROUTE = '/playlists';
 
 // mapeo tipo-plural (clave de RecordsResponse) -> tipo-singular (entityType del payload/ruta)
 const ENTITY_TYPE_MAP: readonly [keyof RecordsResponse, string][] = [
@@ -321,4 +326,30 @@ export function checkChartClosings(userId: number, spotifyId: string): void {
     UPDATE notification_period_state SET last_period = ${current}
     WHERE user_id = ${userId} AND granularity = ${GRANULARITY_WEEK}
   `);
+}
+
+// --- C) auto-regeneración de playlist -> 'playlist_regenerated' ---
+
+// notifica que una playlist generada se auto-regeneró en segundo plano. gated por
+// el master switch de notificaciones + canal entregable; fire-and-forget (nunca
+// lanza hacia el scheduler). sin dedup en sent_notifications: la frecuencia ya la
+// limita el propio intervalo de regeneración (last_regenerated_at).
+export function notifyPlaylistRegenerated(userId: number, spotifyId: string, name: string, trackCount: number): void {
+  const db = getDb();
+  const settings = getUserSettingsMap(db, spotifyId);
+
+  if (!boolPref(settings, PREF_ENABLED, false)) return;
+  if (!hasDeliverableChannel(userId)) return;
+
+  const locale = resolveLocale(settings.get(PREF_LOCALE));
+  const msg = playlistRegeneratedMessage(locale, name, trackCount);
+  const payload: PushPayload = {
+    title: msg.title,
+    body: msg.body,
+    data: { type: EVENT_PLAYLIST_REGENERATED, route: PLAYLISTS_ROUTE },
+  };
+
+  queueMicrotask(() => {
+    void sendPush(userId, payload).catch(err => console.error('[notify] error en sendPush:', err));
+  });
 }

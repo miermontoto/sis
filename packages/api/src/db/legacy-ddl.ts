@@ -21,6 +21,11 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN progress_ms INTEGER'); } catch {}
   try { sqlite.exec('ALTER TABLE albums ADD COLUMN artist_ids TEXT'); } catch {}
 
+  // auto-regeneración de playlists generadas (scheduler reejecuta la estrategia)
+  try { sqlite.exec('ALTER TABLE generated_playlists ADD COLUMN auto_regenerate INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { sqlite.exec('ALTER TABLE generated_playlists ADD COLUMN regenerate_interval_ms INTEGER'); } catch {}
+  try { sqlite.exec('ALTER TABLE generated_playlists ADD COLUMN last_regenerated_at TEXT'); } catch {}
+
   // multi-user: tabla de usuarios
   try {
     sqlite.exec(`CREATE TABLE IF NOT EXISTS users (

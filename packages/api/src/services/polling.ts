@@ -20,10 +20,12 @@ import {
   ARTIST_FIX_INTERVAL_MS,
   RECORDS_CACHE_INTERVAL_MS,
   PLAYLIST_SYNC_INTERVAL_MS,
+  AUTO_REGENERATE_CHECK_INTERVAL_MS,
   SESSION_GAP_MS,
   MIN_PLAY_MS,
 } from '../constants.js';
 import { syncAllUsersPlaylists } from './playlist-sync.js';
+import { runDueRegenerations } from './playlist-auto-regenerate.js';
 import { computeAndCacheRecords } from './records-cache.js';
 import { resetDeferredState } from './deferred-startup.js';
 import { isLastfmConfigured } from './lastfm-client.js';
@@ -91,6 +93,7 @@ let resolveImportsTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
+let autoRegenerateTimer: ReturnType<typeof setInterval> | null = null;
 let lastfmSyncTimer: ReturnType<typeof setInterval> | null = null;
 
 // sync de scrobbles last.fm: loop global independiente del polling de spotify —
@@ -387,6 +390,12 @@ export function startPolling() {
       .catch(err => console.error('[playlist-sync] error:', err));
   }, PLAYLIST_SYNC_INTERVAL_MS);
 
+  // auto-regeneración de playlists generadas (check horario; la cadencia real por
+  // playlist la fija su regenerate_interval_ms). solo por intervalo, sin run inicial.
+  autoRegenerateTimer = setInterval(() => {
+    runDueRegenerations().catch(err => console.error('[auto-regen] error:', err));
+  }, AUTO_REGENERATE_CHECK_INTERVAL_MS);
+
   console.log(`[poll] currently playing con scheduling dinámico (${CURRENTLY_PLAYING_MIN_MS / 1000}s–${CURRENTLY_PLAYING_MAX_MS / 1000}s)`);
   console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
 }
@@ -403,12 +412,14 @@ export function stopPolling() {
   if (artistFixTimer) clearInterval(artistFixTimer);
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
   if (playlistSyncTimer) clearInterval(playlistSyncTimer);
+  if (autoRegenerateTimer) clearInterval(autoRegenerateTimer);
   if (lastfmSyncTimer) clearInterval(lastfmSyncTimer);
   metadataRefreshTimer = null;
   resolveImportsTimer = null;
   artistFixTimer = null;
   recordsCacheTimer = null;
   playlistSyncTimer = null;
+  autoRegenerateTimer = null;
   lastfmSyncTimer = null;
   console.log('[poll] polling detenido');
 }

@@ -66,3 +66,11 @@ export function biggestDebutMessage(locale: NotifyLocale, entry: ChartEntry): No
   }
   return { title: 'Debut of the week', body: `${subject} debuts at #${entry.rank}.` };
 }
+
+// playlist_regenerated: una playlist generada se auto-regeneró en segundo plano
+export function playlistRegeneratedMessage(locale: NotifyLocale, name: string, trackCount: number): NotifyMessage {
+  if (locale === 'es') {
+    return { title: 'Playlist actualizada', body: `Se regeneró «${name}» con ${trackCount} temas.` };
+  }
+  return { title: 'Playlist refreshed', body: `"${name}" was refreshed with ${trackCount} tracks.` };
+}

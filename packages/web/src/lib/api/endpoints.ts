@@ -7,7 +7,7 @@ import type {
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
-  PlaylistStrategy, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
+  PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
@@ -196,6 +196,12 @@ export const api = {
 
   regeneratePlaylist: (id: number) =>
     apiMutate<GeneratedPlaylist>('POST', `/playlists/${id}/regenerate`),
+
+  // configurar auto-regeneración (activar/desactivar + cadencia)
+  setPlaylistSchedule: (id: number, autoRegenerate: boolean, interval?: RegenerateInterval) =>
+    apiMutate<{ id: number; autoRegenerate: boolean; regenerateIntervalMs: number | null; lastRegeneratedAt: string | null }>(
+      'POST', `/playlists/${id}/schedule`, { autoRegenerate, interval },
+    ),
 
   // library playlists (V2)
   libraryPlaylists: (limit = 50, offset = 0) =>
