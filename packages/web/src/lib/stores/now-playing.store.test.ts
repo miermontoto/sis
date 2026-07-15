@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   playbackPlayContext: vi.fn(),
   nowPlayingLive: vi.fn(),
   nowPlaying: vi.fn(),
+  playbackSeek: vi.fn(async () => ({ success: true })),
   checkTrackLiked: vi.fn(async () => ({ isLiked: false })),
   trackPlaylists: vi.fn(async () => ({ playlists: [] })),
 }));
@@ -86,5 +87,25 @@ describe('nowPlayingStore.progressMsAt', () => {
     nowPlayingStore.data = { ...nowPlayingStore.data!, isPlaying: true };
     await vi.advanceTimersByTimeAsync(600_000);
     expect(nowPlayingStore.progressMsAt(Date.now())).toBe(200_000);
+  });
+
+  it('el seek es optimista y las lecturas cacheadas previas no lo retroceden', async () => {
+    const preSeek = { ...makeResponse('track-d', 'Song'), progressMs: 30_000 };
+    mocks.nowPlayingLive.mockResolvedValue(preSeek);
+    await nowPlayingStore.pollLive();
+
+    nowPlayingStore.seek(120_000);
+    expect(nowPlayingStore.progressMsAt(Date.now())).toBe(120_000);
+
+    // la llamada real sale tras el debounce
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(mocks.playbackSeek).toHaveBeenCalledWith(120_000);
+
+    // un poll cacheado con el snapshot anterior al seek no debe aplicar
+    mocks.nowPlaying.mockResolvedValue(preSeek);
+    nowPlayingStore.startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    nowPlayingStore.stopPolling();
+    expect(nowPlayingStore.progressMsAt(Date.now())).toBe(121_000);
   });
 });

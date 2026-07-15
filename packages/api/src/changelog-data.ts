@@ -14,7 +14,7 @@ export const CHANGELOG: ChangelogEntryInput[] = [
       { type: 'feature', es: 'Sidebar colapsable a un rail de solo iconos', en: 'Collapsible sidebar with an icon-only rail' },
       { type: 'improvement', es: 'La sección Social se pliega en el contenedor de Friends: clic para abrir el feed, clic en un avatar para ver su perfil', en: 'The Social section folds into the Friends container: click it to open the feed, click an avatar to view their profile' },
       { type: 'improvement', es: 'Descubre y sigue a usuarios directamente desde el feed; la vista Users desaparece', en: 'Discover and follow users right from the feed; the Users view is gone' },
-      { type: 'feature', es: 'El reproductor muestra el progreso del track con una barra animada', en: 'The player shows track progress with an animated bar' },
+      { type: 'feature', es: 'El reproductor muestra el tiempo transcurrido y la duración del track en una barra animada; arrástrala para saltar a cualquier punto', en: 'The player shows elapsed time and track duration on an animated bar; drag it to jump to any point' },
       { type: 'fix', es: 'Al reproducir un artista, álbum o track desde la app, el reproductor se actualiza al momento (antes esperaba al siguiente sondeo)', en: 'Playing an artist, album or track from the app now updates the player right away (it used to wait for the next poll)' },
     ],
   },

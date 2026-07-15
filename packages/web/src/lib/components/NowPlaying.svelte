@@ -1,7 +1,10 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import { formatTrackLength } from '$lib/utils/format';
+  import { formatClock } from '$lib/utils/format';
+
+  // salto con las flechas del teclado sobre la barra de progreso
+  const SEEK_STEP_MS = 5_000;
   import DevicePicker from './DevicePicker.svelte';
   import IconPrev from '$lib/icons/IconPrev.svelte';
   import IconPause from '$lib/icons/IconPause.svelte';
@@ -36,6 +39,42 @@
   let progressPct = $derived(
     progressMs != null && data?.track?.durationMs ? Math.min(100, (progressMs / data.track.durationMs) * 100) : null
   );
+
+  // scrubbing: mientras se arrastra, la barra y el tiempo siguen al puntero;
+  // al soltar se hace el seek real
+  let barEl = $state<HTMLElement | null>(null);
+  let scrubPct = $state<number | null>(null);
+  let shownPct = $derived(scrubPct ?? progressPct);
+  let shownMs = $derived(
+    scrubPct != null && data?.track?.durationMs ? (scrubPct / 100) * data.track.durationMs : progressMs
+  );
+
+  function pctFromPointer(e: PointerEvent): number {
+    const rect = barEl!.getBoundingClientRect();
+    return Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+  }
+
+  function scrubStart(e: PointerEvent) {
+    if (!barEl || !data?.track?.durationMs) return;
+    barEl.setPointerCapture(e.pointerId);
+    scrubPct = pctFromPointer(e);
+  }
+
+  function scrubMove(e: PointerEvent) {
+    if (scrubPct !== null) scrubPct = pctFromPointer(e);
+  }
+
+  function scrubEnd(e: PointerEvent) {
+    if (scrubPct === null || !data?.track?.durationMs) return;
+    nowPlayingStore.seek((pctFromPointer(e) / 100) * data.track.durationMs);
+    scrubPct = null;
+  }
+
+  function scrubKey(e: KeyboardEvent) {
+    if (progressMs == null) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); nowPlayingStore.seek(progressMs + SEEK_STEP_MS); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); nowPlayingStore.seek(progressMs - SEEK_STEP_MS); }
+  }
 
   $effect(() => {
     void data?.track?.name;
@@ -85,9 +124,41 @@
   }
 </script>
 
-{#snippet progressBar()}
-  {#if progressPct != null && data?.track}
-    <div class="np-progress" title="{formatTrackLength(progressMs ?? 0)} / {formatTrackLength(data.track.durationMs)}">
+{#snippet progressRow()}
+  {#if shownPct != null && shownMs != null && data?.track?.durationMs}
+    <div class="np-progress-row">
+      <span class="np-time">{formatClock(shownMs)}</span>
+      <div
+        class="np-progress"
+        class:np-progress--scrubbing={scrubPct !== null}
+        bind:this={barEl}
+        role="slider"
+        tabindex="0"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={data.track.durationMs}
+        aria-valuenow={Math.round(shownMs)}
+        aria-valuetext="{formatClock(shownMs)} of {formatClock(data.track.durationMs)}"
+        onpointerdown={scrubStart}
+        onpointermove={scrubMove}
+        onpointerup={scrubEnd}
+        onpointercancel={() => scrubPct = null}
+        onkeydown={scrubKey}
+      >
+        <div class="np-progress-track">
+          <div class="np-progress-fill" style="width: {shownPct.toFixed(2)}%"></div>
+        </div>
+      </div>
+      <span class="np-time">{formatClock(data.track.durationMs)}</span>
+    </div>
+  {/if}
+{/snippet}
+
+<!-- variante rail: tira fina no interactiva en el filo inferior (sin sitio
+     para tiempos ni target de scrub decente en 64px) -->
+{#snippet progressStrip()}
+  {#if progressPct != null}
+    <div class="np-progress-strip">
       <div class="np-progress-fill" style="width: {progressPct.toFixed(2)}%"></div>
     </div>
   {/if}
@@ -116,7 +187,7 @@
         </button>
         <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}><IconNext /></button>
       </div>
-      {@render progressBar()}
+      {@render progressStrip()}
     </div>
   {:else}
   <div class="np" class:np--compact={compact} class:np--inline={inline}>
@@ -206,7 +277,7 @@
         {/snippet}
       </PlaylistPopover>
     </div>
-    {@render progressBar()}
+    {@render progressRow()}
   </div>
   {/if}
 {/if}
@@ -223,15 +294,44 @@
     border-radius: var(--radius);
   }
 
-  /* barra de progreso del track en el filo inferior de la card: el ancho se
-     recalcula cada tick y la transición lineal lo desliza entre ticks */
+  /* fila de progreso: transcurrido — barra scrubbable — duración. el ancho
+     del fill se recalcula cada tick y la transición lineal lo desliza */
+  .np-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: 100%;
+  }
+
+  .np-time {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  /* la pista visible mide 4px; el padding vertical amplía el target de
+     click/touch sin engordar el diseño */
   .np-progress {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 3px;
-    border-radius: 0 0 var(--radius) var(--radius);
+    flex: 1;
+    min-width: 0;
+    padding: 5px 0;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  .np-progress:focus-visible {
+    outline: none;
+  }
+
+  .np-progress:focus-visible .np-progress-track {
+    outline: 1px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .np-progress-track {
+    height: 4px;
+    border-radius: 2px;
     overflow: hidden;
     background: rgba(29, 185, 84, 0.15);
   }
@@ -240,6 +340,22 @@
     height: 100%;
     background: var(--accent);
     transition: width 1s linear;
+  }
+
+  .np-progress--scrubbing .np-progress-fill {
+    transition: none;
+  }
+
+  /* variante rail: tira fina pegada al filo inferior de la card */
+  .np-progress-strip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden;
+    background: rgba(29, 185, 84, 0.15);
   }
 
   .np--compact {

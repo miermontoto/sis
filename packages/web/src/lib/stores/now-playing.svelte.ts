@@ -12,13 +12,17 @@ let _trackStartedAt = 0;
 let _lastFinishedPlay = $state<HistoryItem | null>(null);
 let _volumePercent = $state<number | null>(null);
 // base de progreso del track: valor conocido + instante (reloj cliente) en que
-// se conoció; el progreso mostrado se extrapola desde aquí mientras suena
-let _progress = $state<{ baseMs: number; baseAtMs: number; playing: boolean } | null>(null);
+// se conoció; el progreso mostrado se extrapola desde aquí mientras suena.
+// infoAtMs = cuándo se midió la información (updatedAt del server o el seek
+// local): solo se acepta una base nueva si su medición es más reciente
+let _progress = $state<{ baseMs: number; baseAtMs: number; playing: boolean; infoAtMs: number } | null>(null);
 type NpPlaylist = { id: number; spotifyId: string; name: string; imageUrl: string | null };
 let _playlists = $state<NpPlaylist[]>([]);
 let _lastPlaylistTrackId: string | null = null;
 
 const LIVE_TRACK_GUARD_MS = 35_000;
+// debounce de la llamada de seek (los arrows del teclado repiten en ráfaga)
+const SEEK_DEBOUNCE_MS = 200;
 // backoff de reintentos tras un comando de reproducción: spotify es
 // eventualmente consistente y una lectura temprana suele devolver aún el
 // estado anterior
@@ -66,16 +70,25 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
   if (data?.volumePercent != null) _volumePercent = data.volumePercent;
 
   // progreso: live/cached traen base fresca (extrapolada por la edad de
-  // updatedAt); los updates locales (pause/resume) arrastran un progressMs
+  // updatedAt), pero solo si su medición es más nueva que la base actual —
+  // tras un seek optimista, una lectura cacheada previa retrocedería la
+  // barra. los updates locales (pause/resume) arrastran un progressMs
   // obsoleto, así que congelan el valor extrapolado actual en su lugar
   if (!data?.playing || !data.track) {
     _progress = null;
   } else if (typeof data.progressMs === 'number' && source !== 'local') {
-    const updatedAtMs = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
-    const ageMs = Number.isFinite(updatedAtMs) ? Math.max(0, Date.now() - updatedAtMs) : 0;
-    _progress = { baseMs: data.progressMs + (data.isPlaying ? ageMs : 0), baseAtMs: Date.now(), playing: !!data.isPlaying };
+    const parsedUpdatedAt = data.updatedAt ? Date.parse(data.updatedAt) : NaN;
+    const infoAtMs = Number.isFinite(parsedUpdatedAt) ? parsedUpdatedAt : Date.now();
+    const sameBase = nextTrackId === prevTrackId && _progress != null;
+    if (!sameBase || infoAtMs > _progress!.infoAtMs) {
+      const ageMs = Math.max(0, Date.now() - infoAtMs);
+      _progress = { baseMs: data.progressMs + (data.isPlaying ? ageMs : 0), baseAtMs: Date.now(), playing: !!data.isPlaying, infoAtMs };
+    } else if (_progress!.playing !== !!data.isPlaying) {
+      // medición vieja pero el flag de reproducción cambió: congela/reanuda
+      _progress = { baseMs: progressMsAt(Date.now()) ?? _progress!.baseMs, baseAtMs: Date.now(), playing: !!data.isPlaying, infoAtMs: _progress!.infoAtMs };
+    }
   } else if (_progress) {
-    _progress = { baseMs: progressMsAt(Date.now()) ?? _progress.baseMs, baseAtMs: Date.now(), playing: !!data.isPlaying };
+    _progress = { baseMs: progressMsAt(Date.now()) ?? _progress.baseMs, baseAtMs: Date.now(), playing: !!data.isPlaying, infoAtMs: _progress.infoAtMs };
   }
 
   if (source === 'live') {
@@ -194,6 +207,20 @@ async function toggleLike() {
   }
 }
 
+let _seekTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// salta a una posición del track: base optimista inmediata + llamada debounced
+function seek(positionMs: number) {
+  const durationMs = _data?.playing ? _data.track?.durationMs : undefined;
+  if (!durationMs) return;
+  const clamped = Math.max(0, Math.min(Math.round(positionMs), durationMs));
+  _progress = { baseMs: clamped, baseAtMs: Date.now(), playing: !!_data!.isPlaying, infoAtMs: Date.now() };
+  if (_seekTimeout) clearTimeout(_seekTimeout);
+  _seekTimeout = setTimeout(async () => {
+    try { await api.playbackSeek(clamped); } catch {}
+  }, SEEK_DEBOUNCE_MS);
+}
+
 let _volumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 async function setVolume(percent: number) {
@@ -218,6 +245,7 @@ export const nowPlayingStore = {
   get lastFinishedPlay() { return _lastFinishedPlay; },
   get volumePercent() { return _volumePercent; },
   progressMsAt,
+  seek,
   get playlists() { return _playlists; },
   set playlists(v: NpPlaylist[]) { _playlists = v; },
   startPolling,

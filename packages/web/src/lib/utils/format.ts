@@ -14,6 +14,16 @@ export function formatTrackLength(ms: number): string {
   return `${minutes}m${String(seconds).padStart(2, '0')}s`;
 }
 
+// formatear tiempo de reproducción estilo reloj: "m:ss" (o "h:mm:ss")
+export function formatClock(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const s = totalSeconds % 60;
+  const m = Math.floor(totalSeconds / 60) % 60;
+  const h = Math.floor(totalSeconds / 3600);
+  const mmss = `${String(m).padStart(h > 0 ? 2 : 1, '0')}:${String(s).padStart(2, '0')}`;
+  return h > 0 ? `${h}:${mmss}` : mmss;
+}
+
 // formatear duración total en horas con decimal
 export function formatHours(ms: number): string {
   return `${(ms / 3_600_000).toFixed(1)}h`;

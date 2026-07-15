@@ -214,6 +214,39 @@ nowPlaying.put('/play-context', async (c) => {
   return c.json({ success: false, error: 'spotify_error' });
 });
 
+// --- seek ---
+
+nowPlaying.put('/seek', async (c) => {
+  const userId = c.get('userId');
+  const { position_ms } = await c.req.json<{ position_ms: number }>();
+  const clamped = Math.max(0, Math.round(position_ms));
+
+  const res = await spotifyFetchRaw(`/me/player/seek?position_ms=${clamped}`, {
+    userId,
+    method: 'PUT',
+  });
+
+  if (!res) return c.json({ success: false, error: 'rate_limited' }, 429);
+
+  if (res.status === 404) {
+    const text = await res.text();
+    if (text.includes('NO_ACTIVE_DEVICE')) {
+      return c.json({ success: false, error: 'no_active_device' });
+    }
+    return c.json({ success: false, error: 'not_found' });
+  }
+
+  if (res.status === 204 || res.ok) {
+    // reflejar el seek en polling_state: sin esto, las lecturas cacheadas
+    // retrocederían la barra hasta el siguiente poll de currently-playing
+    const db = getDb();
+    db.run(sql`UPDATE polling_state SET progress_ms = ${clamped}, last_currently_playing_at = ${new Date().toISOString()} WHERE user_id = ${userId}`);
+    return c.json({ success: true, position_ms: clamped });
+  }
+
+  return c.json({ success: false, error: 'spotify_error' });
+});
+
 // --- volumen ---
 
 nowPlaying.put('/volume', async (c) => {

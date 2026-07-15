@@ -104,6 +104,8 @@ export const api = {
     apiFetch<DevicesResponse>('/now-playing/devices'),
   playbackTransfer: (deviceId: string, play?: boolean) =>
     apiMutate<{ success: boolean }>('PUT', '/now-playing/device', { device_id: deviceId, play }),
+  playbackSeek: (positionMs: number) =>
+    apiMutate<{ success: boolean; position_ms: number }>('PUT', '/now-playing/seek', { position_ms: positionMs }),
   playbackVolume: (volumePercent: number) =>
     apiMutate<{ success: boolean; volume_percent: number }>('PUT', '/now-playing/volume', { volume_percent: volumePercent }),
   queueTrack: (trackId: string) =>
