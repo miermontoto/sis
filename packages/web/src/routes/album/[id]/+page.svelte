@@ -2,6 +2,8 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades } from '$lib/api';
+  import { getDetailLayout } from '$lib/api/settings';
+  import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -44,6 +46,7 @@
   let naturalTracks = $state<TopTrackItem[] | null>(null);
   let loadingNatural = $state(false);
   let coverContainerEl: HTMLDivElement | undefined = $state();
+  let layout = $state<DetailLayout>(defaultLayout('album'));
   const fetchCtrl = createFetchController();
 
   let displayTracks = $derived((trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []).filter(t => t.playCount > 0));
@@ -152,6 +155,7 @@
     albumTrackDisplay = getAlbumTrackDisplay();
     albumShowDuration = getAlbumShowDuration();
     albumShowAccolades = getAlbumShowAccolades();
+    layout = getDetailLayout('album');
     initialized = true;
   });
 
@@ -176,9 +180,54 @@
 {#if loading && !data}
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
+  {@const d = data}
   {#if heroColor}
     <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
   {/if}
+
+  <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
+  {#snippet sec(key)}
+    {#if key === 'stats'}
+      <StatsGrid stats={d.stats} />
+    {:else if key === 'rankingBadges'}
+      {#if !d.mergedInto}
+        <RankingBadges entityType="album" entityId={$page.params.id} bind:highlightedMonth />
+      {/if}
+    {:else if key === 'chartStats'}
+      {#if !d.mergedInto}
+        <ChartStats entityType="album" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+      {/if}
+    {:else if key === 'activity'}
+      <ActivityChart series={d.series} {metric} />
+    {:else if key === 'tracks'}
+      {#if d.tracks.length > 0}
+        <div class="section-header">
+          <h2 class="section-title">Tracks</h2>
+          <div class="track-sort-toggle">
+            <button class:active={trackSort === 'ranked'} onclick={() => toggleTrackSort('ranked')}>Ranked</button>
+            <button class:active={trackSort === 'natural'} onclick={() => toggleTrackSort('natural')}># Order</button>
+          </div>
+        </div>
+        {#if trackSort === 'natural' && loadingNatural}
+          <div class="loading"><div class="spinner"></div></div>
+        {:else if trackSort === 'natural'}
+          <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
+        {:else}
+          <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
+        {/if}
+      {/if}
+    {:else if key === 'historyByYear'}
+      {#if d.series.length > 1}
+        <h2 class="section-title">History by year</h2>
+        <EntityHistoryChart series={d.series} {metric} />
+      {/if}
+    {:else if key === 'recentPlays'}
+      {#if d.recentPlays.length > 0}
+        <RecentPlaysRail entityType="album" entityId={$page.params.id} initial={d.recentPlays} historyHref={`/history?album=${$page.params.id}`} />
+      {/if}
+    {/if}
+  {/snippet}
+
   <div class="detail-body">
     <div class="detail-main">
   <div class="detail-hero-row">
@@ -266,44 +315,17 @@
     </div>
   </div>
 
-  <MergeBanners entityType="album" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
-  <StatsGrid stats={data.stats} />
-
-  {#if !data.mergedInto}
-    <RankingBadges entityType="album" entityId={$page.params.id} bind:highlightedMonth />
-    <ChartStats entityType="album" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
-  {/if}
-
-  <ActivityChart series={data.series} {metric} />
-
-  {#if data.tracks.length > 0}
-    <div class="section-header">
-      <h2 class="section-title">Tracks</h2>
-      <div class="track-sort-toggle">
-        <button class:active={trackSort === 'ranked'} onclick={() => toggleTrackSort('ranked')}>Ranked</button>
-        <button class:active={trackSort === 'natural'} onclick={() => toggleTrackSort('natural')}># Order</button>
-      </div>
-    </div>
-    {#if trackSort === 'natural' && loadingNatural}
-      <div class="loading"><div class="spinner"></div></div>
-    {:else if trackSort === 'natural'}
-      <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
-    {:else}
-      <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
-    {/if}
-  {/if}
+  <MergeBanners entityType="album" mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  {#each layout.main as key (key)}
+    {@render sec(key)}
+  {/each}
 
     </div>
 
     <aside class="detail-rail">
-      {#if data.series.length > 1}
-        <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={data.series} {metric} />
-      {/if}
-
-      {#if data.recentPlays.length > 0}
-        <RecentPlaysRail entityType="album" entityId={$page.params.id} initial={data.recentPlays} historyHref={`/history?album=${$page.params.id}`} />
-      {/if}
+      {#each layout.rail as key (key)}
+        {@render sec(key)}
+      {/each}
     </aside>
   </div>
 {/if}

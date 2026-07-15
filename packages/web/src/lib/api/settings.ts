@@ -3,6 +3,7 @@ import type {
   AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay,
   NowPlayingDisplay, SocialVisibility,
 } from '@sis/shared';
+import { type EntityKind, type DetailLayout, resolveLayout, parseLayout } from '../detail-layout.js';
 import { apiFetch, API_BASE } from './client.js';
 
 interface SettingsData {
@@ -30,6 +31,11 @@ interface SettingsData {
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
   lastPeriodYear: string | null;
+  // disposición de secciones de las vistas de detalle (JSON de DetailLayout;
+  // '' = default). una key por tipo de entidad
+  detailLayoutArtist: string;
+  detailLayoutAlbum: string;
+  detailLayoutTrack: string;
 }
 
 const SETTINGS_DEFAULTS: SettingsData = {
@@ -59,6 +65,9 @@ const SETTINGS_DEFAULTS: SettingsData = {
   lastPeriodWeek: null,
   lastPeriodMonth: null,
   lastPeriodYear: null,
+  detailLayoutArtist: '',
+  detailLayoutAlbum: '',
+  detailLayoutTrack: '',
 };
 
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
@@ -197,6 +206,23 @@ const _npd = withNotify<NowPlayingDisplay>(_setNowPlayingDisplay);
 export const getNowPlayingDisplay = _getNowPlayingDisplay;
 export const setNowPlayingDisplay = _npd.set;
 export const onNowPlayingDisplayChange = _npd.onChange;
+
+// disposición de vistas de detalle: JSON por tipo de entidad. get* reconcilia
+// lo guardado contra el registro actual (secciones nuevas aparecen, keys
+// retiradas se descartan); set* serializa el DetailLayout ya normalizado.
+const DETAIL_LAYOUT_RAW: Record<EntityKind, readonly [() => string, (v: string) => void]> = {
+  artist: stringSetting('detailLayoutArtist', ''),
+  album: stringSetting('detailLayoutAlbum', ''),
+  track: stringSetting('detailLayoutTrack', ''),
+};
+
+export function getDetailLayout(kind: EntityKind): DetailLayout {
+  return resolveLayout(kind, parseLayout(DETAIL_LAYOUT_RAW[kind][0]()));
+}
+
+export function setDetailLayout(kind: EntityKind, layout: DetailLayout): void {
+  DETAIL_LAYOUT_RAW[kind][1](JSON.stringify(layout));
+}
 
 // rail colapsado: bool con notificación para que el layout reaccione al toggle
 const [_getSidebarCollapsed, _setSidebarCollapsed] = boolSetting('sidebarCollapsed', false);

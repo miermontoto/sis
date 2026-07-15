@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w29q';
+export const VERSION = '26w29r';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -92,6 +92,24 @@ export const ARTIST_FIX_INTERVAL_MS = 30 * 60_000;
 
 // intervalo de sincronización de playlists de spotify (6h)
 export const PLAYLIST_SYNC_INTERVAL_MS = 6 * 60 * 60_000;
+
+// --- auto-regeneración de playlists generadas ---
+
+// cada cuánto el scheduler comprueba qué playlists tocan regenerar (1h). la
+// cadencia real por playlist la fija regenerate_interval_ms (ver presets abajo)
+export const AUTO_REGENERATE_CHECK_INTERVAL_MS = 60 * 60_000;
+
+// presets de cadencia ofrecidos al usuario (daily / weekly / monthly)
+export const REGENERATE_INTERVAL_DAILY_MS = 24 * 60 * 60_000;
+export const REGENERATE_INTERVAL_WEEKLY_MS = 7 * 24 * 60 * 60_000;
+export const REGENERATE_INTERVAL_MONTHLY_MS = 30 * 24 * 60 * 60_000;
+
+// mapa preset -> ms (única fuente de verdad para validar el body de /schedule)
+export const REGENERATE_INTERVALS_MS: Record<'daily' | 'weekly' | 'monthly', number> = {
+  daily: REGENERATE_INTERVAL_DAILY_MS,
+  weekly: REGENERATE_INTERVAL_WEEKLY_MS,
+  monthly: REGENERATE_INTERVAL_MONTHLY_MS,
+};
 
 // --- social / share links ---
 

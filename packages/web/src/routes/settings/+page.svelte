@@ -10,6 +10,7 @@
   import IconCheck from '$lib/icons/IconCheck.svelte';
   import IconUpload from '$lib/icons/IconUpload.svelte';
   import IconDownload from '$lib/icons/IconDownload.svelte';
+  import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
 
   let health = $state<HealthData | null>(null);
   let streaks = $state<StreaksData | null>(null);
@@ -608,6 +609,17 @@
         </div>
       </div>
     </div>
+
+    <div class="prefs-subtitle">Detail views</div>
+    <div class="prefs-list">
+      <div class="pref-row pref-row--stack">
+        <div class="pref-info">
+          <div class="pref-label">Sections layout</div>
+          <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to every artist, album or track page.</div>
+        </div>
+        <DetailLayoutEditor />
+      </div>
+    </div>
   </div>
 
   {#if lastfmStatus && (lastfmStatus.configured || lastfmStatus.account)}
@@ -817,6 +829,14 @@
   .pref-row--disabled {
     opacity: 0.4;
     pointer-events: none;
+  }
+
+  /* fila que apila el control debajo del label (controles anchos, p.ej. el
+     editor de disposición de vistas de detalle) */
+  .pref-row--stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
   }
 
   .pref-info {

@@ -2,6 +2,8 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades } from '$lib/api';
+  import { getDetailLayout } from '$lib/api/settings';
+  import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
@@ -38,6 +40,7 @@
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
+  let layout = $state<DetailLayout>(defaultLayout('artist'));
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -75,6 +78,7 @@
     metric = getRankingMetric();
     artistShowAlbumAccolades = getArtistShowAlbumAccolades();
     artistShowTrackAccolades = getArtistShowTrackAccolades();
+    layout = getDetailLayout('artist');
     initialized = true;
   });
 
@@ -98,120 +102,140 @@
 {#if loading && !data}
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
+  {@const d = data}
   {#if heroColor}
     <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
   {/if}
-  <div class="detail-body">
-    <div class="detail-main">
-  <div class="detail-hero-row">
-    <div class="detail-hero">
-      {#if data.artist.imageUrl}
-        <img class="detail-image detail-image--round" src={data.artist.imageUrl} alt={data.artist.name} />
-      {:else}
-        <div class="detail-image detail-image--round detail-image--placeholder"></div>
-      {/if}
-      <div class="detail-header-info">
-        <h1>{data.artist.name}{#if nowPlayingStore.artistIds.includes($page.params.id)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+
+  {#snippet heroRow()}
+    <div class="detail-hero-row">
+      <div class="detail-hero">
+        {#if d.artist.imageUrl}
+          <img class="detail-image detail-image--round" src={d.artist.imageUrl} alt={d.artist.name} />
+        {:else}
+          <div class="detail-image detail-image--round detail-image--placeholder"></div>
+        {/if}
+        <div class="detail-header-info">
+          <h1>{d.artist.name}{#if nowPlayingStore.artistIds.includes($page.params.id)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+        </div>
+      </div>
+      <div class="hero-actions">
+        {#if isSpotifyId($page.params.id)}
+          <button
+            class="play-entity-btn"
+            title="Play on Spotify"
+            disabled={playActing}
+            onclick={async () => {
+              playActing = true;
+              await nowPlayingStore.playContext({ context_uri: `spotify:artist:${$page.params.id}` });
+              playActing = false;
+            }}
+          >
+            <IconPlay />
+          </button>
+        {/if}
+        {#if !d.mergedInto}
+          <Accolades entityType="artist" entityId={$page.params.id} />
+        {/if}
+        <EntityActionsMenu
+          title="Actions"
+          actions={[
+            ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${$page.params.id}`, '_blank') }] : []),
+            ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.name ?? 'Artist', publicHref()) }] : []),
+            { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
+          ]}
+        />
       </div>
     </div>
-    <div class="hero-actions">
-      {#if isSpotifyId($page.params.id)}
-        <button
-          class="play-entity-btn"
-          title="Play on Spotify"
-          disabled={playActing}
-          onclick={async () => {
-            playActing = true;
-            await nowPlayingStore.playContext({ context_uri: `spotify:artist:${$page.params.id}` });
-            playActing = false;
-          }}
-        >
-          <IconPlay />
-        </button>
+  {/snippet}
+
+  <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
+  {#snippet sec(key)}
+    {#if key === 'stats'}
+      <StatsGrid stats={d.stats} />
+    {:else if key === 'rankingBadges'}
+      {#if !d.mergedInto}
+        <RankingBadges entityType="artist" entityId={$page.params.id} bind:highlightedMonth />
       {/if}
-      {#if !data.mergedInto}
-        <Accolades entityType="artist" entityId={$page.params.id} />
+    {:else if key === 'chartStats'}
+      {#if !d.mergedInto}
+        <ChartStats entityType="artist" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
       {/if}
-      <EntityActionsMenu
-        title="Actions"
-        actions={[
-          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${$page.params.id}`, '_blank') }] : []),
-          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.name ?? 'Artist', publicHref()) }] : []),
-          { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
-        ]}
-      />
-    </div>
-  </div>
-
-  <MergeBanners entityType="artist" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
-  <StatsGrid stats={data.stats} />
-
-  {#if !data.mergedInto}
-    <RankingBadges entityType="artist" entityId={$page.params.id} bind:highlightedMonth />
-    <ChartStats entityType="artist" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
-  {/if}
-
-  <ActivityChart series={data.series} {metric} />
-
-  {#if data.topTracks.length > 0}
-    <div class="section-header">
-      <h2 class="section-title">Top tracks</h2>
-      <button class="show-all-btn" onclick={() => showAllTracks = !showAllTracks}>
-        {showAllTracks ? 'Show less' : 'Show all'}
-      </button>
-    </div>
-    <TrackList items={data.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} />
-  {/if}
-
-  {#if data.topAlbums.length > 0}
-    <div class="section-header">
-      <h2 class="section-title">Top albums</h2>
-      <button class="show-all-btn" onclick={() => showAllAlbums = !showAllAlbums}>
-        {showAllAlbums ? 'Show less' : 'Show all'}
-      </button>
-    </div>
-    <div class="track-list">
-      {#each data.topAlbums as item, i}
-        {#if item.album}
-          <a
-            href="/album/{item.albumId}"
-            class="track-item"
-            oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: $page.params.id })}
-          >
-            <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-            {#if item.album.imageUrl}
-              <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
-            {:else}
-              <div class="track-art"></div>
+    {:else if key === 'activity'}
+      <ActivityChart series={d.series} {metric} />
+    {:else if key === 'topTracks'}
+      {#if d.topTracks.length > 0}
+        <div class="section-header">
+          <h2 class="section-title">Top tracks</h2>
+          <button class="show-all-btn" onclick={() => showAllTracks = !showAllTracks}>
+            {showAllTracks ? 'Show less' : 'Show all'}
+          </button>
+        </div>
+        <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} />
+      {/if}
+    {:else if key === 'topAlbums'}
+      {#if d.topAlbums.length > 0}
+        <div class="section-header">
+          <h2 class="section-title">Top albums</h2>
+          <button class="show-all-btn" onclick={() => showAllAlbums = !showAllAlbums}>
+            {showAllAlbums ? 'Show less' : 'Show all'}
+          </button>
+        </div>
+        <div class="track-list">
+          {#each d.topAlbums as item, i}
+            {#if item.album}
+              <a
+                href="/album/{item.albumId}"
+                class="track-item"
+                oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: $page.params.id })}
+              >
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+                {#if item.album.imageUrl}
+                  <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+                {:else}
+                  <div class="track-art"></div>
+                {/if}
+                <div class="track-info">
+                  <div class="track-name">{item.album.name}</div>
+                  <div class="track-artist">{item.album.releaseDate ?? ''}</div>
+                </div>
+                {#if artistShowAlbumAccolades}
+                  <Accolades entityType="album" entityId={item.albumId} />
+                {/if}
+                <div class="track-meta">
+                  <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                  <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                </div>
+              </a>
             {/if}
-            <div class="track-info">
-              <div class="track-name">{item.album.name}</div>
-              <div class="track-artist">{item.album.releaseDate ?? ''}</div>
-            </div>
-            {#if artistShowAlbumAccolades}
-              <Accolades entityType="album" entityId={item.albumId} />
-            {/if}
-            <div class="track-meta">
-              <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-              <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-            </div>
-          </a>
-        {/if}
+          {/each}
+        </div>
+      {/if}
+    {:else if key === 'historyByYear'}
+      {#if d.series.length > 1}
+        <h2 class="section-title">History by year</h2>
+        <EntityHistoryChart series={d.series} {metric} />
+      {/if}
+    {:else if key === 'recentPlays'}
+      {#if d.recentPlays.length > 0}
+        <RecentPlaysRail entityType="artist" entityId={$page.params.id} initial={d.recentPlays} historyHref={`/history?artist=${$page.params.id}`} />
+      {/if}
+    {/if}
+  {/snippet}
+
+  <div class="detail-body">
+    <div class="detail-main">
+      {@render heroRow()}
+      <MergeBanners entityType="artist" mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+      {#each layout.main as key (key)}
+        {@render sec(key)}
       {/each}
-    </div>
-  {/if}
-
     </div>
 
     <aside class="detail-rail">
-      {#if data.series.length > 1}
-        <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={data.series} {metric} />
-      {/if}
-
-      {#if data.recentPlays.length > 0}
-        <RecentPlaysRail entityType="artist" entityId={$page.params.id} initial={data.recentPlays} historyHref={`/history?artist=${$page.params.id}`} />
-      {/if}
+      {#each layout.rail as key (key)}
+        {@render sec(key)}
+      {/each}
     </aside>
   </div>
 {/if}

@@ -2,6 +2,8 @@
   import { page } from '$app/stores';
   import { onMount, onDestroy } from 'svelte';
   import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { getDetailLayout } from '$lib/api/settings';
+  import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
@@ -44,6 +46,7 @@
   let editingDuration = $state(false);
   let durationInput = $state('');
   let recheckingDuration = $state(false);
+  let layout = $state<DetailLayout>(defaultLayout('track'));
   const fetchCtrl = createFetchController();
 
   async function loadData(id: string) {
@@ -74,6 +77,7 @@
 
   onMount(() => {
     metric = getRankingMetric();
+    layout = getDetailLayout('track');
     initialized = true;
     shortcutStore.registerPageShortcuts(
       [{ key: 'Q', description: 'Add to queue', category: 'page' }],
@@ -175,9 +179,93 @@
 {#if loading && !data}
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
+  {@const d = data}
   {#if heroColor}
     <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
   {/if}
+
+  <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
+  {#snippet sec(key)}
+    {#if key === 'stats'}
+      <StatsGrid stats={d.stats} />
+    {:else if key === 'rankingBadges'}
+      {#if !d.mergedInto}
+        <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
+      {/if}
+    {:else if key === 'chartStats'}
+      {#if !d.mergedInto}
+        <ChartStats entityType="track" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+      {/if}
+    {:else if key === 'albumBreakdown'}
+      {#if d.albumBreakdown.length > 1}
+        <h2 class="section-title">Played in</h2>
+        <div class="track-list">
+          {#each d.albumBreakdown as item, i}
+            <a href="/album/{item.album.id}" class="track-item">
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+              {#if item.album.imageUrl}
+                <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+              {:else}
+                <div class="track-art"></div>
+              {/if}
+              <div class="track-info">
+                <div class="track-name">{item.album.name}</div>
+                <div class="track-artist">{item.album.releaseDate ?? ''}</div>
+              </div>
+              <div class="track-meta">
+                <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              </div>
+            </a>
+          {/each}
+        </div>
+      {/if}
+    {:else if key === 'activity'}
+      {#if d.series.length > 1}
+        <h2 class="section-title">Listening history</h2>
+      {/if}
+      <ActivityChart series={d.series} {metric} height="260px" />
+    {:else if key === 'historyByYear'}
+      {#if d.series.length > 1}
+        <h2 class="section-title">History by year</h2>
+        <EntityHistoryChart series={d.series} {metric} />
+      {/if}
+    {:else if key === 'versions'}
+      {#if d.versions.length > 0}
+        <h2 class="section-title">Versions</h2>
+        <div class="track-list versions-list">
+          {#each d.versions as v, i}
+            <svelte:element
+              this={v.isCurrent ? 'div' : 'a'}
+              {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}
+              class="track-item"
+              class:track-item--current={v.isCurrent}
+            >
+              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+              {#if v.album?.imageUrl}
+                <img class="track-art" src={v.album.imageUrl} alt={v.album.name} />
+              {:else}
+                <div class="track-art"></div>
+              {/if}
+              <div class="track-info">
+                <div class="track-name">{v.name}</div>
+                <div class="track-artist">{v.album?.name ?? ''}</div>
+              </div>
+              <div class="track-meta">
+                <div class="track-plays">{metric === 'plays' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
+                <div class="track-time">{metric === 'time' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
+              </div>
+            </svelte:element>
+          {/each}
+        </div>
+      {/if}
+    {:else if key === 'recentPlays'}
+      {#if d.recentPlays.length > 0}
+        <RecentPlaysRail entityType="track" entityId={$page.params.id} initial={d.recentPlays} historyHref={`/history?track=${$page.params.id}`} />
+      {/if}
+    {/if}
+  {/snippet}
+
   <div class="detail-body">
     <div class="detail-main">
   <div class="detail-hero-row">
@@ -306,83 +394,17 @@
     </div>
   </div>
 
-  <MergeBanners entityType="track" mergedInto={data.mergedInto} mergedFrom={data.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
-  <StatsGrid stats={data.stats} />
-
-  {#if !data.mergedInto}
-    <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
-    <ChartStats entityType="track" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
-  {/if}
-
-  {#if data.albumBreakdown.length > 1}
-    <h2 class="section-title">Played in</h2>
-    <div class="track-list">
-      {#each data.albumBreakdown as item, i}
-        <a href="/album/{item.album.id}" class="track-item">
-          <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-          {#if item.album.imageUrl}
-            <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
-          {:else}
-            <div class="track-art"></div>
-          {/if}
-          <div class="track-info">
-            <div class="track-name">{item.album.name}</div>
-            <div class="track-artist">{item.album.releaseDate ?? ''}</div>
-          </div>
-          <div class="track-meta">
-            <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-            <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-          </div>
-        </a>
-      {/each}
-    </div>
-  {/if}
-
-  {#if data.series.length > 1}
-    <h2 class="section-title">Listening history</h2>
-  {/if}
-  <ActivityChart series={data.series} {metric} height="260px" />
+  <MergeBanners entityType="track" mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  {#each layout.main as key (key)}
+    {@render sec(key)}
+  {/each}
 
     </div>
 
     <aside class="detail-rail">
-      {#if data.series.length > 1}
-        <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={data.series} {metric} />
-      {/if}
-
-      {#if data.versions.length > 0}
-        <h2 class="section-title">Versions</h2>
-        <div class="track-list versions-list">
-          {#each data.versions as v, i}
-            <svelte:element
-              this={v.isCurrent ? 'div' : 'a'}
-              {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}
-              class="track-item"
-              class:track-item--current={v.isCurrent}
-            >
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-              {#if v.album?.imageUrl}
-                <img class="track-art" src={v.album.imageUrl} alt={v.album.name} />
-              {:else}
-                <div class="track-art"></div>
-              {/if}
-              <div class="track-info">
-                <div class="track-name">{v.name}</div>
-                <div class="track-artist">{v.album?.name ?? ''}</div>
-              </div>
-              <div class="track-meta">
-                <div class="track-plays">{metric === 'plays' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
-                <div class="track-time">{metric === 'time' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
-              </div>
-            </svelte:element>
-          {/each}
-        </div>
-      {/if}
-
-      {#if data.recentPlays.length > 0}
-        <RecentPlaysRail entityType="track" entityId={$page.params.id} initial={data.recentPlays} historyHref={`/history?track=${$page.params.id}`} />
-      {/if}
+      {#each layout.rail as key (key)}
+        {@render sec(key)}
+      {/each}
     </aside>
   </div>
 {/if}
