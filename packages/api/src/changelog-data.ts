@@ -17,6 +17,7 @@ export const CHANGELOG: ChangelogEntryInput[] = [
       { type: 'feature', es: 'El reproductor muestra el tiempo transcurrido y la duración del track en una barra animada; arrástrala para saltar a cualquier punto', en: 'The player shows elapsed time and track duration on an animated bar; drag it to jump to any point' },
       { type: 'fix', es: 'Al reproducir un artista, álbum o track desde la app, el reproductor se actualiza al momento (antes esperaba al siguiente sondeo)', en: 'Playing an artist, album or track from the app now updates the player right away (it used to wait for the next poll)' },
       { type: 'feature', es: 'Personaliza las vistas de detalle desde Ajustes: reordena, oculta y mueve entre columnas las secciones de artistas, álbumes y tracks', en: 'Customize detail views from Settings: reorder, hide and move sections between columns for artists, albums and tracks' },
+      { type: 'feature', es: 'Auto-regenera tus playlists generadas: elige una cadencia diaria, semanal o mensual y SIS las actualiza solas en segundo plano (con aviso push al hacerlo)', en: 'Auto-regenerate your generated playlists: pick a daily, weekly or monthly cadence and SIS refreshes them on its own in the background (with a push notification when it does)' },
     ],
   },
   {
