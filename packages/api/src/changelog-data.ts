@@ -18,6 +18,7 @@ export const CHANGELOG: ChangelogEntryInput[] = [
       { type: 'fix', es: 'Al reproducir un artista, álbum o track desde la app, el reproductor se actualiza al momento (antes esperaba al siguiente sondeo)', en: 'Playing an artist, album or track from the app now updates the player right away (it used to wait for the next poll)' },
       { type: 'feature', es: 'Personaliza las vistas de detalle desde Ajustes: reordena, oculta y mueve entre columnas las secciones de artistas, álbumes y tracks', en: 'Customize detail views from Settings: reorder, hide and move sections between columns for artists, albums and tracks' },
       { type: 'feature', es: 'Auto-regenera tus playlists generadas: elige una cadencia diaria, semanal o mensual y SIS las actualiza solas en segundo plano (con aviso push al hacerlo)', en: 'Auto-regenerate your generated playlists: pick a daily, weekly or monthly cadence and SIS refreshes them on its own in the background (with a push notification when it does)' },
+      { type: 'improvement', es: 'Las listas de tracks en la página de un álbum muestran los artistas invitados de cada track, no solo el artista principal del álbum', en: 'Track lists on an album page show each track\'s featured artists, not just the album\'s main artist' },
     ],
   },
   {

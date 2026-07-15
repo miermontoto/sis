@@ -82,20 +82,31 @@ detail.get('/album/:id', async (c) => {
     dbRead<any[]>('getAlbumCovers', id),
   ]);
 
-  const recentPlays = await dbRead<any[]>('formatRecentPlays', recentRaw);
+  // artistas reales por track (incluye secundarios/featured) — el álbum comparte cover pero cada track
+  // tiene sus propios artistas; enrichTracksBatch los devuelve ordenados por position (0 = principal)
+  const [recentPlays, trackArtistMap] = await Promise.all([
+    dbRead<any[]>('formatRecentPlays', recentRaw),
+    dbRead<Map<string, { artists: { id: string; name: string }[] }>>('enrichTracksBatch', albumTracks.map((r: any) => r.track_id)),
+  ]);
 
-  const tracksResult = albumTracks.map((row: any) => ({
-    trackId: row.track_id,
-    playCount: row.play_count,
-    totalMs: row.total_ms,
-    track: {
-      name: row.name,
-      durationMs: row.duration_ms,
-      trackNumber: row.track_number,
-      album: { id: album.spotify_id, name: album.name, imageUrl: album.image_url },
-      artists: albumArtistRows.map((a: any) => ({ id: a.artist_id, name: a.name })),
-    },
-  }));
+  // fallback a los artistas del álbum si un track no tiene artistas propios (data quality)
+  const albumArtists = albumArtistRows.map((a: any) => ({ id: a.artist_id, name: a.name }));
+
+  const tracksResult = albumTracks.map((row: any) => {
+    const trackArtists = trackArtistMap.get(row.track_id)?.artists;
+    return {
+      trackId: row.track_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      track: {
+        name: row.name,
+        durationMs: row.duration_ms,
+        trackNumber: row.track_number,
+        album: { id: album.spotify_id, name: album.name, imageUrl: album.image_url },
+        artists: trackArtists && trackArtists.length > 0 ? trackArtists : albumArtists,
+      },
+    };
+  });
 
   return c.json({
     album: {
