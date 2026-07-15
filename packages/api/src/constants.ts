@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w29u';
+export const VERSION = '26w29v';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -75,6 +75,9 @@ export const LASTFM_SYNC_GRACE_MS = 20 * 60_000;
 // prefijo del spotify_id sintético de usuarios que solo tienen last.fm
 export const LASTFM_ID_PREFIX = 'lastfm:';
 
+// nº máximo de top-tags de last.fm que se guardan como géneros de un artista
+export const LASTFM_ENRICH_MAX_TAGS = 5;
+
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;
 
@@ -122,6 +125,15 @@ export const OG_IMAGE_CACHE_MS = 10 * 60_000;
 
 // umbral de staleness para now-playing en superficies sociales (2 min)
 export const SOCIAL_NOW_PLAYING_STALE_MS = 2 * 60_000;
+
+// umbral de staleness del now-playing propio (spotify: refresca con el poll
+// dinámico de currently-playing, así que 2 min basta)
+export const NOW_PLAYING_STALE_MS = 2 * 60_000;
+
+// staleness del now-playing de usuarios solo-last.fm: su estado solo se refresca
+// cada LASTFM_POLL_INTERVAL_MS, así que la ventana debe cubrir ese intervalo +
+// margen para que la tarjeta no parpadee entre ticks
+export const LASTFM_NOW_PLAYING_STALE_MS = LASTFM_POLL_INTERVAL_MS + 60_000;
 
 // --- notificaciones push ---
 

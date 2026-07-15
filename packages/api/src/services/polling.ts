@@ -30,6 +30,7 @@ import { computeAndCacheRecords } from './records-cache.js';
 import { resetDeferredState } from './deferred-startup.js';
 import { isLastfmConfigured } from './lastfm-client.js';
 import { syncAllLastfmAccounts } from './lastfm-sync.js';
+import { enrichLastfmDurations, enrichLastfmGenres } from './lastfm-enrich.js';
 import { LASTFM_POLL_INTERVAL_MS } from '../constants.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
@@ -95,6 +96,7 @@ let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
 let autoRegenerateTimer: ReturnType<typeof setInterval> | null = null;
 let lastfmSyncTimer: ReturnType<typeof setInterval> | null = null;
+let tokenlessEnrichTimer: ReturnType<typeof setInterval> | null = null;
 
 // sync de scrobbles last.fm: loop global independiente del polling de spotify —
 // las cuentas last.fm no requieren tokens de spotify (usuarios solo-last.fm)
@@ -104,6 +106,31 @@ function startLastfmPolling() {
   lastfmSyncTimer = setInterval(tick, LASTFM_POLL_INTERVAL_MS);
   tick();
   console.log(`[poll] last.fm sync cada ${LASTFM_POLL_INTERVAL_MS / 1000}s`);
+}
+
+// enrichment que NO depende de un token de spotify: duraciones (last.fm →
+// musicbrainz de fallback), portadas (musicbrainz) y géneros (last.fm). corre
+// haya o no usuarios spotify, porque los tracks/artistas import: (scrobbles) se
+// enriquecen desde estas fuentes. arranca una vez y se repite cada 24h.
+function startTokenlessEnrichment() {
+  if (tokenlessEnrichTimer) return;
+  const run = async () => {
+    // duraciones secuenciadas: last.fm (rápido) primero rellena lo que puede, el
+    // resto lo intenta musicbrainz. ambas filtran duration_ms<=0, así que en
+    // paralelo competirían por los mismos tracks.
+    try {
+      if (isLastfmConfigured()) await enrichLastfmDurations();
+      await enrichImportTrackDurations();
+    } catch (err) {
+      console.error('[metadata] error duraciones:', err);
+    }
+    // portadas (musicbrainz) y géneros (last.fm) son independientes entre sí
+    enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
+    if (isLastfmConfigured()) enrichLastfmGenres().catch(err => console.error('[lastfm-meta] error géneros:', err));
+  };
+  run();
+  tokenlessEnrichTimer = setInterval(run, METADATA_REFRESH_INTERVAL_MS);
+  console.log('[poll] enrichment sin-token activo (musicbrainz + last.fm)');
 }
 
 function getPollingStateForUser(userId: number) {
@@ -321,7 +348,10 @@ export function startPolling() {
 
   const activeUsers = getAllActiveUsersWithTokens();
   if (activeUsers.length === 0) {
-    console.log('[poll] sin usuarios con tokens, polling desactivado');
+    // sin usuarios spotify el catálogo aún se enriquece desde fuentes sin token
+    // (scrobbles de usuarios solo-last.fm)
+    console.log('[poll] sin usuarios spotify; solo enrichment sin-token');
+    startTokenlessEnrichment();
     return;
   }
 
@@ -341,16 +371,17 @@ export function startPolling() {
   mergeImportTracks();
   cleanNonMusicImports();
 
+  // duraciones/portadas/géneros sin token (musicbrainz + last.fm) — corre en su
+  // propio timer, compartido con el escenario solo-last.fm
+  startTokenlessEnrichment();
+
+  // imágenes/géneros de artistas con IDs reales vía spotify api (requiere token)
   enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
-  enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
-  enrichImportTrackDurations().catch(err => console.error('[metadata] error duraciones:', err));
 
   metadataRefreshTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
     enrichArtistMetadata(uid).catch(err => console.error('[metadata] error:', err));
-    enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
-    enrichImportTrackDurations().catch(err => console.error('[metadata] error duraciones:', err));
   }, METADATA_REFRESH_INTERVAL_MS);
 
   // resolución de entidades import:
@@ -414,6 +445,7 @@ export function stopPolling() {
   if (playlistSyncTimer) clearInterval(playlistSyncTimer);
   if (autoRegenerateTimer) clearInterval(autoRegenerateTimer);
   if (lastfmSyncTimer) clearInterval(lastfmSyncTimer);
+  if (tokenlessEnrichTimer) clearInterval(tokenlessEnrichTimer);
   metadataRefreshTimer = null;
   resolveImportsTimer = null;
   artistFixTimer = null;
@@ -421,6 +453,7 @@ export function stopPolling() {
   playlistSyncTimer = null;
   autoRegenerateTimer = null;
   lastfmSyncTimer = null;
+  tokenlessEnrichTimer = null;
   console.log('[poll] polling detenido');
 }
 

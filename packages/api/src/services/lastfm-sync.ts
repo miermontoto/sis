@@ -5,9 +5,11 @@
 // (dedup por nombre + ventana temporal, IDs sintéticos import: resolubles).
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
-import { lastfmAccounts } from '../db/schema.js';
-import { importHistory } from './history-import.js';
+import { lastfmAccounts, pollingState } from '../db/schema.js';
+import { importHistory, upsertScrobbleTrack } from './history-import.js';
 import { getStoredTokens } from './token-manager.js';
+import { getUserById } from './user-manager.js';
+import { checkChartClosings } from './notification-events.js';
 import { getRecentTracks, type LastfmRecentTrack } from './lastfm-client.js';
 import { LASTFM_SYNC_MAX_PAGES, LASTFM_SYNC_GRACE_MS } from '../constants.js';
 
@@ -98,6 +100,38 @@ function maxUts(tracks: LastfmRecentTrack[]): number | null {
   }, null);
 }
 
+// now-playing de usuarios solo-last.fm: el track sin `date` con @attr.nowplaying.
+// escribe polling_state para que /now-playing y el feed de amigos lo muestren.
+// last.fm no da progreso ni duración fiables → tarjeta sin barra y read-only.
+function updateNowPlaying(userId: number, track: LastfmRecentTrack | null): void {
+  const db = getDb();
+  const existing = db.select().from(pollingState).where(eq(pollingState.userId, userId)).get();
+
+  if (!track) {
+    // sin nowplaying: marcar como pausado (la ruta ya filtra por frescura). no
+    // se borra el track para no cortar una lectura en curso; caduca solo.
+    if (existing) db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
+    return;
+  }
+
+  const trackId = upsertScrobbleTrack(track);
+  if (!trackId) return;
+
+  const nowIso = new Date().toISOString();
+  if (existing) {
+    db.update(pollingState)
+      .set({ lastCurrentlyPlayingTrackId: trackId, lastCurrentlyPlayingAt: nowIso })
+      .where(eq(pollingState.userId, userId))
+      .run();
+  } else {
+    db.insert(pollingState)
+      .values({ userId, lastCurrentlyPlayingTrackId: trackId, lastCurrentlyPlayingAt: nowIso })
+      .run();
+  }
+  // is_playing/progress_ms son columnas raw (fuera del schema drizzle)
+  db.run(sql`UPDATE polling_state SET is_playing = 1, progress_ms = NULL WHERE user_id = ${userId}`);
+}
+
 // --- sync incremental (tick de polling) ---
 
 export async function syncRecentScrobbles(userId: number): Promise<number> {
@@ -108,21 +142,28 @@ export async function syncRecentScrobbles(userId: number): Promise<number> {
   // reales): si el usuario tiene tokens, los scrobbles recientes se retienen
   // hasta que su play de spotify haya tenido tiempo de registrarse — el
   // scrobble solo entra (dedup mediante) si spotify no lo cubrió
-  const grace = getStoredTokens(userId) ? LASTFM_SYNC_GRACE_MS : 0;
+  const hasSpotify = !!getStoredTokens(userId);
+  const grace = hasSpotify ? LASTFM_SYNC_GRACE_MS : 0;
   const from = account.lastScrobbleUts ?? Math.floor(Date.now() / 1000);
   const to = Math.floor((Date.now() - grace) / 1000);
   if (to <= from) return 0; // todo dentro del periodo de gracia todavía
 
   const collected: LastfmRecentTrack[] = [];
+  let nowPlaying: LastfmRecentTrack | null = null;
   let page = 1;
   let totalPages = 1;
 
   do {
     const res = await getRecentTracks(account.username, { from, to, page });
+    // el track nowplaying (sin date) viene al principio de la página 1
+    if (page === 1) nowPlaying = res.tracks.find(t => t['@attr']?.nowplaying === 'true') ?? null;
     collected.push(...res.tracks.filter(t => t.date?.uts));
     totalPages = Math.min(res.totalPages, LASTFM_SYNC_MAX_PAGES);
     page++;
   } while (page <= totalPages);
+
+  // now-playing solo para usuarios solo-last.fm (los híbridos lo tienen vía spotify)
+  if (!hasSpotify) updateNowPlaying(userId, nowPlaying);
 
   if (collected.length === 0) return 0;
 
@@ -137,6 +178,17 @@ export async function syncRecentScrobbles(userId: number): Promise<number> {
 // espacia las llamadas; secuencial evita solaparlas)
 export async function syncAllLastfmAccounts(): Promise<void> {
   for (const account of getAllLastfmAccounts()) {
+    // cierre de chart (time-driven) para usuarios solo-last.fm: los híbridos ya
+    // lo reciben en el poll de recently-played de spotify. corre cada tick aunque
+    // no haya scrobbles nuevos; aislado para que nunca rompa el sync.
+    if (!getStoredTokens(account.userId)) {
+      try {
+        const spotifyId = getUserById(account.userId)?.spotifyId;
+        if (spotifyId) checkChartClosings(account.userId, spotifyId);
+      } catch (err) {
+        console.error(`[lastfm:${account.userId}] error en checkChartClosings:`, err);
+      }
+    }
     try {
       await syncRecentScrobbles(account.userId);
     } catch (err) {

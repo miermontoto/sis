@@ -3,8 +3,9 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
 import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
+import { getStoredTokens } from '../services/token-manager.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
-import { SOCIAL_NOW_PLAYING_STALE_MS } from '../constants.js';
+import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import type { SpotifyDevice, PlayContextRequest } from '@sis/shared';
 
@@ -22,8 +23,11 @@ nowPlaying.get('/', (c) => {
     return c.json({ playing: false, isPlaying: false });
   }
 
-  // verificar que no es data obsoleta (>2 min sin actualización)
-  const staleThresholdMs = 2 * 60_000;
+  // usuarios solo-last.fm (sin token de spotify) no pueden controlar la
+  // reproducción (tarjeta read-only) y su estado solo se refresca cada
+  // LASTFM_POLL_INTERVAL_MS, así que la ventana de frescura es más amplia
+  const controllable = userId ? !!getStoredTokens(userId) : false;
+  const staleThresholdMs = controllable ? NOW_PLAYING_STALE_MS : LASTFM_NOW_PLAYING_STALE_MS;
   if (state.lastCurrentlyPlayingAt) {
     const lastUpdate = new Date(state.lastCurrentlyPlayingAt).getTime();
     if (Date.now() - lastUpdate > staleThresholdMs) {
@@ -58,6 +62,7 @@ nowPlaying.get('/', (c) => {
   return c.json({
     playing: true,
     isPlaying: !!(isPlayingRow?.is_playing),
+    controllable,
     progressMs: isPlayingRow?.progress_ms ?? null,
     track: {
       id: track.spotifyId,
@@ -73,7 +78,11 @@ nowPlaying.get('/', (c) => {
 nowPlaying.get('/friends', (c) => {
   const userId = c.get('userId');
   const db = getDb();
-  const staleThreshold = new Date(Date.now() - SOCIAL_NOW_PLAYING_STALE_MS).toISOString();
+  // frescura por fuente: los amigos solo-last.fm (sin auth_tokens) se refrescan
+  // cada LASTFM_POLL_INTERVAL_MS, así que su ventana es más amplia que la de
+  // spotify para que no parpadeen entre ticks
+  const spotifyStale = new Date(Date.now() - SOCIAL_NOW_PLAYING_STALE_MS).toISOString();
+  const lastfmStale = new Date(Date.now() - LASTFM_NOW_PLAYING_STALE_MS).toISOString();
 
   const rows = db.all(sql`
     SELECT
@@ -92,8 +101,9 @@ nowPlaying.get('/friends', (c) => {
     FROM follows f
     INNER JOIN users u ON u.id = f.followed_id
     INNER JOIN polling_state ps ON ps.user_id = u.id
+    LEFT JOIN auth_tokens tok ON tok.user_id = u.id
     LEFT JOIN tracks t ON t.spotify_id = ps.last_currently_playing_track_id
-      AND ps.last_currently_playing_at > ${staleThreshold}
+      AND ps.last_currently_playing_at > (CASE WHEN tok.user_id IS NULL THEN ${lastfmStale} ELSE ${spotifyStale} END)
     LEFT JOIN albums a ON a.spotify_id = t.album_id
     WHERE f.follower_id = ${userId}
       AND u.is_active = 1

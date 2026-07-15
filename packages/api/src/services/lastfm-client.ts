@@ -75,6 +75,48 @@ export interface RecentTracksPage {
   total: number;
 }
 
+// --- enrichment (metadata sin token de spotify) ---
+
+export interface LastfmTrackInfo {
+  durationMs: number | null;
+  tags: string[];
+}
+
+// normaliza el campo tag de last.fm: ausente | objeto suelto | array
+function extractTags(raw: { name?: string } | { name?: string }[] | undefined): string[] {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map(t => t.name).filter((n): n is string => !!n);
+}
+
+// track.getInfo: duración (ms) y top-tags. autocorrect corrige nombres mal
+// escritos. no firmado (endpoint público). devuelve null si el track no existe
+export async function getTrackInfo(artist: string, track: string): Promise<LastfmTrackInfo | null> {
+  try {
+    const data = await lastfmRequest<{
+      track?: { duration?: string; toptags?: { tag?: { name?: string } | { name?: string }[] } };
+    }>('track.getInfo', { artist, track, autocorrect: '1' });
+    if (!data.track) return null;
+    const dur = data.track.duration ? parseInt(data.track.duration, 10) : 0;
+    return { durationMs: dur > 0 ? dur : null, tags: extractTags(data.track.toptags?.tag) };
+  } catch {
+    // error 6 (track no encontrado) u otros: sin datos
+    return null;
+  }
+}
+
+// artist.getTopTags: tags más votados del artista, usados como géneros aproximados
+export async function getArtistTopTags(artist: string): Promise<string[]> {
+  try {
+    const data = await lastfmRequest<{
+      toptags?: { tag?: { name?: string } | { name?: string }[] };
+    }>('artist.getTopTags', { artist, autocorrect: '1' });
+    return extractTags(data.toptags?.tag);
+  } catch {
+    return [];
+  }
+}
+
 export async function getRecentTracks(username: string, opts: { from?: number; to?: number; page?: number; limit?: number } = {}): Promise<RecentTracksPage> {
   const params: Record<string, string> = {
     user: username,

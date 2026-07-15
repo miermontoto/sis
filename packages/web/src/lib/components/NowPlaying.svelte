@@ -26,6 +26,8 @@
   let data = $derived(nowPlayingStore.data);
   let vol = $derived(nowPlayingStore.volumePercent);
   let volIcon = $derived<0 | 1 | 2>(vol === null || vol === 0 ? 0 : vol < 50 ? 1 : 2);
+  // usuarios solo-last.fm: sin token de spotify no hay controles (read-only)
+  let controllable = $derived(data?.controllable !== false);
 
   // tick de 1s para animar el progreso extrapolado mientras suena
   let nowMs = $state(Date.now());
@@ -180,13 +182,15 @@
       {:else}
         <div class="np-art"></div>
       {/if}
-      <div class="np-controls np-controls--vertical">
-        <button class="ctrl-btn" title="Previous" disabled={acting} onclick={previous}><IconPrev /></button>
-        <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
-          {#if data.isPlaying}<IconPause />{:else}<IconPlay />{/if}
-        </button>
-        <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}><IconNext /></button>
-      </div>
+      {#if controllable}
+        <div class="np-controls np-controls--vertical">
+          <button class="ctrl-btn" title="Previous" disabled={acting} onclick={previous}><IconPrev /></button>
+          <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
+            {#if data.isPlaying}<IconPause />{:else}<IconPlay />{/if}
+          </button>
+          <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}><IconNext /></button>
+        </div>
+      {/if}
       {@render progressStrip()}
     </div>
   {:else}
@@ -213,6 +217,7 @@
         </div>
       </div>
     </div>
+    {#if controllable}
     <div class="np-actions">
       <DevicePicker bind:show={showDevices} />
       <div class="np-controls">
@@ -277,6 +282,7 @@
         {/snippet}
       </PlaylistPopover>
     </div>
+    {/if}
     {@render progressRow()}
   </div>
   {/if}

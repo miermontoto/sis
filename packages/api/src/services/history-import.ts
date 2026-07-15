@@ -81,6 +81,47 @@ function resolveTrackId(artistName: string, trackName: string): string {
 }
 
 
+// upsert de las entidades (artist/album/track) de un scrobble SIN registrar
+// reproducción: lo usa el now-playing de last.fm, que necesita que el track
+// exista en el catálogo para renderizarlo pero no es un play completado (no toca
+// listening_history). devuelve el trackId resuelto o null si faltan datos.
+export function upsertScrobbleTrack(track: { name: string; artist: { '#text': string }; album?: { '#text'?: string } }): string | null {
+  const trackName = track.name;
+  const artistName = track.artist['#text'];
+  if (!trackName || !artistName) return null;
+
+  const albumName = track.album?.['#text'] || null;
+  const artistId = resolveArtistId(artistName);
+  const trackId = resolveTrackId(artistName, trackName);
+  const albumId = albumName ? resolveAlbumId(artistId, artistName, albumName) : null;
+  const now = new Date().toISOString();
+  const db = getDb();
+
+  db.run(sql`
+    INSERT INTO artists (spotify_id, name, genres, updated_at)
+    VALUES (${artistId}, ${artistName}, '[]', ${now})
+    ON CONFLICT (spotify_id) DO NOTHING
+  `);
+  if (albumId && albumName) {
+    db.run(sql`
+      INSERT INTO albums (spotify_id, name, updated_at)
+      VALUES (${albumId}, ${albumName}, ${now})
+      ON CONFLICT (spotify_id) DO NOTHING
+    `);
+  }
+  db.run(sql`
+    INSERT INTO tracks (spotify_id, name, album_id, duration_ms, updated_at)
+    VALUES (${trackId}, ${trackName}, ${albumId}, 0, ${now})
+    ON CONFLICT (spotify_id) DO NOTHING
+  `);
+  db.run(sql`
+    INSERT INTO track_artists (track_id, artist_id, position)
+    VALUES (${trackId}, ${artistId}, 0)
+    ON CONFLICT (track_id, artist_id) DO NOTHING
+  `);
+  return trackId;
+}
+
 const MIN_PLAYED_MS = MIN_PLAY_MS;
 const BATCH_SIZE = 500;
 const DEDUP_WINDOW_S = 300;

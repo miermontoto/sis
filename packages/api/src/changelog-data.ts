@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w29v',
+    publishedAt: '2026-07-15',
+    title: 'Last.fm parity',
+    changes: [
+      { type: 'feature', es: 'Las cuentas de solo Last.fm muestran su "sonando ahora" en la app y en el feed de amigos (tarjeta de solo lectura, sin controles de Spotify)', en: 'Last.fm-only accounts show their "now playing" in the app and the friends feed (read-only card, no Spotify controls)' },
+      { type: 'fix', es: 'Las notificaciones de hitos (récords, número 1 y cierres semanales de listas) ya llegan también a las cuentas de solo Last.fm', en: 'Milestone notifications (records, number one and weekly chart closings) now reach Last.fm-only accounts too' },
+      { type: 'improvement', es: 'El historial de Last.fm se enriquece con duraciones y géneros desde Last.fm y MusicBrainz, aunque no haya ninguna cuenta de Spotify vinculada', en: 'Last.fm history gets durations and genres from Last.fm and MusicBrainz, even with no Spotify account linked' },
+    ],
+  },
+  {
     version: '26w29c',
     publishedAt: '2026-07-14',
     title: 'Leaner sidebar',

@@ -3,6 +3,9 @@ import type { TrackInfo } from './entities.js';
 export interface NowPlayingResponse {
   playing: boolean;
   isPlaying: boolean;
+  // false para usuarios solo-last.fm: sin token de spotify no hay controles de
+  // reproducción (la tarjeta se muestra read-only). ausente/true = controlable
+  controllable?: boolean;
   // progreso del track en el momento de updatedAt; el cliente extrapola
   progressMs?: number | null;
   volumePercent?: number | null;
