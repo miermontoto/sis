@@ -13,7 +13,7 @@ import { CHART_SIZE } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
   computeMostUniquePerMonth, computeMostDistinctTracks, computeOneHitWonders,
-  computeTopNoAlbum, computeYearEndFinishes, computeMostAccolades,
+  computeYearEndFinishes, computeMostAccolades,
 } from './records-extended.js';
 
 // records semanales solo permiten 'time' o 'plays' — no usan 'natural' (irrelevante para charts).
@@ -90,7 +90,6 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     goldenOldies: timed('track.goldenOldies', () => computeGoldenOldies('track', db, userId, limit)),
     latestDiscoveries: timed('track.latestDiscoveries', () => computeLatestDiscoveries('track', db, userId, limit)),
     mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit)),
-    topNoAlbum: timed('track.topNoAlbum', () => computeTopNoAlbum(db, userId, limit)),
     yearEndFinishes: timed('track.yearEndFinishes', () => computeYearEndFinishes('track', db, userId, sort)),
     mostAccolades: [],
   };

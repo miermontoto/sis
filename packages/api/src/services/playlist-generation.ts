@@ -51,7 +51,6 @@ const RECORD_KEY_TITLES: Record<string, string> = {
   goldenOldies: 'Golden Oldies',
   latestDiscoveries: 'Latest Discoveries',
   mostAccolades: 'Most Records',
-  topNoAlbum: 'Top No Album',
   mostDistinctTracks: 'Most Distinct Tracks',
   oneHitWonders: 'One-Hit Wonders',
   mostNo1Tracks: 'Most #1 Tracks',

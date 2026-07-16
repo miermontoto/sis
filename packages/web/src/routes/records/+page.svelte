@@ -471,7 +471,6 @@
 
   <!-- ============ sections ============ -->
   {@const artistData = ('mostNo1Tracks' in currentData) ? currentData as ArtistRecordsData : null}
-  {@const trackData = ('topNoAlbum' in currentData) ? currentData as TrackRecords : null}
 
   {@const hasAllTime =
     currentData.peakWeekPlays.length > 0 ||
@@ -489,8 +488,7 @@
     currentData.longestGap.length > 0 ||
     currentData.goldenOldies.length > 0 ||
     currentData.mostUniquePerMonth.length > 0 ||
-    (artistData ? (artistData.mostDistinctTracks.length + artistData.oneHitWonders.length) > 0 : false) ||
-    (trackData ? trackData.topNoAlbum.length > 0 : false)}
+    (artistData ? (artistData.mostDistinctTracks.length + artistData.oneHitWonders.length) > 0 : false)}
 
   {#if hasAllTime}
     <h2 class="record-group">All-time bests</h2>
@@ -524,8 +522,6 @@
     {#if artistData}
       {@render recordList('Most distinct tracks played', artistData.mostDistinctTracks, 'tracks', 'mostDistinctTracks')}
       {@render oneHitList('One-hit wonders', artistData.oneHitWonders, 'oneHitWonders')}
-    {:else if trackData}
-      {@render recordList('Top tracks without album', trackData.topNoAlbum, 'plays', 'topNoAlbum')}
     {/if}
   {/if}
 {/if}

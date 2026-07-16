@@ -409,26 +409,6 @@ export function computeOneHitWonders(entity: 'artist', db: Db, userId: number, l
   }));
 }
 
-export function computeTopNoAlbum(db: Db, userId: number, limit: number): RecordEntry[] {
-  const rows = db.all(sql`
-    SELECT lh.track_id AS eid,
-           COUNT(*) AS value,
-           t.name AS name,
-           NULL AS image_url,
-           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = lh.track_id AND ta.position = 0 LIMIT 1) AS artist_id,
-           (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE ta.track_id = lh.track_id AND ta.position = 0 LIMIT 1) AS artist_name
-    FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
-    WHERE lh.user_id = ${userId} AND t.album_id IS NULL
-    GROUP BY lh.track_id
-    ORDER BY value DESC
-    LIMIT ${limit}
-  `) as any[];
-
-  return rows.map(r => mapSimple(r));
-}
-
 // year-end finishes: top-N de cada año completado (para accolades).
 // Sólo incluye años anteriores al actual (el año en curso todavía no "terminó").
 const YEAR_END_LIMIT = 10;
@@ -485,7 +465,6 @@ export function computeMostAccolades(
   tally(data.latestDiscoveries);
 
 
-  if (data.topNoAlbum) tally(data.topNoAlbum);
   if (data.mostDistinctTracks) tally(data.mostDistinctTracks);
   if (data.oneHitWonders) tally(data.oneHitWonders);
 

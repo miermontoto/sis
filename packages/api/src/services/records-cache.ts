@@ -168,7 +168,6 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
 
   const sliceTrack = (e: RecordsResponse['tracks']) => ({
     ...sliceBase(e),
-    topNoAlbum: e.topNoAlbum.slice(0, limit),
   });
 
   const sliceAlbum = (e: RecordsResponse['albums']) => ({
@@ -262,15 +261,6 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     const idx = artistData.oneHitWonders.findIndex((e: any) => e.entityId === entityId);
     if (idx !== -1 && idx < RECORDS_LIMIT) {
       accolades.push({ type: 'oneHitWonders', rank: idx + 1, value: artistData.oneHitWonders[idx].value, week: null });
-    }
-  }
-
-  // accolades exclusivos de tracks
-  if (entityType === 'track' && 'topNoAlbum' in data) {
-    const trackData = data as RecordsResponse['tracks'];
-    const idx = trackData.topNoAlbum.findIndex((e: any) => e.entityId === entityId);
-    if (idx !== -1 && idx < RECORDS_LIMIT) {
-      accolades.push({ type: 'topNoAlbum', rank: idx + 1, value: trackData.topNoAlbum[idx].value, week: null });
     }
   }
 

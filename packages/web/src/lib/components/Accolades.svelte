@@ -39,7 +39,6 @@
     latestDiscoveries: 'Latest discovery',
     mostDistinctTracks: 'Distinct tracks',
     oneHitWonders: 'One-hit wonder',
-    topNoAlbum: 'Top without album',
     mostAccolades: 'Most records',
   };
 
@@ -64,7 +63,7 @@
     if (a.type === 'mostDistinctTracks') return `${a.value} track${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'goldenOldies' ||
         a.type === 'latestDiscoveries' ||
-        a.type === 'oneHitWonders' || a.type === 'topNoAlbum') {
+        a.type === 'oneHitWonders') {
       return `${formatNumber(a.value)} plays`;
     }
     if (metric === 'plays') return `${formatNumber(a.value)} plays`;

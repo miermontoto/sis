@@ -57,9 +57,7 @@ export interface EntityRecords {
   mostAccolades: RecordEntry[];
 }
 
-export interface TrackRecords extends EntityRecords {
-  topNoAlbum: RecordEntry[];
-}
+export type TrackRecords = EntityRecords;
 
 export type AlbumRecords = EntityRecords;
 
