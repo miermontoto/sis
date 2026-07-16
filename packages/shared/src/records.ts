@@ -61,9 +61,7 @@ export interface TrackRecords extends EntityRecords {
   topNoAlbum: RecordEntry[];
 }
 
-export interface AlbumRecords extends EntityRecords {
-  mostDistinctTracks: RecordEntry[];
-}
+export type AlbumRecords = EntityRecords;
 
 export interface ArtistRecordsData extends EntityRecords {
   mostNo1Tracks: ArtistRecordEntry[];

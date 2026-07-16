@@ -334,7 +334,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
   return out;
 }
 
-export function computeMostDistinctTracks(entity: 'album' | 'artist', db: Db, userId: number, limit: number): RecordEntry[] {
+export function computeMostDistinctTracks(entity: 'artist', db: Db, userId: number, limit: number): RecordEntry[] {
   const ctx = entityCtx(entity, userId);
   const rows = db.all(sql`
     WITH agg AS (

@@ -173,7 +173,6 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
 
   const sliceAlbum = (e: RecordsResponse['albums']) => ({
     ...sliceBase(e),
-    mostDistinctTracks: e.mostDistinctTracks.slice(0, limit),
   });
 
   const sliceArtist = (e: RecordsResponse['artists']) => ({
@@ -248,12 +247,12 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     }
   }
 
-  // mostDistinctTracks aplica a albums y artists
-  if ((entityType === 'artist' || entityType === 'album') && 'mostDistinctTracks' in data) {
-    const extData = data as RecordsResponse['albums'];
-    const idx = extData.mostDistinctTracks.findIndex((e: any) => e.entityId === entityId);
+  // mostDistinctTracks exclusivo de artists (tras quitarlo de albums)
+  if (entityType === 'artist' && 'mostDistinctTracks' in data) {
+    const artistData = data as RecordsResponse['artists'];
+    const idx = artistData.mostDistinctTracks.findIndex((e: any) => e.entityId === entityId);
     if (idx !== -1 && idx < RECORDS_LIMIT) {
-      accolades.push({ type: 'mostDistinctTracks', rank: idx + 1, value: extData.mostDistinctTracks[idx].value, week: null });
+      accolades.push({ type: 'mostDistinctTracks', rank: idx + 1, value: artistData.mostDistinctTracks[idx].value, week: null });
     }
   }
 

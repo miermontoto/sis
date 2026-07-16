@@ -151,7 +151,6 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     goldenOldies: timed('album.goldenOldies', () => computeGoldenOldies('album', db, userId, limit)),
     latestDiscoveries: timed('album.latestDiscoveries', () => computeLatestDiscoveries('album', db, userId, limit)),
     mostUniquePerMonth: timed('album.mostUniquePerMonth', () => computeMostUniquePerMonth('album', db, userId, limit)),
-    mostDistinctTracks: timed('album.mostDistinctTracks', () => computeMostDistinctTracks('album', db, userId, limit)),
     yearEndFinishes: timed('album.yearEndFinishes', () => computeYearEndFinishes('album', db, userId, sort)),
     mostAccolades: [],
   };
