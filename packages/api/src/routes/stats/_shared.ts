@@ -28,6 +28,12 @@ export function parseSort(c: any): RankingMetric {
   return c.req.query('sort') === 'plays' ? 'plays' : 'time';
 }
 
+// records: unicidad de registros. por defecto true (un registro por entidad);
+// 'false' permite que la misma entidad aparezca varias veces (peak week / longest run)
+export function parseRecordsUnique(c: any): boolean {
+  return c.req.query('unique') !== 'false';
+}
+
 export function periodMatchesGranularity(period: string, granularity: 'week' | 'month' | 'year'): boolean {
   if (granularity === 'year') return /^\d{4}$/.test(period);
   if (granularity === 'month') return /^\d{4}-\d{2}$/.test(period);

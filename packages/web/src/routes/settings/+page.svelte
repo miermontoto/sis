@@ -3,7 +3,7 @@
   import { page } from '$app/state';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import type { LastfmStatus } from '$lib/api';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse, type ShareLink, type TimeRange } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse, type ShareLink, type TimeRange } from '$lib/api';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -23,6 +23,7 @@
   let rankingMetric = $state<RankingMetric>('time');
   let lookbackPref = $state<RankChangeLookback>('disabled');
   let weekStartPref = $state<WeekStartOption>('monday');
+  let recordsUniquePref = $state(true);
   let localePref = $state<LocaleSetting>('auto');
   let albumTrackDisplayPref = $state<AlbumTrackDisplay>('fill');
   let albumShowDurationPref = $state(true);
@@ -200,6 +201,7 @@
     rankingMetric = getRankingMetric();
     lookbackPref = getRankChangeLookback();
     weekStartPref = getWeekStart();
+    recordsUniquePref = getRecordsUnique();
     localePref = getRawLocale();
     albumTrackDisplayPref = getAlbumTrackDisplay();
     albumShowDurationPref = getAlbumShowDuration();
@@ -536,6 +538,18 @@
             <button class="segmented-btn" class:segmented-active={weekStartPref === 'monday'} onclick={() => { weekStartPref = 'monday'; setWeekStart('monday'); }}>Mon</button>
             <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
             <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">Record entries</div>
+          <div class="pref-desc">Unique keeps one entry per song, album or artist; All lets the same one appear several times (e.g. its biggest weeks in Peak week and each run in Longest chart run)</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={recordsUniquePref} onclick={() => { recordsUniquePref = true; setRecordsUnique(true); }}>Unique</button>
+            <button class="segmented-btn" class:segmented-active={!recordsUniquePref} onclick={() => { recordsUniquePref = false; setRecordsUnique(false); }}>All</button>
           </div>
         </div>
       </div>

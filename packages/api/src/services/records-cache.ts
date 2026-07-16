@@ -23,8 +23,8 @@ const lastDataTs = new Map<number, string>();
 // no consuma el edge (la entrada nueva se re-detecta cuando aparece un dispositivo).
 const notifyBaseline = new Map<number, RecordsResponse>();
 
-function cacheKey(userId: number, ws: WeekStart, sort: Sort) {
-  return `${userId}:${ws}:${sort}`;
+function cacheKey(userId: number, ws: WeekStart, sort: Sort, unique: boolean) {
+  return `${userId}:${ws}:${sort}:${unique ? 'u' : 'a'}`;
 }
 
 function getLatestPlayedAt(db: ReturnType<typeof getDb>, userId: number): string | null {
@@ -43,7 +43,7 @@ function updateDataTimestamp(db: ReturnType<typeof getDb>, userId: number) {
   if (latest) lastDataTs.set(userId, latest);
 }
 
-function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; sort: Sort } {
+function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; sort: Sort; unique: boolean } {
   const rows = db.select().from(userSettings)
     .where(eq(userSettings.userId, spotifyId))
     .all();
@@ -52,6 +52,8 @@ function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string)
   return {
     weekStart: (map.get('weekStart') as WeekStart) || 'friday',
     sort: ((map.get('rankingMetric') === 'plays' ? 'plays' : 'time') as Sort),
+    // recordsUnique: por defecto true (un registro por entidad)
+    unique: map.get('recordsUnique') !== 'false',
   };
 }
 
@@ -83,8 +85,8 @@ export function computeAndCacheRecords() {
 }
 
 export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: number, spotifyId: string) {
-  const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
-  const k = cacheKey(userId, weekStart, sort);
+  const { weekStart, sort, unique } = getUserSettingsForUser(db, spotifyId);
+  const k = cacheKey(userId, weekStart, sort, unique);
 
   if (cache.has(k) && !hasNewData(db, userId)) {
     console.log(`[records-cache] skip user ${userId} — no new data`);
@@ -93,7 +95,7 @@ export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: num
 
   console.log(`[records-cache] computing records for user ${userId} (${k})...`);
   const start = performance.now();
-  const result = getRecords(db, weekStart, sort, 50, undefined, userId) as RecordsResponse;
+  const result = getRecords(db, weekStart, sort, 50, undefined, userId, unique) as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
   console.log(`[records-cache] done in ${ms}ms`);
 
@@ -113,8 +115,8 @@ export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: num
  *  Lanza tracks/albums/artists en paralelo sobre el pool de workers. */
 export async function computeAndCacheForUserAsync(userId: number, spotifyId: string) {
   const db = getDb();
-  const { weekStart, sort } = getUserSettingsForUser(db, spotifyId);
-  const k = cacheKey(userId, weekStart, sort);
+  const { weekStart, sort, unique } = getUserSettingsForUser(db, spotifyId);
+  const k = cacheKey(userId, weekStart, sort, unique);
 
   if (cache.has(k) && !hasNewData(db, userId)) {
     console.log(`[records-cache] skip user ${userId} — no new data`);
@@ -124,9 +126,9 @@ export async function computeAndCacheForUserAsync(userId: number, spotifyId: str
   console.log(`[records-cache] computing records for user ${userId} (${k}) [worker]...`);
   const start = performance.now();
   const [trackResult, albumResult, artistResult] = await Promise.all([
-    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'track', userId),
-    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'album', userId),
-    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'artist', userId),
+    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'track', userId, unique),
+    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'album', userId, unique),
+    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'artist', userId, unique),
   ]);
   const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
@@ -145,8 +147,8 @@ export async function computeAndCacheForUserAsync(userId: number, spotifyId: str
 }
 
 /** Devuelve records cacheados para un usuario, o null si no hay cache */
-export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sort, limit: number, type?: EntityTypeFilter): Partial<RecordsResponse> | null {
-  const cached = cache.get(cacheKey(userId, weekStart, sort));
+export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sort, limit: number, type?: EntityTypeFilter, unique = true): Partial<RecordsResponse> | null {
+  const cached = cache.get(cacheKey(userId, weekStart, sort, unique));
   if (!cached) return null;
 
   const sliceBase = (e: EntityRecords) => ({

@@ -7,7 +7,7 @@ import { computeProjectedRankingsBatch } from '../../db/queries/index.js';
 import { pollingState, tracks, artists, trackArtists, albums, userSettings } from '../../db/schema.js';
 import { fetchEntityMetadata } from '../../db/queries/charts.js';
 import type { ProjectionResult, ProjectedRankingsResponse, CrossoverEntity, EntityType } from '@sis/shared';
-import { statsRouter, parseWeekStart, parseSort, toEntityType } from './_shared.js';
+import { statsRouter, parseWeekStart, parseSort, parseRecordsUnique, toEntityType } from './_shared.js';
 
 const records = statsRouter();
 
@@ -15,13 +15,14 @@ records.get('/records', async (c) => {
   const userId = c.get('userId');
   const weekStart = parseWeekStart(c);
   const sort = parseSort(c);
+  const unique = parseRecordsUnique(c);
   const limit = Math.min(parseInt(c.req.query('limit') || String(RECORDS_LIMIT)), 50);
   const rawType = c.req.query('type');
   const type = rawType ? toEntityType(rawType) : undefined;
 
-  const cached = getCachedRecords(userId, weekStart, sort, limit, type);
+  const cached = getCachedRecords(userId, weekStart, sort, limit, type, unique);
   if (cached) return c.json(cached);
-  return c.json(await dbRead('getRecords', weekStart, sort, limit, type, userId));
+  return c.json(await dbRead('getRecords', weekStart, sort, limit, type, userId, unique));
 });
 
 records.get('/accolades/:type/:id', (c) => {

@@ -91,8 +91,8 @@ export const api = {
   chartPeaks: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', ids: string[], signal?: AbortSignal) =>
     apiFetch<Record<string, { peakRank: number; peakPeriod: string; peakPeriods: string[]; timesAtPeak: number; weeksOnChart: number; consecutiveWeeks: number; isReentry: boolean }>>('/stats/charts/peaks', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, signal),
 
-  records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists', signal?: AbortSignal) =>
-    apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, ...(type && { type }) }, signal),
+  records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists', unique = true, signal?: AbortSignal) =>
+    apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, unique: String(unique), ...(type && { type }) }, signal),
 
   playbackPlay: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/play'),
   playbackPause: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/pause'),

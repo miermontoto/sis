@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { api, createFetchController, getRankingMetric, getWeekStart, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, getWeekStart, getRecordsUnique, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { urlEnumParam } from '$lib/utils/query-state.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
@@ -17,13 +17,14 @@
 
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
+  let unique = $state(true);
   const tab = urlEnumParam<TabType>('tab', ['tracks', 'albums', 'artists'], 'tracks');
   let loadingTab = $state<string | null>(null);
 
   let cache = $state<Map<string, TabData>>(new Map());
 
   function cacheKey(tab: string) {
-    return `${weekStart}:${metric}:${tab}`;
+    return `${weekStart}:${metric}:${unique}:${tab}`;
   }
 
   let currentData = $derived(cache.get(cacheKey(tab.value)) ?? null);
@@ -37,7 +38,7 @@
     const signal = fetchCtrl.reset();
     loadingTab = tab;
     try {
-      const result = await api.records(weekStart, metric, tab, signal);
+      const result = await api.records(weekStart, metric, tab, unique, signal);
       if (signal.aborted) return;
       const data = result[tab];
       if (data) {
@@ -56,6 +57,7 @@
   onMount(() => {
     metric = getRankingMetric();
     weekStart = getWeekStart();
+    unique = getRecordsUnique();
   });
 
   const REC_TABS: TabType[] = ['tracks', 'albums', 'artists'];
@@ -79,6 +81,7 @@
   $effect(() => {
     void metric;
     void weekStart;
+    void unique;
     loadTab(tab.value);
   });
 

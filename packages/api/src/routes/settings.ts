@@ -10,11 +10,13 @@ import type { AppVariables } from '../app.js';
 
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyBiggestDebut', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyBiggestDebut', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack'] as const;
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
   weekStart: 'friday',
+  // records: un registro por entidad (true) vs permitir duplicados en peak week / longest run
+  recordsUnique: 'true',
   locale: 'auto',
   albumTrackDisplay: 'fill',
   albumShowDuration: 'true',
@@ -75,7 +77,7 @@ settings.put('/', async (c) => {
   }
 
   // recomputar records cache si cambiaron settings relevantes
-  if (body.weekStart !== undefined || body.rankingMetric !== undefined) {
+  if (body.weekStart !== undefined || body.rankingMetric !== undefined || body.recordsUnique !== undefined) {
     invalidateRecordsCache();
     try { computeAndCacheRecords(); } catch { /* se recomputa en el siguiente ciclo */ }
   }

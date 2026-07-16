@@ -10,6 +10,7 @@ interface SettingsData {
   rankingMetric: RankingMetric;
   rankChangeLookback: RankChangeLookback;
   weekStart: WeekStartOption;
+  recordsUnique: boolean;
   locale: LocaleSetting;
   albumTrackDisplay: AlbumTrackDisplay;
   albumShowDuration: boolean;
@@ -42,6 +43,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
   weekStart: 'friday',
+  // records únicos por entidad (true) vs permitir duplicados en peak week / longest run
+  recordsUnique: true,
   locale: 'auto',
   albumTrackDisplay: 'fill',
   albumShowDuration: true,
@@ -166,6 +169,7 @@ function withNotify<T>(setter: (v: T) => void) {
 export const [getRankingMetric, setRankingMetric] = stringSetting<RankingMetric>('rankingMetric', 'time');
 export const [getRankChangeLookback, setRankChangeLookback] = stringSetting<RankChangeLookback>('rankChangeLookback', 'disabled');
 export const [getWeekStart, setWeekStart] = stringSetting<WeekStartOption>('weekStart', 'friday');
+export const [getRecordsUnique, setRecordsUnique] = boolSetting('recordsUnique');
 export const [getRawLocale, setLocale] = stringSetting<LocaleSetting>('locale', 'auto');
 export const [getAlbumTrackDisplay, setAlbumTrackDisplay] = stringSetting<AlbumTrackDisplay>('albumTrackDisplay', 'fill');
 export const [getAlbumShowDuration, setAlbumShowDuration] = boolSetting('albumShowDuration');

@@ -37,7 +37,7 @@ const weekExpr = (ws: WeekStart) => periodExpr('week', ws);
 
 // --- queries de records semanales (peak/debuts/weeks-at-#1/etc.) ---
 
-function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): TrackRecords {
+function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number, unique: boolean): TrackRecords {
   const week = weekExpr(ws);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
@@ -67,7 +67,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     LEFT JOIN albums al ON al.spotify_id = t.album_id
   `) as any[];
 
-  const base = deriveRecords(ranked, limit);
+  const base = deriveRecords(ranked, limit, unique);
   // resuelve track merges: un track fusionado se cuenta bajo su id canónico
   // (nombre/artista/álbum del track target), no bajo su id de origen.
   base.inMostPlaylists = db.all(sql`
@@ -100,7 +100,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
   return result;
 }
 
-function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): AlbumRecords {
+function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number, unique: boolean): AlbumRecords {
   const week = weekExpr(ws);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
@@ -129,7 +129,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     JOIN albums al ON al.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit);
+  const base = deriveRecords(ranked, limit, unique);
   // resuelve merges (track y album) igual que el ranking semanal: agrupa por el
   // álbum canónico para no listar un álbum ya fusionado bajo su id de origen.
   // nombre/artista se toman del target (join por el eid resuelto).
@@ -172,7 +172,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
   return result;
 }
 
-function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number): ArtistRecordsData {
+function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number, unique: boolean): ArtistRecordsData {
   const week = weekExpr(ws);
   const uf = userFilter(userId);
   const metricDedup = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
@@ -205,7 +205,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     JOIN artists a ON a.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit);
+  const base = deriveRecords(ranked, limit, unique);
 
   // artistas con más tracks en #1 (por semana)
   const trackWeek = weekExpr(ws);
@@ -288,7 +288,9 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 
 // --- helper: derivar records desde filas de ranking semanal ---
 
-function deriveRecords(rows: any[], limit: number): EntityRecords {
+// unique=true: un registro por entidad (comportamiento por defecto). unique=false:
+// peak week y longest run permiten que la misma entidad aparezca varias veces.
+function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecords {
   // agrupar por entidad
   const byEntity = new Map<string, { rows: any[]; debutWeek: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null }>();
   for (const r of rows) {
@@ -298,11 +300,15 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
     byEntity.get(r.eid)!.rows.push(r);
   }
 
-  // 1. Peak week plays
+  // 1. Peak week plays. En modo unique, la mejor semana por entidad. Sin unique,
+  // cada (entidad, semana) compite por separado, así que una misma entidad puede
+  // aparecer varias veces con sus semanas más altas.
   const peakWeekPlays: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
-    const best = data.rows.reduce((a: any, b: any) => a.val > b.val ? a : b);
-    peakWeekPlays.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: best.val, week: best.w });
+    const weeks = unique ? [data.rows.reduce((a: any, b: any) => a.val > b.val ? a : b)] : data.rows;
+    for (const r of weeks) {
+      peakWeekPlays.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: r.val, week: r.w });
+    }
   }
   peakWeekPlays.sort((a, b) => b.value - a.value);
 
@@ -336,53 +342,54 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
   }
   mostWeeksInTop5.sort((a, b) => b.value - a.value);
 
-  // 5. Longest consecutive run on the charts (top 25)
+  // 5. Longest consecutive run on the charts (top 25). Recolectamos TODAS las
+  // rachas consecutivas de cada entidad; en modo unique nos quedamos con la más
+  // larga (a igualdad gana la racha en curso), sin unique emitimos cada racha por
+  // separado, así que una entidad con varias rachas aparece varias veces.
   const allWeekLabels = [...new Set(rows.map((r: any) => r.w as string))].sort();
   const longestChartRun: RecordEntry[] = [];
+  type Run = { streak: number; start: string; end: string; ongoing: boolean };
   for (const [eid, data] of byEntity) {
     const chartWeekSet = new Set(
       data.rows.filter((r: any) => r.rank <= CHART_SIZE).map((r: any) => r.w as string)
     );
     if (chartWeekSet.size === 0) continue;
 
-    let maxStreak = 0, curStreak = 0;
-    let endsAtLatest = false;
-    let bestStart = '', bestEnd = '';
-    let curStart = '';
-    for (const w of allWeekLabels) {
+    // recorrer la línea temporal completa acumulando rachas consecutivas
+    const runs: Run[] = [];
+    let curStreak = 0, curStart = '';
+    for (let i = 0; i < allWeekLabels.length; i++) {
+      const w = allWeekLabels[i];
       if (chartWeekSet.has(w)) {
         if (curStreak === 0) curStart = w;
         curStreak++;
-      } else {
-        if (curStreak > maxStreak) {
-          maxStreak = curStreak;
-          bestStart = curStart;
-          bestEnd = allWeekLabels[allWeekLabels.indexOf(w) - 1];
-          endsAtLatest = false;
-        }
+      } else if (curStreak > 0) {
+        runs.push({ streak: curStreak, start: curStart, end: allWeekLabels[i - 1], ongoing: false });
         curStreak = 0;
       }
     }
-    if (curStreak > maxStreak) {
-      maxStreak = curStreak;
-      bestStart = curStart;
-      bestEnd = allWeekLabels[allWeekLabels.length - 1];
-      endsAtLatest = true;
-    } else if (curStreak === maxStreak && curStreak > 0) {
-      bestStart = curStart;
-      bestEnd = allWeekLabels[allWeekLabels.length - 1];
-      endsAtLatest = true;
+    if (curStreak > 0) {
+      runs.push({ streak: curStreak, start: curStart, end: allWeekLabels[allWeekLabels.length - 1], ongoing: true });
     }
 
-    if (maxStreak > 0) {
-      longestChartRun.push({
-        entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName,
-        value: maxStreak,
-        week: endsAtLatest ? 'active' : null,
-        date: bestStart,
-        endDate: bestEnd,
-        ongoing: endsAtLatest,
-      });
+    const toEntry = (run: Run): RecordEntry => ({
+      entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName,
+      value: run.streak,
+      week: run.ongoing ? 'active' : null,
+      date: run.start,
+      endDate: run.end,
+      ongoing: run.ongoing,
+    });
+
+    if (unique) {
+      // mejor racha: la más larga; a igualdad, gana la que sigue en curso
+      let best: Run | null = null;
+      for (const run of runs) {
+        if (!best || run.streak > best.streak || (run.streak === best.streak && run.ongoing)) best = run;
+      }
+      if (best) longestChartRun.push(toEntry(best));
+    } else {
+      for (const run of runs) longestChartRun.push(toEntry(run));
     }
   }
   longestChartRun.sort((a, b) => b.value - a.value);
@@ -408,13 +415,13 @@ function deriveRecords(rows: any[], limit: number): EntityRecords {
 
 export type EntityTypeFilter = EntityType;
 
-export function getRecords(db: Db, weekStart: WeekStart = 'monday', sort: Sort = 'time', limit = 10, type: EntityTypeFilter | undefined, userId: number): Partial<RecordsResponse> {
-  if (type === 'track') return { tracks: getTrackRecords(db, weekStart, sort, limit, userId) };
-  if (type === 'album') return { albums: getAlbumRecords(db, weekStart, sort, limit, userId) };
-  if (type === 'artist') return { artists: getArtistRecords(db, weekStart, sort, limit, userId) };
+export function getRecords(db: Db, weekStart: WeekStart = 'monday', sort: Sort = 'time', limit = 10, type: EntityTypeFilter | undefined, userId: number, unique = true): Partial<RecordsResponse> {
+  if (type === 'track') return { tracks: getTrackRecords(db, weekStart, sort, limit, userId, unique) };
+  if (type === 'album') return { albums: getAlbumRecords(db, weekStart, sort, limit, userId, unique) };
+  if (type === 'artist') return { artists: getArtistRecords(db, weekStart, sort, limit, userId, unique) };
   return {
-    tracks: getTrackRecords(db, weekStart, sort, limit, userId),
-    albums: getAlbumRecords(db, weekStart, sort, limit, userId),
-    artists: getArtistRecords(db, weekStart, sort, limit, userId),
+    tracks: getTrackRecords(db, weekStart, sort, limit, userId, unique),
+    albums: getAlbumRecords(db, weekStart, sort, limit, userId, unique),
+    artists: getArtistRecords(db, weekStart, sort, limit, userId, unique),
   };
 }
