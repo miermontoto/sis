@@ -3,8 +3,8 @@
   import { page } from '$app/state';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import type { LastfmStatus } from '$lib/api';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse, type ShareLink, type TimeRange } from '$lib/api';
-  import { formatNumber, formatShortDate } from '$lib/utils/format';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
   import IconCheck from '$lib/icons/IconCheck.svelte';
@@ -72,48 +72,6 @@
     } finally {
       notifBusy = false;
     }
-  }
-
-  // share links
-  let shareLinks = $state<ShareLink[]>([]);
-  let shareCreating = $state(false);
-  let shareNewRange = $state<TimeRange | 'free'>('free');
-  let shareCopied = $state<string | null>(null);
-
-  const SHARE_RANGE_OPTIONS: { key: TimeRange | 'free'; label: string }[] = [
-    { key: 'free', label: 'Any' },
-    { key: 'week', label: '7D' },
-    { key: 'month', label: '30D' },
-    { key: 'year', label: '1Y' },
-    { key: 'all', label: 'All' },
-  ];
-
-  async function createShareLink() {
-    if (shareCreating) return;
-    shareCreating = true;
-    try {
-      const link = await api.createShareLink(shareNewRange === 'free' ? {} : { range: shareNewRange });
-      shareLinks = [link, ...shareLinks];
-    } catch {
-      // silencioso: el botón vuelve a estar disponible
-    } finally {
-      shareCreating = false;
-    }
-  }
-
-  async function copyShareLink(link: ShareLink) {
-    try {
-      await navigator.clipboard.writeText(link.url);
-      shareCopied = link.token;
-      setTimeout(() => { if (shareCopied === link.token) shareCopied = null; }, 1500);
-    } catch {}
-  }
-
-  async function revokeShareLink(token: string) {
-    try {
-      await api.revokeShareLink(token);
-      shareLinks = shareLinks.filter(l => l.token !== token);
-    } catch {}
   }
 
   // last.fm: estado de la conexión + backfill
@@ -226,7 +184,6 @@
         api.me(),
       ]);
       api.listMerges().then(m => { mergeCount = m.length; }).catch(() => {});
-      api.listShareLinks().then(l => { shareLinks = l.filter(s => !s.revokedAt); }).catch(() => {});
       refreshLastfm();
     } catch (err: any) {
       error = err.message || 'Failed to load settings';
@@ -477,40 +434,6 @@
           </div>
         </div>
       </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Share links</div>
-          <div class="pref-desc">Public links to a live snapshot of your profile. Anyone with the link can view it, even if your profile is hidden.</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            {#each SHARE_RANGE_OPTIONS as opt}
-              <button class="segmented-btn" class:segmented-active={shareNewRange === opt.key} onclick={() => { shareNewRange = opt.key; }}>{opt.label}</button>
-            {/each}
-          </div>
-          <button class="action-btn" disabled={shareCreating} onclick={createShareLink}>Create link</button>
-        </div>
-      </div>
-      {#if shareLinks.length > 0}
-        <div class="share-links-list">
-          {#each shareLinks as link (link.token)}
-            <div class="share-link-row">
-              <div class="share-link-info">
-                <span class="share-link-url">{link.url}</span>
-                <span class="share-link-meta">
-                  {link.range ? `locked to ${link.range}` : 'any range'}
-                  · created {formatShortDate(link.createdAt)}
-                  {#if link.lastAccessedAt}· last viewed {formatShortDate(link.lastAccessedAt)}{/if}
-                </span>
-              </div>
-              <div class="share-link-actions">
-                <button class="action-btn" onclick={() => copyShareLink(link)}>{shareCopied === link.token ? 'Copied!' : 'Copy'}</button>
-                <button class="action-btn action-btn--danger" onclick={() => revokeShareLink(link.token)}>Revoke</button>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
     </div>
 
     <div class="prefs-subtitle">Rankings & Records</div>
@@ -973,50 +896,6 @@
     border-color: #e5484d;
     color: #e5484d;
     background: transparent;
-  }
-
-  .share-links-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.5rem 0 0.75rem;
-  }
-
-  .share-link-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.6rem 0.85rem;
-  }
-
-  .share-link-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    min-width: 0;
-  }
-
-  .share-link-url {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .share-link-meta {
-    font-size: 0.68rem;
-    color: var(--text-muted);
-  }
-
-  .share-link-actions {
-    display: flex;
-    gap: 0.4rem;
-    flex-shrink: 0;
   }
 
   .file-input-btn {
