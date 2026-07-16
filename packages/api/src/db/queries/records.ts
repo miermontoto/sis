@@ -68,17 +68,20 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
   `) as any[];
 
   const base = deriveRecords(ranked, limit);
+  // resuelve track merges: un track fusionado se cuenta bajo su id canónico
+  // (nombre/artista/álbum del track target), no bajo su id de origen.
   base.inMostPlaylists = db.all(sql`
-    SELECT spt.track_id as entityId, t.name, al.image_url as imageUrl,
-           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = spt.track_id AND ta.position = 0 LIMIT 1) as artistId,
+    SELECT COALESCE(mr_track.target_id, spt.track_id) as entityId, t.name, al.image_url as imageUrl,
+           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistId,
            (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE ta.track_id = spt.track_id AND ta.position = 0 LIMIT 1) as artistName,
+            WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistName,
            COUNT(DISTINCT spt.playlist_id) as value
     FROM spotify_playlist_tracks spt
     JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-    JOIN tracks t ON t.spotify_id = spt.track_id
+    LEFT JOIN merge_rules mr_track ON mr_track.entity_type = 'track' AND mr_track.source_id = spt.track_id AND mr_track.user_id = ${userId}
+    JOIN tracks t ON t.spotify_id = COALESCE(mr_track.target_id, spt.track_id)
     LEFT JOIN albums al ON al.spotify_id = t.album_id
-    GROUP BY spt.track_id
+    GROUP BY COALESCE(mr_track.target_id, spt.track_id)
     HAVING value > 1
     ORDER BY value DESC
     LIMIT ${limit}
@@ -127,19 +130,31 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
   `) as any[];
 
   const base = deriveRecords(ranked, limit);
+  // resuelve merges (track y album) igual que el ranking semanal: agrupa por el
+  // álbum canónico para no listar un álbum ya fusionado bajo su id de origen.
+  // nombre/artista se toman del target (join por el eid resuelto).
   base.inMostPlaylists = db.all(sql`
-    SELECT t.album_id as entityId, al.name, al.image_url as imageUrl,
-           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistId,
-           (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistName,
-           COUNT(DISTINCT spt.playlist_id) as value
-    FROM spotify_playlist_tracks spt
-    JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-    JOIN tracks t ON t.spotify_id = spt.track_id
-    LEFT JOIN albums al ON al.spotify_id = t.album_id
-    WHERE t.album_id IS NOT NULL
-    GROUP BY t.album_id
-    HAVING value > 1
+    WITH album_playlists AS (
+      SELECT ${resolvedEntityId('album', userId)} as eid,
+             COUNT(DISTINCT spt.playlist_id) as value
+      FROM spotify_playlist_tracks spt
+      JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+      LEFT JOIN merge_rules mr_track ON mr_track.entity_type = 'track' AND mr_track.source_id = spt.track_id AND mr_track.user_id = ${userId}
+      JOIN tracks t ON t.spotify_id = COALESCE(mr_track.target_id, spt.track_id)
+      ${entityMergeJoin('album', userId)}
+      WHERE t.album_id IS NOT NULL
+      GROUP BY eid
+      HAVING value > 1
+    )
+    SELECT ap.eid as entityId, al.name, al.image_url as imageUrl,
+           (SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+            WHERE t2.album_id = ap.eid LIMIT 1) as artistId,
+           (SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+            JOIN artists a ON a.spotify_id = ta.artist_id
+            WHERE t2.album_id = ap.eid LIMIT 1) as artistName,
+           ap.value as value
+    FROM album_playlists ap
+    JOIN albums al ON al.spotify_id = ap.eid
     ORDER BY value DESC
     LIMIT ${limit}
   `) as RecordEntry[];
