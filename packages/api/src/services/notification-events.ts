@@ -225,9 +225,15 @@ function emitChartClosing(
 
   const period = PERIOD_PREFIX_WEEK + closedLabel;
 
+  // top-N que muestra el recap. sirve además para deduplicar: number_one y
+  // biggest_debut se omiten cuando el recap se envía y su entidad ya aparece aquí,
+  // porque entonces el recap ya la cubre (evita notificaciones redundantes a la vez).
+  const recapEnabled = boolPref(settings, PREF_CHART_CLOSINGS, true);
+  const top = entries.slice(0, NOTIFY_CHART_TOP_N);
+  const topIds = new Set(top.map(e => e.entityId));
+
   // chart_closing: recap del top-N (bypassa throttle)
-  if (boolPref(settings, PREF_CHART_CLOSINGS, true)) {
-    const top = entries.slice(0, NOTIFY_CHART_TOP_N);
+  if (recapEnabled) {
     const msg = chartClosingMessage(locale, top);
     const payload: PushPayload = {
       title: msg.title,
@@ -237,10 +243,12 @@ function emitChartClosing(
     dispatchEvent(userId, EVENT_CHART_CLOSING, EMPTY_ENTITY, period, null, payload);
   }
 
-  // number_one: la entrada rank 1 que no era #1 la semana anterior (nuevo líder)
+  // number_one: la entrada rank 1 que no era #1 la semana anterior (nuevo líder).
+  // se omite cuando el recap se envía: el #1 siempre encabeza su top-N, así que
+  // "nuevo número 1" sería redundante con el recap que ya lo muestra primero.
   if (boolPref(settings, PREF_NUMBER_ONE, true)) {
     const top1 = entries.find(e => e.rank === 1);
-    if (top1 && top1.previousRank !== 1) {
+    if (top1 && top1.previousRank !== 1 && !(recapEnabled && topIds.has(top1.entityId))) {
       const msg = numberOneMessage(locale, top1);
       const payload: PushPayload = {
         title: msg.title,
@@ -257,10 +265,12 @@ function emitChartClosing(
     }
   }
 
-  // biggest_debut: la entrada isNew mejor rankeada (entries ya vienen en orden de rank)
+  // biggest_debut: la entrada isNew mejor rankeada (entries ya vienen en orden de rank).
+  // se omite solo si el recap se envía Y el debut ya aparece en su top-N (entonces el
+  // recap lo cubre); si el debut cae fuera del top-N mostrado, sigue siendo info nueva.
   if (boolPref(settings, PREF_BIGGEST_DEBUT, true)) {
     const debut = entries.find(e => e.isNew);
-    if (debut) {
+    if (debut && !(recapEnabled && topIds.has(debut.entityId))) {
       const msg = biggestDebutMessage(locale, debut);
       const payload: PushPayload = {
         title: msg.title,
