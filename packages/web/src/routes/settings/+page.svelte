@@ -2,8 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/state';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
+  import IconSpotify from '$lib/icons/IconSpotify.svelte';
   import type { LastfmStatus } from '$lib/api';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type StreaksData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -13,7 +14,6 @@
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
 
   let health = $state<HealthData | null>(null);
-  let streaks = $state<StreaksData | null>(null);
   let me = $state<MeResponse | null>(null);
   let mergeCount = $state(0);
   let loading = $state(true);
@@ -178,9 +178,8 @@
     notifChartClosingsPref = getNotifyChartClosings();
     notifBiggestDebutPref = getNotifyBiggestDebut();
     try {
-      [health, streaks, me] = await Promise.all([
+      [health, me] = await Promise.all([
         api.health(),
-        api.streaks(),
         api.me(),
       ]);
       api.listMerges().then(m => { mergeCount = m.length; }).catch(() => {});
@@ -207,29 +206,6 @@
     <p style="color: var(--text-muted); margin-top: 0.5rem;">Make sure the API server is running on port 3000.</p>
   </div>
 {:else}
-  <div class="stats-grid" style="margin-bottom: 1.5rem;">
-    <div class="card stat-card">
-      <div class="stat-value" style="color: {health?.status === 'ok' ? 'var(--accent)' : 'var(--danger)'};">
-        {health?.status === 'ok' ? '✓' : '✗'}
-      </div>
-      <div class="stat-label">Server</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value" style="color: {health?.authenticated ? 'var(--accent)' : 'var(--text-muted)'};">
-        {health?.authenticated ? '✓' : '✗'}
-      </div>
-      <div class="stat-label">Spotify</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatNumber(health?.totalPlays ?? 0)}</div>
-      <div class="stat-label">Total plays</div>
-    </div>
-    <div class="card stat-card">
-      <div class="stat-value">{streaks?.totalDays ?? 0}</div>
-      <div class="stat-label">Active days</div>
-    </div>
-  </div>
-
   <div class="card prefs-card">
     <h3 class="prefs-title">Preferences</h3>
 
@@ -559,11 +535,28 @@
     </div>
   </div>
 
-  {#if lastfmStatus && (lastfmStatus.configured || lastfmStatus.account)}
-    <div class="card section-card">
-      <h3 class="section-card-title">Connections</h3>
-      <div class="section-list">
-        <div class="pref-row">
+  <div class="card section-card">
+    <h3 class="section-card-title">Connections</h3>
+    <div class="section-list">
+      <div class="pref-row">
+        <div class="pref-info">
+          <div class="pref-label lastfm-label"><IconSpotify size={16} /> Spotify</div>
+          <div class="pref-desc">
+            {#if me?.displayName || me?.spotifyId}
+              Connected as <strong>{me.displayName ?? me.spotifyId}</strong> — your primary listening source, polled continuously
+            {:else}
+              Your primary listening source, polled continuously
+            {/if}
+          </div>
+        </div>
+        <div class="pref-control lastfm-control">
+          {#if health && !health.authenticated}
+            <a href="/auth/login?returnTo=%2Fsettings" class="action-btn">Reconnect</a>
+          {/if}
+        </div>
+      </div>
+      {#if lastfmStatus && (lastfmStatus.configured || lastfmStatus.account)}
+        <div class="pref-row row-border">
           <div class="pref-info">
             <div class="pref-label lastfm-label"><IconLastfm size={16} /> Last.fm</div>
             <div class="pref-desc">
@@ -603,9 +596,9 @@
         {#if lastfmError}
           <div class="import-error">{lastfmError}</div>
         {/if}
-      </div>
+      {/if}
     </div>
-  {/if}
+  </div>
 
   <div class="card section-card">
     <h3 class="section-card-title">Data</h3>
