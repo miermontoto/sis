@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w30b';
+export const VERSION = '26w30c';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -80,6 +80,9 @@ export const LASTFM_ENRICH_MAX_TAGS = 5;
 
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;
+
+// nº máximo de scrobbles manuales aceptados en una sola petición (POST /stats/history)
+export const MANUAL_SCROBBLE_MAX = 500;
 
 // intervalo de refresco de metadata de entidades (24h)
 export const METADATA_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;

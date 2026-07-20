@@ -156,6 +156,7 @@ export function invalidateCache(pathPrefix?: string): void {
 // `/` (último fallback para POST/PUT/DELETE desconocidos) limpia todo.
 const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: string[] }> = [
   { method: 'POST',   prefix: '/import',                    clear: ['/stats/', '/now-playing/friends'] },
+  { method: 'POST',   prefix: '/stats/history',             clear: ['/stats/', '/now-playing/friends'] },
   { method: 'DELETE', prefix: '/stats/history',             clear: ['/stats/'] },
   { method: 'POST',   prefix: '/admin/merge-album',         clear: ['/stats/', '/playlists/'] },
   { method: 'POST',   prefix: '/admin/batch-merge-tracks',  clear: ['/stats/', '/playlists/'] },

@@ -48,6 +48,10 @@ export const api = {
   deleteHistory: (ids: number[]) =>
     apiMutate<{ deleted: number }>('DELETE', '/stats/history', { ids }),
 
+  // scrobbles manuales: un track o un álbum entero (varios en un solo request)
+  addScrobbles: (scrobbles: { trackId: string; playedAt: string; durationPlayedMs?: number }[]) =>
+    apiMutate<{ inserted: number; total: number; duplicates: number }>('POST', '/stats/history', { scrobbles }),
+
   listeningTime: (range = 'month', granularity = 'day', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<ListeningTimeItem[]>('/stats/listening-time', { ...rangeParams(range, dates), granularity }, signal),
 

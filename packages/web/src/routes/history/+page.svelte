@@ -7,6 +7,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
+  import AddScrobbleModal from '$lib/components/AddScrobbleModal.svelte';
 
   let items = $state<HistoryItem[]>([]);
   let currentPage = $state(1);
@@ -24,6 +25,9 @@
 
   let hasFilters = $derived(!!dateFilter || !!albumFilter || !!trackFilter || !!artistFilter);
   let filterLabel = $derived(trackName ?? albumName ?? artistName ?? null);
+
+  // añadir scrobbles manuales
+  let showAdd = $state(false);
 
   // edit mode
   let editMode = $state(false);
@@ -307,6 +311,9 @@
     <button class="edit-toggle" class:edit-toggle--active={editMode} onclick={toggleEdit}>
       {editMode ? 'Done' : 'Edit'}
     </button>
+    {#if !editMode}
+      <button class="edit-toggle" onclick={() => showAdd = true}>+ Add</button>
+    {/if}
   </div>
   {#if editMode && items.length > 0}
     <div class="controls-right">
@@ -412,6 +419,8 @@
     {/if}
   </div>
 {/if}
+
+<AddScrobbleModal bind:show={showAdd} onAdded={reload} />
 
 <style>
   .history-controls {

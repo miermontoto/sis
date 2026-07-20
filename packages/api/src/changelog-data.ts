@@ -7,6 +7,14 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w30c',
+    publishedAt: '2026-07-20',
+    title: 'Manual scrobbles',
+    changes: [
+      { type: 'feature', es: 'Añade scrobbles manuales desde el historial: registra a mano la escucha de un track o de un álbum entero, con la fecha y hora que elijas', en: 'Add manual scrobbles from your history: hand-log a play of a track or a whole album, at the date and time you choose' },
+    ],
+  },
+  {
     version: '26w29v',
     publishedAt: '2026-07-15',
     title: 'Last.fm parity',
