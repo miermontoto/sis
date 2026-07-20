@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries } from '$lib/utils/chart';
+  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
@@ -14,6 +14,9 @@
     metric: RankingMetric;
     height?: string;
   } = $props();
+
+  // ancho medido de la card: la granularidad se adapta a él (ver fitSeries)
+  let containerWidth = $state(0);
 
   function fillGaps(data: typeof series): typeof series {
     if (data.length < 2) return data;
@@ -59,9 +62,11 @@
     return filled;
   }
 
+  // rellenar huecos a la granularidad nativa y luego agregar al ancho disponible
+  let filled = $derived(fitSeries(fillGaps(series), containerWidth));
+
   let chartOption = $derived.by<EChartsOption>(() => {
     if (!series.length) return {};
-    const filled = fillGaps(series);
     const isPlays = metric === 'plays';
     const values = filled.map(d => isPlays ? d.play_count : d.total_ms);
     let acc = 0;
@@ -84,7 +89,7 @@
 </script>
 
 {#if series.length > 1}
-  <div class="card chart-card">
+  <div class="card chart-card" bind:clientWidth={containerWidth}>
     <BaseChart option={chartOption} {height} />
   </div>
 {/if}

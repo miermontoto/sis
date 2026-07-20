@@ -53,6 +53,75 @@ export function secondaryValueAxis(overrides?: Record<string, any>): EChartsOpti
 
 // --- Series style helpers ---
 
+// --- Adaptación de densidad temporal ---
+// el ancho de barra de un chart de categorías es plotWidth/N: con series largas
+// (range=all → ~130 meses) en viewports estrechos las barras quedan ilegibles.
+// en vez de comprimir (o scrollear), se agrega la serie a una granularidad más
+// gruesa (mes → trimestre → año) hasta que cada barra tiene un slot legible.
+
+export interface SeriesPoint { period: string; play_count: number; total_ms: number }
+
+// suelo de ancho por barra (px) por debajo del cual se considera ilegible
+export const MIN_BAR_SLOT_PX = 10;
+
+// lunes ISO de una semana YYYY-Www (W01 contiene el 4 de enero)
+function isoWeekMonday(year: number, week: number): Date {
+  const jan4 = new Date(year, 0, 4);
+  const dayOfWeek = jan4.getDay() || 7;
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
+  return monday;
+}
+
+// normaliza cualquier periodo (día/semana/mes) a su mes calendario YYYY-MM
+export function periodToMonth(period: string): string {
+  const w = period.match(/^(\d{4})-W(\d{2})$/);
+  if (w) {
+    const d = isoWeekMonday(parseInt(w[1]), parseInt(w[2]));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return period.slice(0, 7);
+}
+
+export function periodToQuarter(period: string): string {
+  const m = periodToMonth(period);
+  const q = Math.floor((parseInt(m.slice(5, 7)) - 1) / 3) + 1;
+  return `${m.slice(0, 4)}-Q${q}`;
+}
+
+export function periodToYear(period: string): string {
+  return period.slice(0, 4);
+}
+
+// agrupa la serie por clave calendario preservando el orden de aparición y
+// sumando plays/ms (no pierde datos, solo baja la resolución)
+export function aggregateSeries(data: SeriesPoint[], keyFn: (p: string) => string): SeriesPoint[] {
+  const buckets = new Map<string, SeriesPoint>();
+  for (const d of data) {
+    const key = keyFn(d.period);
+    const b = buckets.get(key);
+    if (b) { b.play_count += d.play_count; b.total_ms += d.total_ms; }
+    else buckets.set(key, { period: key, play_count: d.play_count, total_ms: d.total_ms });
+  }
+  return [...buckets.values()];
+}
+
+// elige la granularidad más fina cuyas barras entran con al menos MIN_BAR_SLOT_PX
+// en containerWidth; devuelve la serie tal cual si ya cabe o si aún no se ha
+// medido el ancho (containerWidth 0). así el nivel de detalle depende del ancho
+// disponible y no comprime nunca las barras por debajo del suelo legible.
+export function fitSeries(data: SeriesPoint[], containerWidth: number): SeriesPoint[] {
+  if (!containerWidth || data.length === 0) return data;
+  const maxBars = Math.floor(containerWidth / MIN_BAR_SLOT_PX);
+  if (data.length <= maxBars) return data;
+  let best = data;
+  for (const keyFn of [periodToMonth, periodToQuarter, periodToYear]) {
+    best = aggregateSeries(data, keyFn);
+    if (best.length <= maxBars) break;
+  }
+  return best;
+}
+
 export function barSeries(data: number[], overrides?: Record<string, any>) {
   return {
     type: 'bar' as const,
