@@ -210,7 +210,7 @@ export function zoomX(): NonNullable<EChartsOption['dataZoom']> {
 export interface ChartEvent { date: string; label: string; kind: 'album' | 'single'; imageUrl?: string | null }
 
 // tamaño de las carátulas que marcan eventos y carátulas máximas por bucket
-export const EVENT_COVER_PX = 16;
+export const EVENT_COVER_PX = 22;
 const EVENT_MAX_COVERS = 3;
 // margen superior del grid necesario para que las carátulas no se recorten
 export const EVENT_GRID_TOP = EVENT_COVER_PX + 12;
