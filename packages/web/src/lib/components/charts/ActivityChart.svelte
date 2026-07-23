@@ -1,7 +1,9 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, EVENT_GRID_TOP, type ChartEvent } from '$lib/utils/chart';
+  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
+  import ReleaseRail from './ReleaseRail.svelte';
+  import type * as echarts from 'echarts/core';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
 
@@ -19,6 +21,7 @@
 
   // ancho medido de la card: la granularidad se adapta a él (ver fitSeries)
   let containerWidth = $state(0);
+  let chartInstance = $state<echarts.ECharts | null>(null);
 
   function fillGaps(data: typeof series): typeof series {
     if (data.length < 2) return data;
@@ -66,6 +69,7 @@
 
   // rellenar huecos a la granularidad nativa y luego agregar al ancho disponible
   let filled = $derived(fitSeries(fillGaps(series), containerWidth));
+  let periodKeys = $derived(filled.map(d => d.period));
 
   let chartOption = $derived.by<EChartsOption>(() => {
     if (!series.length) return {};
@@ -74,12 +78,11 @@
     let acc = 0;
     const cumulative = values.map(v => acc += v);
     const durFmt = isPlays ? undefined : (v: number) => formatDuration(v);
-    const markLine = eventsMarkLine(events, filled.map(d => d.period));
+    const markLine = eventsMarkLine(events, periodKeys);
     return {
-      // margen superior extra cuando hay carátulas de eventos encima del grid
-      grid: dualAxisGrid(markLine ? { top: EVENT_GRID_TOP } : undefined),
+      grid: dualAxisGrid(),
       tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const pp = Array.isArray(params) ? params : [params]; return pp.map((p: any) => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:#6a7a7a">${pp[0].name}</span>`; } },
-      xAxis: categoryAxis(filled.map(d => d.period)),
+      xAxis: categoryAxis(periodKeys),
       yAxis: [
         valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: durFmt } }),
         secondaryValueAxis({ axisLabel: { color: '#4a5a5a', fontSize: 11, formatter: durFmt } }),
@@ -94,7 +97,8 @@
 
 {#if series.length > 1}
   <div class="card chart-card" bind:clientWidth={containerWidth}>
-    <BaseChart option={chartOption} {height} />
+    <ReleaseRail instance={chartInstance} {events} periods={periodKeys} />
+    <BaseChart option={chartOption} {height} bind:instance={chartInstance} />
   </div>
 {/if}
 

@@ -55,10 +55,10 @@
     if (!data) return [];
     const out: ChartEvent[] = [];
     if (data.album.releaseDate) {
-      out.push({ date: data.album.releaseDate, label: data.album.name, kind: data.album.albumType === 'single' ? 'single' : 'album', imageUrl: data.album.imageUrl });
+      out.push({ id: data.album.id, date: data.album.releaseDate, label: data.album.name, kind: data.album.albumType === 'single' ? 'single' : 'album', imageUrl: data.album.imageUrl });
     }
     for (const s of data.relatedSingles ?? []) {
-      out.push({ date: s.date, label: s.name, kind: 'single', imageUrl: s.imageUrl });
+      out.push({ id: s.id, date: s.date, label: s.name, kind: 'single', imageUrl: s.imageUrl });
     }
     return out;
   });

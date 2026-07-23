@@ -46,6 +46,7 @@
 
   // lanzamientos del artista como eventos de las gráficas (singles más tenues que álbumes)
   let releaseEvents = $derived<ChartEvent[]>((data?.releases ?? []).map(r => ({
+    id: r.id,
     date: r.date,
     label: r.name,
     kind: r.albumType === 'single' ? 'single' as const : 'album' as const,

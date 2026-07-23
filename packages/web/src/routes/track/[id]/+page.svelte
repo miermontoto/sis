@@ -58,7 +58,7 @@
     const push = (id: string, name: string, date: string | null | undefined, type: string | null | undefined, imageUrl: string | null | undefined) => {
       if (!date || seen.has(id)) return;
       seen.add(id);
-      out.push({ date, label: name, kind: type === 'single' ? 'single' : 'album', imageUrl });
+      out.push({ id, date, label: name, kind: type === 'single' ? 'single' : 'album', imageUrl });
     };
     if (data.track.album) push(data.track.album.id, data.track.album.name, data.track.album.releaseDate, data.track.album.albumType, data.track.album.imageUrl);
     for (const b of data.albumBreakdown) push(b.albumId, b.album.name, b.album.releaseDate, b.album.albumType, b.album.imageUrl);

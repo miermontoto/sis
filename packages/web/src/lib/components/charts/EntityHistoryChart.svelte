@@ -1,7 +1,9 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, EVENT_GRID_TOP, type ChartEvent } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
+  import ReleaseRail from './ReleaseRail.svelte';
+  import type * as echarts from 'echarts/core';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
 
@@ -59,6 +61,12 @@
   // año en vista de meses: el que el usuario drilleó, o el único año si solo hay uno (sin volver)
   let effectiveYear = $derived(drillYear ?? (yearTotals.length === 1 ? yearTotals[0].year : null));
   let userDrilled = $derived(drillYear !== null);
+  let chartInstance = $state<echarts.ECharts | null>(null);
+
+  // claves canónicas (YYYY o YYYY-MM) de los buckets mostrados, para mapear eventos a ellos
+  let periodKeys = $derived(effectiveYear
+    ? MONTHS.map((_, i) => `${effectiveYear}-${String(i + 1).padStart(2, '0')}`)
+    : yearTotals.map(y => y.year));
 
   let chartOption = $derived.by<EChartsOption>(() => {
     const isPlays = metric === 'plays';
@@ -68,24 +76,20 @@
     let labels: string[];
     let values: number[];
     let names: string[];
-    let periodKeys: string[]; // claves canónicas (YYYY o YYYY-MM) para mapear eventos a buckets
     if (effectiveYear) {
       const months = monthsOf(effectiveYear);
       labels = months.map(m => m.label);
       values = months.map(pick);
       names = months.map(m => `${m.label} ${effectiveYear}`);
-      periodKeys = MONTHS.map((_, i) => `${effectiveYear}-${String(i + 1).padStart(2, '0')}`);
     } else {
       labels = yearTotals.map(y => y.year);
       values = yearTotals.map(pick);
       names = labels;
-      periodKeys = labels;
     }
 
     const markLine = eventsMarkLine(events, periodKeys);
     return {
-      // margen superior extra cuando hay carátulas de eventos encima del grid
-      grid: markLine ? { ...GRID, top: EVENT_GRID_TOP } : GRID,
+      grid: GRID,
       tooltip: {
         ...TOOLTIP_BASE,
         formatter: (params: any) => {
@@ -116,7 +120,8 @@
         <button class="history-back" onclick={() => (drillYear = null)}>‹ all years</button>
       </div>
     {/if}
-    <BaseChart option={chartOption} {height} onclick={handleClick} replaceMerge={['xAxis', 'series']} />
+    <ReleaseRail instance={chartInstance} {events} periods={periodKeys} />
+    <BaseChart option={chartOption} {height} onclick={handleClick} replaceMerge={['xAxis', 'series']} bind:instance={chartInstance} />
   </div>
 {/if}
 
