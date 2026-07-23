@@ -68,3 +68,44 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
     ORDER BY ${sort === 'natural' ? sql`COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC` : sort === 'plays' ? sql`play_count DESC, COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC` : sql`total_ms DESC, COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC`}
   `) as { track_id: string; name: string; duration_ms: number; track_number: number | null; disc_number: number | null; play_count: number; total_ms: number }[];
 }
+
+/** Singles del mismo artista ligados a un álbum (los singles de adelanto son entidades aparte en
+ *  Spotify): se enlazan si el nombre del single o alguno de sus tracks coincide con un track del
+ *  álbum. Eventos de lanzamiento para las gráficas de detalle. */
+export function getAlbumRelatedSingles(db: Db, albumId: string, ids?: string[]) {
+  const albumIds = ids ?? [albumId];
+  const albumPlaceholders = sql.join(albumIds.map(id => sql`${id}`), sql`, `);
+
+  return db.all(sql`
+    WITH album_track_names AS (
+      SELECT DISTINCT lower(t.name) AS ln FROM tracks t WHERE t.album_id IN (${albumPlaceholders})
+    ),
+    album_artists AS (
+      SELECT DISTINCT ta.artist_id FROM tracks t
+      JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+      WHERE t.album_id IN (${albumPlaceholders})
+    )
+    SELECT DISTINCT s.spotify_id AS id, s.name, s.release_date AS date, s.image_url
+    FROM albums s
+    WHERE s.album_type = 'single' AND s.release_date IS NOT NULL
+      AND s.spotify_id NOT IN (${albumPlaceholders})
+      AND (
+        EXISTS (
+          SELECT 1 FROM tracks st
+          JOIN track_artists sta ON sta.track_id = st.spotify_id AND sta.position = 0
+          WHERE st.album_id = s.spotify_id AND sta.artist_id IN (SELECT artist_id FROM album_artists)
+        )
+        OR EXISTS (
+          SELECT 1 FROM json_each(s.artist_ids) je WHERE je.value IN (SELECT artist_id FROM album_artists)
+        )
+      )
+      AND (
+        lower(s.name) IN (SELECT ln FROM album_track_names)
+        OR EXISTS (
+          SELECT 1 FROM tracks st2 WHERE st2.album_id = s.spotify_id
+            AND lower(st2.name) IN (SELECT ln FROM album_track_names)
+        )
+      )
+    ORDER BY s.release_date
+  `) as { id: string; name: string; date: string; image_url: string | null }[];
+}

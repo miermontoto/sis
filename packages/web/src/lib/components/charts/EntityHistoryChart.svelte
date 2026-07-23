@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, EVENT_GRID_TOP, type ChartEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
@@ -82,8 +82,10 @@
       periodKeys = labels;
     }
 
+    const markLine = eventsMarkLine(events, periodKeys);
     return {
-      grid: GRID,
+      // margen superior extra cuando hay carátulas de eventos encima del grid
+      grid: markLine ? { ...GRID, top: EVENT_GRID_TOP } : GRID,
       tooltip: {
         ...TOOLTIP_BASE,
         formatter: (params: any) => {
@@ -95,7 +97,7 @@
       xAxis: categoryAxis(labels),
       yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: durFmt } }),
       // cursor pointer solo en vista de años (donde el click drillea)
-      series: [barSeries(values, { cursor: effectiveYear ? 'default' : 'pointer', markLine: eventsMarkLine(events, periodKeys) })],
+      series: [barSeries(values, { cursor: effectiveYear ? 'default' : 'pointer', markLine })],
     };
   });
 

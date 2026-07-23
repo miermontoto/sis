@@ -49,7 +49,7 @@ detail.get('/artist/:id', async (c) => {
     artist: { id: artist.spotify_id, name: artist.name, imageUrl: artist.image_url, genres: artist.genres },
     stats: statsRow,
     series,
-    releases: releasesRaw.map((r: any) => ({ id: r.id, name: r.name, date: r.date, albumType: r.album_type })),
+    releases: releasesRaw.map((r: any) => ({ id: r.id, name: r.name, date: r.date, albumType: r.album_type, imageUrl: r.image_url })),
     topTracks,
     topAlbums,
     recentPlays,
@@ -73,7 +73,7 @@ detail.get('/album/:id', async (c) => {
   const albumIds = await dbRead<string[]>('resolveEntityIds', 'album', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo, coversRaw] = await Promise.all([
+  const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo, coversRaw, singlesRaw] = await Promise.all([
     dbRead<any[]>('getAlbumArtists', id, albumIds),
     dbRead<any>('getEntityStats', 'album', id, rangeStart, rangeEnd, albumIds, userId),
     dbRead<any>('getEntitySeries', 'album', id, rangeStart, rangeKey, albumIds, rangeEnd, customDays, userId),
@@ -82,6 +82,7 @@ detail.get('/album/:id', async (c) => {
     dbRead<any>('getAlbumPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'album', id),
     dbRead<any[]>('getAlbumCovers', id),
+    dbRead<any[]>('getAlbumRelatedSingles', id, albumIds),
   ]);
 
   // artistas reales por track (incluye secundarios/featured) — el álbum comparte cover pero cada track
@@ -119,6 +120,7 @@ detail.get('/album/:id', async (c) => {
     stats: statsRow,
     series,
     tracks: tracksResult,
+    relatedSingles: singlesRaw.map((r: any) => ({ id: r.id, name: r.name, date: r.date, albumType: 'single', imageUrl: r.image_url })),
     recentPlays,
     ...formatMerge(mergeInfo),
     playlists,

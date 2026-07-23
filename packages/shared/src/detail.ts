@@ -16,6 +16,7 @@ export interface ReleaseEvent {
   name: string;
   date: string;
   albumType: string | null;
+  imageUrl: string | null;
 }
 
 export interface ArtistDetail {
@@ -44,6 +45,8 @@ export interface AlbumDetail {
   series: { period: string; play_count: number; total_ms: number }[];
   tracks: TopTrackItem[];
   recentPlays: HistoryItem[];
+  // singles del mismo artista ligados al álbum (adelantos), como eventos de las gráficas
+  relatedSingles: ReleaseEvent[];
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
   covers?: AlbumCover[];

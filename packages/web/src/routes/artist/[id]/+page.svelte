@@ -49,6 +49,7 @@
     date: r.date,
     label: r.name,
     kind: r.albumType === 'single' ? 'single' as const : 'album' as const,
+    imageUrl: r.imageUrl,
   })));
 
   async function loadData(id: string) {

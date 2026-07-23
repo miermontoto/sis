@@ -207,7 +207,13 @@ export function zoomX(): NonNullable<EChartsOption['dataZoom']> {
 // --- Eventos de lanzamiento (release markers) ---
 
 // evento puntual (fecha de lanzamiento de un álbum/single) a marcar sobre una gráfica
-export interface ChartEvent { date: string; label: string; kind: 'album' | 'single' }
+export interface ChartEvent { date: string; label: string; kind: 'album' | 'single'; imageUrl?: string | null }
+
+// tamaño de las carátulas que marcan eventos y carátulas máximas por bucket
+export const EVENT_COVER_PX = 16;
+const EVENT_MAX_COVERS = 3;
+// margen superior del grid necesario para que las carátulas no se recorten
+export const EVENT_GRID_TOP = EVENT_COVER_PX + 12;
 
 // réplica del %W de strftime en SQLite (semana con lunes como primer día, contada
 // desde el primer lunes del año; los días anteriores caen en W00) — debe coincidir
@@ -232,7 +238,8 @@ export function dateToPeriodKey(date: string, sampleFormat: string): string | nu
 
 // construye el markLine de eventos para una serie de barras sobre eje de categorías:
 // mapea cada evento al bucket del periodo mostrado y agrupa los que caen en el mismo.
-// álbumes con línea más visible que singles; el nombre aparece al hacer hover.
+// álbumes con línea más visible que singles; encima de cada línea se muestran las
+// carátulas (sin rotar, hasta EVENT_MAX_COVERS) y el nombre aparece al hacer hover.
 export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
   if (!events.length || !periods.length) return undefined;
   const byIdx = new Map<number, ChartEvent[]>();
@@ -247,22 +254,40 @@ export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
     animation: false,
     data: [...byIdx.entries()].map(([idx, evs]) => {
       const hasAlbum = evs.some(e => e.kind === 'album');
+      // álbumes primero para que su carátula gane el hueco limitado del bucket
+      const covers = [...evs].sort((a, b) => Number(b.kind === 'album') - Number(a.kind === 'album'))
+        .filter(e => e.imageUrl).slice(0, EVENT_MAX_COVERS);
+      const rich = Object.fromEntries(covers.map((e, i) => [`c${i}`, {
+        backgroundColor: { image: e.imageUrl! },
+        width: EVENT_COVER_PX,
+        height: EVENT_COVER_PX,
+      }]));
       return {
         xAxis: idx,
         lineStyle: { color: hasAlbum ? 'rgba(224,232,232,0.5)' : 'rgba(224,232,232,0.18)', type: 'dashed' as const, width: 1 },
         label: {
-          show: false,
-          formatter: () => evs.map(e => e.label).join('\n'),
-          position: 'insideEndTop' as const,
-          color: '#e0e8e8',
-          fontSize: 10,
-          backgroundColor: '#0f1214',
-          borderColor: '#1e2a2a',
-          borderWidth: 1,
-          padding: [3, 6],
-          borderRadius: 4,
+          show: covers.length > 0,
+          formatter: () => covers.map((_, i) => `{c${i}|}`).join(' '),
+          rich,
+          position: 'end' as const,
+          rotate: 0,
+          distance: 3,
         },
-        emphasis: { label: { show: true } },
+        emphasis: {
+          label: {
+            show: true,
+            formatter: () => evs.map(e => e.label).join('\n'),
+            position: 'end' as const,
+            rotate: 0,
+            color: '#e0e8e8',
+            fontSize: 10,
+            backgroundColor: '#0f1214',
+            borderColor: '#1e2a2a',
+            borderWidth: 1,
+            padding: [3, 6],
+            borderRadius: 4,
+          },
+        },
       };
     }),
   };

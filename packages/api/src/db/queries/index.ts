@@ -10,7 +10,7 @@ export { computeRankings, computeProjectedRankings, computeProjectedRankingsBatc
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums, getArtistReleases } from './artist.js';
-export { getAlbumArtists, getAlbumTracks } from './album.js';
+export { getAlbumArtists, getAlbumTracks, getAlbumRelatedSingles } from './album.js';
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';

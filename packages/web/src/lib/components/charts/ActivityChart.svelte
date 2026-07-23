@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
+  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, EVENT_GRID_TOP, type ChartEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
@@ -74,8 +74,10 @@
     let acc = 0;
     const cumulative = values.map(v => acc += v);
     const durFmt = isPlays ? undefined : (v: number) => formatDuration(v);
+    const markLine = eventsMarkLine(events, filled.map(d => d.period));
     return {
-      grid: dualAxisGrid(),
+      // margen superior extra cuando hay carátulas de eventos encima del grid
+      grid: dualAxisGrid(markLine ? { top: EVENT_GRID_TOP } : undefined),
       tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const pp = Array.isArray(params) ? params : [params]; return pp.map((p: any) => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:#6a7a7a">${pp[0].name}</span>`; } },
       xAxis: categoryAxis(filled.map(d => d.period)),
       yAxis: [
@@ -83,7 +85,7 @@
         secondaryValueAxis({ axisLabel: { color: '#4a5a5a', fontSize: 11, formatter: durFmt } }),
       ],
       series: [
-        barSeries(values, { markLine: eventsMarkLine(events, filled.map(d => d.period)) }),
+        barSeries(values, { markLine }),
         cumulativeLineSeries(cumulative),
       ],
     };

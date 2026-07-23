@@ -67,7 +67,7 @@ export function getArtistReleases(db: Db, artistId: string, artistIds?: string[]
   const artistCmp = ids.length === 1 ? sql`= ${ids[0]}` : sql`IN (${artistPlaceholders})`;
 
   return db.all(sql`
-    SELECT a.spotify_id as id, a.name, a.release_date as date, a.album_type as album_type
+    SELECT a.spotify_id as id, a.name, a.release_date as date, a.album_type as album_type, a.image_url
     FROM albums a
     WHERE a.release_date IS NOT NULL
       AND (a.album_type IS NULL OR a.album_type != 'compilation')
@@ -83,5 +83,5 @@ export function getArtistReleases(db: Db, artistId: string, artistIds?: string[]
         )
       )
     ORDER BY a.release_date
-  `) as { id: string; name: string; date: string; album_type: string | null }[];
+  `) as { id: string; name: string; date: string; album_type: string | null; image_url: string | null }[];
 }

@@ -11,7 +11,7 @@ export const CHANGELOG: ChangelogEntryInput[] = [
     publishedAt: '2026-07-23',
     title: 'Release markers',
     changes: [
-      { type: 'feature', es: 'Las gráficas de las vistas de detalle marcan las fechas de lanzamiento: todos los álbumes y singles del artista en su página, y la fecha de salida del álbum en las páginas de álbum y track (pasa el ratón por la línea para ver el nombre)', en: 'Detail view charts mark release dates: every album and single by the artist on their page, and the album\'s release date on album and track pages (hover the line to see the name)' },
+      { type: 'feature', es: 'Las gráficas de las vistas de detalle marcan las fechas de lanzamiento con la carátula sobre la línea: todos los álbumes y singles del artista en su página, la salida del álbum y sus singles de adelanto en la página del álbum, y las ediciones donde aparece el track en la suya (pasa el ratón por la línea para ver el nombre)', en: 'Detail view charts mark release dates with the cover art above the line: every album and single by the artist on their page, the album\'s release and its advance singles on the album page, and the editions a track appears on in its own (hover the line to see the name)' },
     ],
   },
   {

@@ -50,10 +50,18 @@
   let layout = $state<DetailLayout>(defaultLayout('album'));
   const fetchCtrl = createFetchController();
 
-  // fecha de lanzamiento del propio álbum como evento de las gráficas
-  let releaseEvents = $derived<ChartEvent[]>(data?.album.releaseDate
-    ? [{ date: data.album.releaseDate, label: data.album.name, kind: data.album.albumType === 'single' ? 'single' as const : 'album' as const }]
-    : []);
+  // lanzamiento del propio álbum + singles de adelanto ligados a él como eventos de las gráficas
+  let releaseEvents = $derived.by<ChartEvent[]>(() => {
+    if (!data) return [];
+    const out: ChartEvent[] = [];
+    if (data.album.releaseDate) {
+      out.push({ date: data.album.releaseDate, label: data.album.name, kind: data.album.albumType === 'single' ? 'single' : 'album', imageUrl: data.album.imageUrl });
+    }
+    for (const s of data.relatedSingles ?? []) {
+      out.push({ date: s.date, label: s.name, kind: 'single', imageUrl: s.imageUrl });
+    }
+    return out;
+  });
 
   let displayTracks = $derived((trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []).filter(t => t.playCount > 0));
   let trackSharePercents = $derived.by(() => {
