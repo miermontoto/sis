@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
@@ -12,10 +12,12 @@
     series,
     metric,
     height = '180px',
+    events = [],
   }: {
     series: { period: string; play_count: number; total_ms: number }[];
     metric: RankingMetric;
     height?: string;
+    events?: ChartEvent[];
   } = $props();
 
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -66,15 +68,18 @@
     let labels: string[];
     let values: number[];
     let names: string[];
+    let periodKeys: string[]; // claves canónicas (YYYY o YYYY-MM) para mapear eventos a buckets
     if (effectiveYear) {
       const months = monthsOf(effectiveYear);
       labels = months.map(m => m.label);
       values = months.map(pick);
       names = months.map(m => `${m.label} ${effectiveYear}`);
+      periodKeys = MONTHS.map((_, i) => `${effectiveYear}-${String(i + 1).padStart(2, '0')}`);
     } else {
       labels = yearTotals.map(y => y.year);
       values = yearTotals.map(pick);
       names = labels;
+      periodKeys = labels;
     }
 
     return {
@@ -90,7 +95,7 @@
       xAxis: categoryAxis(labels),
       yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: durFmt } }),
       // cursor pointer solo en vista de años (donde el click drillea)
-      series: [barSeries(values, { cursor: effectiveYear ? 'default' : 'pointer' })],
+      series: [barSeries(values, { cursor: effectiveYear ? 'default' : 'pointer', markLine: eventsMarkLine(events, periodKeys) })],
     };
   });
 

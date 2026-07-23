@@ -12,6 +12,7 @@
     RadarComponent as RadarComp,
     PolarComponent,
     DataZoomComponent,
+    MarkLineComponent,
   } from 'echarts/components';
   import type { EChartsOption } from 'echarts';
 
@@ -32,6 +33,7 @@
     RadarComp,
     PolarComponent,
     DataZoomComponent,
+    MarkLineComponent,
   ]);
 
   interface Props {

@@ -7,6 +7,14 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w30d',
+    publishedAt: '2026-07-23',
+    title: 'Release markers',
+    changes: [
+      { type: 'feature', es: 'Las gráficas de las vistas de detalle marcan las fechas de lanzamiento: todos los álbumes y singles del artista en su página, y la fecha de salida del álbum en las páginas de álbum y track (pasa el ratón por la línea para ver el nombre)', en: 'Detail view charts mark release dates: every album and single by the artist on their page, and the album\'s release date on album and track pages (hover the line to see the name)' },
+    ],
+  },
+  {
     version: '26w30c',
     publishedAt: '2026-07-20',
     title: 'Manual scrobbles',

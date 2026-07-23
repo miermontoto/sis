@@ -5,6 +5,7 @@
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
+  import type { ChartEvent } from '$lib/utils/chart';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
@@ -48,6 +49,11 @@
   let coverContainerEl: HTMLDivElement | undefined = $state();
   let layout = $state<DetailLayout>(defaultLayout('album'));
   const fetchCtrl = createFetchController();
+
+  // fecha de lanzamiento del propio álbum como evento de las gráficas
+  let releaseEvents = $derived<ChartEvent[]>(data?.album.releaseDate
+    ? [{ date: data.album.releaseDate, label: data.album.name, kind: data.album.albumType === 'single' ? 'single' as const : 'album' as const }]
+    : []);
 
   let displayTracks = $derived((trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []).filter(t => t.playCount > 0));
   let trackSharePercents = $derived.by(() => {
@@ -198,7 +204,7 @@
         <ChartStats entityType="album" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
       {/if}
     {:else if key === 'activity'}
-      <ActivityChart series={d.series} {metric} />
+      <ActivityChart series={d.series} {metric} events={releaseEvents} />
     {:else if key === 'tracks'}
       {#if d.tracks.length > 0}
         <div class="section-header">
@@ -219,7 +225,7 @@
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
         <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} />
+        <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}

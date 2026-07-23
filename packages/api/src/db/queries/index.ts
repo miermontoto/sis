@@ -9,7 +9,7 @@ export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries,
 export { computeRankings, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers } from './rankings.js';
 
 // queries específicas
-export { getArtistTopTracks, getArtistTopAlbums } from './artist.js';
+export { getArtistTopTracks, getArtistTopAlbums, getArtistReleases } from './artist.js';
 export { getAlbumArtists, getAlbumTracks } from './album.js';
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';

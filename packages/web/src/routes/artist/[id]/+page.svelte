@@ -5,6 +5,7 @@
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
+  import type { ChartEvent } from '$lib/utils/chart';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -42,6 +43,13 @@
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let layout = $state<DetailLayout>(defaultLayout('artist'));
   const fetchCtrl = createFetchController();
+
+  // lanzamientos del artista como eventos de las gráficas (singles más tenues que álbumes)
+  let releaseEvents = $derived<ChartEvent[]>((data?.releases ?? []).map(r => ({
+    date: r.date,
+    label: r.name,
+    kind: r.albumType === 'single' ? 'single' as const : 'album' as const,
+  })));
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -162,7 +170,7 @@
         <ChartStats entityType="artist" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
       {/if}
     {:else if key === 'activity'}
-      <ActivityChart series={d.series} {metric} />
+      <ActivityChart series={d.series} {metric} events={releaseEvents} />
     {:else if key === 'topTracks'}
       {#if d.topTracks.length > 0}
         <div class="section-header">
@@ -214,7 +222,7 @@
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
         <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} />
+        <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}

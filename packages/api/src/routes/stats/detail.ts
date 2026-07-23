@@ -28,7 +28,7 @@ detail.get('/artist/:id', async (c) => {
   const artistIds = await dbRead<string[]>('resolveEntityIds', 'artist', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo] = await Promise.all([
+  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw] = await Promise.all([
     dbRead<any>('getEntityStats', 'artist', id, rangeStart, rangeEnd, artistIds, userId),
     dbRead<any>('getEntitySeries', 'artist', id, rangeStart, rangeKey, artistIds, rangeEnd, customDays, userId),
     dbRead<any[]>('getArtistTopTracks', id, rangeStart, sort, trackLimit, rangeEnd, userId, artistIds),
@@ -36,6 +36,7 @@ detail.get('/artist/:id', async (c) => {
     dbRead<any[]>('getRecentPlays', 'artist', id, 10, artistIds, userId),
     dbRead<any>('getArtistPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'artist', id),
+    dbRead<any[]>('getArtistReleases', id, artistIds),
   ]);
 
   const [topTracks, topAlbums, recentPlays] = await Promise.all([
@@ -48,6 +49,7 @@ detail.get('/artist/:id', async (c) => {
     artist: { id: artist.spotify_id, name: artist.name, imageUrl: artist.image_url, genres: artist.genres },
     stats: statsRow,
     series,
+    releases: releasesRaw.map((r: any) => ({ id: r.id, name: r.name, date: r.date, albumType: r.album_type })),
     topTracks,
     topAlbums,
     recentPlays,
@@ -161,7 +163,7 @@ detail.get('/track/:id', async (c) => {
     track: {
       id: track.spotify_id, name: track.name, durationMs: track.duration_ms,
       trackNumber: track.track_number, explicit: track.explicit,
-      album: albumRaw ? { id: albumRaw.spotify_id, name: albumRaw.name, imageUrl: albumRaw.image_url, releaseDate: albumRaw.release_date } : null,
+      album: albumRaw ? { id: albumRaw.spotify_id, name: albumRaw.name, imageUrl: albumRaw.image_url, releaseDate: albumRaw.release_date, albumType: albumRaw.album_type } : null,
       artists: arts.map((a: any) => ({ id: a.spotify_id, name: a.name, imageUrl: a.image_url })),
     },
     stats: statsRow,

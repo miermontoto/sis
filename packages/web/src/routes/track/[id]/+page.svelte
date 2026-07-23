@@ -7,6 +7,7 @@
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
+  import type { ChartEvent } from '$lib/utils/chart';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
@@ -48,6 +49,21 @@
   let recheckingDuration = $state(false);
   let layout = $state<DetailLayout>(defaultLayout('track'));
   const fetchCtrl = createFetchController();
+
+  // lanzamientos de los álbumes donde aparece el track (single vs álbum) como eventos de las gráficas
+  let releaseEvents = $derived.by<ChartEvent[]>(() => {
+    if (!data) return [];
+    const seen = new Set<string>();
+    const out: ChartEvent[] = [];
+    const push = (id: string, name: string, date: string | null | undefined, type: string | null | undefined) => {
+      if (!date || seen.has(id)) return;
+      seen.add(id);
+      out.push({ date, label: name, kind: type === 'single' ? 'single' : 'album' });
+    };
+    if (data.track.album) push(data.track.album.id, data.track.album.name, data.track.album.releaseDate, data.track.album.albumType);
+    for (const b of data.albumBreakdown) push(b.albumId, b.album.name, b.album.releaseDate, b.album.albumType);
+    return out;
+  });
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -224,11 +240,11 @@
       {#if d.series.length > 1}
         <h2 class="section-title">Listening history</h2>
       {/if}
-      <ActivityChart series={d.series} {metric} height="260px" />
+      <ActivityChart series={d.series} {metric} height="260px" events={releaseEvents} />
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
         <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} />
+        <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
       {/if}
     {:else if key === 'versions'}
       {#if d.versions.length > 0}

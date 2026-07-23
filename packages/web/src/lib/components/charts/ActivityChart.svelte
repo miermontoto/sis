@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries } from '$lib/utils/chart';
+  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import type { RankingMetric } from '$lib/api';
@@ -9,10 +9,12 @@
     series,
     metric,
     height = '250px',
+    events = [],
   }: {
     series: { period: string; play_count: number; total_ms: number }[];
     metric: RankingMetric;
     height?: string;
+    events?: ChartEvent[];
   } = $props();
 
   // ancho medido de la card: la granularidad se adapta a él (ver fitSeries)
@@ -81,7 +83,7 @@
         secondaryValueAxis({ axisLabel: { color: '#4a5a5a', fontSize: 11, formatter: durFmt } }),
       ],
       series: [
-        barSeries(values),
+        barSeries(values, { markLine: eventsMarkLine(events, filled.map(d => d.period)) }),
         cumulativeLineSeries(cumulative),
       ],
     };

@@ -17,4 +17,5 @@ export interface FormattedAlbum {
   name: string;
   imageUrl: string | null;
   releaseDate: string | null;
+  albumType?: string | null;
 }

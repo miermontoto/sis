@@ -10,10 +10,19 @@ export interface Rankings {
   all: number | null;
 }
 
+// lanzamiento conocido de un artista (solo álbumes/singles que el usuario ha escuchado)
+export interface ReleaseEvent {
+  id: string;
+  name: string;
+  date: string;
+  albumType: string | null;
+}
+
 export interface ArtistDetail {
   artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
   series: { period: string; play_count: number; total_ms: number }[];
+  releases: ReleaseEvent[];
   topTracks: TopTrackItem[];
   topAlbums: TopAlbumItem[];
   recentPlays: HistoryItem[];
@@ -43,13 +52,13 @@ export interface AlbumDetail {
 export interface TrackDetail {
   track: {
     id: string; name: string; durationMs: number; trackNumber: number | null; explicit: boolean;
-    album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } | null;
+    album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; albumType: string | null } | null;
     artists: { id: string; name: string; imageUrl: string | null }[];
   };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
   series: { period: string; play_count: number; total_ms: number }[];
   dailySeries: { day: string; play_count: number; total_ms: number }[];
-  albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null } }[];
+  albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; albumType?: string | null } }[];
   recentPlays: HistoryItem[];
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;

@@ -58,3 +58,30 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
     LIMIT ${limit}
   `) as { album_id: string; play_count: number; total_ms: number }[];
 }
+
+/** Lanzamientos conocidos del artista (álbumes y singles con fecha, sin compilations) para marcar
+ *  eventos en las gráficas de detalle. Solo cubre álbumes ya ingestados (que el usuario escuchó). */
+export function getArtistReleases(db: Db, artistId: string, artistIds?: string[]) {
+  const ids = artistIds ?? [artistId];
+  const artistPlaceholders = ids.length === 1 ? sql`${ids[0]}` : sql.join(ids.map(id => sql`${id}`), sql`, `);
+  const artistCmp = ids.length === 1 ? sql`= ${ids[0]}` : sql`IN (${artistPlaceholders})`;
+
+  return db.all(sql`
+    SELECT a.spotify_id as id, a.name, a.release_date as date, a.album_type as album_type
+    FROM albums a
+    WHERE a.release_date IS NOT NULL
+      AND (a.album_type IS NULL OR a.album_type != 'compilation')
+      AND (
+        a.spotify_id IN (
+          SELECT a2.spotify_id FROM albums a2, json_each(a2.artist_ids) je
+          WHERE je.value ${artistCmp}
+        )
+        OR a.spotify_id IN (
+          SELECT DISTINCT t2.album_id FROM tracks t2
+          JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id
+          WHERE ta2.artist_id ${artistCmp} AND ta2.position = 0
+        )
+      )
+    ORDER BY a.release_date
+  `) as { id: string; name: string; date: string; album_type: string | null }[];
+}

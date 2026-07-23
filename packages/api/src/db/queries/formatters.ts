@@ -17,7 +17,7 @@ export function lookupArtist(db: Db, spotifyId: string): FormattedArtist | null 
 export function lookupAlbum(db: Db, spotifyId: string): FormattedAlbum | null {
   const album = db.select().from(albums).where(eq(albums.spotifyId, spotifyId)).get();
   if (!album) return null;
-  return { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate };
+  return { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate, albumType: album.albumType };
 }
 
 /** Formatear múltiples filas de top-tracks en batch (2 queries en vez de N*5) */
