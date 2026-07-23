@@ -264,6 +264,9 @@ importers:
       '@capacitor/core':
         specifier: ^7.0.0
         version: 7.6.6
+      '@capacitor/network':
+        specifier: ^7.0.0
+        version: 7.0.4(@capacitor/core@7.6.6)
       '@capacitor/status-bar':
         specifier: ^7.0.0
         version: 7.0.6(@capacitor/core@7.6.6)
@@ -822,6 +825,11 @@ packages:
 
   '@capacitor/core@7.6.6':
     resolution: {integrity: sha512-TCxNTpi9bWlM31n8hkLKGrugDGcgJpSqafpDoEEn/Hj6KWxjxes7m0ASfrZ2pOmsqMNGjE6bYGZr905CueVAIw==}
+
+  '@capacitor/network@7.0.4':
+    resolution: {integrity: sha512-fNhN3968AQWMnzasPJ0B8e+nyk7+R6V9PWIBQWSQRHrKndDgWRHpxkjEzJPgnJr3EjnKLjbwO+UYy+EwBlGs3A==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
 
   '@capacitor/push-notifications@7.0.6':
     resolution: {integrity: sha512-zAhbHpdbc15ImuVGgoFwUZsKI+jjGxy/oO5mgfYKUx8Xl2OskndzhL79PYsCPjyGLbqUR9NRUZJthV9auVT3nw==}
@@ -4812,6 +4820,10 @@ snapshots:
   '@capacitor/core@7.6.6':
     dependencies:
       tslib: 2.8.1
+
+  '@capacitor/network@7.0.4(@capacitor/core@7.6.6)':
+    dependencies:
+      '@capacitor/core': 7.6.6
 
   '@capacitor/push-notifications@7.0.6(@capacitor/core@7.6.6)':
     dependencies:
