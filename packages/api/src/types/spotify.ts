@@ -71,6 +71,10 @@ export interface SpotifyArtistsBatchResponse {
   artists: SpotifyArtistFull[];
 }
 
+export interface SpotifyAlbumsBatchResponse {
+  albums: (SpotifyAlbum | null)[];
+}
+
 export interface SpotifyTokenResponse {
   access_token: string;
   token_type: string;

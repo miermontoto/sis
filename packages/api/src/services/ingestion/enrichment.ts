@@ -5,7 +5,7 @@ import { getDb } from '../../db/connection.js';
 import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
-import type { SpotifyArtistsBatchResponse, SpotifyAlbumTracksResponse } from '../../types/spotify.js';
+import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse } from '../../types/spotify.js';
 
 const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -124,6 +124,57 @@ export async function enrichArtistMetadata(userId: number) {
   }
 
   console.log(`[metadata] ${updated} artistas actualizados con imagen`);
+}
+
+// enriquecer álbumes sin artist_ids consultando /albums en lotes de 20 (límite del
+// endpoint). la atribución de artista es imprescindible para ligar singles a sus
+// álbumes/artistas en las gráficas de detalle y para el dedupe de álbumes; de paso
+// se rellenan fecha/tipo/tracks/portada si faltan. los álbumes que spotify ya no
+// devuelve (delistados) conservan artist_ids NULL y se reintentan en el siguiente ciclo.
+export async function enrichAlbumMetadata(userId: number) {
+  const db = getDb();
+  const missing = db.all(
+    sql`SELECT spotify_id FROM albums WHERE artist_ids IS NULL AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'`
+  ) as { spotify_id: string }[];
+
+  if (missing.length === 0) return;
+  console.log(`[metadata] ${missing.length} álbumes sin artist_ids, enriqueciendo...`);
+
+  const BATCH_SIZE = 20;
+  let updated = 0;
+
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    const ids = missing.slice(i, i + BATCH_SIZE).map(a => a.spotify_id).join(',');
+    const data = await spotifyFetch<SpotifyAlbumsBatchResponse>('/albums', { userId, params: { ids } });
+
+    if (!data?.albums) continue;
+
+    for (const album of data.albums) {
+      if (!album?.artists?.length) continue;
+      db.update(albums)
+        .set({
+          artistIds: album.artists.map(a => a.id),
+          releaseDate: sql`COALESCE(release_date, ${album.release_date ?? null})`,
+          albumType: sql`COALESCE(album_type, ${album.album_type ?? null})`,
+          totalTracks: sql`COALESCE(total_tracks, ${album.total_tracks ?? null})`,
+          imageUrl: sql`COALESCE(image_url, ${album.images?.[0]?.url ?? null})`,
+          updatedAt: now(),
+        })
+        .where(sql`spotify_id = ${album.id}`)
+        .run();
+      // asegurar filas de artista para los acreditados (enrichArtistMetadata les pone imagen)
+      for (const a of album.artists) {
+        if (!a.id || !a.name) continue;
+        db.insert(artists)
+          .values({ spotifyId: a.id, name: a.name, updatedAt: now() })
+          .onConflictDoNothing()
+          .run();
+      }
+      updated++;
+    }
+  }
+
+  console.log(`[metadata] ${updated} álbumes con artist_ids completados`);
 }
 
 // --- MusicBrainz + Cover Art Archive (portadas de álbumes locales / importados) ---

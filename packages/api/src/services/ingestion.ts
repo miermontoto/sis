@@ -5,7 +5,7 @@
 // - dedup.ts: deduplicación de tracks/álbumes/plays
 
 export { resolveLocalFileIds, upsertTrack, insertLocalPlay, insertPlay, DEDUP_WINDOW_S } from './ingestion/upsert.js';
-export { ensureFullAlbumTracks, enrichArtistMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations } from './ingestion/enrichment.js';
+export { ensureFullAlbumTracks, enrichArtistMetadata, enrichAlbumMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations } from './ingestion/enrichment.js';
 export {
   cleanOrphanImports, cleanNonMusicImports,
   resolveImportArtists, resolveImportAlbums,

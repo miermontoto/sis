@@ -237,14 +237,18 @@ export async function resolveImportAlbums(userId: number) {
     ) as { spotify_id: string } | undefined;
 
     try {
+      const foundArtistIds = found.artists?.map(a => a.id).filter(Boolean) ?? [];
       if (existing) {
         // re-apuntar tracks al álbum real y eliminar import:
         db.run(sql`UPDATE tracks SET album_id = ${found.id} WHERE album_id = ${row.spotify_id}`);
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${row.spotify_id}`);
-        // actualizar imagen si el real no la tiene
+        // actualizar imagen y artist_ids si el real no los tiene
         if (imageUrl) {
           db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
           db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${found.id}, ${imageUrl}, 'spotify')`);
+        }
+        if (foundArtistIds.length) {
+          db.run(sql`UPDATE albums SET artist_ids = ${JSON.stringify(foundArtistIds)}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND artist_ids IS NULL`);
         }
       } else {
         // crear álbum con ID real, migrar tracks, eliminar import:
@@ -253,6 +257,7 @@ export async function resolveImportAlbums(userId: number) {
             spotifyId: found.id,
             name: found.name,
             imageUrl,
+            artistIds: foundArtistIds.length ? foundArtistIds : null,
             releaseDate: found.release_date,
             totalTracks: found.total_tracks,
             albumType: found.album_type,
@@ -323,6 +328,7 @@ export async function fixTrackAlbumAssignments(userId: number) {
             spotifyId: apiTrack.album.id,
             name: apiTrack.album.name,
             imageUrl: apiTrack.album.images?.[0]?.url ?? null,
+            artistIds: apiTrack.album.artists?.length ? apiTrack.album.artists.map(a => a.id) : null,
             releaseDate: apiTrack.album.release_date,
             totalTracks: apiTrack.album.total_tracks,
             albumType: apiTrack.album.album_type,
