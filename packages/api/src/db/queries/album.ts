@@ -93,7 +93,10 @@ export function getAlbumRelatedSingles(db: Db, albumId: string, ids: string[] | 
       SELECT DISTINCT s.spotify_id AS id, s.name AS name, s.release_date AS date, s.image_url AS image_url
       FROM albums s
       WHERE s.album_type = 'single' AND s.release_date IS NOT NULL
-        AND s.spotify_id NOT IN (${albumPlaceholders})
+        -- solo se excluye el álbum de la página, NO sus alias de merge: mergear un single de
+        -- adelanto en su álbum (para unificar plays) no debe borrarlo de la lista de singles ni
+        -- del eje de las gráficas, que es justo donde su fecha de lanzamiento aporta información
+        AND s.spotify_id != ${albumId}
         AND (
           EXISTS (
             SELECT 1 FROM tracks st
