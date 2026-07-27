@@ -8,6 +8,9 @@
   import { weightedSample } from '$lib/utils/sample';
   import { fromTopItem, metricValue, type EntityTab, type LibraryItem } from '$lib/utils/library-items';
 
+  // por debajo de este desplazamiento el gesto cuenta como toque, no arrastre
+  const DRAG_THRESHOLD_PX = 5;
+
   const TOP_COUNTS = [20, 50, 100] as const;
   // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
   const POOL_DEPTHS = [50, 100, 200] as const;
@@ -62,7 +65,9 @@
 
   let adding = $state(false);
   let dragKey = $state<string | null>(null);
-  let dragMoved = false;
+  let dragging = $state(false);
+  let dropTarget = $state<{ zone: string; index: number } | null>(null);
+  let dragOrigin = { x: 0, y: 0 };
   let selectedKey = $state<string | null>(null);
   let rootEl = $state<HTMLElement | null>(null);
   let me = $state<MeResponse | null>(null);
@@ -183,29 +188,58 @@
     tray = strippedTray;
   }
 
+  // el elemento arrastrado NO se mueve en el DOM hasta soltarlo: reparentarlo en
+  // cada pointermove lo saca del documento y eso libera el pointer capture, que
+  // es lo que cortaba el arrastre a medio gesto. durante el gesto solo se pinta
+  // una marca de inserción y la lista se toca una sola vez, en el pointerup
   function onItemDown(e: PointerEvent, key: string) {
     e.preventDefault();
     dragKey = key;
-    dragMoved = false;
+    dragging = false;
+    dragOrigin = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
   function onItemMove(e: PointerEvent) {
     if (!dragKey) return;
-    const loc = locate(e.clientX, e.clientY);
-    if (!loc) return;
-    const cur = positionOf(dragKey);
-    if (cur && cur.zone === loc.zone && cur.index === loc.index) return;
-    dragMoved = true;
-    moveItem(dragKey, loc.zone, loc.index);
+    if (!dragging) {
+      // hasta superar el umbral el gesto sigue siendo un toque, no un arrastre
+      if (Math.hypot(e.clientX - dragOrigin.x, e.clientY - dragOrigin.y) < DRAG_THRESHOLD_PX) return;
+      dragging = true;
+    }
+    dropTarget = locate(e.clientX, e.clientY);
   }
 
   function onItemUp(key: string) {
     if (!dragKey) return;
-    // sin desplazamiento fue un toque: sirve para elegir y luego asignar
-    // tocando una fila, que en móvil es más cómodo que arrastrar
-    if (!dragMoved) selectedKey = selectedKey === key ? null : key;
+    if (dragging) {
+      if (dropTarget) moveItem(dragKey, dropTarget.zone, dropTarget.index);
+    } else {
+      // sin desplazamiento fue un toque: selecciona, y luego se coloca tocando
+      // una fila, que en móvil es más cómodo que arrastrar
+      selectedKey = selectedKey === key ? null : key;
+    }
+    endDrag();
+  }
+
+  function endDrag() {
     dragKey = null;
+    dragging = false;
+    dropTarget = null;
+  }
+
+  // posición de la marca de inserción dentro de la lista TAL COMO SE RENDERIZA,
+  // que todavía incluye el elemento arrastrado; dropTarget.index en cambio se
+  // cuenta sin él, así que hay que saltárselo al traducir
+  function markAt(items: Item[], zone: string, renderIndex: number): boolean {
+    if (dropTarget?.zone !== zone) return false;
+    let seen = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].key === dragKey) continue;
+      if (seen === dropTarget.index) return i === renderIndex;
+      seen++;
+    }
+    return renderIndex === items.length;
   }
 
   function assignSelected(zone: string) {
@@ -474,45 +508,68 @@
   <div class="notice">Item selected — tap a row to place it, or tap the item again to deselect.</div>
 {/if}
 
-<div class="board" bind:this={rootEl}>
-  {#each tiers as tier (tier.id)}
-    <div class="tier" style="--tier-color: {tier.color}">
-      <div class="tier-label">
-        <input class="tier-input" bind:value={tier.label} aria-label="Tier name" />
-        <div class="tier-tools">
-          <input class="tier-color" type="color" bind:value={tier.color} aria-label="Tier colour" />
-          <button class="mini-btn" onclick={() => moveTier(tier.id, -1)} aria-label="Move row up">↑</button>
-          <button class="mini-btn" onclick={() => moveTier(tier.id, 1)} aria-label="Move row down">↓</button>
-          <button class="mini-btn" onclick={() => removeTier(tier.id)} aria-label="Remove row">×</button>
+<!-- el tray tiene que vivir DENTRO de rootEl: locate() solo mira zonas que
+     cuelguen de él, y estando fuera no había forma de devolver nada a Unranked -->
+<div class="workspace" class:is-dragging={dragging} bind:this={rootEl}>
+  <div class="board">
+    {#each tiers as tier (tier.id)}
+      <div class="tier" style="--tier-color: {tier.color}">
+        <div class="tier-label">
+          <input class="tier-input" bind:value={tier.label} aria-label="Tier name" />
+          <div class="tier-tools">
+            <input class="tier-color" type="color" bind:value={tier.color} aria-label="Tier colour" />
+            <button class="mini-btn" onclick={() => moveTier(tier.id, -1)} aria-label="Move row up">↑</button>
+            <button class="mini-btn" onclick={() => moveTier(tier.id, 1)} aria-label="Move row down">↓</button>
+            <button class="mini-btn" onclick={() => removeTier(tier.id)} aria-label="Remove row">×</button>
+          </div>
+        </div>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <div
+          class="tier-items"
+          class:drop-zone={dropTarget?.zone === tier.id}
+          data-zone={tier.id}
+          onclick={() => assignSelected(tier.id)}
+        >
+          {#each tier.items as item, i (item.key)}
+            {#if markAt(tier.items, tier.id, i)}<span class="drop-mark"></span>{/if}
+            {@render chip(item)}
+          {/each}
+          {#if markAt(tier.items, tier.id, tier.items.length)}<span class="drop-mark"></span>{/if}
+          {#if selectedKey}
+            <!-- alternativa accesible al clic en la zona: sin ella, colocar un
+                 elemento seleccionado solo sería posible con puntero -->
+            <button class="place-btn" onclick={() => assignSelected(tier.id)}>Place here</button>
+          {:else if tier.items.length === 0}
+            <span class="tier-empty">drop here</span>
+          {/if}
         </div>
       </div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <div class="tier-items" data-zone={tier.id} onclick={() => assignSelected(tier.id)}>
-        {#each tier.items as item (item.key)}
-          {@render chip(item)}
-        {/each}
-        {#if selectedKey}
-          <!-- alternativa accesible al clic en la zona: sin ella, colocar un
-               elemento seleccionado solo sería posible con puntero -->
-          <button class="place-btn" onclick={() => assignSelected(tier.id)}>Place here</button>
-        {:else if tier.items.length === 0}
-          <span class="tier-empty">drop here</span>
-        {/if}
-      </div>
-    </div>
-  {/each}
-</div>
-
-<div class="tray-wrap">
-  <div class="tray-title">Unranked</div>
-  <div class="tray" data-zone="tray">
-    {#each tray as item (item.key)}
-      {@render chip(item)}
     {/each}
-    {#if tray.length === 0}
-      <span class="tier-empty">Add items with the panel above.</span>
-    {/if}
+  </div>
+
+  <div class="tray-wrap">
+    <div class="tray-title">Unranked</div>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="tray"
+      class:drop-zone={dropTarget?.zone === 'tray'}
+      data-zone="tray"
+      onclick={() => assignSelected('tray')}
+    >
+      {#each tray as item, i (item.key)}
+        {#if markAt(tray, 'tray', i)}<span class="drop-mark"></span>{/if}
+        {@render chip(item)}
+      {/each}
+      {#if markAt(tray, 'tray', tray.length)}<span class="drop-mark"></span>{/if}
+      {#if tray.length === 0 && !selectedKey}
+        <span class="tier-empty">Add items with the panel above.</span>
+      {/if}
+      {#if selectedKey}
+        <button class="place-btn" onclick={() => assignSelected('tray')}>Send back here</button>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -535,6 +592,8 @@
     onpointerdown={(e) => onItemDown(e, item.key)}
     onpointermove={onItemMove}
     onpointerup={() => onItemUp(item.key)}
+    onpointercancel={endDrag}
+    onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => {
       // sin ratón ni dedo: seleccionar con enter/espacio y colocar activando una fila
       if (e.key === 'Enter' || e.key === ' ') {
@@ -801,7 +860,26 @@
     flex-shrink: 0;
   }
 
-  .chip.dragging { opacity: 0.55; cursor: grabbing; }
+  .chip.dragging { opacity: 0.4; cursor: grabbing; }
+
+  /* marca de inserción: ocupa sitio en el flujo, así los chips se apartan y se
+     ve exactamente dónde va a caer */
+  .drop-mark {
+    width: 3px;
+    align-self: stretch;
+    min-height: 66px;
+    border-radius: 2px;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .drop-zone { outline: 1px dashed var(--accent); outline-offset: -1px; }
+
+  /* mientras se arrastra, nada del tablero debe capturar el gesto ni mostrar
+     cursores de texto: el puntero está capturado por el chip */
+  .workspace.is-dragging { cursor: grabbing; }
+  .workspace.is-dragging .chip { pointer-events: none; }
+  .workspace.is-dragging .chip.dragging { pointer-events: auto; }
   .chip.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   .chip img, .chip-ph {
