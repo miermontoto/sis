@@ -235,6 +235,30 @@
         <h2 class="section-title">History by year</h2>
         <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
       {/if}
+    {:else if key === 'singles'}
+      {#if (d.relatedSingles ?? []).length > 0}
+        <h2 class="section-title">Singles</h2>
+        <div class="track-list singles-list">
+          {#each d.relatedSingles as s, i}
+            <a href="/album/{s.id}" class="track-item">
+              <span class="track-rank">{i + 1}</span>
+              {#if s.imageUrl}
+                <img class="track-art" src={s.imageUrl} alt={s.name} />
+              {:else}
+                <div class="track-art"></div>
+              {/if}
+              <div class="track-info">
+                <div class="track-name">{s.name}</div>
+                <div class="track-artist">{s.date}</div>
+              </div>
+              <div class="track-meta">
+                <div class="track-plays">{metric === 'plays' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
+                <div class="track-time">{metric === 'time' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
+              </div>
+            </a>
+          {/each}
+        </div>
+      {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
         <RecentPlaysRail entityType="album" entityId={$page.params.id} initial={d.recentPlays} historyHref={`/history?album=${$page.params.id}`} />

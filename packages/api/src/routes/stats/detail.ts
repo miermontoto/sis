@@ -82,7 +82,7 @@ detail.get('/album/:id', async (c) => {
     dbRead<any>('getAlbumPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'album', id),
     dbRead<any[]>('getAlbumCovers', id),
-    dbRead<any[]>('getAlbumRelatedSingles', id, albumIds),
+    dbRead<any[]>('getAlbumRelatedSingles', id, albumIds, userId),
   ]);
 
   // artistas reales por track (incluye secundarios/featured) — el álbum comparte cover pero cada track
@@ -120,7 +120,10 @@ detail.get('/album/:id', async (c) => {
     stats: statsRow,
     series,
     tracks: tracksResult,
-    relatedSingles: singlesRaw.map((r: any) => ({ id: r.id, name: r.name, date: r.date, albumType: 'single', imageUrl: r.image_url })),
+    relatedSingles: singlesRaw.map((r: any) => ({
+      id: r.id, name: r.name, date: r.date, albumType: 'single', imageUrl: r.image_url,
+      playCount: r.play_count, totalMs: r.total_ms,
+    })),
     recentPlays,
     ...formatMerge(mergeInfo),
     playlists,

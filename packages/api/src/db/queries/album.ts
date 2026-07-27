@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, userFilter, albumIdIn, entityMergeJoin, resolvedEntityId, trackJoinResolvingMerges } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn, entityMergeJoin, resolvedEntityId, trackJoinResolvingMerges, playDuration } from './helpers.js';
 
 /** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists */
 export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
@@ -71,8 +71,12 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
 
 /** Singles del mismo artista ligados a un álbum (los singles de adelanto son entidades aparte en
  *  Spotify): se enlazan si el nombre del single o alguno de sus tracks coincide con un track del
- *  álbum. Eventos de lanzamiento para las gráficas de detalle. */
-export function getAlbumRelatedSingles(db: Db, albumId: string, ids?: string[]) {
+ *  álbum. Eventos de lanzamiento para las gráficas de detalle + sección "Singles" del rail, por lo
+ *  que cada single lleva las escuchas del usuario (all-time, la página de álbum es all-time).
+ *  Las plays son las del TEMA, no las de la entidad single: se suman las del propio single y las de
+ *  su copia en el álbum, porque Spotify atribuye el scrobble a la entidad que sonó y casi siempre es
+ *  el álbum. La agregación se acota a los candidatos (CTE) para no escanear todo el historial. */
+export function getAlbumRelatedSingles(db: Db, albumId: string, ids: string[] | undefined, userId: number) {
   const albumIds = ids ?? [albumId];
   const albumPlaceholders = sql.join(albumIds.map(id => sql`${id}`), sql`, `);
 
@@ -84,28 +88,56 @@ export function getAlbumRelatedSingles(db: Db, albumId: string, ids?: string[]) 
       SELECT DISTINCT ta.artist_id FROM tracks t
       JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
       WHERE t.album_id IN (${albumPlaceholders})
+    ),
+    candidates AS (
+      SELECT DISTINCT s.spotify_id AS id, s.name AS name, s.release_date AS date, s.image_url AS image_url
+      FROM albums s
+      WHERE s.album_type = 'single' AND s.release_date IS NOT NULL
+        AND s.spotify_id NOT IN (${albumPlaceholders})
+        AND (
+          EXISTS (
+            SELECT 1 FROM tracks st
+            JOIN track_artists sta ON sta.track_id = st.spotify_id AND sta.position = 0
+            WHERE st.album_id = s.spotify_id AND sta.artist_id IN (SELECT artist_id FROM album_artists)
+          )
+          OR EXISTS (
+            SELECT 1 FROM json_each(s.artist_ids) je WHERE je.value IN (SELECT artist_id FROM album_artists)
+          )
+        )
+        AND (
+          lower(s.name) IN (SELECT ln FROM album_track_names)
+          OR EXISTS (
+            SELECT 1 FROM tracks st2 WHERE st2.album_id = s.spotify_id
+              AND lower(st2.name) IN (SELECT ln FROM album_track_names)
+          )
+        )
+    ),
+    -- títulos que identifican al single: el suyo propio + los de sus tracks
+    candidate_names AS (
+      SELECT c.id AS cid, lower(c.name) AS ln FROM candidates c
+      UNION
+      SELECT c.id, lower(st.name) FROM candidates c JOIN tracks st ON st.album_id = c.id
+    ),
+    -- tracks que cuentan como escuchas del single: los del propio single + la copia del mismo
+    -- tema en el álbum (Spotify suele atribuir el scrobble a la entidad álbum, no al single).
+    -- UNION dedup por (cid, track_id) para no contar dos veces el mismo track.
+    matched_tracks AS (
+      SELECT c.id AS cid, t.spotify_id AS track_id FROM candidates c JOIN tracks t ON t.album_id = c.id
+      UNION
+      SELECT cn.cid, t.spotify_id FROM candidate_names cn
+      JOIN tracks t ON t.album_id IN (${albumPlaceholders}) AND lower(t.name) = cn.ln
     )
-    SELECT DISTINCT s.spotify_id AS id, s.name, s.release_date AS date, s.image_url
-    FROM albums s
-    WHERE s.album_type = 'single' AND s.release_date IS NOT NULL
-      AND s.spotify_id NOT IN (${albumPlaceholders})
-      AND (
-        EXISTS (
-          SELECT 1 FROM tracks st
-          JOIN track_artists sta ON sta.track_id = st.spotify_id AND sta.position = 0
-          WHERE st.album_id = s.spotify_id AND sta.artist_id IN (SELECT artist_id FROM album_artists)
-        )
-        OR EXISTS (
-          SELECT 1 FROM json_each(s.artist_ids) je WHERE je.value IN (SELECT artist_id FROM album_artists)
-        )
-      )
-      AND (
-        lower(s.name) IN (SELECT ln FROM album_track_names)
-        OR EXISTS (
-          SELECT 1 FROM tracks st2 WHERE st2.album_id = s.spotify_id
-            AND lower(st2.name) IN (SELECT ln FROM album_track_names)
-        )
-      )
-    ORDER BY s.release_date
-  `) as { id: string; name: string; date: string; image_url: string | null }[];
+    SELECT c.id, c.name, c.date, c.image_url,
+           coalesce(st.play_count, 0) AS play_count, coalesce(st.total_ms, 0) AS total_ms
+    FROM candidates c
+    LEFT JOIN (
+      SELECT mt.cid AS cid, count(*) AS play_count, sum(${playDuration()}) AS total_ms
+      FROM matched_tracks mt
+      JOIN listening_history lh ON lh.track_id = mt.track_id
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.user_id = ${userId}
+      GROUP BY mt.cid
+    ) st ON st.cid = c.id
+    ORDER BY c.date
+  `) as { id: string; name: string; date: string; image_url: string | null; play_count: number; total_ms: number }[];
 }

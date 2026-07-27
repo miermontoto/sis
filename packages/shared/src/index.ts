@@ -22,7 +22,7 @@ export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT } from './constants
 export type { TimeRange } from './constants.js';
 
 // detalle de entidades
-export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, ReleaseEvent } from './detail.js';
+export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, ReleaseEvent, AlbumSingle } from './detail.js';
 
 export type { TrackVersion } from './versions.js';
 

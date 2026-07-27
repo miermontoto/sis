@@ -447,9 +447,10 @@ a:hover {
     min-height: 12rem;
     max-height: none;
   }
-  /* si versions es largo cede el espacio (scroll propio) en vez de aplastar a
+  /* si versions/singles es largo cede el espacio (scroll propio) en vez de aplastar a
      recent plays; con sitio de sobra (flex-grow 0) se muestra entera sin estirarse */
-  .detail-rail .versions-list {
+  .detail-rail .versions-list,
+  .detail-rail .singles-list {
     min-height: 0;
     overflow-y: auto;
   }

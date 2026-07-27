@@ -7,6 +7,14 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31a',
+    publishedAt: '2026-07-27',
+    title: 'Album singles',
+    changes: [
+      { type: 'feature', es: 'La página de un álbum lista sus singles de adelanto en una sección propia, en orden de lanzamiento y con lo que has escuchado cada tema (cuenta también las reproducciones de su copia en el álbum, que es donde suelen registrarse)', en: 'An album page lists its advance singles in their own section, in release order and with how much you have played each song (counting plays of the album\'s copy too, which is where they usually land)' },
+    ],
+  },
+  {
     version: '26w30d',
     publishedAt: '2026-07-23',
     title: 'Release markers',

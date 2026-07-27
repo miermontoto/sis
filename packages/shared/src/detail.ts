@@ -31,6 +31,13 @@ export interface ArtistDetail {
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
 }
 
+// single de adelanto ligado a un álbum: es un ReleaseEvent (sirve de marcador en las gráficas)
+// enriquecido con las escuchas del usuario para poder rankearlo en la sección "Singles"
+export interface AlbumSingle extends ReleaseEvent {
+  playCount: number;
+  totalMs: number;
+}
+
 export interface AlbumCover {
   id: number;
   imageUrl: string;
@@ -45,8 +52,8 @@ export interface AlbumDetail {
   series: { period: string; play_count: number; total_ms: number }[];
   tracks: TopTrackItem[];
   recentPlays: HistoryItem[];
-  // singles del mismo artista ligados al álbum (adelantos), como eventos de las gráficas
-  relatedSingles: ReleaseEvent[];
+  // singles del mismo artista ligados al álbum (adelantos): marcadores de las gráficas + sección propia
+  relatedSingles: AlbumSingle[];
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
   covers?: AlbumCover[];

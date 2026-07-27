@@ -39,6 +39,7 @@ export const DETAIL_SECTIONS: Record<EntityKind, SectionDef[]> = {
     { key: 'activity', label: 'Activity chart', column: 'main' },
     { key: 'tracks', label: 'Tracks', column: 'main' },
     { key: 'historyByYear', label: 'History by year', column: 'rail' },
+    { key: 'singles', label: 'Singles', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
   track: [
