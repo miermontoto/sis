@@ -12,4 +12,4 @@ export {
   fixTrackAlbumAssignments, fixTrackArtistAssociations,
   mergeImportTracks,
 } from './ingestion/imports.js';
-export { deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanDuplicatePlays, cleanBasicExtendedDuplicates } from './ingestion/dedup.js';
+export { deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanDuplicatePlays, cleanBasicExtendedDuplicates } from './ingestion/dedup.js';

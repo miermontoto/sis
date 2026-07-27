@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings } from './notification-events.js';
@@ -400,13 +400,13 @@ export function startPolling() {
   }, RESOLVE_INTERVAL_MS);
 
   fixTrackArtistAssociations(globalUserId)
-    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
+    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateLocalAlbums(); })
     .catch(err => console.error('[resolve] error artistas:', err));
   artistFixTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
     fixTrackArtistAssociations(uid)
-      .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateLocalAlbums(); })
+      .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateLocalAlbums(); })
       .catch(err => console.error('[resolve] error artistas:', err));
   }, ARTIST_FIX_INTERVAL_MS);
 

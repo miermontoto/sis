@@ -140,6 +140,85 @@ export function deduplicateAlbums() {
   if (merged > 0) console.log(`[dedup] ${merged} grupos de álbumes unificados`);
 }
 
+// deduplicar "shells" de singles: spotify sirve el mismo single como varias entidades
+// álbum (audio + vídeo + variantes de mercado) con idéntico nombre/fecha/artista. la
+// mayoría no tienen tracks ingestados —los plays se atribuyen al álbum padre— así que
+// deduplicateAlbums, que exige JOIN a tracks, no los ve y quedan duplicados en la
+// sección de singles y en los marcadores de lanzamiento de las gráficas. aquí se
+// agrupan por (nombre, fecha, artist_ids) —clave que no depende de tener tracks— y se
+// colapsan a un canónico. solo album_type='single': los álbumes con tracks los cubre
+// deduplicateAlbums, y restringir a singles evita fusiones falsas de ediciones.
+export function deduplicateAlbumShells() {
+  const db = getDb();
+
+  const groups = db.all(sql`
+    SELECT LOWER(name) as lname, release_date, artist_ids,
+           GROUP_CONCAT(spotify_id) as ids, count(*) as cnt
+    FROM albums
+    WHERE spotify_id NOT LIKE 'import:%'
+      AND spotify_id NOT LIKE 'local:%'
+      AND album_type = 'single'
+      AND artist_ids IS NOT NULL
+      -- exigir nombre y fecha reales: nombre vacío o fecha placeholder ('0000') son
+      -- metadata basura que agruparía singles DISTINTOS solo por compartir huecos
+      AND name IS NOT NULL AND name != ''
+      AND release_date IS NOT NULL AND (release_date LIKE '19%' OR release_date LIKE '20%')
+    GROUP BY lname, release_date, artist_ids
+    HAVING cnt > 1
+  `) as { lname: string; release_date: string; artist_ids: string; ids: string }[];
+
+  if (groups.length === 0) return;
+  console.log(`[dedup] ${groups.length} grupos de singles duplicados`);
+
+  let merged = 0;
+
+  for (const group of groups) {
+    const ids = group.ids.split(',');
+
+    // canónico: preferir con tracks ingestados, luego con portada, luego más
+    // total_tracks, y finalmente id menor (determinista)
+    let best: { id: string; ntracks: number; imgScore: number; totalTracks: number } | null = null;
+    for (const id of ids) {
+      const row = db.get(sql`
+        SELECT a.spotify_id,
+               (SELECT count(*) FROM tracks t WHERE t.album_id = a.spotify_id) AS ntracks,
+               CASE WHEN (a.image_url IS NOT NULL AND a.image_url != '')
+                         OR EXISTS (SELECT 1 FROM album_covers ac WHERE ac.album_id = a.spotify_id)
+                    THEN 0 ELSE 1 END AS img_score,
+               COALESCE(a.total_tracks, 0) AS total_tracks
+        FROM albums a WHERE a.spotify_id = ${id}
+      `) as { spotify_id: string; ntracks: number; img_score: number; total_tracks: number } | undefined;
+      if (!row) continue;
+      if (!best
+        || row.ntracks > best.ntracks
+        || (row.ntracks === best.ntracks && row.img_score < best.imgScore)
+        || (row.ntracks === best.ntracks && row.img_score === best.imgScore && row.total_tracks > best.totalTracks)
+        || (row.ntracks === best.ntracks && row.img_score === best.imgScore && row.total_tracks === best.totalTracks && row.spotify_id < best.id)) {
+        best = { id: row.spotify_id, ntracks: row.ntracks, imgScore: row.img_score, totalTracks: row.total_tracks };
+      }
+    }
+
+    if (!best) continue;
+    const canonical = best.id;
+    const dupes = ids.filter(id => id !== canonical);
+    if (dupes.length === 0) continue;
+
+    try {
+      for (const dupe of dupes) {
+        // repuntar cualquier track del dupe al canónico y limpiar sus portadas antes de borrarlo
+        db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE album_id = ${dupe}`);
+        db.run(sql`DELETE FROM album_covers WHERE album_id = ${dupe}`);
+        db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
+      }
+      merged++;
+    } catch (err) {
+      console.error(`[dedup] error deduplicando single "${group.lname}":`, err);
+    }
+  }
+
+  if (merged > 0) console.log(`[dedup] ${merged} grupos de singles unificados`);
+}
+
 // deduplicar albums y tracks locales entre sí (no mezclar con Spotify)
 export function deduplicateLocalAlbums() {
   const db = getDb();
