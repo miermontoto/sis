@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDb } from '../../db/connection.js';
 import { artists, albums, tracks } from '../../db/schema.js';
-import { reconcileTrackArtists } from './upsert.js';
+import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse } from '../../types/spotify.js';
 
@@ -157,7 +157,7 @@ export async function enrichAlbumMetadata(userId: number) {
           releaseDate: sql`COALESCE(release_date, ${album.release_date ?? null})`,
           albumType: sql`COALESCE(album_type, ${album.album_type ?? null})`,
           totalTracks: sql`COALESCE(total_tracks, ${album.total_tracks ?? null})`,
-          imageUrl: sql`COALESCE(image_url, ${album.images?.[0]?.url ?? null})`,
+          imageUrl: sql`COALESCE(image_url, ${pickAlbumCover(album.images)})`,
           updatedAt: now(),
         })
         .where(sql`spotify_id = ${album.id}`)
@@ -175,6 +175,52 @@ export async function enrichAlbumMetadata(userId: number) {
   }
 
   console.log(`[metadata] ${updated} álbumes con artist_ids completados`);
+}
+
+// reemplazar portadas de vídeo por el arte cuadrado del álbum. las variantes "vídeo"
+// de un single traen una miniatura 16:9 (tipo de imagen ab6742d3) que se colaba como
+// portada; se detectan por la URL y se refresca la portada propia vía /albums (en
+// lotes de 20). si spotify solo ofrece miniatura de vídeo, se deja NULL (mejor sin
+// portada que una de vídeo). limpia además el historial de portadas observadas.
+export async function fixVideoCovers(userId: number) {
+  const db = getDb();
+  const likeVideo = `%/image/${SPOTIFY_VIDEO_IMAGE_TYPE}%`;
+
+  // el historial de portadas nunca debe conservar miniaturas de vídeo
+  db.run(sql`DELETE FROM album_covers WHERE image_url LIKE ${likeVideo}`);
+
+  const affected = db.all(sql`
+    SELECT spotify_id FROM albums
+    WHERE image_url LIKE ${likeVideo}
+      AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'
+  `) as { spotify_id: string }[];
+
+  if (affected.length === 0) return;
+  console.log(`[metadata] ${affected.length} álbumes con portada de vídeo, corrigiendo...`);
+
+  const BATCH_SIZE = 20;
+  let fixed = 0;
+
+  for (let i = 0; i < affected.length; i += BATCH_SIZE) {
+    const ids = affected.slice(i, i + BATCH_SIZE).map(a => a.spotify_id).join(',');
+    const data = await spotifyFetch<SpotifyAlbumsBatchResponse>('/albums', { userId, params: { ids } });
+    if (!data?.albums) continue;
+
+    for (const album of data.albums) {
+      if (!album?.id) continue;
+      const cover = pickAlbumCover(album.images);
+      db.update(albums)
+        .set({ imageUrl: cover, updatedAt: now() })
+        .where(sql`spotify_id = ${album.id}`)
+        .run();
+      if (cover) {
+        db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${album.id}, ${cover}, 'spotify')`);
+        fixed++;
+      }
+    }
+  }
+
+  console.log(`[metadata] ${fixed} portadas de vídeo reemplazadas por arte del álbum`);
 }
 
 // --- MusicBrainz + Cover Art Archive (portadas de álbumes locales / importados) ---

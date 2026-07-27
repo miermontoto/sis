@@ -2,10 +2,28 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../../db/schema.js';
 import { syntheticId } from '../ids.js';
-import type { SpotifyTrack, SpotifyPlayHistoryItem } from '../../types/spotify.js';
+import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyImage } from '../../types/spotify.js';
 
 const now = () => new Date().toISOString();
 const LOCAL_PREFIX = 'local:';
+
+// spotify sirve dos tipos de portada: el arte cuadrado del álbum (tipo de imagen
+// 'ab67616d') y una miniatura de vídeo/clip 16:9 (tipo 'ab6742d3'), esta última en
+// las variantes "vídeo" de un single. no queremos la de vídeo como portada del álbum.
+export const SPOTIFY_VIDEO_IMAGE_TYPE = 'ab6742d3';
+
+export function isVideoCover(url: string | null | undefined): boolean {
+  return !!url && url.includes('/image/' + SPOTIFY_VIDEO_IMAGE_TYPE);
+}
+
+// elegir la portada del álbum: primera imagen cuadrada que no sea miniatura de vídeo.
+// null si solo hay portadas de vídeo (mejor sin portada que una de vídeo)
+export function pickAlbumCover(images: SpotifyImage[] | undefined | null): string | null {
+  if (!images?.length) return null;
+  const proper = images.find(im =>
+    !isVideoCover(im.url) && (im.width == null || im.height == null || im.width === im.height));
+  return proper?.url ?? null;
+}
 
 // ventana (segundos) en la que dos plays del mismo track se consideran el mismo
 export const DEDUP_WINDOW_S = 30;
@@ -91,11 +109,12 @@ export function upsertTrack(track: SpotifyTrack) {
 
   // upsert álbum (incluye artist_ids del album-level de spotify)
   const albumArtistIds = track.album.artists?.map(a => a.id) ?? null;
+  const albumCover = pickAlbumCover(track.album.images);
   db.insert(albums)
     .values({
       spotifyId: track.album.id,
       name: track.album.name,
-      imageUrl: track.album.images[0]?.url ?? null,
+      imageUrl: albumCover,
       artistIds: albumArtistIds,
       releaseDate: track.album.release_date,
       totalTracks: track.album.total_tracks,
@@ -106,17 +125,18 @@ export function upsertTrack(track: SpotifyTrack) {
       target: albums.spotifyId,
       set: {
         name: track.album.name,
-        imageUrl: sql`COALESCE(${track.album.images[0]?.url ?? null}, albums.image_url)`,
+        // solo sobrescribir con una portada propia; nunca degradar a una de vídeo ni
+        // borrar la existente si este play solo trae miniatura de vídeo
+        imageUrl: sql`COALESCE(${albumCover}, albums.image_url)`,
         artistIds: albumArtistIds ?? sql`albums.artist_ids`,
         updatedAt: now(),
       },
     })
     .run();
 
-  // registrar portada observada
-  const albumImageUrl = track.album.images[0]?.url;
-  if (albumImageUrl) {
-    db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${track.album.id}, ${albumImageUrl}, 'spotify')`);
+  // registrar portada observada (solo portadas propias, nunca miniaturas de vídeo)
+  if (albumCover) {
+    db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${track.album.id}, ${albumCover}, 'spotify')`);
   }
 
   // upsert artistas (ignorar nombres vacíos)
