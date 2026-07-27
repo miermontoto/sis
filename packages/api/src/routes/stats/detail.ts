@@ -66,9 +66,11 @@ detail.get('/album/:id', async (c) => {
   const album = await dbRead<any>('lookupAlbumById', id);
   if (!album) return c.json({ error: 'Album not found' }, 404);
 
-  if (sort === 'natural') {
-    try { await ensureFullAlbumTracks(id, album.total_tracks, userId); } catch {}
-  }
+  // completar el tracklist siempre, no solo en orden natural: el emparejamiento de singles
+  // compara contra los nombres de los tracks del álbum, así que un tracklist incompleto (los
+  // temas que nunca sonaron desde esta edición no se ingestan) pierde singles de adelanto.
+  // ensureFullAlbumTracks sale por un count indexado si ya está completo: sin coste extra.
+  try { await ensureFullAlbumTracks(id, album.total_tracks, userId); } catch {}
 
   const albumIds = await dbRead<string[]>('resolveEntityIds', 'album', id, userId);
 
