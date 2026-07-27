@@ -36,6 +36,12 @@
       name: 'Race Chart',
       description: 'Animated bar chart race showing how your top artists, tracks, or albums accumulate plays over time.',
     },
+    {
+      href: '/generators/march-madness',
+      icon: '⑂',
+      name: 'March Madness',
+      description: 'Seed your top artists, tracks, or albums into a knockout bracket and pick your way to a champion.',
+    },
   ];
 </script>
 
