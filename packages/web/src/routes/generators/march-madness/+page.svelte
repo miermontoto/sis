@@ -4,13 +4,11 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import { downloadCanvasPng, tryLoadImage } from '$lib/canvas-export';
   import { formatNumber, formatHours } from '$lib/utils/format';
+  import { weightedSample } from '$lib/utils/sample';
 
   const BRACKET_SIZES = [8, 16, 32, 64] as const;
   // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
   const POOL_DEPTHS = [50, 100, 200] as const;
-  // cuántas veces más probable es que salga lo más escuchado del pool frente a
-  // la cola: inclina el sorteo sin volverlo determinista
-  const WEIGHT_SPREAD = 8;
 
   // nombres clásicos de ronda según cuántos huecos quedan
   const ROUND_NAMES: Record<number, string> = {
@@ -190,28 +188,10 @@
     return metric === 'plays' ? p.playCount : p.totalMs;
   }
 
-  // muestreo ponderado sin reemplazo (Efraimidis-Spirakis): con clave
-  // u^(1/w) por elemento, quedarse con las k claves más altas da exactamente
-  // una selección proporcional al peso, en una sola pasada y sin rechazos
-  function weightedSample(items: PoolItem[], k: number): PoolItem[] {
-    if (items.length <= k) return [...items];
-    // los pesos crudos (ms escuchados) se van a millones y saturarían la clave
-    // hasta hacer el sorteo determinista, así que se normalizan a [1, SPREAD]
-    const max = Math.max(...items.map(metricOf), 1);
-    return items
-      .map((item) => {
-        const w = 1 + (metricOf(item) / max) * (WEIGHT_SPREAD - 1);
-        return { item, key: Math.random() ** (1 / w) };
-      })
-      .sort((a, b) => b.key - a.key)
-      .slice(0, k)
-      .map((e) => e.item);
-  }
-
   // decide qué entra en el bracket y le asigna seeds; separado de loadData para
   // poder resortear sin refetch
   function buildField() {
-    const chosen = field === 'random' ? weightedSample(pool, bracketSize) : pool.slice(0, bracketSize);
+    const chosen = field === 'random' ? weightedSample(pool, bracketSize, metricOf) : pool.slice(0, bracketSize);
     // el seed siempre sale del ranking real dentro del campo elegido
     entries = [...chosen]
       .sort((a, b) => metricOf(b) - metricOf(a))
