@@ -12,6 +12,7 @@ export const CHANGELOG: ChangelogEntryInput[] = [
     title: 'March Madness',
     changes: [
       { type: 'feature', es: 'Nuevo generator "March Madness": siembra tus artistas, tracks o álbumes más escuchados en un cuadro de eliminación directa de hasta 64 puestos y ve eligiendo ganador enfrentamiento a enfrentamiento hasta coronar un campeón (las reproducciones y las horas se muestran como pista, pero decides tú). Al terminar puedes descargar el cuadro completo como imagen', en: 'New "March Madness" generator: seed your most-played artists, tracks or albums into a knockout bracket of up to 64 and pick a winner matchup by matchup until you crown a champion (plays and hours are shown as a hint, but the call is yours). When you finish you can download the full bracket as an image' },
+      { type: 'feature', es: 'El cuadro de March Madness no tiene por qué salir de tu top: en modo aleatorio se sortea entre tus 50, 100 o 200 más escuchados, con más papeletas para lo que de verdad pones, así que la mayoría del cuadro son temas que llevabas tiempo sin recordar. Puedes volver a sortear sin recargar', en: 'A March Madness bracket does not have to be your top entries: random mode draws from your top 50, 100 or 200, weighting what you actually play, so most of the field ends up being things you had half-forgotten. You can redraw without reloading' },
     ],
   },
   {

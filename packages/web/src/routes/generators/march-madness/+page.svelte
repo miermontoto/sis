@@ -6,6 +6,11 @@
   import { formatNumber, formatHours } from '$lib/utils/format';
 
   const BRACKET_SIZES = [8, 16, 32, 64] as const;
+  // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
+  const POOL_DEPTHS = [50, 100, 200] as const;
+  // cuántas veces más probable es que salga lo más escuchado del pool frente a
+  // la cola: inclina el sorteo sin volverlo determinista
+  const WEIGHT_SPREAD = 8;
 
   // nombres clásicos de ronda según cuántos huecos quedan
   const ROUND_NAMES: Record<number, string> = {
@@ -38,6 +43,7 @@
   const EXPORT_SCALE = 2;
 
   type EntityTab = 'artists' | 'tracks' | 'albums';
+  type Field = 'top' | 'random';
   type Entry = {
     id: string;
     seed: number;
@@ -47,17 +53,21 @@
     playCount: number;
     totalMs: number;
   };
+  type PoolItem = Omit<Entry, 'seed'>;
   type Snapshot = { rounds: (Entry | null)[][]; cursor: { round: number; match: number } };
   // cssWidth/cssHeight son las dimensiones lógicas, sin el factor de escala
   type RenderResult = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number };
 
   let entityTab = $state<EntityTab>('artists');
   let bracketSize = $state<typeof BRACKET_SIZES[number]>(16);
+  let field = $state<Field>('top');
+  let poolDepth = $state<typeof POOL_DEPTHS[number]>(100);
   let metric = $state<RankingMetric>('time');
   let range = $state('6months');
   let startDate = $state('');
   let endDate = $state('');
 
+  let pool = $state<PoolItem[]>([]);
   let entries = $state<Entry[]>([]);
   let rounds = $state<(Entry | null)[][]>([]);
   let cursor = $state({ round: 0, match: 0 });
@@ -159,19 +169,66 @@
       const fetcher = entityTab === 'tracks' ? api.topTracks
         : entityTab === 'artists' ? api.topArtists
         : api.topAlbums;
-      const items = await fetcher(range, bracketSize, metric, getCustomDates(), undefined, signal);
+      // en modo random se pide el pool entero y el sorteo se hace en cliente,
+      // así reshuffle() no vuelve a pegarle a la API
+      const limit = field === 'random' ? poolDepth : bracketSize;
+      const items = await fetcher(range, limit, metric, getCustomDates(), undefined, signal);
       if (signal.aborted) return;
-      entries = items
+      pool = items
         .map((i) => toEntry(i as any, entityTab))
-        .filter((e): e is Omit<Entry, 'seed'> => e !== null)
-        .map((e, idx) => ({ ...e, seed: idx + 1 }));
-      buildBracket();
+        .filter((e): e is PoolItem => e !== null);
+      buildField();
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;
     }
+  }
+
+  function metricOf(p: PoolItem): number {
+    return metric === 'plays' ? p.playCount : p.totalMs;
+  }
+
+  // muestreo ponderado sin reemplazo (Efraimidis-Spirakis): con clave
+  // u^(1/w) por elemento, quedarse con las k claves más altas da exactamente
+  // una selección proporcional al peso, en una sola pasada y sin rechazos
+  function weightedSample(items: PoolItem[], k: number): PoolItem[] {
+    if (items.length <= k) return [...items];
+    // los pesos crudos (ms escuchados) se van a millones y saturarían la clave
+    // hasta hacer el sorteo determinista, así que se normalizan a [1, SPREAD]
+    const max = Math.max(...items.map(metricOf), 1);
+    return items
+      .map((item) => {
+        const w = 1 + (metricOf(item) / max) * (WEIGHT_SPREAD - 1);
+        return { item, key: Math.random() ** (1 / w) };
+      })
+      .sort((a, b) => b.key - a.key)
+      .slice(0, k)
+      .map((e) => e.item);
+  }
+
+  // decide qué entra en el bracket y le asigna seeds; separado de loadData para
+  // poder resortear sin refetch
+  function buildField() {
+    const chosen = field === 'random' ? weightedSample(pool, bracketSize) : pool.slice(0, bracketSize);
+    // el seed siempre sale del ranking real dentro del campo elegido
+    entries = [...chosen]
+      .sort((a, b) => metricOf(b) - metricOf(a))
+      .map((e, idx) => ({ ...e, seed: idx + 1 }));
+    buildBracket();
+  }
+
+  function reshuffle() {
+    buildField();
+    showBracket = false;
+  }
+
+  // un pool que no supera al bracket no sortea nada (entraría el campo entero),
+  // así que al agrandar el bracket se sube el pool al primero que siga siendo mayor
+  function setBracketSize(n: typeof BRACKET_SIZES[number]) {
+    bracketSize = n;
+    if (poolDepth <= n) poolDepth = POOL_DEPTHS.find((p) => p > n) ?? POOL_DEPTHS[POOL_DEPTHS.length - 1];
   }
 
   // orden de seeds estándar: espeja recursivamente para que los cabezas de
@@ -308,7 +365,8 @@
     ctx.fillText('March Madness', PAD, PAD + 22);
     ctx.fillStyle = CANVAS_MUTED;
     ctx.font = '16px sans-serif';
-    ctx.fillText(`${entityTab} · ${rangeLabel()} · ${bracketSize}-entry bracket`, PAD, PAD + 52);
+    const fieldLabel = field === 'random' ? `random from top ${Math.min(poolDepth, pool.length)}` : `top ${bracketSize}`;
+    ctx.fillText(`${entityTab} · ${rangeLabel()} · ${fieldLabel}`, PAD, PAD + 52);
 
     const colX = (r: number) => PAD + r * (COL_W + COL_GAP);
     const slotY = (r: number, i: number) => PAD + HEADER_H + pos[r][i];
@@ -432,7 +490,8 @@
     const r = await renderBracket(EXPORT_SCALE);
     if (!r) return;
     const stamp = new Date().toISOString().split('T')[0];
-    await downloadCanvasPng(r.canvas, `march-madness-${entityTab}-${bracketSize}-${stamp}.png`);
+    const suffix = field === 'random' ? `random${poolDepth}` : `top${bracketSize}`;
+    await downloadCanvasPng(r.canvas, `march-madness-${entityTab}-${bracketSize}-${suffix}-${stamp}.png`);
   }
 
   onMount(async () => {
@@ -442,7 +501,7 @@
 
   $effect(() => {
     // recarga y reinicia el bracket cuando cambia cualquier parámetro de setup
-    void entityTab; void bracketSize; void metric; void range; void startDate; void endDate;
+    void entityTab; void bracketSize; void field; void poolDepth; void metric; void range; void startDate; void endDate;
     loadData();
   });
 
@@ -457,7 +516,10 @@
 
 <div class="page-header">
   <h1>March Madness</h1>
-  <p>Seed your top {entityTab} into a bracket and pick your way to a champion.</p>
+  <p>
+    {field === 'random' ? `Draw a random field of ${entityTab}` : `Seed your top ${entityTab}`}
+    into a bracket and pick your way to a champion.
+  </p>
 </div>
 
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
@@ -476,10 +538,35 @@
     <span class="control-label">Bracket</span>
     <div class="toggle-group">
       {#each BRACKET_SIZES as n}
-        <button class="toggle-btn" class:active={bracketSize === n} onclick={() => bracketSize = n}>{n}</button>
+        <button class="toggle-btn" class:active={bracketSize === n} onclick={() => setBracketSize(n)}>{n}</button>
       {/each}
     </div>
   </div>
+
+  <div class="control-group">
+    <span class="control-label">Field</span>
+    <div class="toggle-group">
+      <button class="toggle-btn" class:active={field === 'top'} onclick={() => field = 'top'}>Top {bracketSize}</button>
+      <button class="toggle-btn" class:active={field === 'random'} onclick={() => field = 'random'}>Random</button>
+    </div>
+  </div>
+
+  {#if field === 'random'}
+    <div class="control-group">
+      <span class="control-label">Pool</span>
+      <div class="toggle-group">
+        {#each POOL_DEPTHS as n}
+          <button
+            class="toggle-btn"
+            class:active={poolDepth === n}
+            disabled={n <= bracketSize}
+            title={n <= bracketSize ? `Needs to be bigger than the ${bracketSize}-entry bracket` : ''}
+            onclick={() => poolDepth = n}
+          >Top {n}</button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div class="control-group">
     <span class="control-label">Seed by</span>
@@ -490,10 +577,20 @@
   </div>
 
   <div class="control-actions">
+    {#if field === 'random'}
+      <button class="ghost-btn" onclick={reshuffle} disabled={pool.length === 0}>Reshuffle</button>
+    {/if}
     <button class="ghost-btn" onclick={undo} disabled={history.length === 0}>Undo</button>
     <button class="ghost-btn" onclick={replay} disabled={rounds.length === 0}>Reset</button>
   </div>
 </div>
+
+{#if field === 'random' && !loading && entries.length > 0}
+  <div class="notice">
+    Drawn at random from your top {Math.min(poolDepth, pool.length)} {entityTab}, weighted so what you
+    actually play is likelier to show up. <button class="link-btn" onclick={reshuffle}>Reshuffle</button> for a new field.
+  </div>
+{/if}
 
 {#if loading}
   <div class="loading"><div class="spinner"></div></div>
@@ -536,7 +633,8 @@
       <div class="champion-footnote">
         {#if runnerUp}Beat <strong>{runnerUp.name}</strong> in the final. {/if}
         {#if entries[0] && entries[0].id !== champion.id}
-          Your most-played was <strong>{entries[0].name}</strong> — the bracket disagreed.
+          {field === 'random' ? 'The top seed in this field was' : 'Your most-played was'}
+          <strong>{entries[0].name}</strong> — the bracket disagreed.
         {:else}
           Your top seed went all the way.
         {/if}
@@ -636,8 +734,9 @@
     transition: all 0.05s;
   }
 
-  .toggle-btn:hover { border-color: var(--text-muted); color: var(--text); }
+  .toggle-btn:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text); }
   .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+  .toggle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
   .ghost-btn {
     padding: 0.35rem 0.8rem;
@@ -661,6 +760,17 @@
     color: var(--text-muted);
     font-size: 0.85rem;
     margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
   }
 
   .progress-rail {

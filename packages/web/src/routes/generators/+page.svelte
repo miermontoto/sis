@@ -40,7 +40,7 @@
       href: '/generators/march-madness',
       icon: '⑂',
       name: 'March Madness',
-      description: 'Seed your top artists, tracks, or albums into a knockout bracket and pick your way to a champion.',
+      description: 'Knockout bracket of your artists, tracks, or albums: seed the top ones or draw a random field, then pick your way to a champion.',
     },
   ];
 </script>
