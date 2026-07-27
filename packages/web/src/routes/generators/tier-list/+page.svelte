@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, createFetchController, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type DateRangeParams, type MeResponse, type RankingMetric, type SearchResults } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, type DateRangeParams, type MeResponse, type RankingMetric } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
+  import LibraryPicker from '$lib/components/LibraryPicker.svelte';
   import { downloadCanvasPng, tryLoadImage } from '$lib/canvas-export';
   import { formatNumber, formatHours } from '$lib/utils/format';
   import { weightedSample } from '$lib/utils/sample';
+  import { fromTopItem, metricValue, type EntityTab, type LibraryItem } from '$lib/utils/library-items';
 
   const TOP_COUNTS = [20, 50, 100] as const;
   // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
   const POOL_DEPTHS = [50, 100, 200] as const;
-  const SEARCH_DEBOUNCE_MS = 250;
-  const SEARCH_LIMIT = 8;
 
   // paleta clásica de tier list; las filas nuevas van rotando por EXTRA_COLORS
   const DEFAULT_TIERS = [
@@ -40,19 +40,8 @@
   const ROW_GAP = 4;
   const CAPTION_H = 22;
 
-  type ItemKind = 'artist' | 'album' | 'track';
-  type SourceMode = 'top' | 'random' | 'search' | 'artist';
-  type EntityTab = 'artists' | 'tracks' | 'albums';
-  type Item = {
-    key: string; // `${kind}:${id}` — los ids de Spotify no chocan entre tipos, pero el prefijo lo deja explícito
-    kind: ItemKind;
-    id: string;
-    name: string;
-    subtitle: string;
-    imageUrl: string | null;
-    playCount: number;
-    totalMs: number;
-  };
+  type SourceMode = 'top' | 'random' | 'pick';
+  type Item = LibraryItem;
   type Tier = { id: string; label: string; color: string; items: Item[] };
   type RenderResult = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number };
 
@@ -71,13 +60,6 @@
   let startDate = $state('');
   let endDate = $state('');
 
-  let query = $state('');
-  let results = $state<SearchResults | null>(null);
-  let searching = $state(false);
-  let includeAlbums = $state(true);
-  let includeSingles = $state(true);
-  let loadingArtist = $state<string | null>(null);
-
   let adding = $state(false);
   let dragKey = $state<string | null>(null);
   let dragMoved = false;
@@ -87,7 +69,6 @@
   let previewCanvas = $state<HTMLCanvasElement | null>(null);
   let rendering = $state(false);
   let showPreview = $state(false);
-  let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   const fetchCtrl = createFetchController();
 
@@ -121,38 +102,7 @@
     return map[range] ?? range;
   }
 
-  function metricOf(i: Item): number {
-    return metric === 'plays' ? i.playCount : i.totalMs;
-  }
-
-  // normaliza cualquiera de los tres tipos de top a la forma común de la lista
-  function toItem(raw: TopTrackItem | TopArtistItem | TopAlbumItem, tab: EntityTab): Item | null {
-    if (tab === 'tracks') {
-      const t = raw as TopTrackItem;
-      if (!t.track) return null;
-      return {
-        key: `track:${t.trackId}`, kind: 'track', id: t.trackId, name: t.track.name,
-        subtitle: t.track.artists.map((a) => a.name).join(', '),
-        imageUrl: t.track.album?.imageUrl ?? null, playCount: t.playCount, totalMs: t.totalMs,
-      };
-    }
-    if (tab === 'artists') {
-      const a = raw as TopArtistItem;
-      if (!a.artist) return null;
-      return {
-        key: `artist:${a.artistId}`, kind: 'artist', id: a.artistId, name: a.artist.name,
-        subtitle: a.artist.genres[0] ?? '', imageUrl: a.artist.imageUrl,
-        playCount: a.playCount, totalMs: a.totalMs,
-      };
-    }
-    const al = raw as TopAlbumItem;
-    if (!al.album) return null;
-    return {
-      key: `album:${al.albumId}`, kind: 'album', id: al.albumId, name: al.album.name,
-      subtitle: al.album.releaseDate?.slice(0, 4) ?? '', imageUrl: al.album.imageUrl,
-      playCount: al.playCount, totalMs: al.totalMs,
-    };
-  }
+  const metricOf = (i: Item) => metricValue(i, metric);
 
   // los que ya estén en la lista (en tray o en cualquier tier) se ignoran
   function addItems(items: Item[]) {
@@ -170,54 +120,13 @@
       const isRandom = sourceMode === 'random';
       const raw = await fetcher(range, isRandom ? poolDepth : topCount, metric, getCustomDates(), undefined, signal);
       if (signal.aborted) return;
-      const items = raw.map((r) => toItem(r as any, entityTab)).filter((i): i is Item => i !== null);
+      const items = raw.map((r) => fromTopItem(r as any, entityTab)).filter((i): i is Item => i !== null);
       addItems(isRandom ? weightedSample(items, topCount, metricOf) : items);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;
     } finally {
       if (!signal.aborted) adding = false;
-    }
-  }
-
-  function runSearch() {
-    if (searchTimer) clearTimeout(searchTimer);
-    const q = query.trim();
-    if (!q) { results = null; return; }
-    searchTimer = setTimeout(async () => {
-      searching = true;
-      try {
-        results = await api.search(q, SEARCH_LIMIT);
-      } catch {
-        results = null;
-      } finally {
-        searching = false;
-      }
-    }, SEARCH_DEBOUNCE_MS);
-  }
-
-  // añade toda la discografía escuchada de un artista: releases trae álbumes y
-  // singles, y topAlbums aporta las escuchas que a ReleaseEvent le faltan
-  async function addDiscography(artistId: string) {
-    loadingArtist = artistId;
-    try {
-      const detail = await api.artistDetail(artistId, 'all', { albumLimit: 200 });
-      const stats = new Map(detail.topAlbums.map((a) => [a.albumId, { playCount: a.playCount, totalMs: a.totalMs }]));
-      const items = detail.releases
-        .filter((r) => {
-          const isSingle = r.albumType === 'single';
-          return isSingle ? includeSingles : includeAlbums;
-        })
-        .map<Item>((r) => ({
-          key: `album:${r.id}`, kind: 'album', id: r.id, name: r.name,
-          subtitle: `${detail.artist.name}${r.date ? ` · ${r.date.slice(0, 4)}` : ''}`,
-          imageUrl: r.imageUrl,
-          playCount: stats.get(r.id)?.playCount ?? 0,
-          totalMs: stats.get(r.id)?.totalMs ?? 0,
-        }));
-      addItems(items);
-    } finally {
-      loadingArtist = null;
     }
   }
 
@@ -478,7 +387,6 @@
     // el callback no puede ser async: onMount solo acepta una función de
     // limpieza síncrona como valor de retorno
     api.me().then((r) => { me = r; }).catch(() => { me = null; });
-    return () => { if (searchTimer) clearTimeout(searchTimer); };
   });
 
   $effect(() => {
@@ -499,8 +407,7 @@
       <div class="toggle-group">
         <button class="toggle-btn" class:active={sourceMode === 'top'} onclick={() => sourceMode = 'top'}>Top</button>
         <button class="toggle-btn" class:active={sourceMode === 'random'} onclick={() => sourceMode = 'random'}>Random</button>
-        <button class="toggle-btn" class:active={sourceMode === 'search'} onclick={() => sourceMode = 'search'}>Search</button>
-        <button class="toggle-btn" class:active={sourceMode === 'artist'} onclick={() => sourceMode = 'artist'}>Discography</button>
+        <button class="toggle-btn" class:active={sourceMode === 'pick'} onclick={() => sourceMode = 'pick'}>Pick</button>
       </div>
     </div>
 
@@ -540,16 +447,6 @@
         </div>
       </div>
     {/if}
-
-    {#if sourceMode === 'artist'}
-      <div class="control-group">
-        <span class="control-label">Include</span>
-        <div class="check-row">
-          <label><input type="checkbox" bind:checked={includeAlbums} /> Albums</label>
-          <label><input type="checkbox" bind:checked={includeSingles} /> Singles</label>
-        </div>
-      </div>
-    {/if}
   </div>
 
   {#if sourceMode === 'top' || sourceMode === 'random'}
@@ -558,53 +455,7 @@
       {adding ? 'Adding...' : sourceMode === 'random' ? `Draw ${topCount} from top ${poolDepth}` : `Add top ${topCount}`}
     </button>
   {:else}
-    <input
-      class="search-input"
-      type="search"
-      placeholder={sourceMode === 'artist' ? 'Search an artist to pull their releases…' : 'Search artists, albums or tracks…'}
-      bind:value={query}
-      oninput={runSearch}
-    />
-
-    {#if searching}
-      <div class="hint">Searching…</div>
-    {:else if results}
-      <div class="results">
-        {#if sourceMode === 'artist'}
-          {#each results.artists as a (a.id)}
-            <button class="result" onclick={() => addDiscography(a.id)} disabled={loadingArtist === a.id}>
-              {#if a.imageUrl}<img src={a.imageUrl} alt="" />{:else}<div class="result-ph">{a.name.charAt(0)}</div>{/if}
-              <span class="result-name">{a.name}</span>
-              <span class="result-meta">{loadingArtist === a.id ? 'loading…' : `${formatNumber(a.playCount)} plays`}</span>
-            </button>
-          {:else}
-            <div class="hint">No artists found.</div>
-          {/each}
-        {:else}
-          {#each results.artists as a (a.id)}
-            <button class="result" onclick={() => addItems([{ key: `artist:${a.id}`, kind: 'artist', id: a.id, name: a.name, subtitle: 'artist', imageUrl: a.imageUrl, playCount: a.playCount, totalMs: 0 }])}>
-              {#if a.imageUrl}<img src={a.imageUrl} alt="" />{:else}<div class="result-ph">{a.name.charAt(0)}</div>{/if}
-              <span class="result-name">{a.name}</span>
-              <span class="result-meta">artist</span>
-            </button>
-          {/each}
-          {#each results.albums as al (al.id)}
-            <button class="result" onclick={() => addItems([{ key: `album:${al.id}`, kind: 'album', id: al.id, name: al.name, subtitle: al.artistName ?? '', imageUrl: al.imageUrl, playCount: al.playCount, totalMs: 0 }])}>
-              {#if al.imageUrl}<img src={al.imageUrl} alt="" />{:else}<div class="result-ph">{al.name.charAt(0)}</div>{/if}
-              <span class="result-name">{al.name}</span>
-              <span class="result-meta">{al.artistName ?? 'album'}</span>
-            </button>
-          {/each}
-          {#each results.tracks as t (t.id)}
-            <button class="result" onclick={() => addItems([{ key: `track:${t.id}`, kind: 'track', id: t.id, name: t.name, subtitle: t.artistName ?? '', imageUrl: t.albumImageUrl, playCount: t.playCount, totalMs: 0 }])}>
-              {#if t.albumImageUrl}<img src={t.albumImageUrl} alt="" />{:else}<div class="result-ph">{t.name.charAt(0)}</div>{/if}
-              <span class="result-name">{t.name}</span>
-              <span class="result-meta">{t.artistName ?? 'track'}</span>
-            </button>
-          {/each}
-        {/if}
-      </div>
-    {/if}
+    <LibraryPicker onadd={addItems} />
   {/if}
 </div>
 
@@ -753,85 +604,16 @@
   .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
   .toggle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  .check-row { display: flex; gap: 0.75rem; }
 
-  .check-row label {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
 
-  .search-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-  }
 
-  .search-input:focus { outline: none; border-color: var(--accent); }
 
-  .results {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 0.35rem;
-    max-height: 260px;
-    overflow-y: auto;
-  }
 
-  .result {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.5rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-    text-align: left;
-    font: inherit;
-    transition: border-color 0.05s;
-  }
 
-  .result:hover:not(:disabled) { border-color: var(--accent); }
-  .result:disabled { opacity: 0.5; cursor: progress; }
 
-  .result img, .result-ph {
-    width: 32px;
-    height: 32px;
-    border-radius: 4px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
 
-  .result-ph {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-card);
-    color: var(--text-muted);
-    font-weight: 600;
-  }
 
-  .result-name {
-    flex: 1;
-    font-size: 0.85rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
-  .result-meta {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    flex-shrink: 0;
-  }
 
   .board-actions {
     display: flex;
@@ -1092,11 +874,6 @@
     border: 1px solid var(--border);
   }
 
-  .hint {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    padding: 0.5rem 0;
-  }
 
   @media (max-width: 640px) {
     .tier-label { width: 84px; }

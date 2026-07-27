@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, createFetchController, getRankingMetric, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type DateRangeParams, type MeResponse, type RankingMetric } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, type DateRangeParams, type MeResponse, type RankingMetric } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
+  import LibraryPicker from '$lib/components/LibraryPicker.svelte';
   import { downloadCanvasPng, tryLoadImage } from '$lib/canvas-export';
   import { formatNumber, formatHours } from '$lib/utils/format';
   import { weightedSample } from '$lib/utils/sample';
+  import { fromTopItem, metricValue, type EntityTab, type LibraryItem } from '$lib/utils/library-items';
 
   const BRACKET_SIZES = [8, 16, 32, 64] as const;
   // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
@@ -40,18 +42,9 @@
   const MIN_RENDER_SCALE = 2;
   const EXPORT_SCALE = 2;
 
-  type EntityTab = 'artists' | 'tracks' | 'albums';
-  type Field = 'top' | 'random';
-  type Entry = {
-    id: string;
-    seed: number;
-    name: string;
-    subtitle: string;
-    imageUrl: string | null;
-    playCount: number;
-    totalMs: number;
-  };
-  type PoolItem = Omit<Entry, 'seed'>;
+  type Field = 'top' | 'random' | 'pick';
+  type Entry = LibraryItem & { seed: number };
+  type PoolItem = LibraryItem;
   type Snapshot = { rounds: (Entry | null)[][]; cursor: { round: number; match: number } };
   // cssWidth/cssHeight son las dimensiones lógicas, sin el factor de escala
   type RenderResult = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number };
@@ -66,6 +59,9 @@
   let endDate = $state('');
 
   let pool = $state<PoolItem[]>([]);
+  // en modo pick el campo lo monta el usuario a mano; el bracket se dimensiona
+  // solo a partir de él, así que no pasa por el control de tamaño
+  let roster = $state<PoolItem[]>([]);
   let entries = $state<Entry[]>([]);
   let rounds = $state<(Entry | null)[][]>([]);
   let cursor = $state({ round: 0, match: 0 });
@@ -89,6 +85,13 @@
   // decisiones reales, y el stack de undo lleva justo una entrada por elección
   const totalMatches = $derived(Math.max(entries.length - 1, 1));
   const playedMatches = $derived(history.length);
+  // en pick el cuadro se ajusta al roster: la potencia de dos inmediatamente
+  // superior, acotada al rango de tamaños que soporta el bracket
+  const effectiveSize = $derived(
+    field === 'pick'
+      ? Math.min(Math.max(2 ** Math.ceil(Math.log2(Math.max(roster.length, 2))), BRACKET_SIZES[0]), BRACKET_SIZES[BRACKET_SIZES.length - 1])
+      : bracketSize
+  );
   const runnerUp = $derived.by(() => {
     if (!finished || rounds.length < 2) return null;
     const semis = rounds[rounds.length - 2];
@@ -122,45 +125,14 @@
     return map[range] ?? range;
   }
 
-  // normaliza cualquiera de los tres tipos de top a la forma común del bracket
-  function toEntry(item: TopTrackItem | TopArtistItem | TopAlbumItem, tab: EntityTab): Omit<Entry, 'seed'> | null {
-    if (tab === 'tracks') {
-      const t = item as TopTrackItem;
-      if (!t.track) return null;
-      return {
-        id: t.trackId,
-        name: t.track.name,
-        subtitle: t.track.artists.map((a) => a.name).join(', '),
-        imageUrl: t.track.album?.imageUrl ?? null,
-        playCount: t.playCount,
-        totalMs: t.totalMs,
-      };
-    }
-    if (tab === 'artists') {
-      const a = item as TopArtistItem;
-      if (!a.artist) return null;
-      return {
-        id: a.artistId,
-        name: a.artist.name,
-        subtitle: a.artist.genres[0] ?? '',
-        imageUrl: a.artist.imageUrl,
-        playCount: a.playCount,
-        totalMs: a.totalMs,
-      };
-    }
-    const al = item as TopAlbumItem;
-    if (!al.album) return null;
-    return {
-      id: al.albumId,
-      name: al.album.name,
-      subtitle: al.album.releaseDate?.slice(0, 4) ?? '',
-      imageUrl: al.album.imageUrl,
-      playCount: al.playCount,
-      totalMs: al.totalMs,
-    };
-  }
-
   async function loadData() {
+    // en pick no hay nada que traer: el campo es el roster que monta el usuario
+    if (field === 'pick') {
+      fetchCtrl.reset();
+      loading = false;
+      buildField();
+      return;
+    }
     const signal = fetchCtrl.reset();
     loading = true;
     try {
@@ -173,7 +145,7 @@
       const items = await fetcher(range, limit, metric, getCustomDates(), undefined, signal);
       if (signal.aborted) return;
       pool = items
-        .map((i) => toEntry(i as any, entityTab))
+        .map((i) => fromTopItem(i as any, entityTab))
         .filter((e): e is PoolItem => e !== null);
       buildField();
     } catch (e: any) {
@@ -184,14 +156,26 @@
     }
   }
 
-  function metricOf(p: PoolItem): number {
-    return metric === 'plays' ? p.playCount : p.totalMs;
+  // los que ya estén en el roster se ignoran
+  function addToRoster(items: PoolItem[]) {
+    const have = new Set(roster.map((r) => r.key));
+    const fresh = items.filter((i) => !have.has(i.key));
+    if (fresh.length) roster = [...roster, ...fresh];
   }
+
+  function removeFromRoster(key: string) {
+    roster = roster.filter((r) => r.key !== key);
+  }
+
+  const metricOf = (p: PoolItem) => metricValue(p, metric);
 
   // decide qué entra en el bracket y le asigna seeds; separado de loadData para
   // poder resortear sin refetch
   function buildField() {
-    const chosen = field === 'random' ? weightedSample(pool, bracketSize, metricOf) : pool.slice(0, bracketSize);
+    const chosen = field === 'random' ? weightedSample(pool, effectiveSize, metricOf)
+      // si el roster desborda el cuadro máximo, entran los más escuchados
+      : field === 'pick' ? [...roster].sort((a, b) => metricOf(b) - metricOf(a)).slice(0, effectiveSize)
+      : pool.slice(0, effectiveSize);
     // el seed siempre sale del ranking real dentro del campo elegido
     entries = [...chosen]
       .sort((a, b) => metricOf(b) - metricOf(a))
@@ -226,10 +210,10 @@
     if (entries.length < 2) { rounds = []; history = []; return; }
     const bySeed = new Map(entries.map((e) => [e.seed, e]));
     // huecos sin entrada son byes: pasan solos a la siguiente ronda
-    const first = seedOrder(bracketSize).map((s) => bySeed.get(s) ?? null);
+    const first = seedOrder(effectiveSize).map((s) => bySeed.get(s) ?? null);
 
     const built: (Entry | null)[][] = [first];
-    for (let n = bracketSize / 2; n >= 1; n /= 2) built.push(new Array(n).fill(null));
+    for (let n = effectiveSize / 2; n >= 1; n /= 2) built.push(new Array(n).fill(null));
 
     rounds = built;
     cursor = { round: 0, match: 0 };
@@ -292,7 +276,9 @@
     return ROUND_NAMES[slots] ?? `Round of ${slots}`;
   }
 
-  function metricValue(e: Entry): string {
+  // etiqueta legible del enfrentamiento (no confundir con metricValue del util,
+  // que devuelve el número con el que se siembra)
+  function metricLabel(e: Entry): string {
     return metric === 'plays' ? `${formatNumber(e.playCount)} plays` : formatHours(e.totalMs);
   }
 
@@ -345,7 +331,9 @@
     ctx.fillText('March Madness', PAD, PAD + 22);
     ctx.fillStyle = CANVAS_MUTED;
     ctx.font = '16px sans-serif';
-    const fieldLabel = field === 'random' ? `random from top ${Math.min(poolDepth, pool.length)}` : `top ${bracketSize}`;
+    const fieldLabel = field === 'random' ? `random from top ${Math.min(poolDepth, pool.length)}`
+      : field === 'pick' ? `${entries.length} hand-picked`
+      : `top ${effectiveSize}`;
     ctx.fillText(`${entityTab} · ${rangeLabel()} · ${fieldLabel}`, PAD, PAD + 52);
 
     const colX = (r: number) => PAD + r * (COL_W + COL_GAP);
@@ -470,8 +458,8 @@
     const r = await renderBracket(EXPORT_SCALE);
     if (!r) return;
     const stamp = new Date().toISOString().split('T')[0];
-    const suffix = field === 'random' ? `random${poolDepth}` : `top${bracketSize}`;
-    await downloadCanvasPng(r.canvas, `march-madness-${entityTab}-${bracketSize}-${suffix}-${stamp}.png`);
+    const suffix = field === 'random' ? `random${poolDepth}` : field === 'pick' ? 'picked' : `top${effectiveSize}`;
+    await downloadCanvasPng(r.canvas, `march-madness-${field === 'pick' ? 'mixed' : entityTab}-${effectiveSize}-${suffix}-${stamp}.png`);
   }
 
   onMount(async () => {
@@ -481,7 +469,7 @@
 
   $effect(() => {
     // recarga y reinicia el bracket cuando cambia cualquier parámetro de setup
-    void entityTab; void bracketSize; void field; void poolDepth; void metric; void range; void startDate; void endDate;
+    void entityTab; void bracketSize; void field; void poolDepth; void metric; void range; void startDate; void endDate; void roster;
     loadData();
   });
 
@@ -506,30 +494,38 @@
 
 <div class="card controls">
   <div class="control-group">
-    <span class="control-label">Type</span>
-    <div class="toggle-group">
-      <button class="toggle-btn" class:active={entityTab === 'artists'} onclick={() => entityTab = 'artists'}>Artists</button>
-      <button class="toggle-btn" class:active={entityTab === 'tracks'} onclick={() => entityTab = 'tracks'}>Tracks</button>
-      <button class="toggle-btn" class:active={entityTab === 'albums'} onclick={() => entityTab = 'albums'}>Albums</button>
-    </div>
-  </div>
-
-  <div class="control-group">
-    <span class="control-label">Bracket</span>
-    <div class="toggle-group">
-      {#each BRACKET_SIZES as n}
-        <button class="toggle-btn" class:active={bracketSize === n} onclick={() => setBracketSize(n)}>{n}</button>
-      {/each}
-    </div>
-  </div>
-
-  <div class="control-group">
     <span class="control-label">Field</span>
     <div class="toggle-group">
       <button class="toggle-btn" class:active={field === 'top'} onclick={() => field = 'top'}>Top {bracketSize}</button>
       <button class="toggle-btn" class:active={field === 'random'} onclick={() => field = 'random'}>Random</button>
+      <button class="toggle-btn" class:active={field === 'pick'} onclick={() => field = 'pick'}>Pick</button>
     </div>
   </div>
+
+  {#if field !== 'pick'}
+    <div class="control-group">
+      <span class="control-label">Type</span>
+      <div class="toggle-group">
+        <button class="toggle-btn" class:active={entityTab === 'artists'} onclick={() => entityTab = 'artists'}>Artists</button>
+        <button class="toggle-btn" class:active={entityTab === 'tracks'} onclick={() => entityTab = 'tracks'}>Tracks</button>
+        <button class="toggle-btn" class:active={entityTab === 'albums'} onclick={() => entityTab = 'albums'}>Albums</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Bracket</span>
+      <div class="toggle-group">
+        {#each BRACKET_SIZES as n}
+          <button class="toggle-btn" class:active={bracketSize === n} onclick={() => setBracketSize(n)}>{n}</button>
+        {/each}
+      </div>
+    </div>
+  {:else}
+    <div class="control-group">
+      <span class="control-label">Bracket</span>
+      <span class="auto-size">{effectiveSize} <small>auto</small></span>
+    </div>
+  {/if}
 
   {#if field === 'random'}
     <div class="control-group">
@@ -560,10 +556,36 @@
     {#if field === 'random'}
       <button class="ghost-btn" onclick={reshuffle} disabled={pool.length === 0}>Reshuffle</button>
     {/if}
+    {#if field === 'pick'}
+      <button class="ghost-btn" onclick={() => roster = []} disabled={roster.length === 0}>Clear field</button>
+    {/if}
     <button class="ghost-btn" onclick={undo} disabled={history.length === 0}>Undo</button>
     <button class="ghost-btn" onclick={replay} disabled={rounds.length === 0}>Reset</button>
   </div>
 </div>
+
+{#if field === 'pick'}
+  <div class="card picker-card">
+    <LibraryPicker onadd={addToRoster} />
+
+    <div class="roster">
+      <span class="control-label">Field · {roster.length} {roster.length === 1 ? 'entry' : 'entries'}</span>
+      {#if roster.length === 0}
+        <p class="hint">Search for artists, albums or tracks, or pull an artist's whole discography. The bracket sizes itself to what you add.</p>
+      {:else}
+        <div class="roster-chips">
+          {#each roster as r (r.key)}
+            <button class="roster-chip" onclick={() => removeFromRoster(r.key)} title="Remove {r.name}">
+              {#if r.imageUrl}<img src={r.imageUrl} alt="" />{/if}
+              <span>{r.name}</span>
+              <span class="roster-x">×</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 {#if field === 'random' && !loading && entries.length > 0}
   <div class="notice">
@@ -577,9 +599,13 @@
 {:else if entries.length < 2}
   <div class="empty">Not enough {entityTab} in the selected range to build a bracket.</div>
 {:else}
-  {#if entries.length < bracketSize}
+  {#if entries.length < effectiveSize}
     <div class="notice">
-      Only {entries.length} {entityTab} in this range — the remaining {bracketSize - entries.length} slots are byes.
+      {#if field === 'pick'}
+        {entries.length} picked — the remaining {effectiveSize - entries.length} slots are byes.
+      {:else}
+        Only {entries.length} {entityTab} in this range — the remaining {effectiveSize - entries.length} slots are byes.
+      {/if}
     </div>
   {/if}
 
@@ -638,7 +664,7 @@
           <div class="seed-badge">{side?.seed}</div>
           <div class="contender-name">{side?.name}</div>
           {#if side?.subtitle}<div class="contender-sub">{side.subtitle}</div>{/if}
-          <div class="contender-stat">{side ? metricValue(side) : ''}</div>
+          <div class="contender-stat">{side ? metricLabel(side) : ''}</div>
           <div class="contender-key">{i === 0 ? '←' : '→'}</div>
         </button>
         {#if i === 0}<div class="versus">vs</div>{/if}
@@ -740,6 +766,83 @@
     color: var(--text-muted);
     font-size: 0.85rem;
     margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  .auto-size {
+    font-size: 0.95rem;
+    color: var(--text);
+    font-weight: 600;
+    padding: 0.3rem 0;
+  }
+
+  .auto-size small {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .picker-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .roster {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .roster-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    max-height: 190px;
+    overflow-y: auto;
+  }
+
+  .roster-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.45rem 0.2rem 0.2rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    max-width: 220px;
+  }
+
+  .roster-chip:hover { border-color: #ef476f; }
+  .roster-chip:hover .roster-x { color: #ef476f; }
+
+  .roster-chip img {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .roster-chip span:not(.roster-x) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .roster-x { color: var(--text-muted); flex-shrink: 0; }
+
+  .hint {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
     line-height: 1.5;
   }
 
