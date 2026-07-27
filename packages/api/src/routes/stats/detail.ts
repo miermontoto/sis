@@ -84,7 +84,12 @@ detail.get('/album/:id', async (c) => {
     dbRead<any>('getAlbumPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'album', id),
     dbRead<any[]>('getAlbumCovers', id),
-    dbRead<any[]>('getAlbumRelatedSingles', id, albumIds, userId),
+    // los "singles de adelanto" son un concepto de álbum: un single no los tiene.
+    // sin este guard, dos singles que comparten un track (p.ej. un single de 2 temas
+    // que incluye el A-side de otro) se listan mutuamente como single de adelanto.
+    album.album_type === 'single'
+      ? Promise.resolve([] as any[])
+      : dbRead<any[]>('getAlbumRelatedSingles', id, albumIds, userId),
   ]);
 
   // artistas reales por track (incluye secundarios/featured) — el álbum comparte cover pero cada track
