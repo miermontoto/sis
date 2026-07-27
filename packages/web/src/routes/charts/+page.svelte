@@ -22,7 +22,10 @@
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
   let metric = $state<RankingMetric>('time');
-  let weekStart = $state<WeekStartOption>('monday');
+  // default alineado con el resto de la app (backend/getWeekStart = 'friday'); onMount
+  // aplica la preferencia real. antes estaba hardcodeado 'monday', lo que etiquetaba las
+  // semanas en monday-weeks al cargar (p.ej. W16 en vez de W15) hasta que onMount corregía
+  let weekStart = $state<WeekStartOption>('friday');
   let activeType = $state<ChartEntityType>('tracks');
   let granularity = $state<Granularity>('week');
   let selectedPeriod = $state('');
