@@ -33,6 +33,10 @@
   const FOOTER_H = 54;
   const THUMB = 28;
 
+  // factores de supersampling del canvas (ver renderBracket)
+  const MIN_RENDER_SCALE = 2;
+  const EXPORT_SCALE = 2;
+
   type EntityTab = 'artists' | 'tracks' | 'albums';
   type Entry = {
     id: string;
@@ -44,6 +48,8 @@
     totalMs: number;
   };
   type Snapshot = { rounds: (Entry | null)[][]; cursor: { round: number; match: number } };
+  // cssWidth/cssHeight son las dimensiones lógicas, sin el factor de escala
+  type RenderResult = { canvas: HTMLCanvasElement; cssWidth: number; cssHeight: number };
 
   let entityTab = $state<EntityTab>('artists');
   let bracketSize = $state<typeof BRACKET_SIZES[number]>(16);
@@ -270,7 +276,9 @@
     return pos;
   }
 
-  async function renderBracket(): Promise<HTMLCanvasElement | null> {
+  // dibuja en unidades lógicas sobre un buffer escalado: sin esto el canvas
+  // tiene menos píxeles que la pantalla en displays HiDPI y el texto se ve dentado
+  async function renderBracket(scale: number): Promise<RenderResult | null> {
     if (rounds.length === 0) return null;
 
     const pos = slotPositions();
@@ -279,10 +287,11 @@
     const height = PAD * 2 + HEADER_H + contentH + FOOTER_H;
 
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
+    ctx.scale(scale, scale);
 
     ctx.fillStyle = CANVAS_BG;
     ctx.fillRect(0, 0, width, height);
@@ -397,27 +406,33 @@
     ctx.fillStyle = '#555';
     ctx.fillText('sis', width - PAD, footerY);
 
-    return canvas;
+    return { canvas, cssWidth: width, cssHeight: height };
   }
 
   async function updatePreview() {
     rendering = true;
     try {
-      const c = await renderBracket();
-      if (!c || !previewCanvas) return;
-      previewCanvas.width = c.width;
-      previewCanvas.height = c.height;
-      previewCanvas.getContext('2d')?.drawImage(c, 0, 0);
+      // nunca por debajo de 2x: el PNG descargado y el preview comparten render,
+      // y en pantallas 1x un 2x sigue mejorando el antialiasing del texto
+      const scale = Math.max(window.devicePixelRatio || 1, MIN_RENDER_SCALE);
+      const r = await renderBracket(scale);
+      if (!r || !previewCanvas) return;
+      previewCanvas.width = r.canvas.width;
+      previewCanvas.height = r.canvas.height;
+      // el tamaño CSS se fija en unidades lógicas para que el texto conserve su
+      // tamaño de lectura; los brackets anchos hacen scroll en vez de encogerse
+      previewCanvas.style.width = `${r.cssWidth}px`;
+      previewCanvas.getContext('2d')?.drawImage(r.canvas, 0, 0);
     } finally {
       rendering = false;
     }
   }
 
   async function download() {
-    const c = await renderBracket();
-    if (!c) return;
+    const r = await renderBracket(EXPORT_SCALE);
+    if (!r) return;
     const stamp = new Date().toISOString().split('T')[0];
-    await downloadCanvasPng(c, `march-madness-${entityTab}-${bracketSize}-${stamp}.png`);
+    await downloadCanvasPng(r.canvas, `march-madness-${entityTab}-${bracketSize}-${stamp}.png`);
   }
 
   onMount(async () => {
@@ -868,8 +883,10 @@
     overflow-x: auto;
   }
 
+  /* sin max-width: el ancho lo fija updatePreview en px lógicos y el wrapper
+     hace scroll horizontal, en vez de encoger el bracket hasta ser ilegible */
   .preview {
-    max-width: 100%;
+    display: block;
     height: auto;
     border-radius: var(--radius);
     border: 1px solid var(--border);
