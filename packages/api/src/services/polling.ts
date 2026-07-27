@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings } from './notification-events.js';
@@ -378,14 +378,19 @@ export function startPolling() {
   // imágenes/géneros de artistas y artist_ids de álbumes con IDs reales vía spotify api (requiere token)
   enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
   enrichAlbumMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
-  fixVideoCovers(globalUserId).catch(err => console.error('[metadata] error portadas de vídeo:', err));
+  // portadas: quitar miniaturas de vídeo y recuperar el arte del hermano de audio
+  fixVideoCovers(globalUserId)
+    .then(() => recoverSingleCovers(globalUserId))
+    .catch(err => console.error('[metadata] error portadas de vídeo:', err));
 
   metadataRefreshTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
     enrichArtistMetadata(uid).catch(err => console.error('[metadata] error:', err));
     enrichAlbumMetadata(uid).catch(err => console.error('[metadata] error:', err));
-    fixVideoCovers(uid).catch(err => console.error('[metadata] error portadas de vídeo:', err));
+    fixVideoCovers(uid)
+      .then(() => recoverSingleCovers(uid))
+      .catch(err => console.error('[metadata] error portadas de vídeo:', err));
   }, METADATA_REFRESH_INTERVAL_MS);
 
   // resolución de entidades import:

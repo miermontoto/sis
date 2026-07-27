@@ -5,7 +5,7 @@ import { getDb } from '../../db/connection.js';
 import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
-import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse } from '../../types/spotify.js';
+import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
 
 const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -221,6 +221,92 @@ export async function fixVideoCovers(userId: number) {
   }
 
   console.log(`[metadata] ${fixed} portadas de vídeo reemplazadas por arte del álbum`);
+}
+
+// paginación de /artists/{id}/albums
+const ARTIST_ALBUMS_PAGE = 50;
+const ARTIST_ALBUMS_MAX_PAGES = 10;
+
+// artista principal (primer id) del JSON artist_ids de un álbum
+function primaryArtistId(artistIdsJson: string | null): string | null {
+  if (!artistIdsJson) return null;
+  try {
+    const arr = JSON.parse(artistIdsJson);
+    return Array.isArray(arr) && arr[0] ? String(arr[0]) : null;
+  } catch { return null; }
+}
+
+// clave de emparejamiento de lanzamientos hermanos: (nombre, fecha)
+const coverKey = (name: string | null, date: string | null) => `${(name ?? '').toLowerCase()}|${date ?? ''}`;
+
+// recuperar la portada de singles sin arte desde la discografía del artista. tras
+// descartar las miniaturas de vídeo, un single "vídeo" queda sin portada aunque su
+// variante de audio (mismo nombre y fecha) tenga arte cuadrado; se piden los álbumes
+// del artista y se casa por (nombre, fecha). los que no tengan hermano con arte propio
+// se marcan con image_url='' (buscado sin resultado, != NULL) para no reintentarlos
+// cada ciclo (misma convención que enrichLocalAlbumCovers).
+export async function recoverSingleCovers(userId: number) {
+  const db = getDb();
+  const missing = db.all(sql`
+    SELECT spotify_id, name, release_date, artist_ids FROM albums
+    WHERE album_type = 'single' AND image_url IS NULL AND artist_ids IS NOT NULL
+      AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'
+  `) as { spotify_id: string; name: string | null; release_date: string | null; artist_ids: string }[];
+
+  if (missing.length === 0) return;
+
+  // agrupar por artista principal: una consulta de discografía por artista
+  const byArtist = new Map<string, typeof missing>();
+  for (const m of missing) {
+    const artistId = primaryArtistId(m.artist_ids);
+    if (!artistId) continue;
+    const list = byArtist.get(artistId);
+    if (list) list.push(m); else byArtist.set(artistId, [m]);
+  }
+
+  console.log(`[metadata] recuperando portadas de ${missing.length} singles sin arte (${byArtist.size} artistas)...`);
+  let recovered = 0;
+
+  for (const [artistId, items] of byArtist) {
+    // mapa (nombre|fecha) -> primera portada cuadrada hallada en la discografía
+    const coverByKey = new Map<string, string>();
+    let offset = 0;
+    let fetchedOk = false;
+
+    for (let page = 0; page < ARTIST_ALBUMS_MAX_PAGES; page++) {
+      const res = await spotifyFetch<SpotifyArtistAlbumsResponse>(`/artists/${artistId}/albums`, {
+        userId,
+        params: { include_groups: 'album,single,compilation', limit: String(ARTIST_ALBUMS_PAGE), offset: String(offset) },
+      });
+      if (res === null) break; // error/rate-limit: no marcamos '' para reintentar luego
+      fetchedOk = true;
+      if (!res.items?.length) break;
+      for (const al of res.items) {
+        const cover = pickAlbumCover(al.images);
+        if (!cover) continue;
+        const k = coverKey(al.name, al.release_date);
+        if (!coverByKey.has(k)) coverByKey.set(k, cover);
+      }
+      if (!res.next) break;
+      offset += res.items.length;
+    }
+
+    if (!fetchedOk) continue; // no se pudo consultar: dejar NULL (reintento próximo ciclo)
+
+    for (const m of items) {
+      const cover = coverByKey.get(coverKey(m.name, m.release_date));
+      if (cover) {
+        db.update(albums).set({ imageUrl: cover, updatedAt: now() }).where(sql`spotify_id = ${m.spotify_id}`).run();
+        db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${m.spotify_id}, ${cover}, 'spotify')`);
+        recovered++;
+      } else {
+        // sin hermano con arte propio: marcar buscado-sin-resultado para no reintentar
+        db.update(albums).set({ imageUrl: '', updatedAt: now() }).where(sql`spotify_id = ${m.spotify_id}`).run();
+      }
+    }
+  }
+
+  console.log(`[metadata] ${recovered}/${missing.length} portadas de single recuperadas de la discografía del artista`);
 }
 
 // --- MusicBrainz + Cover Art Archive (portadas de álbumes locales / importados) ---

@@ -117,6 +117,17 @@ export interface SpotifyAlbumTracksResponse {
   next: string | null;
 }
 
+export interface SpotifyArtistAlbumsResponse {
+  items: {
+    id: string;
+    name: string;
+    release_date: string;
+    album_type: string;
+    images: SpotifyImage[];
+  }[];
+  next: string | null;
+}
+
 export interface SpotifySearchArtistResult {
   artists: { items: SpotifyArtistFull[] };
 }
