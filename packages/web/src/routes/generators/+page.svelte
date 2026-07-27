@@ -42,6 +42,12 @@
       name: 'March Madness',
       description: 'Knockout bracket of your artists, tracks, or albums: seed the top ones or draw a random field, then pick your way to a champion.',
     },
+    {
+      href: '/generators/tier-list',
+      icon: '≡',
+      name: 'Tier List',
+      description: 'Drag your artists, albums or tracks into custom tiers. Pull them from your top, a random draw, a search, or a whole discography.',
+    },
   ];
 </script>
 

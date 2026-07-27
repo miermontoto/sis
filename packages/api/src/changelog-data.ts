@@ -9,10 +9,12 @@ export const CHANGELOG: ChangelogEntryInput[] = [
   {
     version: '26w31j',
     publishedAt: '2026-07-27',
-    title: 'March Madness',
+    title: 'Bracket and tier list',
     changes: [
       { type: 'feature', es: 'Nuevo generator "March Madness": siembra tus artistas, tracks o álbumes más escuchados en un cuadro de eliminación directa de hasta 64 puestos y ve eligiendo ganador enfrentamiento a enfrentamiento hasta coronar un campeón (las reproducciones y las horas se muestran como pista, pero decides tú). Al terminar puedes descargar el cuadro completo como imagen', en: 'New "March Madness" generator: seed your most-played artists, tracks or albums into a knockout bracket of up to 64 and pick a winner matchup by matchup until you crown a champion (plays and hours are shown as a hint, but the call is yours). When you finish you can download the full bracket as an image' },
       { type: 'feature', es: 'El cuadro de March Madness no tiene por qué salir de tu top: en modo aleatorio se sortea entre tus 50, 100 o 200 más escuchados, con más papeletas para lo que de verdad pones, así que la mayoría del cuadro son temas que llevabas tiempo sin recordar. Puedes volver a sortear sin recargar', en: 'A March Madness bracket does not have to be your top entries: random mode draws from your top 50, 100 or 200, weighting what you actually play, so most of the field ends up being things you had half-forgotten. You can redraw without reloading' },
+      { type: 'feature', es: 'Nuevo generator "Tier List": arrastra artistas, álbumes o tracks a filas de tiers que puedes renombrar, recolorear, reordenar y añadir o quitar a tu gusto. En móvil, toca un elemento y luego la fila donde quieras dejarlo. La lista se descarga como imagen', en: 'New "Tier List" generator: drag artists, albums or tracks into tier rows you can rename, recolour, reorder, and add or remove at will. On mobile, tap an item and then the row you want it in. The list downloads as an image' },
+      { type: 'feature', es: 'Los elementos de la tier list salen de donde quieras: tu top (20, 50 o 100), un sorteo aleatorio de un pool más profundo, una búsqueda para añadir cosas sueltas a mano, o la discografía entera de un artista (con álbumes y singles por separado)', en: 'Tier list items can come from wherever you want: your top (20, 50 or 100), a random draw from a deeper pool, a search to add individual things by hand, or an artist\'s whole discography (albums and singles toggled separately)' },
     ],
   },
   {
