@@ -36,9 +36,9 @@
     loading = true;
     try {
       if (subject === 'tracks') {
-        tracks = await api.topTracks(range, ITEM_COUNT, 'plays', getCustomDates(), signal);
+        tracks = await api.topTracks(range, ITEM_COUNT, 'plays', getCustomDates(), undefined, signal);
       } else {
-        artists = await api.topArtists(range, ITEM_COUNT, 'plays', getCustomDates(), signal);
+        artists = await api.topArtists(range, ITEM_COUNT, 'plays', getCustomDates(), undefined, signal);
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') return;

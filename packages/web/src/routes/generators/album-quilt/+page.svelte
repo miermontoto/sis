@@ -33,7 +33,7 @@
     loading = true;
     try {
       const count = gridSize * gridSize;
-      albums = await api.topAlbums(range, count, metric, getCustomDates(), signal);
+      albums = await api.topAlbums(range, count, metric, getCustomDates(), undefined, signal);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;

@@ -60,7 +60,7 @@
     const signal = fetchCtrl.reset();
     loading = true;
     try {
-      artists = await api.topArtists(range, 40, metric, getCustomDates(), signal);
+      artists = await api.topArtists(range, 40, metric, getCustomDates(), undefined, signal);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;

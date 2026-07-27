@@ -49,7 +49,7 @@
     cache = new Map();
     selected = [];
     try {
-      topArtists = await api.topArtists('all', 50, metric, undefined, signal);
+      topArtists = await api.topArtists('all', 50, metric, undefined, undefined, signal);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       throw e;
