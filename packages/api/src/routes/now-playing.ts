@@ -4,6 +4,7 @@ import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
 import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
+import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS } from '../constants.js';
 import type { AppVariables } from '../app.js';
@@ -162,6 +163,7 @@ nowPlaying.put('/play', async (c) => {
   await spotifyFetch('/me/player/play', { userId, method: 'PUT' });
   const db = getDb();
   db.run(sql`UPDATE polling_state SET is_playing = 1 WHERE user_id = ${userId}`);
+  triggerCurrentlyPlayingPoll(userId);
   return c.json({ success: true });
 });
 
@@ -170,18 +172,21 @@ nowPlaying.put('/pause', async (c) => {
   await spotifyFetch('/me/player/pause', { userId, method: 'PUT' });
   const db = getDb();
   db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
+  triggerCurrentlyPlayingPoll(userId);
   return c.json({ success: true });
 });
 
 nowPlaying.post('/next', async (c) => {
   const userId = c.get('userId');
   await spotifyFetch('/me/player/next', { userId, method: 'POST' });
+  triggerCurrentlyPlayingPoll(userId);
   return c.json({ success: true });
 });
 
 nowPlaying.post('/previous', async (c) => {
   const userId = c.get('userId');
   await spotifyFetch('/me/player/previous', { userId, method: 'POST' });
+  triggerCurrentlyPlayingPoll(userId);
   return c.json({ success: true });
 });
 
@@ -218,6 +223,7 @@ nowPlaying.put('/play-context', async (c) => {
   if (res.status === 204 || res.ok) {
     const db = getDb();
     db.run(sql`UPDATE polling_state SET is_playing = 1 WHERE user_id = ${userId}`);
+    triggerCurrentlyPlayingPoll(userId);
     return c.json({ success: true });
   }
 
@@ -251,6 +257,9 @@ nowPlaying.put('/seek', async (c) => {
     // retrocederían la barra hasta el siguiente poll de currently-playing
     const db = getDb();
     db.run(sql`UPDATE polling_state SET progress_ms = ${clamped}, last_currently_playing_at = ${new Date().toISOString()} WHERE user_id = ${userId}`);
+    // el timer del ciclo se calculó con el progreso anterior: sin re-poll, un
+    // seek hacia el final del track deja el cambio sin detectar hasta 60s
+    triggerCurrentlyPlayingPoll(userId);
     return c.json({ success: true, position_ms: clamped });
   }
 
@@ -286,6 +295,7 @@ nowPlaying.put('/device', async (c) => {
     method: 'PUT',
     body: { device_ids: [device_id], play: play ?? true },
   });
+  triggerCurrentlyPlayingPoll(userId);
   return c.json({ success: true });
 });
 

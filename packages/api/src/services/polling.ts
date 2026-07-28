@@ -13,6 +13,8 @@ import {
   CURRENTLY_PLAYING_BUFFER_MS,
   CURRENTLY_PLAYING_PAUSED_MS,
   CURRENTLY_PLAYING_IDLE_MS,
+  CURRENTLY_PLAYING_TRIGGER_MS,
+  HISTORY_FLUSH_DELAYS_MS,
   RECENTLY_PLAYED_INTERVAL_MS,
   RECENTLY_PLAYED_LIMIT,
   METADATA_REFRESH_INTERVAL_MS,
@@ -73,6 +75,30 @@ function pushCompletedPlay(userId: number, play: CompletedPlay) {
   const cutoff = Date.now() - COMPLETED_PLAY_TTL_MS;
   const firstValid = list.findIndex(p => p.endedAt >= cutoff);
   if (firstValid > 0) list.splice(0, firstValid);
+  scheduleHistoryFlush(userId);
+}
+
+// volcado anticipado a historial: al detectar que un track terminó no se espera
+// al tick de RECENTLY_PLAYED_INTERVAL_MS (5 min) para insertarlo. recently-played
+// tarda unos segundos en reflejar el play, así que se reintenta en escalera
+// mientras queden completados sin correlacionar. rearmar reinicia la escalera,
+// así que una ráfaga de skips se agrupa en un solo volcado.
+const historyFlushTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function scheduleHistoryFlush(userId: number, step = 0) {
+  if (step >= HISTORY_FLUSH_DELAYS_MS.length) return;
+  const pending = historyFlushTimers.get(userId);
+  if (pending) clearTimeout(pending);
+  historyFlushTimers.set(userId, setTimeout(async () => {
+    historyFlushTimers.delete(userId);
+    const before = completedPlays.get(userId)?.length ?? 0;
+    await pollRecentlyPlayed(userId);
+    const after = completedPlays.get(userId)?.length ?? 0;
+    // no se correlacionó nada: spotify aún no lo expone, reintentar más tarde.
+    // si se consumió algo, lo que quede son plays que spotify nunca registrará
+    // (demasiado cortos) y caducan solos por TTL
+    if (after > 0 && after === before) scheduleHistoryFlush(userId, step + 1);
+  }, HISTORY_FLUSH_DELAYS_MS[step]));
 }
 
 export function getCompletedPlayDuration(userId: number, trackId: string): number | null {
@@ -244,13 +270,31 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
   }
 }
 
+// generación del ciclo de currently-playing por usuario: un re-poll forzado
+// invalida el ciclo en curso para que un poll que ya estaba en vuelo no pise
+// con su propio delay el timer recién programado
+const pollGeneration = new Map<number, number>();
+
 function scheduleNextCurrentlyPlaying(userId: number, delayMs: number) {
   const timers = userTimers.get(userId);
   if (!timers) return;
+  if (timers.currentlyPlaying) clearTimeout(timers.currentlyPlaying);
+  const gen = (pollGeneration.get(userId) ?? 0) + 1;
+  pollGeneration.set(userId, gen);
   timers.currentlyPlaying = setTimeout(async () => {
     const delay = await pollCurrentlyPlaying(userId);
+    if (pollGeneration.get(userId) !== gen) return; // reprogramado mientras leíamos
     scheduleNextCurrentlyPlaying(userId, delay);
   }, delayMs);
+}
+
+// fuerza una lectura de currently-playing adelantando el timer del ciclo. lo
+// llaman las rutas de playback (next/prev/play/pause/transferencia de
+// dispositivo): sin esto polling_state conserva el track anterior hasta
+// CURRENTLY_PLAYING_MAX_MS y la tarjeta se queda (o vuelve) al track viejo.
+export function triggerCurrentlyPlayingPoll(userId: number, delayMs = CURRENTLY_PLAYING_TRIGGER_MS) {
+  if (!userTimers.has(userId)) return;
+  scheduleNextCurrentlyPlaying(userId, delayMs);
 }
 
 async function pollRecentlyPlayed(userId: number) {
@@ -323,6 +367,9 @@ function startPollingForUser(userId: number) {
   // ejecutar inmediatamente y encadenar con scheduling dinámico
   pollRecentlyPlayed(userId);
   pollCurrentlyPlaying(userId).then(delay => {
+    // si un trigger externo ya reprogramó durante esta primera lectura (login
+    // seguido de una acción de playback), respetar su timer
+    if (pollGeneration.has(userId)) return;
     scheduleNextCurrentlyPlaying(userId, delay);
   });
 }
@@ -332,8 +379,12 @@ function stopPollingForUser(userId: number) {
   if (!timers) return;
   if (timers.currentlyPlaying) clearTimeout(timers.currentlyPlaying);
   clearInterval(timers.recentlyPlayed);
+  const flush = historyFlushTimers.get(userId);
+  if (flush) clearTimeout(flush);
+  historyFlushTimers.delete(userId);
   userTimers.delete(userId);
   userActiveTrack.delete(userId);
+  pollGeneration.delete(userId);
 }
 
 // obtener el primer userId con tokens (para operaciones globales de catálogo)

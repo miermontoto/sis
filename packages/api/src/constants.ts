@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w31s';
+export const VERSION = '26w31t';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -16,8 +16,14 @@ export const CURRENTLY_PLAYING_MAX_MS = 60_000;
 export const CURRENTLY_PLAYING_BUFFER_MS = 3_000;
 export const CURRENTLY_PLAYING_PAUSED_MS = 60_000;
 export const CURRENTLY_PLAYING_IDLE_MS = 90_000;
+// re-poll forzado tras una acción de reproducción (next/prev/play/pause/seek):
+// spotify es eventualmente consistente, así que se espera un poco antes de leer
+export const CURRENTLY_PLAYING_TRIGGER_MS = 800;
 export const SESSION_GAP_MS = 10 * 60_000;
 export const RECENTLY_PLAYED_INTERVAL_MS = 5 * 60_000;
+// escalera de reintentos para volcar a historial un track recién terminado sin
+// esperar al tick de 5 min: recently-played tarda unos segundos en reflejarlo
+export const HISTORY_FLUSH_DELAYS_MS = [8_000, 25_000, 75_000];
 
 // límites de la API de spotify
 export const RECENTLY_PLAYED_LIMIT = 50;
