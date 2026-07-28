@@ -62,6 +62,73 @@ describe('nowPlayingStore.playContext', () => {
   });
 });
 
+describe('nowPlayingStore: frescura del estado cacheado', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.nowPlayingLive.mockReset();
+    mocks.nowPlaying.mockReset();
+  });
+
+  it('aplica el cacheado en cuanto el servidor tiene información más nueva que la lectura en vivo', async () => {
+    const t0 = Date.now();
+    mocks.nowPlayingLive.mockResolvedValue({ ...makeResponse('track-g', 'Song'), progressMs: 0, updatedAt: new Date(t0).toISOString() });
+    await nowPlayingStore.pollLive();
+    expect(nowPlayingStore.data?.track?.id).toBe('track-g');
+
+    // el servidor re-pollea tras la acción y ya ve el siguiente track: se
+    // aplica sin esperar a que expire ninguna ventana fija
+    mocks.nowPlaying.mockResolvedValue({ ...makeResponse('track-h', 'Next'), progressMs: 0, updatedAt: new Date(t0 + 1_000).toISOString() });
+    nowPlayingStore.startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    nowPlayingStore.stopPolling();
+
+    expect(nowPlayingStore.data?.track?.id).toBe('track-h');
+  });
+
+  it('descarta el cacheado medido antes de la lectura en vivo', async () => {
+    const t0 = Date.now();
+    mocks.nowPlayingLive.mockResolvedValue({ ...makeResponse('track-i', 'Song'), progressMs: 0, updatedAt: new Date(t0).toISOString() });
+    await nowPlayingStore.pollLive();
+
+    // snapshot del servidor anterior a la acción: devolvería el track viejo
+    mocks.nowPlaying.mockResolvedValue({ ...makeResponse('track-old', 'Old'), progressMs: 0, updatedAt: new Date(t0 - 5_000).toISOString() });
+    nowPlayingStore.startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    nowPlayingStore.stopPolling();
+
+    expect(nowPlayingStore.data?.track?.id).toBe('track-i');
+  });
+});
+
+describe('nowPlayingStore: refresco en el límite del track', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.nowPlayingLive.mockReset();
+    mocks.nowPlaying.mockReset();
+  });
+
+  it('detecta el cambio al acabar el track sin esperar al tick de 10s', async () => {
+    const t0 = Date.now();
+    // lectura en vivo a 1s del final (duración 200s)
+    mocks.nowPlayingLive.mockResolvedValue({ ...makeResponse('track-j', 'Song'), progressMs: 199_000, updatedAt: new Date(t0).toISOString() });
+    await nowPlayingStore.pollLive();
+
+    mocks.nowPlaying.mockResolvedValue({ ...makeResponse('track-j', 'Song'), progressMs: 199_000, updatedAt: new Date(t0 + 1).toISOString() });
+    nowPlayingStore.startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(nowPlayingStore.data?.track?.id).toBe('track-j');
+
+    // el servidor ya tiene el siguiente track (su poll apunta al final + buffer)
+    mocks.nowPlaying.mockResolvedValue({ ...makeResponse('track-k', 'Next'), progressMs: 0, updatedAt: new Date(t0 + 3_000).toISOString() });
+
+    // 1s restante + margen: muy por debajo del tick de 10s
+    await vi.advanceTimersByTimeAsync(3_000);
+    nowPlayingStore.stopPolling();
+
+    expect(nowPlayingStore.data?.track?.id).toBe('track-k');
+  });
+});
+
 describe('nowPlayingStore.progressMsAt', () => {
   beforeEach(() => {
     vi.useFakeTimers();
