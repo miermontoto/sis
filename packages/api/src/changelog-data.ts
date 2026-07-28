@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31v',
+    publishedAt: '2026-07-28',
+    title: 'Snappier now playing',
+    changes: [
+      { type: 'fix', es: 'Al saltar de tema, la tarjeta de "now playing" podía tardar hasta un minuto en cambiar, y a veces volvía un rato al tema anterior antes de acertar: el servidor sólo releía Spotify cuando le tocaba por reloj, así que ninguna acción tuya (siguiente, anterior, play, pausa, seek o cambio de dispositivo) le hacía mirar antes. Ahora cualquiera de esas acciones fuerza una relectura inmediata', en: 'When you skipped a song, the now playing card could take up to a minute to change, and sometimes flipped back to the previous song for a while before settling: the server only re-read Spotify on its own schedule, so nothing you did (next, previous, play, pause, seek or switching device) made it look sooner. Any of those actions now forces an immediate re-read' },
+      { type: 'fix', es: 'Un tema terminado tardaba hasta 5 minutos en aparecer en tu historial, porque sólo se guardaba en el barrido periódico de reproducciones recientes. Ahora, en cuanto se detecta que el tema ha acabado, se vuelca al historial en segundos', en: 'A finished song took up to 5 minutes to show up in your history, because it was only saved on the periodic recently-played sweep. Now, as soon as a song is detected as finished, it lands in your history within seconds' },
+      { type: 'improvement', es: 'El cambio de tema al acabar uno se nota casi al instante: la tarjeta sabe cuándo va a terminar y comprueba justo en ese momento, en vez de esperar a su siguiente refresco', en: 'The switch to the next song at the end of a track now shows up almost instantly: the card knows when the song is due to end and checks right then, instead of waiting for its next refresh' },
+    ],
+  },
+  {
     version: '26w31s',
     publishedAt: '2026-07-28',
     title: 'Exact top playlists',
