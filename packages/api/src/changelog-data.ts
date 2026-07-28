@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31s',
+    publishedAt: '2026-07-28',
+    title: 'Exact top playlists',
+    changes: [
+      { type: 'fix', es: 'Las playlists de "Top Tracks", "Top Artist" y "Top Genre" no daban tu top real: pedían 2,5 veces más temas de los que querías y luego sorteaban entre ellos, así que con 50 tracks en YTD sólo la mitad eran de tu top 50 y el orden era aleatorio. Ahora devuelven tu top exacto, en orden de ranking y coincidiendo con lo que ves en Top', en: 'The "Top Tracks", "Top Artist" and "Top Genre" playlists were not giving you your actual top: they pulled 2.5× more tracks than you asked for and then drew at random from those, so a 50-track YTD playlist was only half your real top 50 and the order was random. They now return your exact top, in ranking order, matching what you see on Top' },
+      { type: 'feature', es: 'Nuevo selector "Selección" en el generador de playlists: top exacto (por defecto en las estrategias de ranking) o aleatorio, que sortea entre un pool 2,5 veces mayor para que la lista cambie cada vez que la regeneras (por defecto en deep cuts, time vibes y rediscovery)', en: 'New "Selection" picker in the playlist generator: exact top (the default for the ranking strategies) or random, which draws from a 2.5× larger pool so the list changes every time you regenerate it (the default for deep cuts, time vibes and rediscovery)' },
+      { type: 'improvement', es: 'Las playlists generadas tienen en cuenta los merges de tracks: las escuchas de un tema fusionado suman a su versión canónica en vez de repartirse, y ya no pueden aparecer las dos copias del mismo tema en la misma lista', en: 'Generated playlists are now aware of track merges: plays of a merged song add up on its canonical version instead of being split, and both copies of the same song can no longer land in the same list' },
+    ],
+  },
+  {
     version: '26w31j',
     publishedAt: '2026-07-27',
     title: 'Bracket and tier list',

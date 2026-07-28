@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort, EntityType } from './helpers.js';
-import { getRangeStart, orderByCol, userFilter, rangeWhere, playDuration } from './helpers.js';
+import { getRangeStart, orderByCol, userFilter, rangeWhere, playDuration, resolvedPlayJoins, entityGroupCol, entityMergeJoin } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { getRawRanking } from './charts.js';
 import type { TimeRange } from '../../constants.js';
@@ -9,6 +9,9 @@ import type { Granularity, WeekStartOption } from '@sis/shared';
 export interface PlaylistStrategyParams {
   limit: number;
   sort: Sort;
+  // sobre-muestrear y barajar en vez de devolver el top exacto. por defecto activo
+  // en las estrategias de descubrimiento y desactivado en las de ranking
+  shuffle?: boolean;
 }
 
 interface RangeParams {
@@ -55,8 +58,13 @@ function resolveRange(params: RangeParams) {
   };
 }
 
-// excluir tracks locales (no se pueden añadir a playlists de spotify)
-const NO_LOCAL = sql`AND lh.track_id NOT LIKE 'local:%'`;
+// excluir tracks locales (no se pueden añadir a playlists de spotify). se evalúa
+// sobre el id canónico para que un merge no cuele un target local
+const NO_LOCAL = sql`AND ${entityGroupCol('track')} NOT LIKE 'local:%'`;
+
+// id canónico de track (tras merges) + joins necesarios, iguales a los del /top
+const trackGroupCol = () => entityGroupCol('track');
+const trackJoins = (userId: number) => resolvedPlayJoins('track', userId);
 
 // factor de sobre-muestreo: traemos más tracks de los pedidos y luego shuffleamos
 const OVERSAMPLE = 2.5;
@@ -71,26 +79,37 @@ function shuffleAndTake(ids: string[], limit: number): string[] {
   return arr.slice(0, limit);
 }
 
+/** Resuelve el modo de muestreo: sin shuffle se pide el top exacto y se conserva
+ *  el orden de ranking; con shuffle se sobre-muestrea para dar variedad. */
+function sampling(params: PlaylistStrategyParams, defaultShuffle: boolean) {
+  const shuffle = params.shuffle ?? defaultShuffle;
+  return { shuffle, fetchLimit: shuffle ? Math.ceil(params.limit * OVERSAMPLE) : params.limit };
+}
+
+function takeIds(ids: string[], limit: number, shuffle: boolean): string[] {
+  return shuffle ? shuffleAndTake(ids, limit) : ids.slice(0, limit);
+}
+
 /** Top tracks por rango temporal */
 export function strategyTopRange(db: Db, userId: number, params: TopRangeParams): string[] {
   const { rangeStart, rangeEnd } = resolveRange(params);
   const ob = orderByCol(params.sort);
   const uf = userFilter(userId);
-  const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
+  const { shuffle, fetchLimit } = sampling(params, false);
 
   const rw = rangeWhere(rangeStart, rangeEnd);
 
   const rows = db.all(sql`
-    SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+    SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${trackJoins(userId)}
     WHERE 1=1 ${rw} ${uf} ${NO_LOCAL}
-    GROUP BY lh.track_id
+    GROUP BY entity_id
     ORDER BY ${ob} DESC
     LIMIT ${fetchLimit}
   `) as { entity_id: string }[];
 
-  return shuffleAndTake(rows.map(r => r.entity_id), params.limit);
+  return takeIds(rows.map(r => r.entity_id), params.limit, shuffle);
 }
 
 /** Top tracks de un artista específico */
@@ -99,20 +118,20 @@ export function strategyTopArtist(db: Db, userId: number, params: TopArtistParam
   const ob = orderByCol(params.sort);
   const uf = userFilter(userId);
   const rw = rangeWhere(rangeStart, rangeEnd);
-  const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
+  const { shuffle, fetchLimit } = sampling(params, false);
 
   const rows = db.all(sql`
-    SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+    SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${trackJoins(userId)}
     JOIN track_artists ta ON ta.track_id = lh.track_id
     WHERE ta.artist_id = ${params.artistId} ${rw} ${uf} ${NO_LOCAL}
-    GROUP BY lh.track_id
+    GROUP BY entity_id
     ORDER BY ${ob} DESC
     LIMIT ${fetchLimit}
   `) as { entity_id: string }[];
 
-  return shuffleAndTake(rows.map(r => r.entity_id), params.limit);
+  return takeIds(rows.map(r => r.entity_id), params.limit, shuffle);
 }
 
 /** Top tracks de un género */
@@ -121,69 +140,70 @@ export function strategyTopGenre(db: Db, userId: number, params: TopGenreParams)
   const ob = orderByCol(params.sort);
   const uf = userFilter(userId);
   const rw = rangeWhere(rangeStart, rangeEnd);
-  const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
+  const { shuffle, fetchLimit } = sampling(params, false);
 
   const rows = db.all(sql`
-    SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+    SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${trackJoins(userId)}
     JOIN track_artists ta ON ta.track_id = lh.track_id
     JOIN artists a ON a.spotify_id = ta.artist_id
     JOIN json_each(a.genres) g
     WHERE g.value = ${params.genre} ${rw} ${uf} ${NO_LOCAL}
-    GROUP BY lh.track_id
+    GROUP BY entity_id
     ORDER BY ${ob} DESC
     LIMIT ${fetchLimit}
   `) as { entity_id: string }[];
 
-  return shuffleAndTake(rows.map(r => r.entity_id), params.limit);
+  return takeIds(rows.map(r => r.entity_id), params.limit, shuffle);
 }
 
 /** Tracks con baja popularidad que el usuario escucha (hidden gems) */
 export function strategyDeepCuts(db: Db, userId: number, params: DeepCutsParams): string[] {
   const { rangeStart, rangeEnd } = resolveRange(params);
-  const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
+  const { shuffle, fetchLimit } = sampling(params, true);
   const rw = rangeWhere(rangeStart, rangeEnd);
 
   const rows = db.all(sql`
-    SELECT lh.track_id, count(*) as play_count, t.popularity
+    SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, min(t.popularity) as popularity
     FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${trackJoins(userId)}
     WHERE lh.user_id = ${userId} ${rw}
       AND t.popularity IS NOT NULL
       AND t.popularity <= ${params.maxPopularity}
       ${NO_LOCAL}
-    GROUP BY lh.track_id
+    GROUP BY entity_id
     HAVING play_count >= ${params.minPlays}
-    ORDER BY t.popularity ASC, play_count DESC
+    ORDER BY popularity ASC, play_count DESC
     LIMIT ${fetchLimit}
-  `) as { track_id: string }[];
+  `) as { entity_id: string }[];
 
-  return shuffleAndTake(rows.map(r => r.track_id), params.limit);
+  return takeIds(rows.map(r => r.entity_id), params.limit, shuffle);
 }
 
 /** Tracks que se escuchan en ciertos días y horas (vibes por horario) */
 export function strategyTimeVibes(db: Db, userId: number, params: TimeVibesParams): string[] {
   const { rangeStart, rangeEnd } = resolveRange(params);
-  const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
+  const { shuffle, fetchLimit } = sampling(params, true);
   const rw = rangeWhere(rangeStart, rangeEnd);
 
   const dayPlaceholders = sql.join(params.days.map(d => sql`${d}`), sql`, `);
   const hourPlaceholders = sql.join(params.hours.map(h => sql`${h}`), sql`, `);
 
   const rows = db.all(sql`
-    SELECT lh.track_id, count(*) as play_count
+    SELECT ${trackGroupCol()} as entity_id, count(*) as play_count
     FROM listening_history lh
+    ${entityMergeJoin('track', userId)}
     WHERE lh.user_id = ${userId} ${rw}
       AND cast(strftime('%w', lh.played_at) as integer) IN (${dayPlaceholders})
       AND cast(strftime('%H', lh.played_at) as integer) IN (${hourPlaceholders})
       ${NO_LOCAL}
-    GROUP BY lh.track_id
+    GROUP BY entity_id
     ORDER BY play_count DESC
     LIMIT ${fetchLimit}
-  `) as { track_id: string }[];
+  `) as { entity_id: string }[];
 
-  return shuffleAndTake(rows.map(r => r.track_id), params.limit);
+  return takeIds(rows.map(r => r.entity_id), params.limit, shuffle);
 }
 
 /** Resuelve entidades de records a track IDs para crear playlists.
@@ -244,21 +264,22 @@ export function resolveEntitiesToTracks(
 /** Tracks olvidados: muchas escuchas históricas pero sin actividad reciente */
 export function strategyRediscovery(db: Db, userId: number, params: RediscoveryParams): string[] {
   const cutoff = new Date(Date.now() - params.recencyDays * 86_400_000).toISOString();
-  const fetchLimit = Math.ceil(params.limit * OVERSAMPLE);
+  const { shuffle, fetchLimit } = sampling(params, true);
 
   const rows = db.all(sql`
-    SELECT lh.track_id, count(*) as total_plays, max(lh.played_at) as last_played
+    SELECT ${trackGroupCol()} as entity_id, count(*) as total_plays, max(lh.played_at) as last_played
     FROM listening_history lh
+    ${entityMergeJoin('track', userId)}
     WHERE lh.user_id = ${userId}
-      AND lh.track_id NOT LIKE 'local:%'
-    GROUP BY lh.track_id
+      ${NO_LOCAL}
+    GROUP BY entity_id
     HAVING total_plays >= ${params.minPlays}
       AND last_played < ${cutoff}
     ORDER BY total_plays DESC
     LIMIT ${fetchLimit}
-  `) as { track_id: string }[];
+  `) as { entity_id: string }[];
 
-  return shuffleAndTake(rows.map(r => r.track_id), params.limit);
+  return takeIds(rows.map(r => r.entity_id), params.limit, shuffle);
 }
 
 export interface TopParams extends PlaylistStrategyParams, RangeParams {
@@ -275,11 +296,11 @@ export function strategyTop(db: Db, userId: number, params: TopParams): string[]
     const uf = userFilter(userId);
     const rw = rangeWhere(rangeStart, rangeEnd);
     const rows = db.all(sql`
-      SELECT lh.track_id as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+      SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
       FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
+      ${trackJoins(userId)}
       WHERE 1=1 ${rw} ${uf} ${NO_LOCAL}
-      GROUP BY lh.track_id
+      GROUP BY entity_id
       ORDER BY ${ob} DESC
       LIMIT ${limit}
     `) as { entity_id: string }[];

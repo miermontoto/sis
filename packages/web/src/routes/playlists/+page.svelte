@@ -58,6 +58,11 @@
   let startDate = $state('');
   let endDate = $state('');
   let trackCount = $state(50);
+  let shuffle = $state(false);
+
+  // las estrategias de descubrimiento sobre-muestrean y barajan por defecto (variedad
+  // al regenerar); las de ranking devuelven el top exacto en orden
+  const SHUFFLE_BY_DEFAULT = new Set<PlaylistStrategy>(['deep_cuts', 'time_vibes', 'rediscovery']);
 
   // top artist params
   let artistSearch = $state('');
@@ -97,7 +102,10 @@
     const urlTab = getQueryParam('tab', '');
     if (urlTab === 'library' || urlTab === 'generate') activeTab = urlTab;
     const urlStrategy = getQueryParam('strategy', '') as PlaylistStrategy | '';
-    if (urlStrategy && STRATEGY_KEYS.includes(urlStrategy as PlaylistStrategy)) selectedStrategy = urlStrategy as PlaylistStrategy;
+    if (urlStrategy && STRATEGY_KEYS.includes(urlStrategy as PlaylistStrategy)) {
+      selectedStrategy = urlStrategy as PlaylistStrategy;
+      shuffle = SHUFFLE_BY_DEFAULT.has(selectedStrategy);
+    }
     const urlRange = getQueryParam('range', '');
     if (urlRange) range = urlRange;
     startDate = getQueryParam('startDate', '');
@@ -148,25 +156,26 @@
 
   function buildParams(): Record<string, unknown> {
     const rangeParams = { range, ...(range === 'custom' && startDate && endDate ? { startDate, endDate } : {}) };
+    const common = { limit: trackCount, shuffle };
 
     switch (selectedStrategy) {
       case 'top_range':
-        return { ...rangeParams, limit: trackCount };
+        return { ...rangeParams, ...common };
       case 'top_artist':
-        return { ...rangeParams, limit: trackCount, artistId };
+        return { ...rangeParams, ...common, artistId };
       case 'top_genre':
-        return { ...rangeParams, limit: trackCount, genre: genreFilter };
+        return { ...rangeParams, ...common, genre: genreFilter };
       case 'deep_cuts':
-        return { ...rangeParams, limit: trackCount, maxPopularity, minPlays: minPlaysDeep };
+        return { ...rangeParams, ...common, maxPopularity, minPlays: minPlaysDeep };
       case 'time_vibes': {
         const hours: number[] = [];
         for (let h = hourStart; h <= hourEnd; h++) hours.push(h);
-        return { ...rangeParams, limit: trackCount, days: selectedDays, hours };
+        return { ...rangeParams, ...common, days: selectedDays, hours };
       }
       case 'rediscovery':
-        return { limit: trackCount, minPlays: minPlaysRediscovery, recencyDays };
+        return { ...common, minPlays: minPlaysRediscovery, recencyDays };
       default:
-        return { limit: trackCount };
+        return common;
     }
   }
 
@@ -370,7 +379,7 @@
       <button
         class="strategy-card"
         class:selected={selectedStrategy === s.key}
-        onclick={() => { selectedStrategy = s.key; previewTracks = []; error = null; }}
+        onclick={() => { selectedStrategy = s.key; shuffle = SHUFFLE_BY_DEFAULT.has(s.key); previewTracks = []; error = null; }}
       >
         <span class="strategy-icon">{s.icon}</span>
         <span class="strategy-label">{s.label}</span>
@@ -486,6 +495,18 @@
           {#each [25, 50, 100] as n}
             <button class:active={trackCount === n} onclick={() => trackCount = n}>{n}</button>
           {/each}
+        </div>
+      </div>
+
+      <!-- Seleccion: top exacto vs sobre-muestreo aleatorio -->
+      <div class="filter-row">
+        <span class="filter-label">
+          Selección
+          <span class="hint">{shuffle ? 'aleatorio entre un pool 2.5× mayor, cambia al regenerar' : 'top exacto, en orden de ranking'}</span>
+        </span>
+        <div class="segmented">
+          <button class:active={!shuffle} onclick={() => shuffle = false}>Top exacto</button>
+          <button class:active={shuffle} onclick={() => shuffle = true}>Aleatorio</button>
         </div>
       </div>
 
