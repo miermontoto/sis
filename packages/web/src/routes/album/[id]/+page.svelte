@@ -353,7 +353,7 @@
     </div>
   </div>
 
-  <MergeBanners entityType="album" mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  <MergeBanners entityType="album" entityId={d.album.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
   {#each layout.main as key (key)}
     {@render sec(key)}
   {/each}

@@ -236,7 +236,7 @@
   <div class="detail-body">
     <div class="detail-main">
       {@render heroRow()}
-      <MergeBanners entityType="artist" mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+      <MergeBanners entityType="artist" entityId={d.artist.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
       {#each layout.main as key (key)}
         {@render sec(key)}
       {/each}

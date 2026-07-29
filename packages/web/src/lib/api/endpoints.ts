@@ -5,8 +5,8 @@ import type {
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
-  AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
+  AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData, EntityType,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
@@ -142,6 +142,10 @@ export const api = {
 
   deleteMerge: (id: number) =>
     apiMutate<{ success: boolean }>('DELETE', `/admin/merge/${id}`),
+
+  // invierte la dirección: promueve la entidad a canónica de su grupo
+  makeCanonical: (entityType: EntityType, entityId: string) =>
+    apiMutate<MakeCanonicalResult>('POST', '/admin/merge-canonical', { entityType, entityId }),
 
   listMerges: () => apiFetch<MergeRule[]>('/admin/merges'),
 

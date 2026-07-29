@@ -294,6 +294,22 @@
     }
   }
 
+  // promueve un merged a canónico: invierte la dirección repuntando el grupo entero
+  let swappingId = $state<string | null>(null);
+  async function doSwap(sourceId: string) {
+    swappingId = sourceId;
+    error = '';
+    try {
+      await api.makeCanonical(entityType, sourceId);
+      onMerged();
+      close();
+    } catch (e: any) {
+      error = e.message || 'Error swapping merge direction';
+    } finally {
+      swappingId = null;
+    }
+  }
+
   // para album con 1 selección: el botón dice "Next: Match tracks"
   let showTrackStep = $derived(entityType === 'album' && selected.size === 1 && step === 'select');
 
@@ -347,6 +363,12 @@
                 <div class="merge-item-info">
                   <div class="merge-item-name">{merge.name}</div>
                 </div>
+                <button
+                  class="merge-swap"
+                  title="Make this the canonical {labels.verb} instead"
+                  disabled={swappingId === merge.id}
+                  onclick={() => doSwap(merge.id)}
+                >⇅</button>
                 <button class="merge-unmerge" title="Unmerge" onclick={() => doUnmerge(merge.ruleId)}>&times;</button>
               </div>
             {/each}
@@ -773,6 +795,20 @@
   }
 
   .merge-unmerge:hover { color: #ff4444; }
+
+  .merge-swap {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 0.2rem 0.3rem;
+    border-radius: var(--radius);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .merge-swap:hover:not(:disabled) { color: var(--accent); }
+  .merge-swap:disabled { opacity: 0.4; cursor: wait; }
 
   .merge-footer {
     padding: 0.75rem 1.25rem;

@@ -78,6 +78,16 @@ export interface BulkRemergePreview {
   totalPairs: number;
 }
 
+export interface MakeCanonicalResult {
+  entityType: string;
+  canonicalId: string;
+  previousCanonicalId: string;
+  // reglas reescritas en el grupo (el canónico viejo + los hermanos repuntados)
+  rulesRewritten: number;
+  // grupos de tracks arrastrados al promover un álbum
+  nestedTrackGroups: number;
+}
+
 export interface BatchMergeResult {
   created: number;
   skipped: string[];

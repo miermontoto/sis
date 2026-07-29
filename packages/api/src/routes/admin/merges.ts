@@ -7,6 +7,7 @@ import {
   validateMergeRule, MERGE_ERRORS, autoMatchTracks,
 } from './_shared.js';
 import { buildAlbumRemerge, loadRemergeContext } from './remerge.js';
+import { promoteToCanonical, promoteAlbumCanonical, PROMOTE_ERRORS } from './promote.js';
 import { getTopEntities } from '../../db/queries/entity.js';
 import { getRangeStart } from '../../db/queries/index.js';
 import { BULK_SCAN_LIMITS, DEFAULT_BULK_SCAN_SCOPE } from '../../constants.js';
@@ -59,6 +60,42 @@ merges.post('/merge', async (c) => {
     sourceName: source.name,
     targetId,
     targetName: target.name,
+  });
+});
+
+// invertir la dirección de un merge: promover una entidad a canónica de su grupo.
+// Reescribe el grupo entero (ver promote.ts); en álbumes arrastra los grupos de tracks.
+merges.post('/merge-canonical', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{ entityType: string; entityId: string }>();
+  const { entityType, entityId } = body;
+
+  if (!entityType || !entityId) {
+    return c.json({ error: 'entityType and entityId are required' }, 400);
+  }
+  if (!isValidEntityType(entityType)) {
+    return c.json({ error: `unsupported entityType — must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
+  }
+
+  const db = getDb();
+  const exists = db.select().from(entityTable(entityType)).where(eq(entityTable(entityType).spotifyId, entityId)).get();
+  if (!exists) return c.json({ error: `${entityType} not found` }, 404);
+
+  const result = db.transaction(() => (entityType === 'album'
+    ? promoteAlbumCanonical(db, userId, entityId)
+    : promoteToCanonical(db, userId, entityType, entityId)));
+
+  if (!result.ok) {
+    const [msg, status] = PROMOTE_ERRORS[result.reason](entityType);
+    return c.json({ error: msg }, status as 400);
+  }
+
+  return c.json({
+    entityType,
+    canonicalId: entityId,
+    previousCanonicalId: result.previousCanonicalId,
+    rulesRewritten: result.rulesRewritten,
+    nestedTrackGroups: result.nestedTrackGroups,
   });
 });
 

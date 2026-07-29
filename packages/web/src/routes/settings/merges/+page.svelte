@@ -15,6 +15,20 @@
     await loadMerges();
   }
 
+  // promueve el source a canónico: el grupo entero (canónico viejo + hermanos) se repunta
+  let swapping = $state<number | null>(null);
+  async function swapDirection(m: MergeRule) {
+    swapping = m.id;
+    try {
+      await api.makeCanonical(m.entity_type as 'artist' | 'album' | 'track', m.source_id);
+      await loadMerges();
+    } catch (e) {
+      console.error('[merge] error swapping direction:', e);
+    } finally {
+      swapping = null;
+    }
+  }
+
   const MERGE_TYPE_ORDER: Record<string, number> = { artist: 0, album: 1, track: 2 };
   type MergeGroup = { artistId: string; artistName: string; artistImage: string | null; merges: MergeRule[] };
   function groupMergesByArtist(rules: MergeRule[], term: string): MergeGroup[] {
@@ -119,6 +133,12 @@
                       {/if}
                       <span class="merge-flat-name">{m.target_name}</span>
                     </a>
+                    <button
+                      class="merge-flat-swap"
+                      title="Make {m.source_name} the canonical one (repoints the whole group)"
+                      disabled={swapping === m.id}
+                      onclick={() => swapDirection(m)}
+                    >⇅</button>
                     <button class="merge-flat-unmerge" title="Unmerge" onclick={() => removeMerge(m.id)}>&times;</button>
                   </li>
                 {/each}
@@ -331,4 +351,20 @@
   }
   .merge-row:hover .merge-flat-unmerge { opacity: 1; }
   .merge-flat-unmerge:hover { color: #ff4444; }
+
+  .merge-flat-swap {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 0 0.3rem;
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.05s, color 0.05s;
+  }
+  .merge-row:hover .merge-flat-swap { opacity: 1; }
+  .merge-flat-swap:hover:not(:disabled) { color: var(--accent); }
+  .merge-flat-swap:disabled { opacity: 0.4; cursor: wait; }
 </style>

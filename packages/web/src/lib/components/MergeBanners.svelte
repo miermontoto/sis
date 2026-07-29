@@ -3,23 +3,47 @@
 
   let {
     entityType,
+    entityId,
     mergedInto,
     mergedFrom,
     onUnmerge,
   }: {
     entityType: 'artist' | 'album' | 'track';
+    entityId: string;
     mergedInto: { id: string; name: string; ruleId: number } | null;
     mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
     onUnmerge: () => void;
   } = $props();
 
   let round = $derived(entityType === 'artist');
+  let swapping = $state(false);
+  let error = $state('');
+
+  // promueve esta entidad a canónica: el grupo entero se repunta hacia ella
+  async function makeCanonical() {
+    swapping = true;
+    error = '';
+    try {
+      await api.makeCanonical(entityType, entityId);
+      onUnmerge();
+    } catch (e: any) {
+      error = e.message || 'Error swapping merge direction';
+    } finally {
+      swapping = false;
+    }
+  }
 </script>
 
 {#if mergedInto}
   <div class="merge-banner merge-banner--source">
     <span>Merged into <a href="/{entityType}/{mergedInto.id}">{mergedInto.name}</a></span>
-    <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(mergedInto!.ruleId); onUnmerge(); }}>Unmerge</button>
+    <span class="merge-banner-actions">
+      {#if error}<span class="merge-banner-error">{error}</span>{/if}
+      <button class="merge-banner-btn" disabled={swapping} onclick={makeCanonical} title="Make this the canonical {entityType} — the rest of the group will point here">
+        {swapping ? 'Swapping...' : 'Make canonical'}
+      </button>
+      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(mergedInto!.ruleId); onUnmerge(); }}>Unmerge</button>
+    </span>
   </div>
 {/if}
 
@@ -115,4 +139,31 @@
     opacity: 0.8;
   }
   .merge-banner-unmerge:hover { opacity: 1; }
+
+  .merge-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .merge-banner-btn {
+    background: transparent;
+    border: 1px solid currentColor;
+    color: inherit;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-family: inherit;
+    cursor: pointer;
+    opacity: 0.8;
+    white-space: nowrap;
+  }
+  .merge-banner-btn:hover:not(:disabled) { opacity: 1; }
+  .merge-banner-btn:disabled { opacity: 0.4; cursor: wait; }
+
+  .merge-banner-error {
+    color: #ff4444;
+    font-size: 0.75rem;
+  }
 </style>

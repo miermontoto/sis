@@ -410,7 +410,7 @@
     </div>
   </div>
 
-  <MergeBanners entityType="track" mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  <MergeBanners entityType="track" entityId={d.track.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
   {#each layout.main as key (key)}
     {@render sec(key)}
   {/each}
