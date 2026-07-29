@@ -7,6 +7,15 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31z',
+    publishedAt: '2026-07-29',
+    title: 'Bulk duplicate scan',
+    changes: [
+      { type: 'feature', es: 'Nueva página "Scan for duplicates" en Settings › Merges: busca temas duplicados en tus álbumes más escuchados de una sola pasada y te los presenta agrupados por álbum, en vez de tener que abrir el auto-merge álbum por álbum. Puedes elegir el alcance (top 100, 200, 500 o todos los álbumes con reproducciones) y aplicar todo lo que marques de una vez', en: 'New "Scan for duplicates" page under Settings › Merges: it finds duplicate songs across your most-played albums in one pass and groups them by album, instead of making you open auto-merge one album at a time. You pick the scope (top 100, 200, 500, or every album with plays) and apply everything you tick in one go' },
+      { type: 'improvement', es: 'En el scan vienen marcados de partida sólo los duplicados por créditos (los del emparejado conservador); los de posición y parecido de nombre, que fallan más, quedan sin marcar para que los revises tú. Cada álbum se puede marcar o desmarcar entero, y los contadores de arriba seleccionan un tipo concreto de golpe', en: 'The scan pre-ticks only the credit duplicates (the ones from the conservative matcher); position and name-similarity matches, which are more error-prone, start unticked for you to review. Each album can be ticked or unticked as a whole, and the counters at the top select one kind at a time' },
+    ],
+  },
+  {
     version: '26w31x',
     publishedAt: '2026-07-29',
     title: 'Duplicate tracks in one album',
