@@ -4,10 +4,12 @@ import { mergeRules, albums, artists, tracks } from '../../db/schema.js';
 import { getEntityMergeGroup } from '../../db/queries/merge.js';
 import {
   adminRouter, VALID_ENTITY_TYPES, isValidEntityType, entityTable,
-  validateMergeRule, MERGE_ERRORS, autoMatchTracks, autoDedupTracks,
-  type DedupCandidate,
+  validateMergeRule, MERGE_ERRORS, autoMatchTracks,
 } from './_shared.js';
-import type { AlbumMergeTrack, RemergePreviewPair } from '@sis/shared';
+import { buildAlbumRemerge, loadRemergeContext } from './remerge.js';
+import { getTopEntities } from '../../db/queries/entity.js';
+import { getRangeStart } from '../../db/queries/index.js';
+import { BULK_SCAN_LIMITS, DEFAULT_BULK_SCAN_SCOPE } from '../../constants.js';
 
 const merges = adminRouter();
 
@@ -243,102 +245,56 @@ merges.post('/merge-album', async (c) => {
   return c.json(result);
 });
 
-// preview de re-merge: detecta tracks sin mergear en álbumes ya mergeados hacia un target
-// (pass cruzado, por posición/nombre) y duplicados del mismo tema en cualquier álbum del
-// grupo, incluido el propio target (pass de dedup, por título base sin créditos).
+// preview de re-merge de un álbum: candidatos de auto-merge para su grupo.
 merges.get('/album-remerge-preview', (c) => {
   const userId = c.get('userId');
   const albumId = c.req.query('album');
   if (!albumId) return c.json({ error: 'album query param is required' }, 400);
 
   const db = getDb();
+  const album = db.select().from(albums).where(eq(albums.spotifyId, albumId)).get();
+  if (!album) return c.json({ error: 'album not found' }, 404);
 
-  const targetAlbum = db.select().from(albums).where(eq(albums.spotifyId, albumId)).get();
-  if (!targetAlbum) return c.json({ error: 'album not found' }, 404);
+  return c.json(buildAlbumRemerge(db, albumId, album.name, loadRemergeContext(db, userId)));
+});
 
-  const sourceAlbumRows = db.all(sql`
-    SELECT mr.source_id, a.name, a.image_url
-    FROM merge_rules mr
-    JOIN albums a ON a.spotify_id = mr.source_id
-    WHERE mr.entity_type = 'album' AND mr.target_id = ${albumId} AND mr.user_id = ${userId}
-  `) as { source_id: string; name: string; image_url: string | null }[];
-
-  const mergedTrackIds = new Set(
-    (db.all(sql`SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}`) as { source_id: string }[])
-      .map(r => r.source_id)
-  );
-  const mergeTargetIds = new Set(
-    (db.all(sql`SELECT DISTINCT target_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}`) as { target_id: string }[])
-      .map(r => r.target_id)
-  );
-
-  // los play counts entran aquí porque el pass de dedup elige como canónico el track más
-  // escuchado del grupo (ver canonicalFirst)
-  const getUnmergedTracks = (aid: string, albumName: string): DedupCandidate[] =>
-    (db.all(sql`
-      SELECT t.spotify_id as id, t.name, t.track_number, t.disc_number, t.duration_ms,
-             COALESCE(p.play_count, 0) as play_count
-      FROM tracks t
-      LEFT JOIN (
-        SELECT track_id, COUNT(*) as play_count
-        FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
-      ) p ON p.track_id = t.spotify_id
-      WHERE t.album_id = ${aid}
-      ORDER BY COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC
-    `) as { id: string; name: string; track_number: number | null; disc_number: number | null; duration_ms: number; play_count: number }[])
-      .filter(t => !mergedTrackIds.has(t.id))
-      .map(t => ({
-        id: t.id, name: t.name, trackNumber: t.track_number, discNumber: t.disc_number,
-        durationMs: t.duration_ms, albumId: aid, albumName,
-        playCount: t.play_count, isMergeTarget: mergeTargetIds.has(t.id),
-      }));
-
-  const targetTracks = getUnmergedTracks(albumId, targetAlbum.name);
-  const sourceAlbums = sourceAlbumRows.map(sa => ({ ...sa, tracks: getUnmergedTracks(sa.source_id, sa.name) }));
-
-  const pairs: RemergePreviewPair[] = [];
-  const usedTargetIds = new Set<string>();
-  const usedSourceIds = new Set<string>();
-
-  const asMergeTrack = (t: DedupCandidate): AlbumMergeTrack =>
-    ({ id: t.id, name: t.name, trackNumber: t.trackNumber, discNumber: t.discNumber, durationMs: t.durationMs });
-
-  // pass 1: emparejar cada álbum source con el target por posición / similitud de nombre.
-  // Un track que ya es target de otra regla no puede proponerse como source: batch-merge
-  // lo rechazaría con source_is_target, así que se descarta antes de ofrecerlo.
-  for (const sa of sourceAlbums) {
-    const availableSources = sa.tracks.filter(t => !t.isMergeTarget);
-    const availableTargets = targetTracks.filter(t => !usedTargetIds.has(t.id));
-    const matches = autoMatchTracks(availableSources, availableTargets);
-
-    for (const m of matches) {
-      const st = availableSources.find(t => t.id === m.sourceTrackId)!;
-      const tt = targetTracks.find(t => t.id === m.targetTrackId)!;
-      pairs.push({ sourceTrack: asMergeTrack(st), targetTrack: asMergeTrack(tt), sourceAlbumName: sa.name, confidence: m.confidence });
-      usedTargetIds.add(m.targetTrackId);
-      usedSourceIds.add(m.sourceTrackId);
-    }
+// barrido masivo: los mismos candidatos sobre los álbumes más escuchados de todos los
+// tiempos, para revisarlos de una sentada en vez de álbum por álbum. Se devuelven sólo
+// los álbumes con candidatos; el orden es el del top (más tiempo escuchado primero).
+merges.get('/bulk-remerge-preview', (c) => {
+  const userId = c.get('userId');
+  const scope = c.req.query('scope') ?? DEFAULT_BULK_SCAN_SCOPE;
+  const limit = BULK_SCAN_LIMITS[scope];
+  if (!limit) {
+    return c.json({ error: `unsupported scope — must be one of ${Object.keys(BULK_SCAN_LIMITS).join(', ')}` }, 400);
   }
 
-  // pass 2: dedup sobre todo el grupo (target + sources), que además compara tracks del
-  // mismo álbum entre sí. Se excluyen los ya emparejados arriba y los targets del pass 1
-  // se marcan como isMergeTarget para que no acaben siendo source de un merge encadenado.
-  const dedupPool = [...targetTracks, ...sourceAlbums.flatMap(sa => sa.tracks)]
-    .filter(t => !usedSourceIds.has(t.id))
-    .map(t => ({ ...t, isMergeTarget: t.isMergeTarget || usedTargetIds.has(t.id) }));
+  const db = getDb();
+  const top = getTopEntities(db, 'album', getRangeStart('all'), 'time', limit, null, userId);
+  const ctx = loadRemergeContext(db, userId);
 
-  for (const { source, target } of autoDedupTracks(dedupPool, albumId)) {
-    pairs.push({
-      sourceTrack: asMergeTrack(source),
-      targetTrack: asMergeTrack(target),
-      sourceAlbumName: source.albumName,
-      confidence: 'duplicate',
-    });
-  }
+  const names = new Map(
+    (top.length === 0 ? [] : db.all(sql`
+      SELECT spotify_id, name, image_url FROM albums
+      WHERE spotify_id IN (${sql.join(top.map(r => sql`${r.entity_id}`), sql`, `)})
+    `) as { spotify_id: string; name: string; image_url: string | null }[])
+      .map(a => [a.spotify_id, a] as const)
+  );
+
+  const scanned = top.filter(r => names.has(r.entity_id));
+  const albumsOut = scanned
+    .map(row => {
+      const meta = names.get(row.entity_id)!;
+      const { pairs } = buildAlbumRemerge(db, row.entity_id, meta.name, ctx);
+      return { id: row.entity_id, name: meta.name, imageUrl: meta.image_url, playCount: row.play_count, pairs };
+    })
+    .filter(a => a.pairs.length > 0);
 
   return c.json({
-    pairs,
-    sourceAlbums: sourceAlbumRows.map(r => ({ id: r.source_id, name: r.name })),
+    scope,
+    scanned: scanned.length,
+    albums: albumsOut,
+    totalPairs: albumsOut.reduce((n, a) => n + a.pairs.length, 0),
   });
 });
 

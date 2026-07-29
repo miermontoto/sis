@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w31x';
+export const VERSION = '26w31y';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -164,3 +164,14 @@ export const TRACK_NAME_MATCH_THRESHOLD = 0.4;
 // ambos declaran duración y difieren más que esto, son grabaciones distintas
 // (una versión extendida que comparte base no debe colapsar con la original)
 export const TRACK_DEDUP_DURATION_TOLERANCE_MS = 5_000;
+
+// alcance del barrido masivo de candidatos: cuántos álbumes del top all-time se
+// escanean. 'all' es un tope alto, no ilimitado, para acotar el peor caso
+export const BULK_SCAN_LIMITS: Record<string, number> = {
+  top100: 100,
+  top200: 200,
+  top500: 500,
+  all: 100_000,
+};
+
+export const DEFAULT_BULK_SCAN_SCOPE = 'top200';

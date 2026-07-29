@@ -62,6 +62,7 @@
 <div class="page-header">
   <h1>Merges</h1>
   <a href="/settings" class="back-link">← Settings</a>
+  <a href="/settings/merges/scan" class="scan-link">Scan for duplicates →</a>
 </div>
 
 {#if loading}
@@ -149,6 +150,15 @@
   }
   .back-link:hover {
     color: var(--accent);
+  }
+  .scan-link {
+    margin-left: auto;
+    font-size: 0.85rem;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .scan-link:hover {
+    text-decoration: underline;
   }
 
   .section-card {

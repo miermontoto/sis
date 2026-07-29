@@ -6,7 +6,7 @@ import type {
   ArtistDetail, AlbumDetail, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
@@ -162,6 +162,9 @@ export const api = {
 
   albumRemergePreview: (albumId: string) =>
     apiFetch<RemergePreview>('/admin/album-remerge-preview', { album: albumId }),
+
+  bulkRemergePreview: (scope: string) =>
+    apiFetch<BulkRemergePreview>('/admin/bulk-remerge-preview', { scope }),
 
   batchMergeTracks: (trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }>) =>
     apiMutate<BatchMergeResult>('POST', '/admin/batch-merge-tracks', { trackPairs }),

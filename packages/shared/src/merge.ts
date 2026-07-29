@@ -62,6 +62,22 @@ export interface RemergePreview {
   sourceAlbums: Array<{ id: string; name: string }>;
 }
 
+// barrido masivo: candidatos de varios álbumes del top, agrupados por álbum
+export interface BulkRemergeAlbum {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  playCount: number;
+  pairs: RemergePreviewPair[];
+}
+
+export interface BulkRemergePreview {
+  scope: string;
+  scanned: number;
+  albums: BulkRemergeAlbum[];
+  totalPairs: number;
+}
+
 export interface BatchMergeResult {
   created: number;
   skipped: string[];
