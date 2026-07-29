@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31x',
+    publishedAt: '2026-07-29',
+    title: 'Duplicate tracks in one album',
+    changes: [
+      { type: 'feature', es: 'El auto-merge de tracks ahora también detecta duplicados dentro de un mismo álbum: el mismo tema repetido con IDs y nombres distintos, típicamente uno acreditando a los invitados y otro no ("Walk On Water" y "Walk On Water (feat. Beyoncé)"). Antes sólo se comparaban tracks de álbumes distintos, así que estas parejas eran invisibles y el tema aparecía dos veces en tu top con las escuchas partidas', en: 'Track auto-merge now also finds duplicates inside a single album: the same song repeated under different IDs and names, typically one crediting the featured artists and one not ("Walk On Water" and "Walk On Water (feat. Beyoncé)"). It only ever compared tracks across different albums before, so those pairs were invisible and the song showed up twice in your top with its plays split' },
+      { type: 'improvement', es: 'Ya no hace falta haber fusionado álbumes para usar el auto-merge: la opción "Auto-merge tracks" está disponible en cualquier álbum y escanea también sus propias pistas', en: 'You no longer need merged albums to use auto-merge: the "Auto-merge tracks" option is available on any album and scans its own tracks too' },
+      { type: 'improvement', es: 'Las parejas detectadas por duplicado se marcan con "=" para distinguirlas de las emparejadas por posición ("#") o por parecido de nombre ("~"). El emparejado es conservador a propósito: una versión en directo, un remix o una remasterización nunca se fusionan con la de estudio, y dos temas con duraciones muy distintas tampoco', en: 'Pairs found as duplicates are tagged with "=" to tell them apart from those matched by position ("#") or by name similarity ("~"). The matching is deliberately conservative: a live version, a remix or a remaster never merges into the studio take, and neither do two tracks with clearly different lengths' },
+    ],
+  },
+  {
     version: '26w31v',
     publishedAt: '2026-07-28',
     title: 'Snappier now playing',
