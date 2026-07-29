@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPointWithCrossovers, type RankingMetric, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
+  import { periodLabel } from '$lib/utils/periods';
   import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption, ECharts } from 'echarts';
@@ -45,6 +46,19 @@
 
     return () => fetchCtrl.abort();
   });
+
+  // pico histórico: mejor posición all-time alcanzada nunca. el historial ya es el ranking
+  // acumulado mes a mes, así que el pico sale de ahí sin query ni endpoint extra.
+  let allTimePeak = $derived.by(() => {
+    if (history.length === 0) return null;
+    let best = history[0];
+    for (const p of history) if (p.rank < best.rank) best = p;
+    return best;
+  });
+
+  let allTimePeakTitle = $derived(
+    allTimePeak ? `All-time peak: #${allTimePeak.rank} (${periodLabel(allTimePeak.period, 'month')})` : undefined
+  );
 
   function handleChartClick() {
     if (!highlightedMonth) return;
@@ -127,6 +141,9 @@
   {#each Object.entries(rankLabels) as [key, label]}
     {@const rank = rankings?.[key as keyof Rankings] ?? null}
     {@const color = rank ? medalColor(rank) : undefined}
+    <!-- el pico all-time vive dentro del badge "All": misma métrica, mejor posición alcanzada.
+         solo se muestra si mejora la actual (si coincide, la entidad está en su pico ahora) -->
+    {@const peak = key === 'all' && rank != null && allTimePeak != null && allTimePeak.rank < rank ? allTimePeak : null}
     {#if rank != null}
       <a
         class="ranking-badge ranking-badge--active ranking-badge--link"
@@ -134,9 +151,12 @@
         style:border-color={color}
         style:--medal-color={color}
         href="/top?tab={chartType}&range={key}&focus={entityId}"
+        title={key === 'all' ? allTimePeakTitle : undefined}
+        onmouseenter={() => { if (peak) highlightedMonth = peak.period; }}
+        onmouseleave={() => { if (peak) highlightedMonth = ''; }}
       >
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value" style:color={color}>#{rank}</span>
+        <span class="ranking-value" style:color={color}>#{rank}{#if peak}<span class="ranking-peak" style:color={medalColor(peak.rank)}>▲#{peak.rank}</span>{/if}</span>
       </a>
     {:else}
       <div class="ranking-badge" class:ranking-badge--loading={rankingsLoading}>
@@ -229,6 +249,12 @@
   }
   .ranking-badge--active .ranking-value {
     color: #1db954;
+  }
+  .ranking-peak {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 0.25em;
   }
   .chart-wrap {
     background: var(--bg-card);

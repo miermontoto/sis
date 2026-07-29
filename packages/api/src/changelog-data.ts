@@ -7,6 +7,14 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31ae',
+    publishedAt: '2026-07-29',
+    title: 'Your all-time best position',
+    changes: [
+      { type: 'feature', es: 'La tarjeta "All" de artistas, álbumes y temas enseña ahora, junto a tu posición actual en el top de todos los tiempos, la mejor que ha llegado a tener nunca ("#21 ▲#9"). Pasando el ratón por encima se te dice en qué mes llegó ahí y se resalta ese punto en el gráfico de posición. Si no aparece nada es que está en su mejor momento ahora mismo', en: 'The "All" badge on artist, album and track pages now shows, next to your current all-time position, the best position it has ever reached ("#21 ▲#9"). Hovering it tells you which month it got there and highlights that point on the ranking chart. If nothing shows up, it is at its best right now' },
+    ],
+  },
+  {
     version: '26w31ad',
     publishedAt: '2026-07-29',
     title: 'See the damage before merging',
