@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31ab',
+    publishedAt: '2026-07-29',
+    title: 'Swap a merge around',
+    changes: [
+      { type: 'feature', es: 'Ahora puedes darle la vuelta a un merge sin deshacerlo: el botón "Make canonical" (⇅) elige cuál de las entidades fusionadas manda, es decir, cuál da el nombre, la portada y la página que ves. Está en el aviso "Merged into..." de las páginas de artista, álbum y tema, en las filas de Settings › Merges y en la lista de fusionados del propio modal de merges', en: 'You can now flip a merge around without undoing it: the "Make canonical" (⇅) button picks which of the merged entities is the one in charge, the one that gives the group its name, cover and page. It lives in the "Merged into..." notice on artist, album and track pages, in the Settings › Merges rows, and in the merged list inside the merge modal itself' },
+      { type: 'improvement', es: 'Si el grupo tiene varias entidades fusionadas, al promover una se repunta el grupo entero de una vez, así que no hay que deshacer nada a mano ni queda ninguna fusión colgando. Las reproducciones siguen sumando igual: lo único que cambia es cuál de ellas representa al grupo', en: 'If the group has several merged entities, promoting one repoints the whole group at once, so there is nothing to undo by hand and no merge is left dangling. Play counts keep adding up the same way: the only thing that changes is which one represents the group' },
+      { type: 'improvement', es: 'Al cambiar el álbum canónico, los merges de temas que cruzaban esos dos álbumes se giran con él, para que el álbum que has elegido no acabe mostrando pistas fusionadas hacia las del álbum antiguo', en: 'When you change which album is canonical, the track merges that crossed those two albums flip with it, so the album you picked does not end up showing tracks that are merged into the old album\'s ones' },
+    ],
+  },
+  {
     version: '26w31z',
     publishedAt: '2026-07-29',
     title: 'Bulk duplicate scan',
