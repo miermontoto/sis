@@ -7,6 +7,17 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31ad',
+    publishedAt: '2026-07-29',
+    title: 'See the damage before merging',
+    changes: [
+      { type: 'feature', es: 'Antes de aplicar unos merges se te avisa de cómo van a mover tu ranking: cuántas entradas suben en tu top de todos los tiempos, cuáles son los mayores saltos y cuántas entran en el top 50. En el scan cada fila enseña además el salto concreto ("#212 → #74") y las escuchas que gana. Sale también al fusionar artistas, álbumes o temas desde el modal, en los tres pasos', en: 'Before you apply any merges you now get told how they will move your ranking: how many entries climb in your all-time top, which are the biggest jumps, and how many enter the top 50. In the scan each row also shows its own jump ("#212 → #74") and the plays it gains. It shows up when merging artists, albums or tracks from the modal too, on all three steps' },
+      { type: 'feature', es: 'En el scan puedes invertir un par antes de crearlo con el botón ⇅: elige cuál de los dos temas se queda como bueno. Si varios duplicados caían en el mismo, el grupo entero se repunta al que elijas', en: 'In the scan you can flip a pair before creating it with the ⇅ button: pick which of the two tracks is the one that stays. If several duplicates were falling into the same one, the whole group repoints to the one you pick' },
+      { type: 'fix', es: 'El botón "Rescan" no hacía nada: las vistas de merges se servían de la caché durante 10 minutos, así que devolvía el resultado anterior. Por lo mismo la lista no encogía al aplicar y la lista de Settings › Merges no se refrescaba tras invertir un merge. Ahora estas vistas van siempre a la red', en: 'The "Rescan" button did nothing: the merge views were served from cache for 10 minutes, so it handed back the previous result. For the same reason the list did not shrink after applying, and the Settings › Merges list did not refresh after swapping a merge. These views now always go to the network' },
+      { type: 'fix', es: 'Al aplicar merges desde el scan no aparecía ninguna confirmación: se borraba en el mismo instante en que se creaba, al relanzarse el escaneo. Ahora se queda visible con cuántos merges se han creado', en: 'Applying merges from the scan showed no confirmation at all: it was wiped the instant it was created, when the scan re-ran. It now stays visible with how many merges were created' },
+    ],
+  },
+  {
     version: '26w31ab',
     publishedAt: '2026-07-29',
     title: 'Swap a merge around',
