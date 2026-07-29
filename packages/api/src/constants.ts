@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w31v';
+export const VERSION = '26w31w';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -154,3 +154,13 @@ export const RECORD_NOTIFY_CATEGORIES = ['peakWeekPlays', 'mostWeeksAtNo1', 'lon
 
 // número de entradas del top incluidas en el recap de 'chart_closing'
 export const NOTIFY_CHART_TOP_N = 3;
+
+// --- auto-match / auto-dedup de tracks al mergear álbumes ---
+
+// similitud mínima de trigramas para emparejar dos tracks por nombre entre álbumes
+export const TRACK_NAME_MATCH_THRESHOLD = 0.4;
+
+// tolerancia de duración al deduplicar dos tracks con el mismo título base: si
+// ambos declaran duración y difieren más que esto, son grabaciones distintas
+// (una versión extendida que comparte base no debe colapsar con la original)
+export const TRACK_DEDUP_DURATION_TOLERANCE_MS = 5_000;

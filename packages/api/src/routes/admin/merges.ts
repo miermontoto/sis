@@ -4,9 +4,10 @@ import { mergeRules, albums, artists, tracks } from '../../db/schema.js';
 import { getEntityMergeGroup } from '../../db/queries/merge.js';
 import {
   adminRouter, VALID_ENTITY_TYPES, isValidEntityType, entityTable,
-  validateMergeRule, MERGE_ERRORS, autoMatchTracks,
-  type MatchableTrack,
+  validateMergeRule, MERGE_ERRORS, autoMatchTracks, autoDedupTracks,
+  type DedupCandidate,
 } from './_shared.js';
+import type { AlbumMergeTrack, RemergePreviewPair } from '@sis/shared';
 
 const merges = adminRouter();
 
@@ -243,12 +244,17 @@ merges.post('/merge-album', async (c) => {
 });
 
 // preview de re-merge: detecta tracks sin mergear en álbumes ya mergeados hacia un target
+// (pass cruzado, por posición/nombre) y duplicados del mismo tema en cualquier álbum del
+// grupo, incluido el propio target (pass de dedup, por título base sin créditos).
 merges.get('/album-remerge-preview', (c) => {
   const userId = c.get('userId');
   const albumId = c.req.query('album');
   if (!albumId) return c.json({ error: 'album query param is required' }, 400);
 
   const db = getDb();
+
+  const targetAlbum = db.select().from(albums).where(eq(albums.spotifyId, albumId)).get();
+  if (!targetAlbum) return c.json({ error: 'album not found' }, 404);
 
   const sourceAlbumRows = db.all(sql`
     SELECT mr.source_id, a.name, a.image_url
@@ -257,44 +263,77 @@ merges.get('/album-remerge-preview', (c) => {
     WHERE mr.entity_type = 'album' AND mr.target_id = ${albumId} AND mr.user_id = ${userId}
   `) as { source_id: string; name: string; image_url: string | null }[];
 
-  if (sourceAlbumRows.length === 0) return c.json({ pairs: [], sourceAlbums: [] });
-
   const mergedTrackIds = new Set(
     (db.all(sql`SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}`) as { source_id: string }[])
       .map(r => r.source_id)
   );
+  const mergeTargetIds = new Set(
+    (db.all(sql`SELECT DISTINCT target_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId}`) as { target_id: string }[])
+      .map(r => r.target_id)
+  );
 
-  const getUnmergedTracks = (aid: string): MatchableTrack[] =>
+  // los play counts entran aquí porque el pass de dedup elige como canónico el track más
+  // escuchado del grupo (ver canonicalFirst)
+  const getUnmergedTracks = (aid: string, albumName: string): DedupCandidate[] =>
     (db.all(sql`
-      SELECT t.spotify_id as id, t.name, t.track_number, t.disc_number, t.duration_ms
-      FROM tracks t WHERE t.album_id = ${aid}
+      SELECT t.spotify_id as id, t.name, t.track_number, t.disc_number, t.duration_ms,
+             COALESCE(p.play_count, 0) as play_count
+      FROM tracks t
+      LEFT JOIN (
+        SELECT track_id, COUNT(*) as play_count
+        FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
+      ) p ON p.track_id = t.spotify_id
+      WHERE t.album_id = ${aid}
       ORDER BY COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC
-    `) as { id: string; name: string; track_number: number | null; disc_number: number | null; duration_ms: number }[])
+    `) as { id: string; name: string; track_number: number | null; disc_number: number | null; duration_ms: number; play_count: number }[])
       .filter(t => !mergedTrackIds.has(t.id))
-      .map(t => ({ id: t.id, name: t.name, trackNumber: t.track_number, discNumber: t.disc_number, durationMs: t.duration_ms }));
+      .map(t => ({
+        id: t.id, name: t.name, trackNumber: t.track_number, discNumber: t.disc_number,
+        durationMs: t.duration_ms, albumId: aid, albumName,
+        playCount: t.play_count, isMergeTarget: mergeTargetIds.has(t.id),
+      }));
 
-  const targetTracks = getUnmergedTracks(albumId);
+  const targetTracks = getUnmergedTracks(albumId, targetAlbum.name);
+  const sourceAlbums = sourceAlbumRows.map(sa => ({ ...sa, tracks: getUnmergedTracks(sa.source_id, sa.name) }));
 
-  const pairs: Array<{
-    sourceTrack: MatchableTrack;
-    targetTrack: MatchableTrack;
-    sourceAlbumName: string;
-    confidence: 'position' | 'name';
-  }> = [];
-
+  const pairs: RemergePreviewPair[] = [];
   const usedTargetIds = new Set<string>();
+  const usedSourceIds = new Set<string>();
 
-  for (const sa of sourceAlbumRows) {
-    const sourceTracks = getUnmergedTracks(sa.source_id);
+  const asMergeTrack = (t: DedupCandidate): AlbumMergeTrack =>
+    ({ id: t.id, name: t.name, trackNumber: t.trackNumber, discNumber: t.discNumber, durationMs: t.durationMs });
+
+  // pass 1: emparejar cada álbum source con el target por posición / similitud de nombre.
+  // Un track que ya es target de otra regla no puede proponerse como source: batch-merge
+  // lo rechazaría con source_is_target, así que se descarta antes de ofrecerlo.
+  for (const sa of sourceAlbums) {
+    const availableSources = sa.tracks.filter(t => !t.isMergeTarget);
     const availableTargets = targetTracks.filter(t => !usedTargetIds.has(t.id));
-    const matches = autoMatchTracks(sourceTracks, availableTargets);
+    const matches = autoMatchTracks(availableSources, availableTargets);
 
     for (const m of matches) {
-      const st = sourceTracks.find(t => t.id === m.sourceTrackId)!;
+      const st = availableSources.find(t => t.id === m.sourceTrackId)!;
       const tt = targetTracks.find(t => t.id === m.targetTrackId)!;
-      pairs.push({ sourceTrack: st, targetTrack: tt, sourceAlbumName: sa.name, confidence: m.confidence });
+      pairs.push({ sourceTrack: asMergeTrack(st), targetTrack: asMergeTrack(tt), sourceAlbumName: sa.name, confidence: m.confidence });
       usedTargetIds.add(m.targetTrackId);
+      usedSourceIds.add(m.sourceTrackId);
     }
+  }
+
+  // pass 2: dedup sobre todo el grupo (target + sources), que además compara tracks del
+  // mismo álbum entre sí. Se excluyen los ya emparejados arriba y los targets del pass 1
+  // se marcan como isMergeTarget para que no acaben siendo source de un merge encadenado.
+  const dedupPool = [...targetTracks, ...sourceAlbums.flatMap(sa => sa.tracks)]
+    .filter(t => !usedSourceIds.has(t.id))
+    .map(t => ({ ...t, isMergeTarget: t.isMergeTarget || usedTargetIds.has(t.id) }));
+
+  for (const { source, target } of autoDedupTracks(dedupPool, albumId)) {
+    pairs.push({
+      sourceTrack: asMergeTrack(source),
+      targetTrack: asMergeTrack(target),
+      sourceAlbumName: source.albumName,
+      confidence: 'duplicate',
+    });
   }
 
   return c.json({

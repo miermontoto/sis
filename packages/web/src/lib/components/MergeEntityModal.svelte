@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair } from '$lib/api';
+  import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair, type RemergeConfidence } from '$lib/api';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -128,6 +128,13 @@
     if (!targetId) return null;
     return trackPreview?.matches.find(m => m.sourceTrackId === sourceId && m.targetTrackId === targetId)?.confidence ?? 'name';
   }
+
+  // '#' posición dentro del álbum, '~' nombres parecidos, '=' mismo tema con distintos créditos
+  const CONFIDENCE_BADGES: Record<RemergeConfidence, { symbol: string; title: string }> = {
+    position: { symbol: '#', title: 'Matched by track position' },
+    name:     { symbol: '~', title: 'Matched by name similarity' },
+    duplicate:{ symbol: '=', title: 'Same track, different credits' },
+  };
 
   function formatDuration(ms: number) {
     const m = Math.floor(ms / 60000);
@@ -344,11 +351,14 @@
               </div>
             {/each}
           </div>
-          {#if entityType === 'album'}
-            <button class="merge-remerge-btn" onclick={loadRemergePreview} disabled={remergeLoading}>
-              {remergeLoading ? 'Scanning...' : 'Scan for unmerged tracks'}
-            </button>
-          {/if}
+        {/if}
+
+        <!-- el scan no depende de haber mergeado álbumes: un álbum suelto puede tener
+             duplicados del mismo tema entre sus propias pistas -->
+        {#if entityType === 'album'}
+          <button class="merge-remerge-btn" onclick={loadRemergePreview} disabled={remergeLoading}>
+            {remergeLoading ? 'Scanning...' : 'Scan for duplicate tracks'}
+          </button>
         {/if}
 
         {#if loading}
@@ -490,7 +500,7 @@
         {#if remergeLoading}
           <div class="merge-loading"><div class="spinner"></div></div>
         {:else if remergePairs.length === 0}
-          <div class="merge-empty">No unmerged track matches found.</div>
+          <div class="merge-empty">No duplicate or unmerged tracks found.</div>
         {:else}
           <div class="merge-section-title">Track matches ({activeRemergePairs} of {remergePairs.length})</div>
           <div class="merge-list">
@@ -511,8 +521,13 @@
                   <div class="track-pair-arrow">&darr;</div>
                   <div class="track-pair-target">
                     <span class="track-name">{pair.targetTrack.name}</span>
-                    <span class="track-confidence" class:track-confidence--position={pair.confidence === 'position'}>
-                      {pair.confidence === 'position' ? '#' : '~'}
+                    <span
+                      class="track-confidence"
+                      class:track-confidence--position={pair.confidence === 'position'}
+                      class:track-confidence--duplicate={pair.confidence === 'duplicate'}
+                      title={CONFIDENCE_BADGES[pair.confidence].title}
+                    >
+                      {CONFIDENCE_BADGES[pair.confidence].symbol}
                     </span>
                   </div>
                 </div>
@@ -921,6 +936,11 @@
   .track-confidence--position {
     background: rgba(29, 185, 84, 0.15);
     color: var(--accent);
+  }
+
+  .track-confidence--duplicate {
+    background: rgba(255, 176, 46, 0.15);
+    color: #ffb02e;
   }
 
   .merge-remerge-btn {

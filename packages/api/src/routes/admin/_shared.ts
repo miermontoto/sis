@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { albums, artists, tracks } from '../../db/schema.js';
+import { creditBaseKey } from '../../services/versions.js';
+import { TRACK_NAME_MATCH_THRESHOLD, TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
 import type { AppVariables } from '../../app.js';
 import type { EntityType } from '@sis/shared';
 
@@ -73,7 +75,7 @@ export function autoMatchTracks(
     for (const tt of targetTracks) {
       if (usedTarget.has(tt.id)) continue;
       const sim = trigramSimilarity(stTri, trigrams(tt.name));
-      if (sim >= 0.4) candidates.push({ sourceId: st.id, targetId: tt.id, sim });
+      if (sim >= TRACK_NAME_MATCH_THRESHOLD) candidates.push({ sourceId: st.id, targetId: tt.id, sim });
     }
   }
   candidates.sort((a, b) => b.sim - a.sim);
@@ -85,6 +87,61 @@ export function autoMatchTracks(
   }
 
   return matches;
+}
+
+// --- auto-dedup de tracks dentro de un grupo de álbumes ---
+
+// un track del pool a deduplicar, con lo necesario para elegir el canónico del grupo
+export interface DedupCandidate extends MatchableTrack {
+  albumId: string;
+  albumName: string;
+  playCount: number;
+  // ya es target de una regla de track (o lo será en este mismo preview): no puede pasar a
+  // source, porque validateMergeRule rechaza encadenar merges
+  isMergeTarget: boolean;
+}
+
+export interface DedupPair {
+  source: DedupCandidate;
+  target: DedupCandidate;
+}
+
+// dos tracks solo son el mismo tema si además duran prácticamente lo mismo; una duración
+// ausente (0) no descarta el par, solo no aporta evidencia
+const durationsMatch = (a: MatchableTrack, b: MatchableTrack) =>
+  !a.durationMs || !b.durationMs
+  || Math.abs(a.durationMs - b.durationMs) <= TRACK_DEDUP_DURATION_TOLERANCE_MS;
+
+// orden de preferencia del canónico dentro de un grupo de duplicados: el que ya es target,
+// luego el que vive en el álbum canónico, luego el más escuchado, luego el de título más
+// corto (el que no arrastra los créditos) y por último el id menor, para ser determinista
+const canonicalFirst = (canonicalAlbumId: string) => (a: DedupCandidate, b: DedupCandidate) =>
+  Number(b.isMergeTarget) - Number(a.isMergeTarget)
+  || Number(b.albumId === canonicalAlbumId) - Number(a.albumId === canonicalAlbumId)
+  || b.playCount - a.playCount
+  || a.name.length - b.name.length
+  || a.id.localeCompare(b.id);
+
+/** Agrupa el pool por título base sin créditos y empareja cada duplicado con el canónico
+ *  de su grupo. A diferencia de autoMatchTracks compara TODOS contra TODOS, así que también
+ *  detecta duplicados dentro de un mismo álbum (shells colapsados por deduplicateAlbumShells,
+ *  que dejan varias filas del mismo tema bajo el mismo album_id). */
+export function autoDedupTracks(pool: DedupCandidate[], canonicalAlbumId: string): DedupPair[] {
+  const groups = new Map<string, DedupCandidate[]>();
+  for (const t of pool) {
+    const key = creditBaseKey(t.name);
+    if (!key) continue; // nombre vacío tras normalizar: no agrupa con nada
+    groups.set(key, [...(groups.get(key) ?? []), t]);
+  }
+
+  return [...groups.values()]
+    .filter(group => group.length > 1)
+    .flatMap(group => {
+      const [canonical, ...dupes] = [...group].sort(canonicalFirst(canonicalAlbumId));
+      return dupes
+        .filter(d => !d.isMergeTarget && durationsMatch(d, canonical))
+        .map(d => ({ source: d, target: canonical }));
+    });
 }
 
 export type MergeValidationResult =

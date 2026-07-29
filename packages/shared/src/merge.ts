@@ -46,11 +46,15 @@ export interface AlbumMergeResult {
   skipped: string[];
 }
 
+// 'duplicate' = mismo tema con distinto ID/nombre dentro del grupo de álbumes
+// (típicamente shells colapsados: "Walk On Water" ←→ "Walk On Water (feat. Beyoncé)")
+export type RemergeConfidence = 'position' | 'name' | 'duplicate';
+
 export interface RemergePreviewPair {
   sourceTrack: AlbumMergeTrack;
   targetTrack: AlbumMergeTrack;
   sourceAlbumName: string;
-  confidence: 'position' | 'name';
+  confidence: RemergeConfidence;
 }
 
 export interface RemergePreview {

@@ -347,7 +347,7 @@
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
           { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
           { label: 'Manage merges', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
-          ...((data?.mergedFrom?.length ?? 0) > 0 ? [{ label: 'Auto-merge tracks', icon: IconMerge, onClick: () => { mergeInitialStep = 'remerge'; showMergeModal = true; } }] : []),
+          { label: 'Auto-merge tracks', icon: IconMerge, onClick: () => { mergeInitialStep = 'remerge'; showMergeModal = true; } },
         ]}
       />
     </div>
