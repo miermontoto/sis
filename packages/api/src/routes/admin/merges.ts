@@ -10,7 +10,8 @@ import { buildAlbumRemerge, loadRemergeContext } from './remerge.js';
 import { promoteToCanonical, promoteAlbumCanonical, PROMOTE_ERRORS } from './promote.js';
 import { getTopEntities } from '../../db/queries/entity.js';
 import { getRangeStart } from '../../db/queries/index.js';
-import { BULK_SCAN_LIMITS, DEFAULT_BULK_SCAN_SCOPE } from '../../constants.js';
+import { computeMergeImpact } from './impact.js';
+import { BULK_SCAN_LIMITS, DEFAULT_BULK_SCAN_SCOPE, IMPACT_TOP_THRESHOLD } from '../../constants.js';
 
 const merges = adminRouter();
 
@@ -97,6 +98,31 @@ merges.post('/merge-canonical', async (c) => {
     rulesRewritten: result.rulesRewritten,
     nestedTrackGroups: result.nestedTrackGroups,
   });
+});
+
+// impacto en el ranking all-time de unos merges aún no aplicados
+merges.post('/merge-impact', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{
+    entityType: string;
+    pairs: { sourceId: string; targetId: string }[];
+    metric?: string;
+  }>();
+  const { entityType, pairs } = body;
+
+  if (!isValidEntityType(entityType)) {
+    return c.json({ error: `entityType must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
+  }
+  if (!Array.isArray(pairs)) return c.json({ error: 'pairs array is required' }, 400);
+  if (pairs.length === 0) {
+    return c.json({
+      entityType, metric: body.metric === 'plays' ? 'plays' : 'time',
+      topThreshold: IMPACT_TOP_THRESHOLD, items: [], movedCount: 0, enteredTop: 0, biggest: [],
+    });
+  }
+
+  const metric = body.metric === 'plays' ? 'plays' : 'time';
+  return c.json(computeMergeImpact(getDb(), userId, entityType, pairs, metric));
 });
 
 // eliminar regla de merge (verificar que pertenece al usuario)

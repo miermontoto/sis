@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair, type RemergeConfidence } from '$lib/api';
+  import MergeImpactBar from '$lib/components/MergeImpactBar.svelte';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -117,6 +118,25 @@
   // para el step de tracks: número de matches activos
   let activeTrackPairs = $derived(trackMatches.size);
   let activeRemergePairs = $derived(remergePairs.filter(p => p.checked).length);
+
+  // pares a crear en cada step, para el preview de impacto en el ranking
+  let selectionPairs = $derived([...selected].map(sourceId => ({ sourceId, targetId: target.id })));
+  let trackStepPairs = $derived([...trackMatches.entries()].map(([sourceId, targetId]) => ({ sourceId, targetId })));
+  let remergeSelectedPairs = $derived(remergePairs.filter(p => p.checked)
+    .map(p => ({ sourceId: p.sourceTrack.id, targetId: p.targetTrack.id })));
+
+  // nombres conocidos por el modal, para el resumen de impacto
+  let impactNames = $derived(new Map<string, string>([
+    [target.id, target.name],
+    ...suggestions.map(s => [s.id, s.name] as const),
+    ...(trackPreview?.source.tracks ?? []).map(t => [t.id, t.name] as const),
+    ...(trackPreview?.target.tracks ?? []).map(t => [t.id, t.name] as const),
+    ...remergePairs.flatMap(p => [
+      [p.sourceTrack.id, p.sourceTrack.name] as const,
+      [p.targetTrack.id, p.targetTrack.name] as const,
+    ]),
+  ]));
+  const impactNameOf = (id: string) => impactNames.get(id) ?? null;
 
   // helpers para el step de tracks
   function getTargetTrackForSource(sourceId: string) {
@@ -426,6 +446,7 @@
 
           {#if selected.size > 0}
             <div class="merge-footer">
+              <MergeImpactBar {entityType} pairs={selectionPairs} nameOf={impactNameOf} />
               {#if showTrackStep}
                 <button class="merge-confirm" disabled={loadingPreview} onclick={goToTrackStep}>
                   {loadingPreview ? 'Loading...' : 'Next: Match tracks'}
@@ -507,11 +528,14 @@
           {/each}
         </div>
 
-        <div class="merge-footer merge-footer--split">
-          <button class="merge-back" onclick={goBackToSelect}>&larr; Back</button>
-          <button class="merge-confirm" disabled={merging} onclick={doMerge}>
-            {merging ? 'Merging...' : `Merge album${activeTrackPairs > 0 ? ` + ${activeTrackPairs} tracks` : ''}`}
-          </button>
+        <div class="merge-footer">
+          <MergeImpactBar entityType="track" pairs={trackStepPairs} nameOf={impactNameOf} />
+          <div class="merge-footer-row">
+            <button class="merge-back" onclick={goBackToSelect}>&larr; Back</button>
+            <button class="merge-confirm" disabled={merging} onclick={doMerge}>
+              {merging ? 'Merging...' : `Merge album${activeTrackPairs > 0 ? ` + ${activeTrackPairs} tracks` : ''}`}
+            </button>
+          </div>
         </div>
 
       {:else if step === 'remerge'}
@@ -557,11 +581,14 @@
             {/each}
           </div>
 
-          <div class="merge-footer merge-footer--split">
-            <button class="merge-back" onclick={goBackFromRemerge}>&larr; Back</button>
-            <button class="merge-confirm" disabled={remergeApplying || activeRemergePairs === 0} onclick={applyRemerge}>
-              {remergeApplying ? 'Merging...' : `Merge ${activeRemergePairs} tracks`}
-            </button>
+          <div class="merge-footer">
+            <MergeImpactBar entityType="track" pairs={remergeSelectedPairs} nameOf={impactNameOf} />
+            <div class="merge-footer-row">
+              <button class="merge-back" onclick={goBackFromRemerge}>&larr; Back</button>
+              <button class="merge-confirm" disabled={remergeApplying || activeRemergePairs === 0} onclick={applyRemerge}>
+                {remergeApplying ? 'Merging...' : `Merge ${activeRemergePairs} tracks`}
+              </button>
+            </div>
           </div>
         {/if}
       {/if}
@@ -815,10 +842,14 @@
     border-top: 1px solid var(--border);
   }
 
-  .merge-footer--split {
+  .merge-footer-row {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+  }
+
+  .merge-footer :global(.impact) {
+    margin-bottom: 0.6rem;
   }
 
   .merge-back {

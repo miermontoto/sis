@@ -6,7 +6,7 @@ import type {
   ArtistDetail, AlbumDetail, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData, EntityType,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
@@ -146,6 +146,11 @@ export const api = {
   // invierte la dirección: promueve la entidad a canónica de su grupo
   makeCanonical: (entityType: EntityType, entityId: string) =>
     apiMutate<MakeCanonicalResult>('POST', '/admin/merge-canonical', { entityType, entityId }),
+
+  // impacto en el ranking all-time de unos merges aún no creados. Es POST porque el cuerpo
+  // es la lista de pares, pero no muta nada: se usa rawMutate para saltarse la invalidación
+  mergeImpact: (entityType: EntityType, pairs: { sourceId: string; targetId: string }[], metric: RankingMetric) =>
+    apiMutate<MergeImpact>('POST', '/admin/merge-impact', { entityType, pairs, metric }, { invalidate: false }),
 
   listMerges: () => apiFetch<MergeRule[]>('/admin/merges'),
 

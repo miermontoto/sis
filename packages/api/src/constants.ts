@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w31ab';
+export const VERSION = '26w31ac';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -175,3 +175,8 @@ export const BULK_SCAN_LIMITS: Record<string, number> = {
 };
 
 export const DEFAULT_BULK_SCAN_SCOPE = 'top200';
+
+// preview de impacto de merges: umbral de "entra en el top N" y cuántos movimientos
+// destacados se resumen antes de aplicar
+export const IMPACT_TOP_THRESHOLD = 50;
+export const IMPACT_BIGGEST_MOVERS = 3;

@@ -21,6 +21,10 @@ const DEFAULT_CONFIG: EndpointConfig = { ttl: 10 * MIN, maxStale: 24 * HOUR };
 // sobrevive a los cold starts). Cachearlo revertía cambios de ajustes y, con el
 // marcador de charts cerrados, impedía respetar un descarte hecho en otro
 // dispositivo. Offline: loadSettings cae a localStorage vía su try/catch.
+// las vistas de merges son estado vivo: su razón de ser es "enséñame los candidatos /
+// las reglas de AHORA". Con el TTL por defecto (10 min) un rescan devolvía la respuesta
+// cacheada y parecía que el botón no hacía nada, y la lista no encogía tras aplicar
+// (batch-merge-tracks sólo invalida /stats/ y /playlists/, no /admin/).
 const NO_CACHE_PATHS = new Set<string>([
   '/now-playing',
   '/now-playing/live',
@@ -28,6 +32,11 @@ const NO_CACHE_PATHS = new Set<string>([
   '/now-playing/devices',
   '/health',
   '/settings',
+  '/admin/merges',
+  '/admin/merge-suggestions',
+  '/admin/album-merge-preview',
+  '/admin/album-remerge-preview',
+  '/admin/bulk-remerge-preview',
 ]);
 
 // matcher prefijo → config (orden importa: primer match gana).

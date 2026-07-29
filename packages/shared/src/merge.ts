@@ -78,6 +78,27 @@ export interface BulkRemergePreview {
   totalPairs: number;
 }
 
+// impacto de unos merges propuestos sobre el ranking all-time
+export interface MergeImpactItem {
+  id: string;
+  // null = fuera del ranking (sin reproducciones)
+  rankBefore: number | null;
+  rankAfter: number | null;
+  valueBefore: number;
+  valueAfter: number;
+}
+
+export interface MergeImpact {
+  entityType: string;
+  metric: 'time' | 'plays';
+  // umbral de "entra en el top N"
+  topThreshold: number;
+  items: MergeImpactItem[];
+  movedCount: number;
+  enteredTop: number;
+  biggest: MergeImpactItem[];
+}
+
 export interface MakeCanonicalResult {
   entityType: string;
   canonicalId: string;

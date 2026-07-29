@@ -203,7 +203,9 @@ export function applyMutationInvalidation(method: string, path: string): void {
 }
 
 // POST/PUT/DELETE/PATCH helper para mutaciones.
-export async function apiMutate<T>(method: string, path: string, body?: unknown): Promise<T> {
+// `opts.invalidate: false` para endpoints POST que en realidad LEEN (el cuerpo es la
+// consulta, no una mutación): sin esto invalidarían el cache de /stats/ en cada llamada
+export async function apiMutate<T>(method: string, path: string, body?: unknown, opts?: { invalidate?: boolean }): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
@@ -217,7 +219,7 @@ export async function apiMutate<T>(method: string, path: string, body?: unknown)
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `API error: ${res.status}`);
   }
-  applyMutationInvalidation(method, path);
+  if (opts?.invalidate !== false) applyMutationInvalidation(method, path);
   // 204 No Content (ej. /changelog/seen): sin cuerpo que parsear
   if (res.status === 204) return undefined as T;
   return res.json();
