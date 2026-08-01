@@ -6,7 +6,6 @@ import { getDb, closeDb } from './db/connection.js';
 import { initReadWorker, closeReadWorker } from './db/read-pool.js';
 import { startPolling, stopPolling } from './services/polling.js';
 import { cleanupExpiredSessions } from './services/session.js';
-import { seedChangelog } from './services/changelog.js';
 import { VERSION } from './constants.js';
 
 // .env desde raíz de la app (dev en monorepo) o cwd (docker); .env.local sobrescribe
@@ -15,8 +14,6 @@ loadAppEnv(import.meta.url);
 // inicializar db (ejecuta migraciones) y worker de lectura
 getDb();
 cleanupExpiredSessions();
-// sembrar el changelog (idempotente; reconcilia con changelog-data.ts)
-seedChangelog();
 await initReadWorker();
 
 // iniciar polling en background (DISABLE_POLLING=1 para dev local con snapshot de prod)

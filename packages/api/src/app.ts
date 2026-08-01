@@ -1,7 +1,7 @@
 // composición de la api de sis sobre el hono base de @platform/core-api:
 // gate de sesión spotify, rutas de dominio, portadas, og html y spa estática.
 import { getCookie } from 'hono/cookie';
-import { createPlatformApp, mountSpa, sessionGate, changelogRoutes } from '@platform/core-api';
+import { createPlatformApp, mountSpa, sessionGate } from '@platform/core-api';
 import fs from 'fs';
 import path from 'path';
 import auth from './routes/auth.js';
@@ -21,7 +21,7 @@ import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession, type Session } from './services/session.js';
-import { getChangelogState, markChangelogSeen } from './services/changelog.js';
+import { CHANGELOG } from './changelog-data.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
@@ -94,16 +94,9 @@ app.route('/api/device-tokens', deviceTokens);
 app.route('/api/push', push);
 app.route('/api/lastfm', lastfm);
 
-// changelog "novedades": estado + nº no vistas para el usuario actual (el gate
-// deja userId en el contexto). marcar visto avanza el corte de lectura.
-app.route(
-  '/api/changelog',
-  changelogRoutes<SisEnv>({
-    userId: (c) => c.get('userId'),
-    getState: getChangelogState,
-    markSeen: markChangelogSeen,
-  }),
-);
+// changelog "novedades": entradas estáticas de changelog-data.ts. no hay estado
+// por usuario, así que la web lo pide solo cuando se abre el modal
+app.get('/api/changelog', (c) => c.json({ entries: CHANGELOG }));
 
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401

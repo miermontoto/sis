@@ -10,7 +10,7 @@
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import Changelog from '@platform/ui/Changelog.svelte';
-  import { API_BASE, api, loadSettings, getChangelog, markChangelogSeen, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult, type ChangelogStateDTO } from '$lib/api';
+  import { API_BASE, api, loadSettings, getChangelog, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult, type ChangelogEntryDTO } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -53,8 +53,8 @@
   let showSearch = $state(false);
   let user = $state<MeResponse | null>(null);
   let appVersion = $state('');
-  // changelog "novedades": estado del usuario + modal (auto-abre si hay no vistas)
-  let changelog = $state<ChangelogStateDTO | null>(null);
+  // changelog "novedades": solo se abre a petición (tag de versión), nunca solo
+  let changelogEntries = $state<ChangelogEntryDTO[] | null>(null);
   let showChangelog = $state(false);
   let showUserMenu = $state(false);
   let expandedGroup = $state<string | null>(null);
@@ -156,19 +156,14 @@
     return () => { ro.disconnect(); mo.disconnect(); };
   });
 
-  // cierra el modal de novedades y marca todo como visto (avanza el corte)
-  async function dismissChangelog() {
-    showChangelog = false;
-    if (changelog && changelog.unseen > 0) {
-      changelog = { ...changelog, unseen: 0 };
-      try { await markChangelogSeen(); } catch {}
-    }
-  }
-
-  // reabre el modal al clicar el tag de versión en el footer
-  function openChangelog() {
+  // abre las novedades desde el tag de versión del footer. carga perezosa: las
+  // entradas no entran en el boot, se piden la primera vez que se abre el modal
+  async function openChangelog() {
     showUserMenu = false;
-    if (changelog) showChangelog = true;
+    if (!changelogEntries) {
+      try { changelogEntries = (await getChangelog()).entries; } catch { return; }
+    }
+    showChangelog = true;
   }
 
   function handleClickOutside(e: MouseEvent) {
@@ -212,7 +207,7 @@
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
         else {
-          Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {}), getChangelog().then(c => { changelog = c; if (c.unseen > 0) showChangelog = true; }).catch(() => {})]).finally(() => {
+          Promise.all([loadSettings(), api.me().then(m => { user = m; }), api.version().then(v => { appVersion = v.version; }).catch(() => {})]).finally(() => {
             authChecked = true;
             nowPlayingDisplay = getNowPlayingDisplay();
             sessionTrackingDisplay = getSessionTrackingDisplay();
@@ -598,7 +593,7 @@
           {/if}
         </div>
       {/if}
-      <div class="sidebar-footer">{#if appVersion} <button type="button" class="sidebar-version" onclick={openChangelog}>{appVersion}{#if (changelog?.unseen ?? 0) > 0}<span class="menu-dot"></span>{/if}</button>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
+      <div class="sidebar-footer">{#if appVersion} <button type="button" class="sidebar-version" onclick={openChangelog}>{appVersion}</button>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)}>
       <div class="mobile-header">
@@ -638,10 +633,10 @@
   <KeyboardShortcutsHelp />
   <ContextMenu />
   <Toast />
-  {#if showChangelog && changelog}
+  {#if showChangelog && changelogEntries}
     <!-- mapea las vars --ui-* del componente compartido al tema de sis -->
-    <div style="--ui-bg-card: var(--bg); --ui-border: var(--border); --ui-radius: var(--radius); --ui-text: var(--text); --ui-accent: var(--accent); --ui-accent-text: #fff; --ui-bg-hover: var(--bg-hover); --ui-danger: var(--danger);">
-      <Changelog entries={changelog.entries} lang="en" ondismiss={dismissChangelog} />
+    <div style="--ui-bg-card: var(--bg); --ui-border: var(--border); --ui-radius: var(--radius); --ui-text: var(--text); --ui-accent: var(--accent); --ui-danger: var(--danger);">
+      <Changelog entries={changelogEntries} lang="en" ondismiss={() => showChangelog = false} />
     </div>
   {/if}
   {#if mergeModal.target}
@@ -656,16 +651,3 @@
     />
   {/if}
 {/if}
-
-<style>
-  /* punto indicador de novedades sin ver junto al tag de versión */
-  .menu-dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    margin-left: 0.4rem;
-    border-radius: 50%;
-    background: var(--accent, #1db954);
-    vertical-align: middle;
-  }
-</style>

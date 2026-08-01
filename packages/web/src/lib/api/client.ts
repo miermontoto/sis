@@ -188,7 +188,6 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'DELETE', prefix: '/social/follows/',           clear: ['/social/'] },
   { method: 'POST',   prefix: '/social/share-links',        clear: ['/social/share-links'] },
   { method: 'DELETE', prefix: '/social/share-links/',       clear: ['/social/share-links'] },
-  { method: 'POST',   prefix: '/changelog/seen',            clear: ['/changelog'] },
   { method: 'POST',   prefix: '/lastfm',                    clear: ['/me'] },
   { method: 'DELETE', prefix: '/lastfm',                    clear: ['/me'] },
 ];
@@ -224,7 +223,7 @@ export async function apiMutate<T>(method: string, path: string, body?: unknown,
     throw new Error(err.error || `API error: ${res.status}`);
   }
   if (opts?.invalidate !== false) applyMutationInvalidation(method, path);
-  // 204 No Content (ej. /changelog/seen): sin cuerpo que parsear
+  // 204 No Content: sin cuerpo que parsear
   if (res.status === 204) return undefined as T;
   return res.json();
 }

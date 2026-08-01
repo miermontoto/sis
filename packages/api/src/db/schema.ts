@@ -1,6 +1,5 @@
 import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { defineSessionTable } from '@platform/auth';
-import { defineChangelogTable, defineChangelogSeenTable } from '@platform/changelog';
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -162,11 +161,6 @@ export const spotifyPlaylistTracks = sqliteTable('spotify_playlist_tracks', {
 // tabla `sessions` legacy (denormalizaba spotifyId/isAdmin); la física vieja queda
 // huérfana hasta una migración de limpieza.
 export const authSessions = defineSessionTable(() => users.id);
-
-// changelog "novedades" de la plataforma (@platform/changelog): entradas globales
-// hand-curated (sembradas al boot) + corte de lectura por usuario.
-export const changelogEntry = defineChangelogTable();
-export const changelogSeen = defineChangelogSeenTable(() => users.id);
 
 // cuentas last.fm vinculadas (sso + fuente de scrobbles). el cursor y el estado
 // de backfill viven aquí y no en polling_state: la integración es opcional por
