@@ -7,6 +7,16 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31ag',
+    publishedAt: '2026-08-01',
+    title: 'Merges responsive again',
+    changes: [
+      { type: 'fix', es: 'La interfaz de merges se quedaba esperando en cada clic. El aviso de impacto recalculaba tu ranking completo cada vez que marcabas una casilla, y ese cálculo bloqueaba el servidor entero, así que también se paraba todo lo demás. Ahora se calcula fuera del hilo principal y se reaprovecha entre clics: de más de un segundo por clic a unos milisegundos', en: 'The merge interface stalled on every click. The impact notice recalculated your entire ranking each time you ticked a box, and that calculation blocked the whole server, so everything else stalled with it. It is now computed off the main thread and reused between clicks: from over a second per click down to milliseconds' },
+      { type: 'fix', es: 'Abrir el modal de merges volvía a pedir las sugerencias a la red cada vez, tardando entre un cuarto y medio segundo. Vuelven a servirse al instante desde caché, y se refrescan solas en cuanto creas, deshaces o inviertes un merge', en: 'Opening the merge modal hit the network for its suggestions every single time, taking a quarter to half a second. They are served instantly from cache again, and refresh on their own as soon as you create, undo or flip a merge' },
+      { type: 'improvement', es: 'Deshacer un merge en Settings › Merges quita la fila al momento en vez de esperar a que responda el servidor', en: 'Undoing a merge in Settings › Merges removes the row immediately instead of waiting for the server to answer' },
+    ],
+  },
+  {
     version: '26w31ae',
     publishedAt: '2026-07-29',
     title: 'Your all-time best position',
