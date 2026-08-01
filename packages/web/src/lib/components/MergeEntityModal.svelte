@@ -247,7 +247,8 @@
     remergeLoading = true;
     error = '';
     try {
-      const preview = await api.albumRemergePreview(target.id);
+      // botón explícito de scan: pedimos datos frescos, no el cache
+      const preview = await api.albumRemergePreview(target.id, new AbortController().signal);
       remergePairs = preview.pairs.map(p => ({ ...p, checked: true }));
       step = 'remerge';
     } catch (e: any) {

@@ -96,12 +96,14 @@
 
   // `keepResult` conserva la confirmación del apply: el rescan posterior la borraba en el
   // mismo tick en que se creaba, y parecía que aplicar no hacía nada
-  async function scan(keepResult = false) {
+  // `fresh` salta el cache: lo piden el botón Rescan, el cambio de alcance y el rescan de
+  // después de aplicar. La primera carga sí usa cache para que la página abra al instante.
+  async function scan(keepResult = false, fresh = false) {
     loading = true;
     error = '';
     if (!keepResult) result = null;
     try {
-      const preview = await api.bulkRemergePreview(scope);
+      const preview = await api.bulkRemergePreview(scope, fresh ? new AbortController().signal : undefined);
       data = preview;
       checked = new Set(
         preview.albums.flatMap(a => a.pairs
@@ -118,7 +120,7 @@
     }
   }
 
-  const rescan = () => scan();
+  const rescan = () => scan(false, true);
 
   function toggleMember(albumId: string, trackId: string) {
     const k = memberKey(albumId, trackId);
@@ -195,7 +197,7 @@
         sourceTrackId: p.sourceId,
         targetTrackId: p.targetId,
       })));
-      await scan(true);
+      await scan(true, true);
     } catch (e: any) {
       error = e.message || 'Error applying merges';
     } finally {

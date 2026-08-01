@@ -8,9 +8,9 @@ import {
 } from './_shared.js';
 import { buildAlbumRemerge, loadRemergeContext } from './remerge.js';
 import { promoteToCanonical, promoteAlbumCanonical, PROMOTE_ERRORS } from './promote.js';
-import { getTopEntities } from '../../db/queries/entity.js';
+import { dbRead } from '../../db/read-pool.js';
 import { getRangeStart } from '../../db/queries/index.js';
-import { computeMergeImpact } from './impact.js';
+import { computeMergeImpact, invalidateRankingCache } from './impact.js';
 import { BULK_SCAN_LIMITS, DEFAULT_BULK_SCAN_SCOPE, IMPACT_TOP_THRESHOLD } from '../../constants.js';
 
 const merges = adminRouter();
@@ -53,6 +53,7 @@ merges.post('/merge', async (c) => {
     sourceId,
     targetId,
   }).run();
+  invalidateRankingCache(userId);
 
   return c.json({
     id: result.lastInsertRowid,
@@ -90,6 +91,7 @@ merges.post('/merge-canonical', async (c) => {
     const [msg, status] = PROMOTE_ERRORS[result.reason](entityType);
     return c.json({ error: msg }, status as 400);
   }
+  invalidateRankingCache(userId);
 
   return c.json({
     entityType,
@@ -122,7 +124,7 @@ merges.post('/merge-impact', async (c) => {
   }
 
   const metric = body.metric === 'plays' ? 'plays' : 'time';
-  return c.json(computeMergeImpact(getDb(), userId, entityType, pairs, metric));
+  return c.json(await computeMergeImpact(userId, entityType, pairs, metric));
 });
 
 // eliminar regla de merge (verificar que pertenece al usuario)
@@ -136,6 +138,7 @@ merges.delete('/merge/:id', (c) => {
   if (rule.userId !== userId) return c.json({ error: 'forbidden' }, 403);
 
   db.delete(mergeRules).where(eq(mergeRules.id, id)).run();
+  invalidateRankingCache(userId);
   return c.json({ success: true });
 });
 
@@ -304,6 +307,7 @@ merges.post('/merge-album', async (c) => {
       skipped,
     };
   });
+  invalidateRankingCache(userId);
 
   return c.json(result);
 });
@@ -324,7 +328,7 @@ merges.get('/album-remerge-preview', (c) => {
 // barrido masivo: los mismos candidatos sobre los álbumes más escuchados de todos los
 // tiempos, para revisarlos de una sentada en vez de álbum por álbum. Se devuelven sólo
 // los álbumes con candidatos; el orden es el del top (más tiempo escuchado primero).
-merges.get('/bulk-remerge-preview', (c) => {
+merges.get('/bulk-remerge-preview', async (c) => {
   const userId = c.get('userId');
   const scope = c.req.query('scope') ?? DEFAULT_BULK_SCAN_SCOPE;
   const limit = BULK_SCAN_LIMITS[scope];
@@ -333,7 +337,10 @@ merges.get('/bulk-remerge-preview', (c) => {
   }
 
   const db = getDb();
-  const top = getTopEntities(db, 'album', getRangeStart('all'), 'time', limit, null, userId);
+  // por el pool de workers: la agregación del top all-time es cara y en el main thread
+  // dejaba el servidor entero esperando
+  const top = await dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>(
+    'getTopEntities', 'album', getRangeStart('all'), 'time', limit, null, userId);
   const ctx = loadRemergeContext(db, userId);
 
   const names = new Map(
@@ -400,6 +407,7 @@ merges.post('/batch-merge-tracks', async (c) => {
 
     return { created, skipped };
   });
+  if (result.created > 0) invalidateRankingCache(userId);
 
   return c.json(result);
 });

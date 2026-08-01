@@ -158,10 +158,14 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'POST',   prefix: '/import',                    clear: ['/stats/', '/now-playing/friends'] },
   { method: 'POST',   prefix: '/stats/history',             clear: ['/stats/', '/now-playing/friends'] },
   { method: 'DELETE', prefix: '/stats/history',             clear: ['/stats/'] },
-  { method: 'POST',   prefix: '/admin/merge-album',         clear: ['/stats/', '/playlists/'] },
-  { method: 'POST',   prefix: '/admin/batch-merge-tracks',  clear: ['/stats/', '/playlists/'] },
-  { method: 'POST',   prefix: '/admin/merge',               clear: ['/stats/', '/playlists/'] },
-  { method: 'DELETE', prefix: '/admin/merge/',              clear: ['/stats/', '/playlists/'] },
+  // '/admin/merge' cubre las vistas de merges (lista, sugerencias y previews): sin ella
+  // seguían sirviéndose del cache tras aplicar y el rescan parecía no hacer nada. Se
+  // invalidan en vez de marcarlas no-cacheables: son consultas de 70-260 ms y quitarles
+  // el cache dejaba el modal esperando a la red en cada apertura.
+  { method: 'POST',   prefix: '/admin/merge-album',         clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
+  { method: 'POST',   prefix: '/admin/batch-merge-tracks',  clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
+  { method: 'POST',   prefix: '/admin/merge',               clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
+  { method: 'DELETE', prefix: '/admin/merge/',              clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
   { method: 'PATCH',  prefix: '/admin/track/',              clear: ['/stats/'] },
   { method: 'POST',   prefix: '/admin/track/',              clear: ['/stats/'] },
   { method: 'POST',   prefix: '/admin/users',               clear: ['/admin/users'] },

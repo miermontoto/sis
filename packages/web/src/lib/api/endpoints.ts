@@ -169,11 +169,14 @@ export const api = {
     return apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', params);
   },
 
-  albumRemergePreview: (albumId: string) =>
-    apiFetch<RemergePreview>('/admin/album-remerge-preview', { album: albumId }),
+  // `signal` fuerza red: apiFetch salta la lectura de cache cuando lo recibe. Los botones
+  // de "scan"/"rescan" lo pasan porque piden explícitamente datos frescos; la carga inicial
+  // no, para que abrir la vista sea instantáneo desde cache
+  albumRemergePreview: (albumId: string, signal?: AbortSignal) =>
+    apiFetch<RemergePreview>('/admin/album-remerge-preview', { album: albumId }, signal),
 
-  bulkRemergePreview: (scope: string) =>
-    apiFetch<BulkRemergePreview>('/admin/bulk-remerge-preview', { scope }),
+  bulkRemergePreview: (scope: string, signal?: AbortSignal) =>
+    apiFetch<BulkRemergePreview>('/admin/bulk-remerge-preview', { scope }, signal),
 
   batchMergeTracks: (trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }>) =>
     apiMutate<BatchMergeResult>('POST', '/admin/batch-merge-tracks', { trackPairs }),

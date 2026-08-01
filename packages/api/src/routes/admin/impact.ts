@@ -5,28 +5,62 @@
 // que se reporta son los TARGETS: al desaparecer un duplicado, todo lo que queda por debajo
 // sube un puesto, así que contar "posiciones que cambian" daría un número enorme y sin
 // información. El movimiento con significado es el de la entidad que acumula las escuchas.
-import { getTopEntities } from '../../db/queries/entity.js';
+import { dbRead } from '../../db/read-pool.js';
 import { getRangeStart } from '../../db/queries/index.js';
 import { IMPACT_TOP_THRESHOLD, IMPACT_BIGGEST_MOVERS } from '../../constants.js';
-import type { getDb } from '../../db/connection.js';
 import type { EntityType, RankingMetric, MergeImpact, MergeImpactItem } from '@sis/shared';
-
-type Db = ReturnType<typeof getDb>;
 
 // tope defensivo: el ranking completo de tracks del usuario más pesado ronda las decenas
 // de miles de filas, muy por debajo de esto
 const RANKING_LIMIT = 200_000;
 
-export function computeMergeImpact(
-  db: Db,
+// El ranking base cuesta 0,6-1,3 s (y mucho más en frío) y el preview se recalcula en cada
+// clic del usuario sobre la MISMA base. Dos medidas:
+//   1. va por dbRead, o sea por el pool de workers: en prod no bloquea el event loop, que
+//      es lo que hacía que toda la UI se quedara esperando mientras se recalculaba.
+//   2. se memoiza por (usuario, tipo, métrica). Sólo cambia al tocar historial o reglas, y
+//      los endpoints de merge llaman a invalidateRankingCache.
+// Se guarda la PROMESA, no las filas: si llegan varios clics seguidos en frío, todos
+// esperan al mismo cálculo en vez de lanzar uno cada uno.
+const RANKING_CACHE_TTL_MS = 5 * 60_000;
+
+type AggregateRow = { entity_id: string; play_count: number; total_ms: number };
+interface CachedRanking { rows: Promise<AggregateRow[]>; at: number }
+
+const rankingCache = new Map<string, CachedRanking>();
+
+export function invalidateRankingCache(userId?: number): void {
+  if (userId === undefined) return rankingCache.clear();
+  for (const key of rankingCache.keys()) {
+    if (key.startsWith(`${userId}:`)) rankingCache.delete(key);
+  }
+}
+
+function baseRanking(userId: number, entityType: EntityType, sort: 'time' | 'plays'): Promise<AggregateRow[]> {
+  const key = `${userId}:${entityType}:${sort}`;
+  const hit = rankingCache.get(key);
+  if (hit && Date.now() - hit.at < RANKING_CACHE_TTL_MS) return hit.rows;
+
+  const rows = dbRead<AggregateRow[]>('getTopEntities', entityType, getRangeStart('all'), sort, RANKING_LIMIT, null, userId)
+    .catch(err => { rankingCache.delete(key); throw err; }); // un fallo no se cachea
+
+  rankingCache.set(key, { rows, at: Date.now() });
+  // podar lo caducado: el mapa es pequeño (tipos × métricas × usuarios) pero no debe crecer
+  for (const [k, v] of rankingCache) {
+    if (Date.now() - v.at >= RANKING_CACHE_TTL_MS) rankingCache.delete(k);
+  }
+  return rows;
+}
+
+export async function computeMergeImpact(
   userId: number,
   entityType: EntityType,
   pairs: { sourceId: string; targetId: string }[],
   metric: RankingMetric,
-): MergeImpact {
+): Promise<MergeImpact> {
   const sort = metric === 'plays' ? 'plays' : 'time';
-  const rows = getTopEntities(db, entityType, getRangeStart('all'), sort, RANKING_LIMIT, null, userId) as
-    { entity_id: string; play_count: number; total_ms: number }[];
+  // NO mutar: `rows` es el array memoizado y se comparte entre llamadas
+  const rows = await baseRanking(userId, entityType, sort);
 
   const valueOf = (r: { play_count: number; total_ms: number }) => metric === 'plays' ? r.play_count : r.total_ms;
 

@@ -10,12 +10,22 @@
     try { merges = await api.listMerges(); } catch { merges = []; }
   }
 
+  // optimista: la fila desaparece al instante y sólo se recarga si el servidor falla.
+  // Esperar al round-trip para pintar hacía que borrar pareciera colgado.
   async function removeMerge(id: number) {
-    await api.deleteMerge(id);
-    await loadMerges();
+    const previous = merges;
+    merges = merges.filter(m => m.id !== id);
+    try {
+      await api.deleteMerge(id);
+    } catch (e) {
+      console.error('[merge] error removing merge:', e);
+      merges = previous;
+    }
   }
 
-  // promueve el source a canónico: el grupo entero (canónico viejo + hermanos) se repunta
+  // promueve el source a canónico: el grupo entero (canónico viejo + hermanos) se repunta.
+  // Aquí no se puede pintar optimista sin replicar la reescritura del grupo, así que se
+  // marca la fila como en curso y se recarga al terminar.
   let swapping = $state<number | null>(null);
   async function swapDirection(m: MergeRule) {
     swapping = m.id;
