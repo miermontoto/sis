@@ -7,6 +7,14 @@ import type { ChangelogEntryInput } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntryInput[] = [
   {
+    version: '26w31ah',
+    publishedAt: '2026-08-01',
+    title: 'No fake singles on local albums',
+    changes: [
+      { type: 'fix', es: 'Los álbumes locales listaban singles de adelanto que no eran suyos. Un álbum local (un setlist de un concierto, un bootleg) lleva los títulos reales de los temas y se acredita al artista real, que son justo las dos señales con las que se emparejan los singles, así que se le colgaba media discografía del artista como si fuera un lanzamiento del catálogo. Los álbumes locales e importados ya no muestran sección de singles ni sus marcas de lanzamiento en las gráficas', en: 'Local albums listed advance singles that were never theirs. A local album (a concert setlist, a bootleg) carries the real song titles and credits the real artist, which are exactly the two signals singles are matched on, so half the artist\'s singles got attached to it as if it were a catalogue release. Local and imported albums no longer show a singles section or its release markers on the charts' },
+    ],
+  },
+  {
     version: '26w31ag',
     publishedAt: '2026-08-01',
     title: 'Merges responsive again',

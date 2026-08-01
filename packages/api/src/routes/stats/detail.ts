@@ -1,5 +1,6 @@
 import { dbRead } from '../../db/read-pool.js';
 import { ensureFullAlbumTracks } from '../../services/ingestion.js';
+import { isSyntheticId } from '../../services/ids.js';
 import type { TimeRange } from '../../constants.js';
 import { statsRouter, parseParams } from './_shared.js';
 
@@ -87,7 +88,12 @@ detail.get('/album/:id', async (c) => {
     // los "singles de adelanto" son un concepto de álbum: un single no los tiene.
     // sin este guard, dos singles que comparten un track (p.ej. un single de 2 temas
     // que incluye el A-side de otro) se listan mutuamente como single de adelanto.
-    album.album_type === 'single'
+    // un álbum sintético (local:/import:) tampoco los tiene: no es un lanzamiento del
+    // catálogo sino un contenedor del usuario (setlist, bootleg, recopilación) cuyos
+    // tracks llevan el título del tema original y se acreditan al artista real, así que
+    // cumple de oficio las dos heurísticas del emparejamiento (mismo artista + nombre
+    // coincidente) y se le colgaría la discografía de singles entera del artista.
+    album.album_type === 'single' || isSyntheticId(id)
       ? Promise.resolve([] as any[])
       : dbRead<any[]>('getAlbumRelatedSingles', id, albumIds, userId),
   ]);
