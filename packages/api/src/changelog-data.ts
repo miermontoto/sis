@@ -8,6 +8,14 @@ import type { ChangelogEntry } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '26w32a',
+    publishedAt: '2026-08-05',
+    title: 'Every artist on the chart',
+    changes: [
+      { type: 'improvement', es: 'Los charts de canciones listan todos los artistas del tema, no solo el principal', en: 'Track charts list every artist on the song, not just the lead one' },
+    ],
+  },
+  {
     version: '26w31ai',
     publishedAt: '2026-08-01',
     title: 'Quieter release notes',

@@ -204,7 +204,7 @@ function getChartHistory(db: Db, entityType: EntityType, granularity: Granularit
 }
 
 // batch fetch de metadata para un conjunto de entidades (reemplaza N+1 queries individuales)
-export interface EntityMeta { name: string; imageUrl: string | null; artistName: string | null; artistId: string | null; }
+export interface EntityMeta { name: string; imageUrl: string | null; artistName: string | null; artistId: string | null; artists: { id: string; name: string }[]; }
 
 export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[]): Map<string, EntityMeta> {
   const result = new Map<string, EntityMeta>();
@@ -214,15 +214,25 @@ export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[
 
   if (entityType === 'track') {
     const rows = db.all(sql`
-      SELECT t.spotify_id as id, t.name, al.image_url,
-             (SELECT a.name FROM track_artists ta2 JOIN artists a ON a.spotify_id = ta2.artist_id
-              WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_name,
-             (SELECT ta2.artist_id FROM track_artists ta2
-              WHERE ta2.track_id = t.spotify_id AND ta2.position = 0 LIMIT 1) as artist_id
+      SELECT t.spotify_id as id, t.name, al.image_url
       FROM tracks t LEFT JOIN albums al ON al.spotify_id = t.album_id
       WHERE t.spotify_id IN (${placeholders})
     `) as any[];
-    for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: r.artist_name, artistId: r.artist_id });
+    for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: null, artistId: null, artists: [] });
+
+    // todos los artistas de cada track en una sola query (evita N+1); el de position 0 hace de principal
+    const artistRows = db.all(sql`
+      SELECT ta.track_id, a.spotify_id as artist_id, a.name as artist_name
+      FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
+      WHERE ta.track_id IN (${placeholders})
+      ORDER BY ta.track_id, ta.position
+    `) as any[];
+    for (const r of artistRows) {
+      const meta = result.get(r.track_id);
+      if (!meta) continue;
+      meta.artists.push({ id: r.artist_id, name: r.artist_name });
+      if (meta.artistId === null) { meta.artistId = r.artist_id; meta.artistName = r.artist_name; }
+    }
   } else if (entityType === 'album') {
     const rows = db.all(sql`
       SELECT al.spotify_id as id, al.name, al.image_url,
@@ -232,10 +242,10 @@ export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[
               WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_id
       FROM albums al WHERE al.spotify_id IN (${placeholders})
     `) as any[];
-    for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: r.artist_name, artistId: r.artist_id });
+    for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: r.artist_name, artistId: r.artist_id, artists: r.artist_id ? [{ id: r.artist_id, name: r.artist_name }] : [] });
   } else {
     const rows = db.all(sql`SELECT spotify_id as id, name, image_url FROM artists WHERE spotify_id IN (${placeholders})`) as any[];
-    for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: null, artistId: null });
+    for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: null, artistId: null, artists: [] });
   }
 
   return result;
@@ -279,7 +289,7 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
     const notInPrev = prev !== null && previousRank === null;
     const meta = metaMap.get(row.entity_id);
 
-    return { rank, entityId: row.entity_id, name: meta?.name ?? '', imageUrl: meta?.imageUrl ?? null, artistName: meta?.artistName ?? null, artistId: meta?.artistId ?? null, plays: row.plays, totalMs: row.total_ms, previousRank, rankChange, isNew: notInPrev, isReentry: false, peakRank: rank, peakPeriod: period, peakPeriods: [period], timesAtPeak: 1, weeksOnChart: 1, consecutiveWeeks: notInPrev ? 0 : 1 };
+    return { rank, entityId: row.entity_id, name: meta?.name ?? '', imageUrl: meta?.imageUrl ?? null, artistName: meta?.artistName ?? null, artistId: meta?.artistId ?? null, artists: meta?.artists ?? [], plays: row.plays, totalMs: row.total_ms, previousRank, rankChange, isNew: notInPrev, isReentry: false, peakRank: rank, peakPeriod: period, peakPeriods: [period], timesAtPeak: 1, weeksOnChart: 1, consecutiveWeeks: notInPrev ? 0 : 1 };
   });
 
   if (aborted()) return empty;
@@ -295,6 +305,7 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
         imageUrl: meta?.imageUrl ?? null,
         artistName: meta?.artistName ?? null,
         artistId: meta?.artistId ?? null,
+        artists: meta?.artists ?? [],
         previousRank: prevRank,
         peakRank: prevRank,
         peakPeriod: prev,

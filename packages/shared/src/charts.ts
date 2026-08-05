@@ -5,6 +5,8 @@ export interface ChartEntry {
   imageUrl: string | null;
   artistName: string | null;
   artistId: string | null;
+  // todos los artistas del track (el primero es el principal); vacío para charts de artistas
+  artists: { id: string; name: string }[];
   plays: number;
   totalMs: number;
   previousRank: number | null;
@@ -25,6 +27,7 @@ export interface DropoutEntry {
   imageUrl: string | null;
   artistName: string | null;
   artistId: string | null;
+  artists: { id: string; name: string }[];
   previousRank: number;
   peakRank: number;
   peakPeriod: string;

@@ -412,9 +412,14 @@
         {/if}
         <div class="chart-info">
           <div class="chart-name">{entry.name}{#if isEntityLive(entry.entityId)} <span class="live-dot"></span>{/if}</div>
-          {#if entry.artistName}
+          {#if entry.artists?.length}
             <!-- svelte-ignore node_invalid_placement_ssr -->
-            <a href="/artist/{entry.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{entry.artistName}</a>
+            <div class="chart-artists">
+              {#each entry.artists as artist, i}<a href="/artist/{artist.id}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{artist.name}</a>{#if i < entry.artists.length - 1}{', '}{/if}{/each}
+            </div>
+          {:else if entry.artistName}
+            <!-- svelte-ignore node_invalid_placement_ssr -->
+            <div class="chart-artists"><a href="/artist/{entry.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{entry.artistName}</a></div>
           {/if}
         </div>
         <div class="chart-stats">
@@ -470,9 +475,14 @@
           {/if}
           <div class="chart-info">
             <div class="chart-name">{d.name}</div>
-            {#if d.artistName}
+            {#if d.artists?.length}
               <!-- svelte-ignore node_invalid_placement_ssr -->
-              <a href="/artist/{d.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{d.artistName}</a>
+              <div class="chart-artists">
+                {#each d.artists as artist, i}<a href="/artist/{artist.id}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{artist.name}</a>{#if i < d.artists.length - 1}{', '}{/if}{/each}
+              </div>
+            {:else if d.artistName}
+              <!-- svelte-ignore node_invalid_placement_ssr -->
+              <div class="chart-artists"><a href="/artist/{d.artistId}" class="chart-artist" onclick={(e) => e.stopPropagation()}>{d.artistName}</a></div>
             {/if}
           </div>
           <div class="chart-stats">
@@ -642,14 +652,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .chart-artist {
+  /* la línea entera trunca; cada artista es un link inline dentro */
+  .chart-artists {
     font-size: 0.8rem;
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .chart-artist {
+    color: inherit;
     text-decoration: none;
-    display: block;
   }
   .chart-artist:hover {
     color: var(--accent);
