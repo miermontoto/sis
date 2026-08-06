@@ -8,7 +8,7 @@ import type { ChangelogEntry } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '26w32c',
+    version: '26w32e',
     publishedAt: '2026-08-06',
     title: 'No more blank tiles',
     changes: [
