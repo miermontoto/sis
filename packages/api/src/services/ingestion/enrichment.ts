@@ -89,6 +89,11 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
 
 // enriquecer artistas sin imagen consultando la API de spotify en lotes de 50
 // userId: cualquier usuario activo cuyo token se usa para la API
+// image_url NULL = no consultado aún, '' = consultado y spotify no tiene imagen
+// (misma convención que enrichLocalAlbumCovers/recoverSingleCovers). sin el centinela
+// los artistas sin foto —típicamente páginas duplicadas o sin reclamar— se repedían
+// enteros cada ciclo de 24h sin actualizar nada. los que spotify no devuelve
+// (delistados) conservan NULL y se reintentan en el siguiente ciclo.
 export async function enrichArtistMetadata(userId: number) {
   const db = getDb();
   const missing = db.all(
@@ -112,7 +117,7 @@ export async function enrichArtistMetadata(userId: number) {
       if (!artist) continue;
       db.update(artists)
         .set({
-          imageUrl: artist.images[0]?.url ?? null,
+          imageUrl: artist.images[0]?.url ?? '',
           genres: artist.genres,
           popularity: artist.popularity,
           updatedAt: now(),

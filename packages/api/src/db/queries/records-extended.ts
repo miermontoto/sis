@@ -4,7 +4,7 @@
 // Los charts semanales viven en records.ts y consumen estos helpers.
 
 import { sql } from 'drizzle-orm';
-import type { Db } from './helpers.js';
+import type { Db, SqlChunk } from './helpers.js';
 import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   MonthCountEntry, YearEndFinish, RankingMetric,
@@ -257,6 +257,9 @@ export function computeMostUniquePerMonth(entity: Ent, db: Db, userId: number, l
 function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[]): Map<string, string[]> {
   const perMonth = 4;
   const monthList = sql.join(months.map(m => sql`${m}`), sql`, `);
+  // '' es el centinela de "buscado sin resultado" en albums y artists: no es una
+  // portada, así que no puede ocupar un hueco del mosaico
+  const hasCover = (col: SqlChunk) => sql`${col} IS NOT NULL AND ${col} != ''`;
 
   let query;
   if (entity === 'track') {
@@ -272,7 +275,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN albums al ON al.spotify_id = t.album_id
         WHERE lh.user_id = ${userId}
-          AND al.image_url IS NOT NULL
+          AND ${hasCover(sql`al.image_url`)}
           AND strftime('%Y-%m', lh.played_at) IN (${monthList})
         GROUP BY month, lh.track_id
       )
@@ -292,7 +295,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN albums al ON al.spotify_id = t.album_id
         WHERE lh.user_id = ${userId}
-          AND al.image_url IS NOT NULL
+          AND ${hasCover(sql`al.image_url`)}
           AND strftime('%Y-%m', lh.played_at) IN (${monthList})
         GROUP BY month, al.spotify_id
       )
@@ -312,7 +315,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
         JOIN track_artists ta ON ta.track_id = lh.track_id AND ta.position = 0
         JOIN artists a ON a.spotify_id = ta.artist_id
         WHERE lh.user_id = ${userId}
-          AND a.image_url IS NOT NULL
+          AND ${hasCover(sql`a.image_url`)}
           AND strftime('%Y-%m', lh.played_at) IN (${monthList})
         GROUP BY month, ta.artist_id
       )
