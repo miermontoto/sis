@@ -523,7 +523,7 @@
     color: var(--text);
     font-size: 0.85rem;
   }
-  .closed-chart-banner svg {
+  .closed-chart-banner :global(svg) {
     color: var(--accent);
     flex-shrink: 0;
   }

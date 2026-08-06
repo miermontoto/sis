@@ -58,7 +58,7 @@
     font-size: 0.6rem;
     letter-spacing: 0.03em;
   }
-  .rank-change svg {
+  .rank-change :global(svg) {
     flex-shrink: 0;
   }
 </style>

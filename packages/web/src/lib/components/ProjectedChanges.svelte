@@ -120,6 +120,7 @@
                 {/if}
               </span>
               <a href="/{r.entityType}/{r.entityId}" class="session-name" class:session-name--marquee={overflowing.has(r.entityId)} use:trackOverflow={r.entityId}><span class="session-name-text">{r.entityName}</span></a>
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <span class="session-change-wrap" onmouseenter={(e) => openDisplaced(e, r, best)} onmouseleave={scheduleClose}>
                 <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
                   {rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}
@@ -134,6 +135,7 @@
 {/if}
 
 {#if displacedHover}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="displaced-tooltip"
     style="left: {displacedHover.x}px; top: {displacedHover.y}px;"

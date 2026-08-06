@@ -382,10 +382,10 @@
   </div>
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
-    <div class="card stat-card stat-card--clickable" onclick={() => { listeningUnit = DURATION_UNITS[(DURATION_UNITS.indexOf(listeningUnit) + 1) % DURATION_UNITS.length]; }}>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={() => { listeningUnit = DURATION_UNITS[(DURATION_UNITS.indexOf(listeningUnit) + 1) % DURATION_UNITS.length]; }}>
       <div class="stat-value">{formatDurationAs(totalMs, listeningUnit)}</div>
       <div class="stat-label">Total listening</div>
-    </div>
+    </button>
     <div class="card stat-card">
       <div class="stat-value">{totalPlays}</div>
       <div class="stat-label">Total plays</div>
@@ -484,6 +484,10 @@
   .stat-card--clickable {
     cursor: pointer;
     user-select: none;
+    /* es un <button>: reset para conservar el look de .card/.stat-card */
+    font: inherit;
+    color: inherit;
+    width: 100%;
   }
   .charts-row {
     display: grid;
@@ -514,12 +518,6 @@
     background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
-  }
-  .ghost-chart--pie {
-    border-radius: 50%;
-    width: 220px;
-    height: 220px !important;
-    margin: 0 auto;
   }
   .chart-header {
     display: flex;

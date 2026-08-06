@@ -148,6 +148,7 @@
 </script>
 
 {#if !loading && accolades.length > 0}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="accolades-root"
     bind:this={rootEl}

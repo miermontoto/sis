@@ -6,7 +6,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json --threshold error",
+    "check": "svelte-check --tsconfig ./tsconfig.json --threshold warning",
     "test": "vitest run",
     "mobile:build": "VITE_API_BASE=https://sis.mier.info vite build && cp build/200.html build/index.html && pnpm exec cap sync android",
     "mobile:apk": "pnpm mobile:build && cd android && ./gradlew assembleDebug -q && echo APK: android/app/build/outputs/apk/debug/app-debug.apk",

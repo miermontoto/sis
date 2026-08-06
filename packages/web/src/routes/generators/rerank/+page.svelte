@@ -520,6 +520,7 @@
   <div class="board" class:is-dragging={dragging} bind:this={rootEl}>
     {#each rows as row, i (row.item.key)}
       {#if markIndex === i}<span class="drop-mark"></span>{/if}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="row"
         class:dragging={dragKey === row.item.key}

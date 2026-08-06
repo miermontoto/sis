@@ -1,5 +1,7 @@
 <script lang="ts">
-  let { onrefresh }: { onrefresh: () => Promise<void> } = $props();
+  import type { Snippet } from 'svelte';
+
+  let { onrefresh, children }: { onrefresh: () => Promise<void>; children: Snippet } = $props();
 
   let pulling = $state(false);
   let pullY = $state(0);
@@ -53,7 +55,7 @@
   </div>
 {/if}
 
-<slot />
+{@render children()}
 
 <style>
   .ptr-indicator {

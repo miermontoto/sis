@@ -263,26 +263,3 @@
   />
 {/if}
 
-<style>
-  .merge-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    font-size: 0.7rem;
-    cursor: pointer;
-    padding: 0.2rem 0.5rem;
-    border-radius: var(--radius);
-    opacity: 0;
-    transition: opacity 0.05s, color 0.05s, border-color 0.05s;
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-  :global(.track-item:hover) .merge-btn {
-    opacity: 1;
-  }
-  .merge-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-</style>
-

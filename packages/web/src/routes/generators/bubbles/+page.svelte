@@ -170,6 +170,7 @@
   <div class="empty">No artists in the selected range.</div>
 {:else}
   <div class="card chart-card">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <svg class="bubbles-svg" viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMid meet" onmousemove={onMove}>
       {#each packed as node}
         {@const isHovered = hovered?.id === node.data.id}

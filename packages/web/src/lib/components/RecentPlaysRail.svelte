@@ -19,10 +19,15 @@
   const SEED_LIMIT = 10;
   const PAGE_LIMIT = 50;
 
-  // se inicializa con el seed para no parpadear vacío en el primer render
+  // se inicializa con el seed para no parpadear vacío en el primer render. las
+  // lecturas no reactivas de `initial` son deliberadas: el $effect de más abajo
+  // resincroniza items/seen/nextPage/hasMore cuando el prop cambia.
+  // svelte-ignore state_referenced_locally
   let items = $state<HistoryItem[]>([...initial]);
+  // svelte-ignore state_referenced_locally
   let seen = new Set<number>(initial.map((i) => i.id));
   let nextPage = 1;
+  // svelte-ignore state_referenced_locally
   let hasMore = $state(initial.length >= SEED_LIMIT);
   let loadingMore = $state(false);
   let scrollEl = $state<HTMLElement | null>(null);

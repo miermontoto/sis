@@ -1140,7 +1140,15 @@ a.track-item {
 }
 .duration-edit-btn:hover { color: var(--text-primary); border-color: var(--text-primary); }
 
-.duration-recheck { cursor: pointer; }
+/* es un <button> para que sea focusable: reset como .duration-edit-btn */
+.duration-recheck {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
 .duration-recheck:hover { color: var(--text-primary); }
 
 .duration-input {

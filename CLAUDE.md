@@ -89,7 +89,7 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 
 - Comments in Spanish, technical terms in English
 - No magic numbers — constants in `packages/api/src/constants.ts`
-- Run `pnpm check` before committing: Vite only transpiles types, so nothing else catches type errors in `packages/web`. The gate is `--threshold error`; a11y/unused-CSS warnings don't block.
+- Run `pnpm check` before committing: Vite only transpiles types, so nothing else catches type errors in `packages/web`. The web gate is `--threshold warning` and the tree is at 0/0 — a11y and unused-CSS warnings block too. Where a mouse-only handler is a deliberate enhancement over already-accessible content, suppress with `<!-- svelte-ignore <code>, <code> -->` (comma-separated) plus a comment saying why.
 - Svelte 5 runes ($state, $derived, $effect)
 - ECharts tree-shaken imports via echarts/core
 

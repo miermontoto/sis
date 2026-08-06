@@ -53,6 +53,9 @@
   let layout = $state<DetailLayout>(defaultLayout('track'));
   const fetchCtrl = createFetchController();
 
+  // foco al abrir la edición inline: el atributo autofocus es un antipatrón de a11y
+  function focusOnMount(node: HTMLInputElement) { node.focus(); }
+
   // lanzamientos de los álbumes donde aparece el track (single vs álbum) como eventos de las gráficas
   let releaseEvents = $derived.by<ChartEvent[]>(() => {
     if (!data) return [];
@@ -321,16 +324,16 @@
                 placeholder="3:45"
                 bind:value={durationInput}
                 onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
-                autofocus
+                use:focusOnMount
               />
             {:else if !isSpotifyId(trackId)}
               <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
                 {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
               </button>
             {:else}
-              <span class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration}>
+              <button type="button" class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration} onkeydown={(e) => { if (e.key === 'Enter') recheckDuration(); }}>
                 {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
-              </span>
+              </button>
             {/if}
           </p>
         {:else}
@@ -342,16 +345,16 @@
                 placeholder="3:45"
                 bind:value={durationInput}
                 onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
-                autofocus
+                use:focusOnMount
               />
             {:else if !isSpotifyId(trackId)}
               <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
                 {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
               </button>
             {:else}
-              <span class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration}>
+              <button type="button" class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration} onkeydown={(e) => { if (e.key === 'Enter') recheckDuration(); }}>
                 {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
-              </span>
+              </button>
             {/if}
           </p>
         {/if}

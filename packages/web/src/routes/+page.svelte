@@ -384,12 +384,12 @@
   .closed-chart-link:hover {
     color: var(--accent);
   }
-  .closed-chart-link svg {
+  .closed-chart-link :global(svg) {
     margin-left: auto;
     opacity: 0;
     transition: opacity 0.05s;
   }
-  .closed-chart-link:hover svg {
+  .closed-chart-link:hover :global(svg) {
     opacity: 1;
   }
 

@@ -122,10 +122,11 @@
   });
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="like-wrap" onmouseenter={openHover} onmouseleave={closeHover}>
   {@render likeButton?.()}
   {#if inPlaylists.length > 0 || (trackId && ownedPlaylists.length > 0)}
-    <span class="like-badge" onclick={togglePin}>{#if inPlaylists.length > 0}+{inPlaylists.length}{/if}</span>
+    <button type="button" class="like-badge" onclick={togglePin}>{#if inPlaylists.length > 0}+{inPlaylists.length}{/if}</button>
     {#if open}
       <div class="like-popover" use:positionPopover>
         <div class="like-popover-inner">
