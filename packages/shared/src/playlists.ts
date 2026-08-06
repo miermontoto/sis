@@ -1,6 +1,8 @@
 import type { TrackInfo } from './entities.js';
 
-export type PlaylistStrategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery' | 'record' | 'top' | 'chart';
+// `custom` la usan los generators que construyen su propia lista de tracks
+// (params.trackIds) en vez de delegar la selección en una consulta
+export type PlaylistStrategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery' | 'record' | 'top' | 'chart' | 'custom';
 
 export interface GeneratedPlaylist {
   id: number;

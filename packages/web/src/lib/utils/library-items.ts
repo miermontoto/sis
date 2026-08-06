@@ -16,6 +16,9 @@ export interface LibraryItem {
   imageUrl: string | null;
   playCount: number;
   totalMs: number;
+  // solo para tracks: duración real, la usan los generators que necesitan
+  // convertir tiempo a número de escuchas
+  durationMs?: number;
 }
 
 export const itemKey = (kind: ItemKind, id: string) => `${kind}:${id}`;
@@ -33,6 +36,7 @@ export function fromTopItem(raw: TopTrackItem | TopArtistItem | TopAlbumItem, ta
       key: itemKey('track', t.trackId), kind: 'track', id: t.trackId, name: t.track.name,
       subtitle: t.track.artists.map((a) => a.name).join(', '),
       imageUrl: t.track.album?.imageUrl ?? null, playCount: t.playCount, totalMs: t.totalMs,
+      durationMs: t.track.durationMs,
     };
   }
   if (tab === 'artists') {

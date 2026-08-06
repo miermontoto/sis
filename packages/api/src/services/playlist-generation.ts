@@ -5,7 +5,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { generatedPlaylistTracks } from '../db/schema.js';
-import { PLAYLIST_SCOPES } from '../constants.js';
+import { PLAYLIST_SCOPES, PLAYLIST_CUSTOM_MAX_TRACKS } from '../constants.js';
 import { hasRequiredScopes } from './token-manager.js';
 import { spotifyFetch } from './spotify-client.js';
 import { getCachedRecords } from './records-cache.js';
@@ -26,7 +26,7 @@ import type { RecordEntry, ArtistRecordEntry, WeekStartOption, RankingMetric, Ge
 
 type Db = ReturnType<typeof getDb>;
 
-export type Strategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery' | 'record' | 'top' | 'chart';
+export type Strategy = 'top_range' | 'top_artist' | 'top_genre' | 'deep_cuts' | 'time_vibes' | 'rediscovery' | 'record' | 'top' | 'chart' | 'custom';
 
 export const STRATEGY_LABELS: Record<Strategy, string> = {
   top_range: 'Top Tracks',
@@ -38,6 +38,7 @@ export const STRATEGY_LABELS: Record<Strategy, string> = {
   record: 'Record',
   top: 'Top',
   chart: 'Chart',
+  custom: 'Custom',
 };
 
 const RECORD_KEY_TITLES: Record<string, string> = {
@@ -114,6 +115,15 @@ function resolveRecordTracks(db: Db, userId: number, params: Record<string, unkn
   return { trackIds: resolveEntitiesToTracks(db, userId, resolveAs, entityIds, tracksPerEntity) };
 }
 
+// lista explícita de tracks, tal cual la manda el cliente. no se deduplica a
+// propósito: los planes del rerank repiten un mismo track varias veces
+function strategyCustom(params: Record<string, unknown>): string[] {
+  const raw = Array.isArray(params.trackIds) ? params.trackIds : [];
+  return raw
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    .slice(0, PLAYLIST_CUSTOM_MAX_TRACKS);
+}
+
 function runStrategy(db: Db, userId: number, strategy: Strategy, params: Record<string, unknown>): string[] {
   const sort = getUserSort(db, userId);
   const p = { ...params, sort };
@@ -139,6 +149,8 @@ function runStrategy(db: Db, userId: number, strategy: Strategy, params: Record<
       return strategyTop(db, userId, p as unknown as TopParams);
     case 'chart':
       return strategyChart(db, userId, p as unknown as ChartParams);
+    case 'custom':
+      return strategyCustom(params);
     default:
       return [];
   }

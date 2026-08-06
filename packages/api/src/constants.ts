@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w32a';
+export const VERSION = '26w32b';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -48,6 +48,10 @@ export const SPOTIFY_SCOPES = [
 
 // scopes necesarios para crear playlists
 export const PLAYLIST_SCOPES = ['playlist-modify-private', 'playlist-modify-public', 'playlist-read-private', 'playlist-read-collaborative'];
+
+// tope de tracks de una playlist con lista explícita (estrategia custom): evita
+// que un cliente mande una lista arbitrariamente larga a Spotify
+export const PLAYLIST_CUSTOM_MAX_TRACKS = 500;
 
 // URLs de la API de spotify
 export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';

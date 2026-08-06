@@ -43,6 +43,12 @@
       description: 'Knockout bracket of your artists, tracks, or albums: seed the top ones or draw a random field, then pick your way to a champion.',
     },
     {
+      href: '/generators/rerank',
+      icon: '⇅',
+      name: 'Rerank',
+      description: 'Drag your top artists, albums or tracks into the order you wish they had, and see the listening time, plays and playlist it would take to get there.',
+    },
+    {
       href: '/generators/tier-list',
       icon: '≡',
       name: 'Tier List',

@@ -8,6 +8,15 @@ import type { ChangelogEntry } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '26w32b',
+    publishedAt: '2026-08-06',
+    title: 'Rerank: the top you wish you had',
+    changes: [
+      { type: 'feature', es: 'Nuevo generador "Rerank": arrastra tu top de artistas, álbumes o temas al orden que te gustaría y te dice cuánto tiempo y cuántas escuchas le falta a cada puesto', en: 'New "Rerank" generator: drag your top artists, albums or tracks into the order you wish they had and it tells you the listening time and plays each position needs' },
+      { type: 'feature', es: 'El plan de escuchas del Rerank se convierte en una playlist de Spotify de un clic', en: 'The Rerank listening plan turns into a Spotify playlist in one click' },
+    ],
+  },
+  {
     version: '26w32a',
     publishedAt: '2026-08-05',
     title: 'Every artist on the chart',
