@@ -783,7 +783,7 @@
   </div>
 
   {#if activeTab === 'tracks'}
-    <TrackList items={topTracks.slice(0, visibleCount)} showRank {showRankChanges} {metric} {focusedId} />
+    <TrackList items={topTracks.slice(0, visibleCount)} showRank {showRankChanges} {metric} focusId={focusedId} />
   {:else if activeTab === 'artists'}
     <div class="track-list">
       {#each topArtists.slice(0, visibleCount) as item, i}

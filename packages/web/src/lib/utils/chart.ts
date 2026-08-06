@@ -1,5 +1,11 @@
 import type { EChartsOption } from 'echarts';
 
+// EChartsOption['xAxis'|'yAxis'] es una unión "un eje o varios": los helpers de
+// abajo construyen exactamente uno, así que devuelven solo la rama no-array. Si
+// devolvieran la unión entera, componer dos en un array daría un tipo inválido.
+type SingleXAxis = Exclude<NonNullable<EChartsOption['xAxis']>, readonly any[]>;
+type SingleYAxis = Exclude<NonNullable<EChartsOption['yAxis']>, readonly any[]>;
+
 // --- Shared defaults ---
 
 const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
@@ -23,7 +29,7 @@ export const GREEN = '#1db954';
 
 // --- Axis helpers ---
 
-export function categoryAxis(data: string[], overrides?: Record<string, any>): EChartsOption['xAxis'] {
+export function categoryAxis(data: string[], overrides?: Record<string, any>): SingleXAxis {
   return {
     type: 'category',
     data,
@@ -33,7 +39,7 @@ export function categoryAxis(data: string[], overrides?: Record<string, any>): E
   };
 }
 
-export function valueAxis(overrides?: Record<string, any>): EChartsOption['yAxis'] {
+export function valueAxis(overrides?: Record<string, any>): SingleYAxis {
   return {
     type: 'value',
     splitLine: { ...SPLIT_LINE },
@@ -42,7 +48,7 @@ export function valueAxis(overrides?: Record<string, any>): EChartsOption['yAxis
   };
 }
 
-export function secondaryValueAxis(overrides?: Record<string, any>): EChartsOption['yAxis'] {
+export function secondaryValueAxis(overrides?: Record<string, any>): SingleYAxis {
   return {
     type: 'value',
     splitLine: { show: false },

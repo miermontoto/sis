@@ -43,6 +43,8 @@
   }
 
   let currentData = $derived(cache.get(cacheKey()) ?? null);
+  // cache de peaks ya cargados
+  let peaksLoaded = $state<Set<string>>(new Set());
   let peaksReady = $derived(peaksLoaded.has(cacheKey()));
   let closedChart = $derived(closedChartsStore.charts.find(c => c.granularity === granularity) ?? null);
 
@@ -88,8 +90,6 @@
   }
 
 
-  // cache de peaks ya cargados
-  let peaksLoaded = $state<Set<string>>(new Set());
 
   async function loadChart() {
     if (!selectedPeriod || !periodMatchesGranularity(selectedPeriod, granularity)) return;
@@ -216,7 +216,7 @@
     weekStart = getWeekStart();
     // leer query params para navegación desde chart-run o peak links
     const params = $page.url.searchParams;
-    if (params.get('type')) activeType = params.get('type') as EntityType;
+    if (params.get('type')) activeType = params.get('type') as ChartEntityType;
     if (params.get('granularity')) granularity = params.get('granularity') as Granularity;
     // usar periodo de URL si existe, si no calcular el actual
     selectedPeriod = params.get('period') || computeCurrentPeriod(granularity, weekStart);
@@ -400,7 +400,7 @@
 {:else if currentData && currentData.entries.length > 0}
   <div class="chart-list">
     {#each currentData.entries as entry}
-      <a href={entityLink(entry.entityId)} class="chart-item" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId })}>
+      <a href={entityLink(entry.entityId)} class="chart-item" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId ?? undefined })}>
         <div class="chart-rank-col">
           <span class="chart-rank" style:color={medalColor(entry.rank)}>{entry.rank}</span>
           <RankChange rankChange={entry.rankChange} isNew={entry.isNew} isReentry={entry.isReentry} />
@@ -463,7 +463,7 @@
     <div class="dropouts-header">Dropped off</div>
     <div class="chart-list">
       {#each currentData.dropouts as d}
-        <a href={entityLink(d.entityId)} class="chart-item chart-item--dropout" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: d.entityId, name: d.name, imageUrl: d.imageUrl, parentArtistId: d.artistId })}>
+        <a href={entityLink(d.entityId)} class="chart-item chart-item--dropout" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: d.entityId, name: d.name, imageUrl: d.imageUrl, parentArtistId: d.artistId ?? undefined })}>
           <div class="chart-rank-col">
             <span class="chart-rank" style:color={medalColor(d.previousRank)}>{d.previousRank}</span>
             <span class="dropout-arrow">OUT</span>

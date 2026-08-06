@@ -29,6 +29,9 @@
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
 
+  // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
+  const albumId = $derived($page.params.id ?? '');
+
   let data = $state<AlbumDetail | null>(null);
   let loading = $state(true);
   let heroColor = $state('');
@@ -96,7 +99,7 @@
 
   async function selectCover(imageUrl: string) {
     if (!data) return;
-    await api.setAlbumCover($page.params.id, imageUrl);
+    await api.setAlbumCover(albumId, imageUrl);
     data = { ...data, album: { ...data.album, imageUrl } };
     if (imageUrl) {
       extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
@@ -109,7 +112,7 @@
     if (!file || !data) return;
     uploadingCover = true;
     try {
-      const { imageUrl } = await api.uploadAlbumCover($page.params.id, file);
+      const { imageUrl } = await api.uploadAlbumCover(albumId, file);
       data = {
         ...data,
         album: { ...data.album, imageUrl },
@@ -135,7 +138,7 @@
   function toggleTrackSort(mode: 'ranked' | 'natural') {
     trackSort = mode;
     if (mode === 'natural' && !naturalTracks) {
-      loadNaturalTracks($page.params.id);
+      loadNaturalTracks(albumId);
     }
   }
 
@@ -174,7 +177,7 @@
   });
 
   $effect(() => {
-    const id = $page.params.id;
+    const id = albumId;
     void metric;
     void mergeModal.changeVersion;
     if (!initialized || !id) return;
@@ -200,16 +203,16 @@
   {/if}
 
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
-  {#snippet sec(key)}
+  {#snippet sec(key: string)}
     {#if key === 'stats'}
       <StatsGrid stats={d.stats} />
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
-        <RankingBadges entityType="album" entityId={$page.params.id} bind:highlightedMonth />
+        <RankingBadges entityType="album" entityId={albumId} bind:highlightedMonth />
       {/if}
     {:else if key === 'chartStats'}
       {#if !d.mergedInto}
-        <ChartStats entityType="album" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        <ChartStats entityType="album" entityId={albumId} bind:chartData={chartHistoryData} bind:highlightedMonth />
       {/if}
     {:else if key === 'activity'}
       <ActivityChart series={d.series} {metric} events={releaseEvents} />
@@ -261,7 +264,7 @@
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
-        <RecentPlaysRail entityType="album" entityId={$page.params.id} initial={d.recentPlays} historyHref={`/history?album=${$page.params.id}`} />
+        <RecentPlaysRail entityType="album" entityId={albumId} initial={d.recentPlays} historyHref={`/history?album=${albumId}`} />
       {/if}
     {/if}
   {/snippet}
@@ -307,7 +310,7 @@
         {/if}
       </div>
       <div class="detail-header-info">
-        <h1>{data.album.name}{#if $page.params.id === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+        <h1>{data.album.name}{#if albumId === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
         <p class="detail-subtitle">
           {#each data.artists as artist, i}
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
@@ -323,14 +326,14 @@
       </div>
     </div>
     <div class="hero-actions">
-      {#if isSpotifyId($page.params.id)}
+      {#if isSpotifyId(albumId)}
         <button
           class="play-entity-btn"
           title="Play on Spotify"
           disabled={playActing}
           onclick={async () => {
             playActing = true;
-            await nowPlayingStore.playContext({ context_uri: `spotify:album:${$page.params.id}` });
+            await nowPlayingStore.playContext({ context_uri: `spotify:album:${albumId}` });
             playActing = false;
           }}
         >
@@ -338,12 +341,12 @@
         </button>
       {/if}
       {#if !data.mergedInto}
-        <Accolades entityType="album" entityId={$page.params.id} />
+        <Accolades entityType="album" entityId={albumId} />
       {/if}
       <EntityActionsMenu
         title="Actions"
         actions={[
-          ...(isSpotifyId($page.params.id) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${$page.params.id}`, '_blank') }] : []),
+          ...(isSpotifyId(albumId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') }] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
           { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
           { label: 'Manage merges', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
@@ -353,7 +356,7 @@
     </div>
   </div>
 
-  <MergeBanners entityType="album" entityId={d.album.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  <MergeBanners entityType="album" entityId={d.album.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData(albumId)} />
   {#each layout.main as key (key)}
     {@render sec(key)}
   {/each}
@@ -376,7 +379,7 @@
     parentId={data.artists[0]?.id ?? ''}
     existingMerges={data.mergedFrom}
     initialStep={mergeInitialStep}
-    onMerged={() => { mergeInitialStep = undefined; loadData($page.params.id); }}
+    onMerged={() => { mergeInitialStep = undefined; loadData(albumId); }}
   />
 {/if}
 

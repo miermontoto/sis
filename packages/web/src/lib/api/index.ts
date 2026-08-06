@@ -15,7 +15,7 @@ export type {
   NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
   FriendActivity, FriendsActivityResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
-  HealthData, MeResponse, UserRecord, ImportResult,
+  HealthData, MeResponse, UserRecord, ImportResult, LastfmStatus,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,

@@ -5,7 +5,8 @@
   import { periodLabel } from '$lib/utils/periods';
   import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import type { EChartsOption, ECharts } from 'echarts';
+  import type * as echarts from 'echarts/core';
+  import type { EChartsOption } from 'echarts';
 
   let {
     entityType,
@@ -21,7 +22,7 @@
   let rankingsLoading = $state(true);
   let history = $state<RankingHistoryPointWithCrossovers[]>([]);
   let historyLoading = $state(true);
-  let chartInstance = $state<ECharts | null>(null);
+  let chartInstance = $state<echarts.ECharts | null>(null);
   const fetchCtrl = createFetchController();
 
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
@@ -174,7 +175,7 @@
 {:else if history.length >= 2}
   <div class="chart-wrap">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div onmouseleave={handleChartOut} onclick={handleChartClick} onkeydown={(e) => { if (e.key === 'Enter') handleChartClick(e as any); }} role="button" tabindex="0" style="cursor: pointer;">
+    <div onmouseleave={handleChartOut} onclick={handleChartClick} onkeydown={(e) => { if (e.key === 'Enter') handleChartClick(); }} role="button" tabindex="0" style="cursor: pointer;">
       <BaseChart
         option={chartOption}
         height="180px"

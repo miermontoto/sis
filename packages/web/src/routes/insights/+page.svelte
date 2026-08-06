@@ -203,7 +203,9 @@
 
   let currentYearIdx = $derived(yearlyData.findIndex(d => d[0] === String(new Date().getFullYear())));
   let currentHour = new Date().getHours();
-  let currentDayIdx = (new Date().getDay() - wsOffset + 7) % 7;
+  // derived: wsOffset cambia con la preferencia de inicio de semana y heatmapMapped
+  // se remapea con ella, así que el índice del día actual debe seguirla
+  let currentDayIdx = $derived((new Date().getDay() - wsOffset + 7) % 7);
   let currentMonth = new Date().getMonth();
   let heatmapMapped = $derived(heatmap.map(h => [h.hour, (h.day_of_week - wsOffset + 7) % 7, h.play_count]));
   let currentHeatmapIdx = $derived(heatmapMapped.findIndex(d => d[0] === currentHour && d[1] === currentDayIdx));

@@ -33,6 +33,9 @@
   import PlaylistPopover from '$lib/components/PlaylistPopover.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
+  // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
+  const trackId = $derived($page.params.id ?? '');
+
   let data = $state<TrackDetail | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let loading = $state(true);
@@ -98,9 +101,9 @@
     shortcutStore.registerPageShortcuts(
       [{ key: 'Q', description: 'Add to queue', category: 'page' }],
       (e) => {
-        if (e.key.toLowerCase() === 'q' && isSpotifyId($page.params.id)) {
+        if (e.key.toLowerCase() === 'q' && isSpotifyId(trackId)) {
           e.preventDefault();
-          api.queueTrack($page.params.id)
+          api.queueTrack(trackId)
             .then(() => toastStore.show('Added to queue'))
             .catch(() => toastStore.show('Failed to add to queue'));
           return true;
@@ -114,7 +117,7 @@
   });
 
   $effect(() => {
-    const id = $page.params.id;
+    const id = trackId;
     void mergeModal.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
@@ -133,7 +136,7 @@
   });
 
   async function toggleLike() {
-    const id = $page.params.id;
+    const id = trackId;
     if (!id || likeActing) return;
     likeActing = true;
     const wasLiked = isLiked;
@@ -164,7 +167,7 @@
     const ms = parseDurationInput(durationInput);
     if (ms === null || !data) return;
     try {
-      await api.updateTrackDuration($page.params.id, ms);
+      await api.updateTrackDuration(trackId, ms);
       data.track.durationMs = ms;
     } catch (e) {
       console.error('error actualizando duración:', e);
@@ -176,15 +179,15 @@
     if (recheckingDuration || !data) return;
     recheckingDuration = true;
     try {
-      const res = await api.refreshTrackDuration($page.params.id);
+      const res = await api.refreshTrackDuration(trackId);
       data.track.durationMs = res.durationMs;
       if (res.changed) {
-        toastStore.show(`Duración actualizada: ${formatTrackLength(res.durationMs)}`, 'success');
+        toastStore.show(`Duración actualizada: ${formatTrackLength(res.durationMs)}`);
       } else {
-        toastStore.show('Duración correcta', 'info');
+        toastStore.show('Duración correcta');
       }
     } catch {
-      toastStore.show('Error al consultar Spotify', 'error');
+      toastStore.show('Error al consultar Spotify');
     } finally {
       recheckingDuration = false;
     }
@@ -201,16 +204,16 @@
   {/if}
 
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
-  {#snippet sec(key)}
+  {#snippet sec(key: string)}
     {#if key === 'stats'}
       <StatsGrid stats={d.stats} />
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
-        <RankingBadges entityType="track" entityId={$page.params.id} bind:highlightedMonth />
+        <RankingBadges entityType="track" entityId={trackId} bind:highlightedMonth />
       {/if}
     {:else if key === 'chartStats'}
       {#if !d.mergedInto}
-        <ChartStats entityType="track" entityId={$page.params.id} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        <ChartStats entityType="track" entityId={trackId} bind:chartData={chartHistoryData} bind:highlightedMonth />
       {/if}
     {:else if key === 'albumBreakdown'}
       {#if d.albumBreakdown.length > 1}
@@ -277,7 +280,7 @@
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
-        <RecentPlaysRail entityType="track" entityId={$page.params.id} initial={d.recentPlays} historyHref={`/history?track=${$page.params.id}`} />
+        <RecentPlaysRail entityType="track" entityId={trackId} initial={d.recentPlays} historyHref={`/history?track=${trackId}`} />
       {/if}
     {/if}
   {/snippet}
@@ -298,7 +301,7 @@
         <div class="detail-image detail-image--placeholder"></div>
       {/if}
       <div class="detail-header-info">
-        <h1>{data.track.name}{#if $page.params.id === nowPlayingStore.trackId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+        <h1>{data.track.name}{#if trackId === nowPlayingStore.trackId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
         <p class="detail-subtitle">
           {#each data.track.artists as artist, i}
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
@@ -311,7 +314,7 @@
               <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
             {/if}
             <span class="detail-meta"> &middot; </span>
-            {#if !isSpotifyId($page.params.id) && editingDuration}
+            {#if !isSpotifyId(trackId) && editingDuration}
               <input
                 class="duration-input"
                 type="text"
@@ -320,7 +323,7 @@
                 onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
                 autofocus
               />
-            {:else if !isSpotifyId($page.params.id)}
+            {:else if !isSpotifyId(trackId)}
               <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
                 {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
               </button>
@@ -332,7 +335,7 @@
           </p>
         {:else}
           <p class="detail-album">
-            {#if !isSpotifyId($page.params.id) && editingDuration}
+            {#if !isSpotifyId(trackId) && editingDuration}
               <input
                 class="duration-input"
                 type="text"
@@ -341,7 +344,7 @@
                 onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
                 autofocus
               />
-            {:else if !isSpotifyId($page.params.id)}
+            {:else if !isSpotifyId(trackId)}
               <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
                 {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
               </button>
@@ -355,21 +358,21 @@
       </div>
     </div>
     <div class="hero-actions">
-      {#if isSpotifyId($page.params.id)}
+      {#if isSpotifyId(trackId)}
         <button
           class="play-entity-btn"
           title="Play on Spotify"
           disabled={playActing}
           onclick={async () => {
             playActing = true;
-            await nowPlayingStore.playContext({ uris: [`spotify:track:${$page.params.id}`] });
+            await nowPlayingStore.playContext({ uris: [`spotify:track:${trackId}`] });
             playActing = false;
           }}
         >
           <IconPlay />
         </button>
         <PlaylistPopover
-          trackId={$page.params.id}
+          trackId={trackId}
           inPlaylists={data.playlists}
           onAdd={(pl) => { if (data && !data.playlists.some(p => p.id === pl.id)) data.playlists = [...data.playlists, { ...pl, isOwned: true }]; }}
           onRemove={(id) => { if (data) data.playlists = data.playlists.filter(p => p.id !== id); }}
@@ -394,14 +397,14 @@
         </PlaylistPopover>
       {/if}
       {#if !data.mergedInto}
-        <Accolades entityType="track" entityId={$page.params.id} />
+        <Accolades entityType="track" entityId={trackId} />
       {/if}
       <EntityActionsMenu
         title="Actions"
         actions={[
-          ...(isSpotifyId($page.params.id) ? [
-            { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack($page.params.id) },
-            { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${$page.params.id}`, '_blank') },
+          ...(isSpotifyId(trackId) ? [
+            { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack(trackId) },
+            { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${trackId}`, '_blank') },
           ] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
           { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
@@ -410,7 +413,7 @@
     </div>
   </div>
 
-  <MergeBanners entityType="track" entityId={d.track.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData($page.params.id)} />
+  <MergeBanners entityType="track" entityId={d.track.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData(trackId)} />
   {#each layout.main as key (key)}
     {@render sec(key)}
   {/each}
@@ -432,7 +435,7 @@
     target={{ id: data.track.id, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null }}
     parentId={data.track.artists[0]?.id ?? ''}
     existingMerges={data.mergedFrom}
-    onMerged={() => loadData($page.params.id)}
+    onMerged={() => loadData(trackId)}
   />
 {/if}
 

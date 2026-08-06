@@ -196,8 +196,8 @@ export const getSessionRankDisplay = _getSessionRankDisplay;
 export const setSessionRankDisplay = _srd.set;
 export const onSessionRankDisplayChange = _srd.onChange;
 
-export const [getSessionRankLimitYear, setSessionRankLimitYear] = stringSetting('sessionRankLimitYear', '50');
-export const [getSessionRankLimitAll, setSessionRankLimitAll] = stringSetting('sessionRankLimitAll', '200');
+export const [getSessionRankLimitYear, setSessionRankLimitYear] = stringSetting<string>('sessionRankLimitYear', '50');
+export const [getSessionRankLimitAll, setSessionRankLimitAll] = stringSetting<string>('sessionRankLimitAll', '200');
 
 const [_getSessionTrackingDisplay, _setSessionTrackingDisplay] = stringSetting<SessionTrackingDisplay>('sessionTrackingDisplay', 'all');
 const _std = withNotify<SessionTrackingDisplay>(_setSessionTrackingDisplay);
@@ -215,9 +215,9 @@ export const onNowPlayingDisplayChange = _npd.onChange;
 // lo guardado contra el registro actual (secciones nuevas aparecen, keys
 // retiradas se descartan); set* serializa el DetailLayout ya normalizado.
 const DETAIL_LAYOUT_RAW: Record<EntityKind, readonly [() => string, (v: string) => void]> = {
-  artist: stringSetting('detailLayoutArtist', ''),
-  album: stringSetting('detailLayoutAlbum', ''),
-  track: stringSetting('detailLayoutTrack', ''),
+  artist: stringSetting<string>('detailLayoutArtist', ''),
+  album: stringSetting<string>('detailLayoutAlbum', ''),
+  track: stringSetting<string>('detailLayoutTrack', ''),
 };
 
 export function getDetailLayout(kind: EntityKind): DetailLayout {

@@ -455,15 +455,16 @@
       {/if}
       {#if nowPlayingStore.data?.playing && nowPlayingStore.data.track}
         {@const npData = nowPlayingStore.data}
-        <a href="/track/{npData.track.id}" class="mobile-mini-player">
-          {#if npData.track.album?.imageUrl}
-            <img class="mini-player-art" src={npData.track.album.imageUrl} alt={npData.track.album.name} />
+        {@const npTrack = nowPlayingStore.data.track}
+        <a href="/track/{npTrack.id}" class="mobile-mini-player">
+          {#if npTrack.album?.imageUrl}
+            <img class="mini-player-art" src={npTrack.album.imageUrl} alt={npTrack.album.name} />
           {:else}
             <div class="mini-player-art"></div>
           {/if}
           <div class="mini-player-info">
-            <span class="mini-player-track">{npData.track.name}</span>
-            <span class="mini-player-artist">{npData.track.artists.map(a => a.name).join(', ')}</span>
+            <span class="mini-player-track">{npTrack.name}</span>
+            <span class="mini-player-artist">{npTrack.artists.map(a => a.name).join(', ')}</span>
           </div>
           <div class="mini-player-controls">
             <button
@@ -572,7 +573,7 @@
           </button>
           {#if showUserMenu}
             <div class="user-menu">
-              <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
+              <a href="/u/{encodeURIComponent(user.spotifyId ?? '')}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
               <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
               <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
             </div>
@@ -603,7 +604,7 @@
                     <span class="mobile-user-menu-name">{user.displayName ?? user.spotifyId}</span>
                     <span class="mobile-user-menu-id">{user.spotifyId}</span>
                   </div>
-                  <a href="/u/{encodeURIComponent(user.spotifyId)}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
+                  <a href="/u/{encodeURIComponent(user.spotifyId ?? '')}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
                   <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
                   <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
                 </div>
