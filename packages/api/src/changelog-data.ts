@@ -8,6 +8,14 @@ import type { ChangelogEntry } from '@platform/changelog';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '26w32c',
+    publishedAt: '2026-08-06',
+    title: 'No more blank tiles',
+    changes: [
+      { type: 'fix', es: 'El mosaico de portadas por mes ya no deja huecos en blanco', en: 'The monthly cover mosaic no longer leaves blank tiles' },
+    ],
+  },
+  {
     version: '26w32b',
     publishedAt: '2026-08-06',
     title: 'Rerank: the top you wish you had',
