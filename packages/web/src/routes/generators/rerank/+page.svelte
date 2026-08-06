@@ -15,7 +15,8 @@
   // por debajo de este desplazamiento el gesto cuenta como toque, no arrastre
   const DRAG_THRESHOLD_PX = 5;
 
-  const LIST_SIZES = [10, 20, 50] as const;
+  // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
+  const LIST_SIZES = [10, 20, 50, 100, 200] as const;
 
   // ventana para estimar el ritmo actual de escucha (independiente del rango
   // elegido: lo que importa es a qué velocidad se escucha HOY)
@@ -26,6 +27,11 @@
   // topes del plan; si cortan, se avisa en pantalla
   const MAX_PLAN_TRACKS = 300;
   const MAX_TRACKS_PER_GOAL = 60;
+  // los candidatos se piden por tandas, no de golpe: con 200 objetivos serían 200
+  // peticiones simultáneas, y el presupuesto se agota mucho antes de llegar al final
+  const CANDIDATE_BATCH = 8;
+  // nombres listados en el aviso de objetivos sin tracks; el resto va como recuento
+  const SKIPPED_PREVIEW = 5;
   // /me/player/play no admite listas largas: solo arranca el principio del plan
   const MAX_PLAY_URIS = 50;
 
@@ -52,9 +58,11 @@
   let dragging = $state(false);
   let dropIndex = $state<number | null>(null);
   let dragOrigin = { x: 0, y: 0 };
+  let dragMidpoints: number[] = [];
 
   let plan = $state<PlanGroup[] | null>(null);
   let planSkipped = $state<string[]>([]);
+  let planUnreached = $state(0);
   let building = $state(false);
   let creating = $state(false);
   let createdUrl = $state<string | null>(null);
@@ -133,6 +141,7 @@
   function resetPlan() {
     plan = null;
     planSkipped = [];
+    planUnreached = 0;
     createdUrl = null;
     playMessage = null;
   }
@@ -177,17 +186,26 @@
     resetPlan();
   }
 
-  // índice de inserción según la coordenada vertical, contado sobre las filas que
-  // NO son la arrastrada (así casa con el array una vez quitada)
-  function locate(y: number): number {
+  // centros verticales de las filas que NO son la arrastrada, en coordenadas de
+  // documento. se miden una sola vez al empezar el gesto: la lista no se toca
+  // hasta soltar, así que no se mueven, y con 200 filas medirlas en cada
+  // pointermove obligaría a un reflow por movimiento
+  function captureMidpoints() {
     const els = rootEl
       ? [...rootEl.querySelectorAll<HTMLElement>('[data-row]')].filter((el) => el.dataset.row !== dragKey)
       : [];
-    for (let i = 0; i < els.length; i++) {
-      const r = els[i].getBoundingClientRect();
-      if (y < r.top + r.height / 2) return i;
-    }
-    return els.length;
+    dragMidpoints = els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top + r.height / 2 + window.scrollY;
+    });
+  }
+
+  // índice de inserción contado sobre esas mismas filas (así casa con el array
+  // una vez quitada la arrastrada)
+  function locate(clientY: number): number {
+    const y = clientY + window.scrollY;
+    const i = dragMidpoints.findIndex((m) => y < m);
+    return i === -1 ? dragMidpoints.length : i;
   }
 
   // igual que en la tier list: la fila arrastrada no se mueve en el DOM hasta
@@ -208,6 +226,7 @@
     if (!dragging) {
       if (Math.hypot(e.clientX - dragOrigin.x, e.clientY - dragOrigin.y) < DRAG_THRESHOLD_PX) return;
       dragging = true;
+      captureMidpoints();
     }
     dropIndex = locate(e.clientY);
   }
@@ -221,20 +240,22 @@
     dragKey = null;
     dragging = false;
     dropIndex = null;
+    dragMidpoints = [];
   }
 
   // traduce dropIndex (contado sin la fila arrastrada) al índice tal como se
-  // renderiza la lista, que todavía la incluye
-  function markAt(renderIndex: number): boolean {
-    if (dropIndex === null) return false;
+  // renderiza la lista, que todavía la incluye. se calcula una vez por
+  // movimiento en vez de una por fila: con 200 filas lo segundo es cuadrático
+  const markIndex = $derived.by(() => {
+    if (dropIndex === null) return -1;
     let seen = 0;
     for (let i = 0; i < order.length; i++) {
       if (order[i].key === dragKey) continue;
-      if (seen === dropIndex) return i === renderIndex;
+      if (seen === dropIndex) return i;
       seen++;
     }
-    return renderIndex === order.length;
-  }
+    return order.length;
+  });
 
   // --- plan de escucha ---
 
@@ -279,7 +300,6 @@
     playMessage = null;
     try {
       const targets = goals;
-      const lists = await Promise.all(targets.map((r) => candidatesFor(r.item).catch(() => [])));
 
       // rankeando por plays el objetivo se mide en escuchas, no en tiempo: una
       // canción larga no vale por dos
@@ -289,31 +309,41 @@
       const groups: PlanGroup[] = [];
       const skipped: string[] = [];
       let budget = MAX_PLAN_TRACKS;
+      let reached = 0;
 
-      targets.forEach((r, i) => {
-        const candidates = lists[i];
-        const cap = Math.min(MAX_TRACKS_PER_GOAL, budget);
-        if (candidates.length === 0 || cap <= 0) {
-          skipped.push(r.item.name);
-          return;
-        }
-        const target = byPlays ? r.deficit : r.deficitMs;
-        const slots = fillGoal(candidates, target, cap, weight);
-        if (slots.length === 0) {
-          skipped.push(r.item.name);
-          return;
-        }
-        const placed = slotsCount(slots);
-        budget -= placed;
-        groups.push({
-          key: r.item.key, item: r.item, targetRank: r.targetRank, deficitMs: r.deficitMs,
-          slots, coveredMs: slotsDuration(slots),
-          truncated: (byPlays ? placed : slotsDuration(slots)) < target,
+      // por tandas y en orden de objetivo: en cuanto se agota el presupuesto se
+      // corta, sin pedir los candidatos de los que ya no caben
+      for (let i = 0; i < targets.length && budget > 0; i += CANDIDATE_BATCH) {
+        const chunk = targets.slice(i, i + CANDIDATE_BATCH);
+        const lists = await Promise.all(chunk.map((r) => candidatesFor(r.item).catch(() => [])));
+
+        chunk.forEach((r, j) => {
+          reached++;
+          const candidates = lists[j];
+          const cap = Math.min(MAX_TRACKS_PER_GOAL, budget);
+          if (candidates.length === 0 || cap <= 0) {
+            skipped.push(r.item.name);
+            return;
+          }
+          const target = byPlays ? r.deficit : r.deficitMs;
+          const slots = fillGoal(candidates, target, cap, weight);
+          if (slots.length === 0) {
+            skipped.push(r.item.name);
+            return;
+          }
+          const placed = slotsCount(slots);
+          budget -= placed;
+          groups.push({
+            key: r.item.key, item: r.item, targetRank: r.targetRank, deficitMs: r.deficitMs,
+            slots, coveredMs: slotsDuration(slots),
+            truncated: (byPlays ? placed : slotsDuration(slots)) < target,
+          });
         });
-      });
+      }
 
       plan = groups;
       planSkipped = skipped;
+      planUnreached = targets.length - reached;
     } catch (e: any) {
       error = e?.message ?? 'Could not build the plan';
     } finally {
@@ -489,7 +519,7 @@
 
   <div class="board" class:is-dragging={dragging} bind:this={rootEl}>
     {#each rows as row, i (row.item.key)}
-      {#if markAt(i)}<span class="drop-mark"></span>{/if}
+      {#if markIndex === i}<span class="drop-mark"></span>{/if}
       <div
         class="row"
         class:dragging={dragKey === row.item.key}
@@ -550,7 +580,7 @@
         </span>
       </div>
     {/each}
-    {#if markAt(rows.length)}<span class="drop-mark"></span>{/if}
+    {#if markIndex === rows.length}<span class="drop-mark"></span>{/if}
   </div>
 {:else if !loading}
   <div class="notice">No ranking data for this range yet.</div>
@@ -582,7 +612,15 @@
       <div class="notice">{playMessage}</div>
     {/if}
     {#if planSkipped.length}
-      <div class="notice">Left out (no tracks available or plan limit reached): {planSkipped.join(', ')}.</div>
+      <div class="notice">
+        No tracks available for {planSkipped.length} goal{planSkipped.length === 1 ? '' : 's'}:
+        {planSkipped.slice(0, SKIPPED_PREVIEW).join(', ')}{#if planSkipped.length > SKIPPED_PREVIEW} and {planSkipped.length - SKIPPED_PREVIEW} more{/if}.
+      </div>
+    {/if}
+    {#if planUnreached > 0}
+      <div class="notice">
+        {planUnreached} further goal{planUnreached === 1 ? '' : 's'} left out: the plan stops at {MAX_PLAN_TRACKS} tracks. Rerank fewer items, or build this plan first and come back.
+      </div>
     {/if}
 
     {#if plan.length === 0}
