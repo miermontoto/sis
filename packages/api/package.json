@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "check": "tsc --noEmit",
     "build": "tsup && mkdir -p dist/db && cp -r src/db/migrations dist/db/migrations",
     "start": "node dist/index.js"
   },

@@ -6,6 +6,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json --threshold error",
     "test": "vitest run",
     "mobile:build": "VITE_API_BASE=https://sis.mier.info vite build && cp build/200.html build/index.html && pnpm exec cap sync android",
     "mobile:apk": "pnpm mobile:build && cd android && ./gradlew assembleDebug -q && echo APK: android/app/build/outputs/apk/debug/app-debug.apk",
@@ -35,8 +36,10 @@
     "@types/d3-hierarchy": "^3.1.7",
     "@vite-pwa/sveltekit": "^1.1.0",
     "svelte": "^5.0.0",
+    "svelte-check": "^4.7.4",
     "typescript": "^5.7.0",
     "vite": "^6.2.0",
+    "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.10",
     "workbox-window": "^7.4.1"
   }
