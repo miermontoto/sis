@@ -968,26 +968,19 @@ a.track-item {
   opacity: 0.5;
 }
 
-/* el tag de versión es un <button> que abre el changelog: reset de estilos de botón */
 .sidebar-version {
   font-family: var(--font-mono);
   opacity: 0.8;
-  background: none;
-  border: 0;
-  padding: 0;
-  font-size: inherit;
-  cursor: pointer;
+  color: var(--text-muted);
 }
 
-.sidebar-footer a,
-.sidebar-version {
+.sidebar-footer a {
   color: var(--text-muted);
   text-decoration: none;
   transition: color 0.05s;
 }
 
-.sidebar-footer a:hover,
-.sidebar-version:hover {
+.sidebar-footer a:hover {
   color: var(--text);
 }
 

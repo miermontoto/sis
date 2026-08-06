@@ -309,17 +309,3 @@ export interface SessionInfo {
 }
 export const listLoginSessions = () => apiFetch<{ sessions: SessionInfo[] }>('/settings/sessions');
 export const logoutOtherSessions = () => apiMutate<{ ok: true; deleted: number }>('POST', '/settings/sessions/logout-others');
-
-// changelog "novedades" (shape de @platform/changelog: entradas estáticas)
-export interface ChangelogChangeDTO {
-  type: 'feature' | 'improvement' | 'fix' | 'breaking';
-  es: string;
-  en: string;
-}
-export interface ChangelogEntryDTO {
-  version: string;
-  publishedAt: string;
-  title?: string;
-  changes: ChangelogChangeDTO[];
-}
-export const getChangelog = () => apiFetch<{ entries: ChangelogEntryDTO[] }>('/changelog');

@@ -9,8 +9,7 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
-  import Changelog from '@platform/ui/Changelog.svelte';
-  import { API_BASE, api, loadSettings, getChangelog, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult, type ChangelogEntryDTO } from '$lib/api';
+  import { API_BASE, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -53,9 +52,6 @@
   let showSearch = $state(false);
   let user = $state<MeResponse | null>(null);
   let appVersion = $state('');
-  // changelog "novedades": solo se abre a petición (tag de versión), nunca solo
-  let changelogEntries = $state<ChangelogEntryDTO[] | null>(null);
-  let showChangelog = $state(false);
   let showUserMenu = $state(false);
   let expandedGroup = $state<string | null>(null);
   let userMenuRef = $state<HTMLElement | null>(null);
@@ -155,16 +151,6 @@
     mo.observe(el, { childList: true, subtree: true });
     return () => { ro.disconnect(); mo.disconnect(); };
   });
-
-  // abre las novedades desde el tag de versión del footer. carga perezosa: las
-  // entradas no entran en el boot, se piden la primera vez que se abre el modal
-  async function openChangelog() {
-    showUserMenu = false;
-    if (!changelogEntries) {
-      try { changelogEntries = (await getChangelog()).entries; } catch { return; }
-    }
-    showChangelog = true;
-  }
 
   function handleClickOutside(e: MouseEvent) {
     if (showUserMenu) {
@@ -593,7 +579,7 @@
           {/if}
         </div>
       {/if}
-      <div class="sidebar-footer">{#if appVersion} <button type="button" class="sidebar-version" onclick={openChangelog}>{appVersion}</button>{/if} · made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
+      <div class="sidebar-footer">{#if appVersion}<span class="sidebar-version">{appVersion}</span> · {/if}made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
     <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)}>
       <div class="mobile-header">
@@ -633,12 +619,6 @@
   <KeyboardShortcutsHelp />
   <ContextMenu />
   <Toast />
-  {#if showChangelog && changelogEntries}
-    <!-- mapea las vars --ui-* del componente compartido al tema de sis -->
-    <div style="--ui-bg-card: var(--bg); --ui-border: var(--border); --ui-radius: var(--radius); --ui-text: var(--text); --ui-accent: var(--accent); --ui-danger: var(--danger);">
-      <Changelog entries={changelogEntries} lang="en" ondismiss={() => showChangelog = false} />
-    </div>
-  {/if}
   {#if mergeModal.target}
     <MergeEntityModal
       bind:show={mergeModalShow}

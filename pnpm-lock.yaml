@@ -20,9 +20,6 @@ importers:
       '@platform/auth':
         specifier: workspace:*
         version: link:../../platform/packages/auth
-      '@platform/changelog':
-        specifier: workspace:*
-        version: link:../../platform/packages/changelog
       '@platform/core-api':
         specifier: workspace:*
         version: link:../../platform/packages/core-api
@@ -172,18 +169,6 @@ importers:
       drizzle-orm:
         specifier: ^0.38.0
         version: 0.38.4(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(kysely@0.28.17)
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
-  platform/packages/changelog:
-    devDependencies:
-      '@platform/config':
-        specifier: workspace:*
-        version: link:../config
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.15
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

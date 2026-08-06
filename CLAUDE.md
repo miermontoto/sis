@@ -93,10 +93,10 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 
 ## Git & deploy workflow
 
-- Auto-commit is authorized in this repo (overrides the global "don't commit unless prompted" rule). Commit committable changes **before the turn ends**, grouped logically, with descriptive conventional-commit messages (`type(scope): summary` — feat/fix/chore, matching git history). These inform the changelog.
+- Auto-commit is authorized in this repo (overrides the global "don't commit unless prompted" rule). Commit committable changes **before the turn ends**, grouped logically, with descriptive conventional-commit messages (`type(scope): summary` — feat/fix/chore, matching git history).
 - Deploy is automatic: a `Stop` hook in `.claude/settings.local.json` (gitignored) runs `docker compose up --build -d` after the turn, but **only when `packages/**` changed** since the last deploy (marker: `.git/sis-last-deploy`). Committing packages changes is enough — don't deploy manually. A shell hook can't write descriptive commit messages, so the commit is done in-turn (by the agent), the deploy by the hook.
 - Each deploy recreates the single container → a brief (~seconds) 502 while it restarts. Expected.
-- Changelog is hand-curated in `packages/api/src/changelog-data.ts` (not generated from commits): reflect user-facing changes there at version bumps (version `YYwWWx`; types feature/improvement/fix; bilingual es/en). **One line per change** — what changed for the user, not why. Served statically by `GET /api/changelog` (no table, no per-user "seen" state); the modal only opens from the version tag in the sidebar, never on its own.
+- No changelog: the app ships no release notes. The version tag in the sidebar footer is plain text; don't reintroduce a changelog file, route or modal.
 
 ## Notes
 

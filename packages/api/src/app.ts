@@ -21,7 +21,6 @@ import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession, type Session } from './services/session.js';
-import { CHANGELOG } from './changelog-data.js';
 import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
@@ -93,10 +92,6 @@ app.route('/api/social', social);
 app.route('/api/device-tokens', deviceTokens);
 app.route('/api/push', push);
 app.route('/api/lastfm', lastfm);
-
-// changelog "novedades": entradas estáticas de changelog-data.ts. no hay estado
-// por usuario, así que la web lo pide solo cuando se abre el modal
-app.get('/api/changelog', (c) => c.json({ entries: CHANGELOG }));
 
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401

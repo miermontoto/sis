@@ -60,4 +60,3 @@ export {
   getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange,
 } from './settings.js';
 export { api, listLoginSessions, logoutOtherSessions, type SessionInfo } from './endpoints.js';
-export { getChangelog, type ChangelogEntryDTO, type ChangelogChangeDTO } from './endpoints.js';

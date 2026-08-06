@@ -256,9 +256,9 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_session_expires ON auth_session(expires_at)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_session_user ON auth_session(user_id)'); } catch {}
 
-  // el changelog ya no vive en la db: las entradas se sirven desde changelog-data.ts
-  // y no hay corte de "visto" por usuario. limpieza de las tablas que sembraba la
-  // versión anterior (contenido derivado, nada que conservar).
+  // el changelog ya no existe en la app. limpieza de las tablas que sembraban las
+  // versiones anteriores (contenido derivado, nada que conservar); se mantiene el
+  // drop para las bases de datos que aún las arrastren.
   try { sqlite.exec('DROP TABLE IF EXISTS changelog_entry'); } catch {}
   try { sqlite.exec('DROP TABLE IF EXISTS changelog_seen'); } catch {}
 
