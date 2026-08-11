@@ -20,6 +20,10 @@ export { getChart, getChartPeaks, getAvailablePeriods, getEntityChartHistory } f
 export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './merge.js';
 export type { MergeInfo } from './merge.js';
 
+// relaciones soft entre artistas (sin efecto en el tracking)
+export { getArtistRelations } from './relations.js';
+export type { RelatedArtistRow } from './relations.js';
+
 // entity formatters
 export { lookupArtist, lookupAlbum, formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, formatRecentPlays, formatArtistTrackRows, formatArtistAlbumRow } from './formatters.js';
 

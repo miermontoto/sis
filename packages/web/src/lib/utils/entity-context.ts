@@ -1,8 +1,10 @@
 import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
 import { mergeModal } from '$lib/stores/merge-modal.svelte';
+import { relateModal } from '$lib/stores/relate-modal.svelte';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
 import IconMerge from '$lib/icons/IconMerge.svelte';
+import IconLink from '$lib/icons/IconLink.svelte';
 
 export function isSpotifyId(id: string): boolean {
   return !id.startsWith('local:') && !id.startsWith('import:');
@@ -61,6 +63,16 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
       }),
     },
   );
+  // las relaciones soft son cosa de artistas: un álbum o un track no se "relaciona"
+  if (entity.type === 'artist') {
+    actions.push({
+      label: 'Related artists',
+      icon: IconLink,
+      onClick: () => relateModal.open({
+        target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
+      }),
+    });
+  }
   return actions;
 }
 

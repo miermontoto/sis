@@ -303,6 +303,20 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
 
+  // relaciones "soft" entre artistas (par simétrico normalizado a < b). el UNIQUE
+  // sobre (user_id, artist_a, artist_b) es el que deduplica las dos direcciones.
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS artist_relations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      artist_a TEXT NOT NULL REFERENCES artists(spotify_id),
+      artist_b TEXT NOT NULL REFERENCES artists(spotify_id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_artist_relations_pair ON artist_relations(user_id, artist_a, artist_b)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_artist_relations_b ON artist_relations(user_id, artist_b)'); } catch {}
+
   // last.fm: cuentas vinculadas (sso + sync de scrobbles). ddl ad-hoc como el
   // resto: drizzle migrate corre en modo warn.
   try {

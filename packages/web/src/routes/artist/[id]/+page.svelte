@@ -13,6 +13,8 @@
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
   import MergeBanners from '$lib/components/MergeBanners.svelte';
+  import RelatedArtists from '$lib/components/RelatedArtists.svelte';
+  import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
@@ -27,6 +29,7 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import IconLink from '$lib/icons/IconLink.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
   // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
@@ -40,6 +43,7 @@
   let showAllTracks = $state(false);
   let showAllAlbums = $state(false);
   let showArtistMergeModal = $state(false);
+  let showRelateModal = $state(false);
   let playActing = $state(false);
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
@@ -156,6 +160,7 @@
             ...(isSpotifyId(artistId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${artistId}`, '_blank') }] : []),
             ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.artist?.name ?? 'Artist', publicHref()) }] : []),
             { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
+            { label: 'Related artists', icon: IconLink, onClick: () => { showRelateModal = true; } },
           ]}
         />
       </div>
@@ -229,6 +234,10 @@
         <h2 class="section-title">History by year</h2>
         <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
       {/if}
+    {:else if key === 'relations'}
+      {#if d.relatedArtists.length > 0}
+        <RelatedArtists artists={d.relatedArtists} onManage={() => { showRelateModal = true; }} />
+      {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
         <RecentPlaysRail entityType="artist" entityId={artistId} initial={d.recentPlays} historyHref={`/history?artist=${artistId}`} />
@@ -260,6 +269,12 @@
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
     existingMerges={data.mergedFrom}
     onMerged={() => loadData(artistId)}
+  />
+  <RelateArtistModal
+    bind:show={showRelateModal}
+    target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
+    existing={data.relatedArtists}
+    onChanged={() => loadData(artistId)}
   />
 {/if}
 

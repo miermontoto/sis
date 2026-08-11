@@ -2,6 +2,7 @@ import type { TopTrackItem, TopAlbumItem } from './top.js';
 import type { HistoryItem } from './history.js';
 import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
+import type { RelatedArtist } from './relations.js';
 
 export interface Rankings {
   week: number | null;
@@ -29,6 +30,8 @@ export interface ArtistDetail {
   recentPlays: HistoryItem[];
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
+  // vínculos declarados que no alteran el tracking (ver relations.ts)
+  relatedArtists: RelatedArtist[];
 }
 
 // single de adelanto ligado a un álbum: es un ReleaseEvent (sirve de marcador en las gráficas)

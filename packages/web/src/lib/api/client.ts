@@ -166,6 +166,10 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'POST',   prefix: '/admin/batch-merge-tracks',  clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
   { method: 'POST',   prefix: '/admin/merge',               clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
   { method: 'DELETE', prefix: '/admin/merge/',              clear: ['/stats/', '/playlists/', '/admin/merge', '/admin/album-', '/admin/bulk-'] },
+  // las relaciones soft no cambian ninguna agregación: basta con refrescar el detalle
+  // de artista (donde se pintan) y la lista de relaciones de settings
+  { method: 'POST',   prefix: '/admin/artist-relation',     clear: ['/stats/artist/', '/admin/artist-relations'] },
+  { method: 'DELETE', prefix: '/admin/artist-relation/',    clear: ['/stats/artist/', '/admin/artist-relations'] },
   { method: 'PATCH',  prefix: '/admin/track/',              clear: ['/stats/'] },
   { method: 'POST',   prefix: '/admin/track/',              clear: ['/stats/'] },
   { method: 'POST',   prefix: '/admin/users',               clear: ['/admin/users'] },

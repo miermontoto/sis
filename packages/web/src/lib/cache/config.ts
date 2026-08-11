@@ -77,6 +77,7 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/admin/album-merge-preview',    { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/album-remerge-preview',  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/merges',                 { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
+  ['/admin/artist-relations',       { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/users',                  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
 ];
 

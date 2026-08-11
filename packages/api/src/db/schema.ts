@@ -88,6 +88,23 @@ export const mergeRules = sqliteTable('merge_rules', {
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// relación "soft" entre dos artistas: enlace simétrico y sin tipo que NO altera el
+// tracking (a diferencia de un merge, la relación "hard": ahí un artista se absorbe
+// dentro de otro). Sirve para dejar constancia de vínculos como "Julian Casablancas
+// ←→ The Strokes", que son el mismo mundo pero no el mismo artista.
+// El par se guarda normalizado (artist_a < artist_b) para que el UNIQUE deduplique
+// las dos direcciones con un solo índice.
+export const artistRelations = sqliteTable('artist_relations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  artistA: text('artist_a').notNull().references(() => artists.spotifyId),
+  artistB: text('artist_b').notNull().references(() => artists.spotifyId),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  uniqueIndex('idx_artist_relations_pair').on(table.userId, table.artistA, table.artistB),
+  index('idx_artist_relations_b').on(table.userId, table.artistB),
+]);
+
 export const userSettings = sqliteTable('user_settings', {
   userId: text('user_id').notNull(),
   key: text('key').notNull(),

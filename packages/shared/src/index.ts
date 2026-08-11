@@ -47,6 +47,9 @@ export type { PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistL
 // merge
 export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 
+// relaciones soft entre artistas
+export type { RelatedArtist, ArtistRelationRule } from './relations.js';
+
 // proyecciones de ranking
 export type { RankProjection, ProjectionResult, ProjectedRankingsResponse } from './projections.js';
 

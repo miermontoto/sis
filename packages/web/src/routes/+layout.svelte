@@ -7,6 +7,7 @@
   import NowPlaying from '$lib/components/NowPlaying.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
+  import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import { API_BASE, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
@@ -20,6 +21,7 @@
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import FriendsActivity from '$lib/components/FriendsActivity.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { prewarmer, setUser, hydrateUser, bootCleanup } from '$lib/cache';
 
@@ -44,6 +46,15 @@
   });
   $effect(() => {
     if (!mergeModalShow && mergeModal.target) mergeModal.close();
+  });
+
+  // ídem para el modal de relaciones soft entre artistas
+  let relateModalShow = $state(false);
+  $effect(() => {
+    relateModalShow = relateModal.target !== null;
+  });
+  $effect(() => {
+    if (!relateModalShow && relateModal.target) relateModal.close();
   });
 
   let { children }: { children: Snippet } = $props();
@@ -629,6 +640,14 @@
       existingMerges={mergeModal.target.existingMerges}
       initialStep={mergeModal.target.initialStep}
       onMerged={() => { mergeModal.refresh(); mergeModal.notifyChange(); }}
+    />
+  {/if}
+  {#if relateModal.target}
+    <RelateArtistModal
+      bind:show={relateModalShow}
+      target={relateModal.target.target}
+      existing={relateModal.target.existing}
+      onChanged={() => { relateModal.refresh(); relateModal.notifyChange(); }}
     />
   {/if}
 {/if}

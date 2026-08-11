@@ -29,7 +29,7 @@ detail.get('/artist/:id', async (c) => {
   const artistIds = await dbRead<string[]>('resolveEntityIds', 'artist', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw] = await Promise.all([
+  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw, relatedRaw] = await Promise.all([
     dbRead<any>('getEntityStats', 'artist', id, rangeStart, rangeEnd, artistIds, userId),
     dbRead<any>('getEntitySeries', 'artist', id, rangeStart, rangeKey, artistIds, rangeEnd, customDays, userId),
     dbRead<any[]>('getArtistTopTracks', id, rangeStart, sort, trackLimit, rangeEnd, userId, artistIds),
@@ -38,6 +38,7 @@ detail.get('/artist/:id', async (c) => {
     dbRead<any>('getArtistPlaylistPresence', id, userId),
     dbRead<any>('getEntityMergeInfo', 'artist', id),
     dbRead<any[]>('getArtistReleases', id, artistIds),
+    dbRead<any[]>('getArtistRelations', id, userId),
   ]);
 
   const [topTracks, topAlbums, recentPlays] = await Promise.all([
@@ -55,6 +56,14 @@ detail.get('/artist/:id', async (c) => {
     topAlbums,
     recentPlays,
     ...formatMerge(mergeInfo),
+    // relaciones soft: ruleIds viene como group_concat porque una misma relación puede
+    // resolver a este artista por varias filas (aliases mergeados a posteriori)
+    relatedArtists: relatedRaw.map((r: any) => ({
+      id: r.artist_id,
+      ruleIds: String(r.rule_ids).split(',').map(Number),
+      name: r.name,
+      imageUrl: r.image_url,
+    })),
     playlists,
   });
 });

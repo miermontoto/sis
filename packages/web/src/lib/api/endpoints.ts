@@ -7,6 +7,7 @@ import type {
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
+  ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
@@ -180,6 +181,16 @@ export const api = {
 
   batchMergeTracks: (trackPairs: Array<{ sourceTrackId: string; targetTrackId: string }>) =>
     apiMutate<BatchMergeResult>('POST', '/admin/batch-merge-tracks', { trackPairs }),
+
+  // relaciones soft entre artistas: declaran el vínculo sin tocar el tracking, así que
+  // no invalidan rankings ni agregados — sólo el detalle del artista y su propia lista
+  listArtistRelations: () => apiFetch<ArtistRelationRule[]>('/admin/artist-relations'),
+
+  createArtistRelation: (artistId: string, relatedId: string) =>
+    apiMutate<{ id: number; artistId: string; relatedId: string }>('POST', '/admin/artist-relation', { artistId, relatedId }),
+
+  deleteArtistRelation: (id: number) =>
+    apiMutate<{ success: boolean }>('DELETE', `/admin/artist-relation/${id}`),
 
   // last.fm
   lastfmStatus: () => apiFetch<LastfmStatus>('/lastfm'),

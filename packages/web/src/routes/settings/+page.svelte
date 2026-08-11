@@ -679,8 +679,8 @@
       </div>
       <div class="pref-row row-border">
         <div class="pref-info">
-          <div class="pref-label">Merge rules</div>
-          <div class="pref-desc">{mergeCount > 0 ? `${mergeCount} active rule${mergeCount !== 1 ? 's' : ''} combining duplicate entities` : 'Combine duplicate artists, albums, or tracks'}</div>
+          <div class="pref-label">Merges &amp; relations</div>
+          <div class="pref-desc">{mergeCount > 0 ? `${mergeCount} active rule${mergeCount !== 1 ? 's' : ''} combining duplicate entities` : 'Combine duplicate artists, albums, or tracks'} · link related artists without merging them</div>
         </div>
         <div class="pref-control">
           <a href="/settings/merges" class="action-btn action-btn--secondary">Manage</a>

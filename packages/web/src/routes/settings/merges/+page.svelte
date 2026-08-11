@@ -1,13 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type MergeRule } from '$lib/api';
+  import { api, type MergeRule, type ArtistRelationRule } from '$lib/api';
 
   let merges = $state<MergeRule[]>([]);
+  let relations = $state<ArtistRelationRule[]>([]);
   let mergeSearch = $state('');
   let loading = $state(true);
 
   async function loadMerges() {
     try { merges = await api.listMerges(); } catch { merges = []; }
+  }
+
+  // relaciones soft: no tienen dirección ni canónico, así que la lista es plana
+  async function loadRelations() {
+    try { relations = await api.listArtistRelations(); } catch { relations = []; }
+  }
+
+  // optimista, igual que removeMerge
+  async function removeRelation(id: number) {
+    const previous = relations;
+    relations = relations.filter(r => r.id !== id);
+    try {
+      await api.deleteArtistRelation(id);
+    } catch (e) {
+      console.error('[relation] error removing relation:', e);
+      relations = previous;
+    }
   }
 
   // optimista: la fila desaparece al instante y sólo se recarga si el servidor falla.
@@ -78,13 +96,13 @@
   }
 
   onMount(async () => {
-    await loadMerges();
+    await Promise.all([loadMerges(), loadRelations()]);
     loading = false;
   });
 </script>
 
 <div class="page-header">
-  <h1>Merges</h1>
+  <h1>Merges &amp; relations</h1>
   <a href="/settings" class="back-link">← Settings</a>
   <a href="/settings/merges/scan" class="scan-link">Scan for duplicates →</a>
 </div>
@@ -94,7 +112,8 @@
     <div class="spinner"></div>
   </div>
 {:else if merges.length === 0}
-  <div class="card">
+  <div class="card section-card">
+    <h2 class="section-title">Merges</h2>
     <p style="color: var(--text-muted);">No merge rules configured.</p>
   </div>
 {:else}
@@ -102,7 +121,7 @@
   {@const groups = groupMergesByArtist(merges, term)}
   <div class="card section-card">
     <div class="merge-header">
-      <span class="merge-count">{merges.length} rule{merges.length !== 1 ? 's' : ''}</span>
+      <h2 class="section-title">Merges <span class="merge-count">{merges.length} rule{merges.length !== 1 ? 's' : ''}</span></h2>
       <input class="merge-search" type="text" placeholder="Filter merges..." bind:value={mergeSearch} />
     </div>
     {#if groups.length > 0}
@@ -163,6 +182,47 @@
   </div>
 {/if}
 
+<!-- relaciones soft: sin dirección ni canónico, así que no hay swap ni agrupación por
+     artista — cada fila es un enlace simétrico entre dos artistas -->
+{#if !loading}
+  <div class="card section-card">
+    <div class="merge-header">
+      <h2 class="section-title">Relations <span class="merge-count">{relations.length} link{relations.length !== 1 ? 's' : ''}</span></h2>
+    </div>
+    {#if relations.length === 0}
+      <p style="color: var(--text-muted); padding: 0.5rem 0;">
+        No artist relations configured. Add them from an artist page or its context menu.
+      </p>
+    {:else}
+      <ul class="merge-flat merge-flat--flush">
+        {#each relations as r (r.id)}
+          <li class="merge-row">
+            <span class="merge-type-pill merge-type-pill--relation" title="artist relation">R</span>
+            <a class="merge-side" href="/artist/{r.a_id}" title={r.a_name}>
+              {#if r.a_image}
+                <img class="merge-flat-thumb merge-flat-thumb--round" src={r.a_image} alt="" />
+              {:else}
+                <div class="merge-flat-thumb merge-flat-thumb--round merge-flat-thumb--empty"></div>
+              {/if}
+              <span class="merge-flat-name">{r.a_name}</span>
+            </a>
+            <span class="merge-arrow">↔</span>
+            <a class="merge-side" href="/artist/{r.b_id}" title={r.b_name}>
+              {#if r.b_image}
+                <img class="merge-flat-thumb merge-flat-thumb--round" src={r.b_image} alt="" />
+              {:else}
+                <div class="merge-flat-thumb merge-flat-thumb--round merge-flat-thumb--empty"></div>
+              {/if}
+              <span class="merge-flat-name">{r.b_name}</span>
+            </a>
+            <button class="merge-flat-unmerge" title="Remove relation" onclick={() => removeRelation(r.id)}>&times;</button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+{/if}
+
 <style>
   .page-header {
     display: flex;
@@ -194,6 +254,12 @@
   .section-card {
     margin-bottom: 1.5rem;
   }
+  /* el margen superior de .section-title es para separar secciones sueltas; dentro de
+     una card el título ya va pegado al borde */
+  .section-card > .section-title,
+  .merge-header .section-title {
+    margin: 0;
+  }
 
   .merge-header {
     display: flex;
@@ -204,7 +270,11 @@
   }
   .merge-count {
     font-size: 0.85rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--text-muted);
+    margin-left: 0.5rem;
   }
   .merge-search {
     background: var(--bg);
@@ -287,6 +357,8 @@
     display: flex;
     flex-direction: column;
   }
+  /* la lista de relaciones no cuelga de ningún grupo: sin sangrado */
+  .merge-flat--flush { margin-left: 0; }
   .merge-row {
     display: flex;
     align-items: center;
@@ -310,6 +382,7 @@
     flex-shrink: 0;
   }
   .merge-type-pill--artist { color: #a76bff; border-color: rgba(167, 107, 255, 0.4); }
+  .merge-type-pill--relation { color: #4aa8ff; border-color: rgba(74, 168, 255, 0.4); }
   .merge-type-pill--album  { color: var(--accent); border-color: rgba(29, 185, 84, 0.4); }
   .merge-type-pill--track  { color: #ffaa00; border-color: rgba(255, 170, 0, 0.4); }
 
