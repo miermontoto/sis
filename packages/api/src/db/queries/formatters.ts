@@ -24,17 +24,14 @@ export function lookupAlbum(db: Db, spotifyId: string): FormattedAlbum | null {
 export function formatTopTrackRows(db: Db, rows: { entity_id: string; play_count: number; total_ms: number }[]) {
   const trackMap = enrichTracksBatch(db, rows.map(r => r.entity_id));
   return rows.map(row => {
-    const trackInfo = trackMap.get(row.entity_id);
+    // el EnrichedTrack se pasa entero (igual que en formatRecentPlays): recortarlo a mano
+    // dejaba fuera el `id` que TrackInfo declara, y los consumidores que lo leen —el
+    // generador de rerank arma URIs spotify:track:<id>— recibían undefined
     return {
       trackId: row.entity_id,
       playCount: row.play_count,
       totalMs: row.total_ms,
-      track: trackInfo ? {
-        name: trackInfo.name,
-        durationMs: trackInfo.durationMs,
-        album: trackInfo.album,
-        artists: trackInfo.artists,
-      } : null,
+      track: trackMap.get(row.entity_id) ?? null,
     };
   });
 }
@@ -72,20 +69,13 @@ export function formatRecentPlays(db: Db, rows: { id: number; played_at: string;
 /** Formatear múltiples artist top-tracks en batch */
 export function formatArtistTrackRows(db: Db, rows: { track_id: string; play_count: number; total_ms: number }[]) {
   const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id));
-  return rows.map(row => {
-    const trackInfo = trackMap.get(row.track_id);
-    return {
-      trackId: row.track_id,
-      playCount: row.play_count,
-      totalMs: row.total_ms,
-      track: trackInfo ? {
-        name: trackInfo.name,
-        durationMs: trackInfo.durationMs,
-        album: trackInfo.album,
-        artists: trackInfo.artists,
-      } : null,
-    };
-  });
+  // mismo criterio que formatTopTrackRows: EnrichedTrack entero, sin recortes
+  return rows.map(row => ({
+    trackId: row.track_id,
+    playCount: row.play_count,
+    totalMs: row.total_ms,
+    track: trackMap.get(row.track_id) ?? null,
+  }));
 }
 
 /** Formatear fila de artist top-albums */
