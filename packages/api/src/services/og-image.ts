@@ -109,10 +109,10 @@ export async function generateOgImage(token: string, user: User, range: TimeRang
 
   const rangeStart = getRangeStart(range);
   const [summary, albumRows] = await Promise.all([
-    dbRead<ProfileSummaryRow>('getProfileSummary', user.id, rangeStart, null),
-    dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>('getTopEntities', 'album', rangeStart, 'time', 3, null, user.id),
+    dbRead('getProfileSummary', user.id, rangeStart, null),
+    dbRead('getTopEntities', 'album', rangeStart, 'time', 3, null, user.id),
   ]);
-  const albums = await Promise.all(albumRows.map(row => dbRead<{ album: { name: string; imageUrl: string | null } | null }>('formatTopAlbumRow', row)));
+  const albums = await Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row)));
 
   const { pad, avatarSize, coverSize, coverGap, coverRadius } = LAYOUT;
   const name = escapeXml(user.displayName ?? user.spotifyId);

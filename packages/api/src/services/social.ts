@@ -78,16 +78,16 @@ export async function buildProfile(target: User, range: TimeRange): Promise<Prof
   const rangeStart = getRangeStart(range);
 
   const [summary, artistRows, trackRows, albumRows] = await Promise.all([
-    dbRead<ProfileSummaryRow>('getProfileSummary', target.id, null, null),
-    dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>('getTopEntities', 'artist', rangeStart, 'time', PROFILE_TOP_LIMIT, null, target.id),
-    dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>('getTopEntities', 'track', rangeStart, 'time', PROFILE_TOP_LIMIT, null, target.id),
-    dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>('getTopEntities', 'album', rangeStart, 'time', PROFILE_TOP_LIMIT, null, target.id),
+    dbRead('getProfileSummary', target.id, null, null),
+    dbRead('getTopEntities', 'artist', rangeStart, 'time', PROFILE_TOP_LIMIT, null, target.id),
+    dbRead('getTopEntities', 'track', rangeStart, 'time', PROFILE_TOP_LIMIT, null, target.id),
+    dbRead('getTopEntities', 'album', rangeStart, 'time', PROFILE_TOP_LIMIT, null, target.id),
   ]);
 
   const [topArtists, topTracks, topAlbums] = await Promise.all([
-    Promise.all(artistRows.map(row => dbRead<Omit<TopArtistItem, 'rankChange' | 'previousRank' | 'isNew'>>('formatTopArtistRow', row))),
-    dbRead<Omit<TopTrackItem, 'rankChange' | 'previousRank' | 'isNew'>[]>('formatTopTrackRows', trackRows),
-    Promise.all(albumRows.map(row => dbRead<Omit<TopAlbumItem, 'rankChange' | 'previousRank' | 'isNew'>>('formatTopAlbumRow', row))),
+    Promise.all(artistRows.map(row => dbRead('formatTopArtistRow', row))),
+    dbRead('formatTopTrackRows', trackRows),
+    Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row))),
   ]);
 
   return {

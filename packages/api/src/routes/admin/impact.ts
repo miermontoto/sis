@@ -41,7 +41,7 @@ function baseRanking(userId: number, entityType: EntityType, sort: 'time' | 'pla
   const hit = rankingCache.get(key);
   if (hit && Date.now() - hit.at < RANKING_CACHE_TTL_MS) return hit.rows;
 
-  const rows = dbRead<AggregateRow[]>('getTopEntities', entityType, getRangeStart('all'), sort, RANKING_LIMIT, null, userId)
+  const rows = dbRead('getTopEntities', entityType, getRangeStart('all'), sort, RANKING_LIMIT, null, userId)
     .catch(err => { rankingCache.delete(key); throw err; }); // un fallo no se cachea
 
   rankingCache.set(key, { rows, at: Date.now() });

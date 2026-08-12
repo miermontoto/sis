@@ -65,6 +65,8 @@ export interface SpotifyCurrentlyPlayingResponse {
   progress_ms: number | null;
   currently_playing_type: string;
   timestamp: number;
+  // opcional: spotify no siempre lo incluye en /currently-playing (sí en /me/player)
+  device?: { volume_percent: number | null };
 }
 
 export interface SpotifyArtistsBatchResponse {

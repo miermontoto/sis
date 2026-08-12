@@ -9,6 +9,7 @@ import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import type { SpotifyDevice, PlayContextRequest } from '@sis/shared';
+import type { SpotifyCurrentlyPlayingResponse } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
 
@@ -129,7 +130,7 @@ nowPlaying.get('/friends', (c) => {
 // lectura en vivo desde Spotify (no cache) — usado tras acciones de playback
 nowPlaying.get('/live', async (c) => {
   const userId = c.get('userId');
-  const data = await spotifyFetch<any>('/me/player/currently-playing', { userId });
+  const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
   if (!data?.item || data.currently_playing_type !== 'track') {
     return c.json({ playing: false, isPlaying: false });
@@ -150,7 +151,7 @@ nowPlaying.get('/live', async (c) => {
         name: item.album.name,
         imageUrl: item.album.images?.[0]?.url ?? null,
       } : null,
-      artists: (item.artists ?? []).map((a: any) => ({ id: a.id, name: a.name })),
+      artists: (item.artists ?? []).map((a) => ({ id: a.id, name: a.name })),
     },
     updatedAt: new Date().toISOString(),
   });

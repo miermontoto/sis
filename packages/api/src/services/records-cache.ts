@@ -126,9 +126,9 @@ export async function computeAndCacheForUserAsync(userId: number, spotifyId: str
   console.log(`[records-cache] computing records for user ${userId} (${k}) [worker]...`);
   const start = performance.now();
   const [trackResult, albumResult, artistResult] = await Promise.all([
-    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'track', userId, unique),
-    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'album', userId, unique),
-    dbRead<Partial<RecordsResponse>>('getRecords', weekStart, sort, 50, 'artist', userId, unique),
+    dbRead('getRecords', weekStart, sort, 50, 'track', userId, unique),
+    dbRead('getRecords', weekStart, sort, 50, 'album', userId, unique),
+    dbRead('getRecords', weekStart, sort, 50, 'artist', userId, unique),
   ]);
   const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
@@ -227,7 +227,7 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   ];
 
   for (const [type, list] of checks) {
-    const idx = list.findIndex((e: any) => e.entityId === entityId);
+    const idx = list.findIndex((e) => e.entityId === entityId);
     if (idx !== -1 && idx < RECORDS_LIMIT) {
       const entry = list[idx] as any;
       accolades.push({ type, rank: idx + 1, value: entry.value, week: entry.week ?? null });
@@ -241,7 +241,7 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
       ['mostNo1Albums', artistData.mostNo1Albums as any[]],
     ];
     for (const [type, list] of artistChecks) {
-      const idx = list.findIndex((e: any) => e.artistId === entityId);
+      const idx = list.findIndex((e) => e.artistId === entityId);
       if (idx !== -1 && idx < RECORDS_LIMIT) {
         accolades.push({ type, rank: idx + 1, value: list[idx].count, week: null });
       }
@@ -251,7 +251,7 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   // mostDistinctTracks exclusivo de artists (tras quitarlo de albums)
   if (entityType === 'artist' && 'mostDistinctTracks' in data) {
     const artistData = data as RecordsResponse['artists'];
-    const idx = artistData.mostDistinctTracks.findIndex((e: any) => e.entityId === entityId);
+    const idx = artistData.mostDistinctTracks.findIndex((e) => e.entityId === entityId);
     if (idx !== -1 && idx < RECORDS_LIMIT) {
       accolades.push({ type: 'mostDistinctTracks', rank: idx + 1, value: artistData.mostDistinctTracks[idx].value, week: null });
     }
@@ -260,7 +260,7 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   // oneHitWonders exclusivo de artists (tras quitarlo de albums)
   if (entityType === 'artist' && 'oneHitWonders' in data) {
     const artistData = data as RecordsResponse['artists'];
-    const idx = artistData.oneHitWonders.findIndex((e: any) => e.entityId === entityId);
+    const idx = artistData.oneHitWonders.findIndex((e) => e.entityId === entityId);
     if (idx !== -1 && idx < RECORDS_LIMIT) {
       accolades.push({ type: 'oneHitWonders', rank: idx + 1, value: artistData.oneHitWonders[idx].value, week: null });
     }

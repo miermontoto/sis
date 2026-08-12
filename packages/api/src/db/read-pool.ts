@@ -5,8 +5,33 @@
 import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import type { Db } from './queries/helpers.js';
 
 const POOL_SIZE = 4;
+
+// El contrato de dbRead se deriva del propio módulo de queries en vez de repetirse a
+// mano: tanto el worker como el modo directo auto-registran por reflexión sobre
+// queries/index.js, así que `typeof import(...)` describe exactamente lo que hay al
+// otro lado del canal. Es una referencia solo de tipos —no genera import en runtime,
+// por tanto no introduce ciclo— y convierte renombrar una query o cambiarle la firma
+// en un error de compilación en lugar de un `unknown function` en producción.
+type QueryModule = typeof import('./queries/index.js');
+
+// El barrel también exporta helpers puros (getRangeStart, albumIdIn...) que no reciben
+// `db` y nunca fueron destinos válidos de dbRead. Filtrar por "primer parámetro Db" los
+// deja fuera del union por contravarianza, sin necesidad de listarlos.
+type QueryName = {
+  [K in keyof QueryModule]: QueryModule[K] extends (db: Db, ...args: never[]) => unknown ? K : never;
+}[keyof QueryModule];
+
+// Los args del call site son los de la query menos `db`, que inyecta el worker.
+type QueryArgs<K extends QueryName> =
+  QueryModule[K] extends (db: Db, ...args: infer A) => unknown ? A : never;
+
+// Awaited por robustez: hoy todas las queries son síncronas (better-sqlite3 lo es),
+// pero el canal las devuelve envueltas en promesa igualmente.
+type QueryResult<K extends QueryName> =
+  QueryModule[K] extends (db: Db, ...args: never[]) => infer R ? Awaited<R> : never;
 
 interface PoolWorker {
   worker: Worker;
@@ -16,6 +41,8 @@ interface PoolWorker {
 let pool: PoolWorker[] = [];
 let directFns: Record<string, (args: any[]) => any> | null = null;
 let msgId = 0;
+// registro heterogéneo: cada entrada resuelve el tipo de su propia query, así que aquí
+// el valor no puede ser más concreto que `any` sin romper la varianza del resolver
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
 
 function setupWorker(w: PoolWorker) {
@@ -76,14 +103,14 @@ export async function initReadWorker() {
  * Ejecutar una función de query en un worker del pool (prod) o directamente (dev).
  * Los args no deben incluir `db` — el worker/dispatch inyecta su propia conexión.
  */
-export function dbRead<T>(fn: string, ...args: any[]): Promise<T> {
+export function dbRead<K extends QueryName>(fn: K, ...args: QueryArgs<K>): Promise<QueryResult<K>> {
   // modo directo (dev)
   if (directFns) {
     try {
       const handler = directFns[fn];
       if (!handler) throw new Error(`unknown function: ${fn}`);
       return Promise.resolve(handler(args));
-    } catch (err: any) {
+    } catch (err) {
       return Promise.reject(err);
     }
   }
@@ -93,7 +120,7 @@ export function dbRead<T>(fn: string, ...args: any[]): Promise<T> {
   const pw = pickWorker();
   pw.busy++;
   const id = ++msgId;
-  return new Promise<T>((resolve, reject) => {
+  return new Promise<QueryResult<K>>((resolve, reject) => {
     pending.set(id, { resolve, reject });
     pw.worker.postMessage({ id, fn, args });
   });

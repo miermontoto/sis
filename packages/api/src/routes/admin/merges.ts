@@ -339,7 +339,7 @@ merges.get('/bulk-remerge-preview', async (c) => {
   const db = getDb();
   // por el pool de workers: la agregación del top all-time es cara y en el main thread
   // dejaba el servidor entero esperando
-  const top = await dbRead<{ entity_id: string; play_count: number; total_ms: number }[]>(
+  const top = await dbRead(
     'getTopEntities', 'album', getRangeStart('all'), 'time', limit, null, userId);
   const ctx = loadRemergeContext(db, userId);
 

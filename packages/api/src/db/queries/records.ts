@@ -315,7 +315,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecor
   // 2. Biggest debuts
   const biggestDebuts: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
-    const debut = data.rows.find((r: any) => r.w === data.debutWeek);
+    const debut = data.rows.find((r) => r.w === data.debutWeek);
     if (debut) {
       biggestDebuts.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: debut.val, week: debut.w });
     }
@@ -325,7 +325,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecor
   // 3. Most weeks at #1
   const mostWeeksAtNo1: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
-    const weeks = data.rows.filter((r: any) => r.rank === 1).length;
+    const weeks = data.rows.filter((r) => r.rank === 1).length;
     if (weeks > 0) {
       mostWeeksAtNo1.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: weeks, week: null });
     }
@@ -335,7 +335,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecor
   // 4. Most weeks in the charts (top 25)
   const mostWeeksInTop5: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
-    const weeks = data.rows.filter((r: any) => r.rank <= CHART_SIZE).length;
+    const weeks = data.rows.filter((r) => r.rank <= CHART_SIZE).length;
     if (weeks > 0) {
       mostWeeksInTop5.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: weeks, week: null });
     }
@@ -346,12 +346,12 @@ function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecor
   // rachas consecutivas de cada entidad; en modo unique nos quedamos con la más
   // larga (a igualdad gana la racha en curso), sin unique emitimos cada racha por
   // separado, así que una entidad con varias rachas aparece varias veces.
-  const allWeekLabels = [...new Set(rows.map((r: any) => r.w as string))].sort();
+  const allWeekLabels = [...new Set(rows.map((r) => r.w as string))].sort();
   const longestChartRun: RecordEntry[] = [];
   type Run = { streak: number; start: string; end: string; ongoing: boolean };
   for (const [eid, data] of byEntity) {
     const chartWeekSet = new Set(
-      data.rows.filter((r: any) => r.rank <= CHART_SIZE).map((r: any) => r.w as string)
+      data.rows.filter((r) => r.rank <= CHART_SIZE).map((r) => r.w as string)
     );
     if (chartWeekSet.size === 0) continue;
 

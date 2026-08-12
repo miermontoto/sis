@@ -60,7 +60,7 @@ function buildMetaBlock(fields: OgFields): string {
 }
 
 async function ogFieldsForUser(user: User, opts: { imageUrl: string | null; url: string }): Promise<OgFields> {
-  const summary = await dbRead<ProfileSummaryRow>('getProfileSummary', user.id, null, null);
+  const summary = await dbRead('getProfileSummary', user.id, null, null);
   const name = user.displayName ?? user.spotifyId;
   return {
     title: `${name} en SIS`,

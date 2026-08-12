@@ -38,6 +38,11 @@ export interface RecentPlayRow {
 
 // --- helpers de rango temporal ---
 
+// 'all' es el único rango que mapea al centinela 0 (= sin filtro, devuelve null).
+// La sobrecarga deja que los call sites con un rango literal —getRangeStart('month')—
+// obtengan `string` en vez de `string | null` y se ahorren un null que no puede darse.
+export function getRangeStart(range: Exclude<TimeRange, 'all'>): string;
+export function getRangeStart(range: TimeRange): string | null;
 export function getRangeStart(range: TimeRange): string | null {
   const days = TIME_RANGES[range];
   if (days === 0) return null;

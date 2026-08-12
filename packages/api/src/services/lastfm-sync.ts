@@ -54,7 +54,12 @@ export function getAllLastfmAccounts(): LastfmAccount[] {
     FROM lastfm_accounts la
     JOIN users u ON u.id = la.user_id
     WHERE u.is_active = 1
-  `).map((r: any) => ({ ...r, backfillDone: !!r.backfillDone }) as LastfmAccount);
+  // sqlite devuelve backfill_done como 0/1; el resto de columnas ya vienen con el
+  // nombre del DTO por los alias del SELECT
+  `).map(r => {
+    const row = r as Omit<LastfmAccount, 'backfillDone'> & { backfillDone: number };
+    return { ...row, backfillDone: !!row.backfillDone };
+  });
 }
 
 export function upsertLastfmAccount(userId: number, username: string, sessionKey: string | null): void {

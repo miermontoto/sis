@@ -5,7 +5,7 @@ import { getDb } from '../db/connection.js';
 import { follows, shareLinks } from '../db/schema.js';
 import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
-import type { ComparisonResult } from '../db/queries/index.js';
+import type { AggregateRow, ComparisonResult, ProfileSummaryRow } from '../db/queries/index.js';
 import { findUserBySpotifyId, getUserById } from '../services/user-manager.js';
 import { isUserHidden, hiddenSpotifyIdsSubquery, getSocialNowPlaying, buildProfile, parseTimeRange, publicBase } from '../services/social.js';
 import { SHARE_TOKEN_BYTES, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, TIME_RANGES } from '../constants.js';
@@ -51,8 +51,8 @@ social.get('/users', async (c) => {
   const monthAgo = getRangeStart('month');
   const ids = rows.map(r => r.id as number);
   const [activity, counts] = await Promise.all([
-    dbRead<any[]>('getFeedActivity', ids, monthAgo),
-    Promise.all(ids.map(id => dbRead<number>('getUserPlayCount', id))),
+    dbRead('getFeedActivity', ids, monthAgo),
+    Promise.all(ids.map(id => dbRead('getUserPlayCount', id))),
   ]);
   const activityMap = new Map(activity.map(a => [a.userId, a]));
   const countMap = new Map(ids.map((id, i) => [id, counts[i]]));
@@ -107,30 +107,30 @@ social.get('/compare/:spotifyId', async (c) => {
   // resúmenes y rachas siempre all-time (tarjeta de identidad); el range
   // sólo afecta a tops y compartidos
   const [comparison, myProfile, theirProfile, myStreaks, theirStreaks] = await Promise.all([
-    dbRead<ComparisonResult>('getUserComparison', viewerId, target.id, rangeStart, null),
-    dbRead<any>('getProfileSummary', viewerId, null, null),
-    dbRead<any>('getProfileSummary', target.id, null, null),
-    dbRead<any>('getUserStreaks', viewerId),
-    dbRead<any>('getUserStreaks', target.id),
+    dbRead('getUserComparison', viewerId, target.id, rangeStart, null),
+    dbRead('getProfileSummary', viewerId, null, null),
+    dbRead('getProfileSummary', target.id, null, null),
+    dbRead('getUserStreaks', viewerId),
+    dbRead('getUserStreaks', target.id),
   ]);
 
-  const formatSide = (rows: { entity_id: string; play_count: number; total_ms: number }[], fn: string, batch = false) => {
-    const top = rows.slice(0, COMPARE_SIDE_LIMIT);
-    return batch
-      ? dbRead<any[]>(fn, top)
-      : Promise.all(top.map(row => dbRead<any>(fn, row)));
-  };
+  // un formateador por tipo en vez de nombre suelto + flag `batch`: cada uno conserva
+  // su tipo de retorno concreto, que es lo que CompareResponse espera lado a lado
+  const side = (rows: AggregateRow[]) => rows.slice(0, COMPARE_SIDE_LIMIT);
+  const formatArtists = (rows: AggregateRow[]) => Promise.all(side(rows).map(row => dbRead('formatTopArtistRow', row)));
+  const formatAlbums = (rows: AggregateRow[]) => Promise.all(side(rows).map(row => dbRead('formatTopAlbumRow', row)));
+  const formatTracks = (rows: AggregateRow[]) => dbRead('formatTopTrackRows', side(rows));
 
   const [myTopArtists, theirTopArtists, myTopTracks, theirTopTracks, myTopAlbums, theirTopAlbums] = await Promise.all([
-    formatSide(comparison.myTopArtists, 'formatTopArtistRow'),
-    formatSide(comparison.theirTopArtists, 'formatTopArtistRow'),
-    formatSide(comparison.myTopTracks, 'formatTopTrackRows', true),
-    formatSide(comparison.theirTopTracks, 'formatTopTrackRows', true),
-    formatSide(comparison.myTopAlbums, 'formatTopAlbumRow'),
-    formatSide(comparison.theirTopAlbums, 'formatTopAlbumRow'),
+    formatArtists(comparison.myTopArtists),
+    formatArtists(comparison.theirTopArtists),
+    formatTracks(comparison.myTopTracks),
+    formatTracks(comparison.theirTopTracks),
+    formatAlbums(comparison.myTopAlbums),
+    formatAlbums(comparison.theirTopAlbums),
   ]);
 
-  const summaryOf = (u: { spotifyId: string; displayName: string | null; imageUrl: string | null }, s: any) => ({
+  const summaryOf = (u: { spotifyId: string; displayName: string | null; imageUrl: string | null }, s: ProfileSummaryRow) => ({
     spotifyId: u.spotifyId,
     displayName: u.displayName,
     imageUrl: u.imageUrl,
@@ -143,7 +143,7 @@ social.get('/compare/:spotifyId', async (c) => {
   });
 
   const noRankChange = { rankChange: null, previousRank: null, isNew: false };
-  const withNoRankChange = (items: any[]) => items.map(i => ({ ...i, ...noRankChange }));
+  const withNoRankChange = <T>(items: T[]) => items.map(i => ({ ...i, ...noRankChange }));
 
   const result: CompareResponse = {
     me: summaryOf(viewer, myProfile),
@@ -247,8 +247,8 @@ social.get('/feed', async (c) => {
   const followedIds = followed.map(u => u.id);
   const since = new Date(Date.now() - FEED_RECENT_DAYS * 86_400_000).toISOString();
   const [activity, plays] = await Promise.all([
-    dbRead<any[]>('getFeedActivity', followedIds, since),
-    dbRead<any[]>('getRecentPlaysForUsers', followedIds, FEED_PLAYS_LIMIT),
+    dbRead('getFeedActivity', followedIds, since),
+    dbRead('getRecentPlaysForUsers', followedIds, FEED_PLAYS_LIMIT),
   ]);
   const activityMap = new Map(activity.map(a => [a.userId, a]));
   const userMap = new Map(followed.map(u => [u.id, { spotifyId: u.spotifyId, displayName: u.displayName, imageUrl: u.imageUrl }]));

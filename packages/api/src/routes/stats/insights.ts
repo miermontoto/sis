@@ -28,14 +28,14 @@ insights.get('/history', async (c) => {
   const rawArtistId = c.req.query('artist');
 
   const [trackIds, albumIds, artistIds] = await Promise.all([
-    rawTrackId ? dbRead<string[]>('resolveEntityIds', 'track', rawTrackId, userId) : Promise.resolve(undefined),
-    rawAlbumId ? dbRead<string[]>('resolveEntityIds', 'album', rawAlbumId, userId) : Promise.resolve(undefined),
-    rawArtistId ? dbRead<string[]>('resolveEntityIds', 'artist', rawArtistId, userId) : Promise.resolve(undefined),
+    rawTrackId ? dbRead('resolveEntityIds', 'track', rawTrackId, userId) : Promise.resolve(undefined),
+    rawAlbumId ? dbRead('resolveEntityIds', 'album', rawAlbumId, userId) : Promise.resolve(undefined),
+    rawArtistId ? dbRead('resolveEntityIds', 'artist', rawArtistId, userId) : Promise.resolve(undefined),
   ]);
 
   const tzRaw = c.req.query('tz');
   const tzOffsetMinutes = tzRaw != null ? Number.parseInt(tzRaw) : 0;
-  const { items: rows, total } = await dbRead<{ items: { id: number; played_at: string; track_id: string }[]; total: number }>('getHistoryPage', userId, limit, offset, {
+  const { items: rows, total } = await dbRead('getHistoryPage', userId, limit, offset, {
     date: c.req.query('date'),
     trackIds,
     albumIds,
@@ -43,7 +43,7 @@ insights.get('/history', async (c) => {
     tzOffsetMinutes: Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0,
   });
 
-  const trackMap = await dbRead<Map<string, any>>('enrichTracksBatch', rows.map(r => r.track_id));
+  const trackMap = await dbRead('enrichTracksBatch', rows.map(r => r.track_id));
   const items = rows.map((row) => ({
     id: row.id,
     playedAt: row.played_at,
