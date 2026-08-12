@@ -87,30 +87,17 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
   }
 }
 
-// cada cuánto se reintenta un artista ya marcado como "sin foto en spotify". no puede
-// ser permanente: un artista gana foto de perfil cuando alguien reclama su página, y
-// justo las páginas duplicadas/sin reclamar —las que llenan el centinela— son las
-// candidatas a ganarla. medido sobre 200 artistas marcados, un 2% tenía foto dos meses
-// después. reintentar al mes los recupera y aun así deja las peticiones en 1/30 de las
-// de antes del centinela.
-const ARTIST_IMAGE_RETRY_DAYS = 30;
-
 // enriquecer artistas sin imagen consultando la API de spotify en lotes de 50
 // userId: cualquier usuario activo cuyo token se usa para la API
-// image_url NULL = no consultado aún, '' = consultado y spotify no tenía imagen
+// image_url NULL = no consultado aún, '' = consultado y spotify no tiene imagen
 // (misma convención que enrichLocalAlbumCovers/recoverSingleCovers). sin el centinela
-// los artistas sin foto se repedían enteros cada ciclo de 24h sin actualizar nada; con
-// él solo vuelven a pedirse pasados ARTIST_IMAGE_RETRY_DAYS. los que spotify no
-// devuelve (delistados) conservan NULL y se reintentan en el siguiente ciclo.
+// los artistas sin foto —típicamente páginas duplicadas o sin reclamar— se repedían
+// enteros cada ciclo de 24h sin actualizar nada. los que spotify no devuelve
+// (delistados) conservan NULL y se reintentan en el siguiente ciclo.
 export async function enrichArtistMetadata(userId: number) {
   const db = getDb();
-  // umbral en ISO para comparar contra updated_at, que también es ISO: datetime('now')
-  // usa 'YYYY-MM-DD HH:MM:SS' y el espacio ordena antes que la 'T', desplazando el corte
-  const retryBefore = new Date(Date.now() - ARTIST_IMAGE_RETRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const missing = db.all(
-    sql`SELECT spotify_id FROM artists
-        WHERE (image_url IS NULL OR (image_url = '' AND updated_at < ${retryBefore}))
-          AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'`
+    sql`SELECT spotify_id FROM artists WHERE image_url IS NULL AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'`
   ) as { spotify_id: string }[];
 
   if (missing.length === 0) return;
