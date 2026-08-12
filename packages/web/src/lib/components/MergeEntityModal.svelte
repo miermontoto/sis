@@ -259,12 +259,12 @@
   }
 
   async function applyRemerge() {
-    const selected = remergePairs.filter(p => p.checked);
-    if (selected.length === 0) return;
+    const checkedPairs = remergePairs.filter(p => p.checked);
+    if (checkedPairs.length === 0) return;
     remergeApplying = true;
     error = '';
     try {
-      await api.batchMergeTracks(selected.map(p => ({
+      await api.batchMergeTracks(checkedPairs.map(p => ({
         sourceTrackId: p.sourceTrack.id,
         targetTrackId: p.targetTrack.id,
       })));

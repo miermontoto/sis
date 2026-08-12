@@ -120,8 +120,9 @@ export function dbRead<K extends QueryName>(fn: K, ...args: QueryArgs<K>): Promi
   const pw = pickWorker();
   pw.busy++;
   const id = ++msgId;
-  return new Promise<QueryResult<K>>((resolve, reject) => {
-    pending.set(id, { resolve, reject });
+  // no usar `resolve`/`reject` a secas: `resolve` es el import de 'path' de arriba
+  return new Promise<QueryResult<K>>((onResult, onError) => {
+    pending.set(id, { resolve: onResult, reject: onError });
     pw.worker.postMessage({ id, fn, args });
   });
 }

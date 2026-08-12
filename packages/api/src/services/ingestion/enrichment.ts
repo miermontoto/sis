@@ -59,8 +59,9 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
   let next = data.next;
   while (next) {
     const url = new URL(next);
-    const path = url.pathname.replace(/^\/v1/, '') + url.search;
-    const page = await spotifyFetch<SpotifyAlbumTracksResponse>(path, { userId });
+    // `endpoint`, no `path`: ese nombre es el módulo 'path' importado arriba
+    const endpoint = url.pathname.replace(/^\/v1/, '') + url.search;
+    const page = await spotifyFetch<SpotifyAlbumTracksResponse>(endpoint, { userId });
     if (!page?.items) break;
     for (const item of page.items) {
       for (const artist of item.artists) {

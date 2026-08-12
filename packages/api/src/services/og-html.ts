@@ -4,7 +4,6 @@ import type { Context } from 'hono';
 import { dbRead } from '../db/read-pool.js';
 import { findUserBySpotifyId, type User } from './user-manager.js';
 import { isUserHidden, publicBase } from './social.js';
-import type { ProfileSummaryRow } from '../db/queries/index.js';
 
 // HTML shell del SPA con <meta> OG inyectados para crawlers.
 // Los navegadores reciben el mismo HTML y arrancan el SPA con normalidad.

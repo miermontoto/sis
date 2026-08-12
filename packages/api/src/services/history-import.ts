@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
-import { artists, albums, tracks, trackArtists, listeningHistory } from '../db/schema.js';
 import { syntheticId } from './ids.js';
 import { MIN_PLAY_MS } from '../constants.js';
 

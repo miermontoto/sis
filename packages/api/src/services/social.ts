@@ -2,10 +2,9 @@ import { sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
-import type { ProfileSummaryRow } from '../db/queries/index.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, PROFILE_TOP_LIMIT, TIME_RANGES } from '../constants.js';
 import type { TimeRange } from '../constants.js';
-import type { SocialNowPlaying, ProfileResponse, TopArtistItem, TopTrackItem, TopAlbumItem } from '@sis/shared';
+import type { SocialNowPlaying, ProfileResponse } from '@sis/shared';
 import type { User } from './user-manager.js';
 
 // OJO: user_settings.user_id almacena el SPOTIFY ID (string), no users.id.

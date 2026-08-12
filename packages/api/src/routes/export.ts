@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { stream } from 'hono/streaming';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import type { AppVariables } from '../app.js';

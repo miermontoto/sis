@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
+import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow } from './helpers.js';
 import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 

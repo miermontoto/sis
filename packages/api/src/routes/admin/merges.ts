@@ -1,6 +1,6 @@
 import { sql, eq } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
-import { mergeRules, albums, artists, tracks } from '../../db/schema.js';
+import { mergeRules, albums, tracks } from '../../db/schema.js';
 import { getEntityMergeGroup } from '../../db/queries/merge.js';
 import {
   adminRouter, VALID_ENTITY_TYPES, isValidEntityType, entityTable,

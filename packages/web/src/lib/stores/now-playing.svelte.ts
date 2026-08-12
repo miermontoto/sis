@@ -284,7 +284,7 @@ export const nowPlayingStore = {
   get trackId() { return _data?.playing && _data.isPlaying ? _data.track?.id ?? null : null; },
   get albumId() { return _data?.playing && _data.isPlaying ? _data.track?.album?.id ?? null : null; },
   get artistIds() { return _data?.playing && _data.isPlaying ? _data.track?.artists?.map(a => a.id) ?? [] : []; },
-  get isPlaying() { return _data?.playing && _data.isPlaying ? true : false; },
+  get isPlaying() { return !!(_data?.playing && _data.isPlaying); },
   get isLiked() { return _isLiked; },
   set isLiked(v: boolean) { _isLiked = v; },
   get likeLoading() { return _likeLoading; },

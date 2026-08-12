@@ -5,7 +5,7 @@ import { getDb } from '../db/connection.js';
 import { follows, shareLinks } from '../db/schema.js';
 import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
-import type { AggregateRow, ComparisonResult, ProfileSummaryRow } from '../db/queries/index.js';
+import type { AggregateRow, ProfileSummaryRow } from '../db/queries/index.js';
 import { findUserBySpotifyId, getUserById } from '../services/user-manager.js';
 import { isUserHidden, hiddenSpotifyIdsSubquery, getSocialNowPlaying, buildProfile, parseTimeRange, publicBase } from '../services/social.js';
 import { SHARE_TOKEN_BYTES, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, TIME_RANGES } from '../constants.js';

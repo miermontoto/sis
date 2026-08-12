@@ -95,14 +95,14 @@
 
   let initialized = false;
 
-  const STRATEGY_KEYS: PlaylistStrategy[] = ['top_range', 'top_artist', 'top_genre', 'deep_cuts', 'time_vibes', 'rediscovery'];
+  const STRATEGY_KEYS = new Set<PlaylistStrategy>(['top_range', 'top_artist', 'top_genre', 'deep_cuts', 'time_vibes', 'rediscovery']);
 
   onMount(async () => {
     // leer filtros desde la URL
     const urlTab = getQueryParam('tab', '');
     if (urlTab === 'library' || urlTab === 'generate') activeTab = urlTab;
     const urlStrategy = getQueryParam('strategy', '') as PlaylistStrategy | '';
-    if (urlStrategy && STRATEGY_KEYS.includes(urlStrategy as PlaylistStrategy)) {
+    if (urlStrategy && STRATEGY_KEYS.has(urlStrategy as PlaylistStrategy)) {
       selectedStrategy = urlStrategy as PlaylistStrategy;
       shuffle = SHUFFLE_BY_DEFAULT.has(selectedStrategy);
     }

@@ -34,7 +34,7 @@ db.transaction(() => {
     // remove import track_artists that would conflict with existing real ones
     deleteConflicting.run(m.import_id, m.real_id);
     // update remaining import references to real ID
-    const changed = updateTA.run(m.real_id, m.import_id);
+    updateTA.run(m.real_id, m.import_id);
     deleteArtist.run(m.import_id);
   }
 

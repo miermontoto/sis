@@ -23,8 +23,9 @@
 
   let cache = $state<Map<string, TabData>>(new Map());
 
-  function cacheKey(tab: string) {
-    return `${weekStart}:${metric}:${unique}:${tab}`;
+  // el param se llama tabId, no tab: `tab` es el urlEnumParam del scope de arriba
+  function cacheKey(tabId: string) {
+    return `${weekStart}:${metric}:${unique}:${tabId}`;
   }
 
   let currentData = $derived(cache.get(cacheKey(tab.value)) ?? null);
@@ -32,15 +33,15 @@
 
   const fetchCtrl = createFetchController();
 
-  async function loadTab(tab: TabType) {
-    const key = cacheKey(tab);
+  async function loadTab(tabId: TabType) {
+    const key = cacheKey(tabId);
     if (cache.has(key)) return;
     const signal = fetchCtrl.reset();
-    loadingTab = tab;
+    loadingTab = tabId;
     try {
-      const result = await api.records(weekStart, metric, tab, unique, signal);
+      const result = await api.records(weekStart, metric, tabId, unique, signal);
       if (signal.aborted) return;
-      const data = result[tab];
+      const data = result[tabId];
       if (data) {
         const next = new Map(cache);
         next.set(key, data as TabData);

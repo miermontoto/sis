@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, orderByCol, resolvedEntityId, entityMergeJoin, userFilter, tracksWithArtistIn, resolvedPlayJoins, playDuration } from './helpers.js';
+import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, resolvedPlayJoins, playDuration } from './helpers.js';
 
 /** Top tracks de un artista. Usa IDs pre-resueltos para incluir plays mergeados. Agrupa por track canónico (merge-aware). */
 export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number, artistIds?: string[]) {

@@ -3,7 +3,6 @@ import path from 'path';
 import sharp from 'sharp';
 import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
-import type { ProfileSummaryRow } from '../db/queries/index.js';
 import { OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_CACHE_MS } from '../constants.js';
 import type { TimeRange } from '../constants.js';
 import type { User } from './user-manager.js';

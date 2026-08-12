@@ -1,7 +1,6 @@
-import { sql, eq, inArray } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import { rangeWhere, userFilter, playDuration } from './helpers.js';
-import { tracks, albums, artists, trackArtists } from '../schema.js';
 import { versionBaseKey } from '../../services/versions.js';
 import type { TrackVersion } from '@sis/shared';
 

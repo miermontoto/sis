@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-empty": ["error", { "allowEmptyCatch": true }],
+    "no-shadow": "error",
+    "no-unneeded-ternary": "error",
+    "unicorn/prefer-set-has": "error",
+    "unicorn/no-new-array": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.svelte"],
+      "rules": {
+        "no-unassigned-vars": "off",
+        "no-unused-expressions": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/.svelte-kit/**",
+    "packages/api/static/**",
+    "platform/**",
+    "data/**"
+  ]
+}

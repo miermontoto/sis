@@ -239,8 +239,8 @@ records.get('/projected-rankings', (c) => {
     const typeA = entityOrder[a.entityType] ?? 3;
     const typeB = entityOrder[b.entityType] ?? 3;
     if (typeA !== typeB) return typeA - typeB;
-    const bestRankA = Math.min(...a.changes.map(c => c.projectedRank));
-    const bestRankB = Math.min(...b.changes.map(c => c.projectedRank));
+    const bestRankA = Math.min(...a.changes.map(ch => ch.projectedRank));
+    const bestRankB = Math.min(...b.changes.map(ch => ch.projectedRank));
     return bestRankA - bestRankB;
   });
 

@@ -25,7 +25,8 @@ Browser <──> Hono :3000
 
 ```bash
 pnpm dev                    # start API with hot reload (tsx watch)
-pnpm check                  # typecheck both packages (api: tsc; web: svelte-check)
+pnpm check                  # lint (oxlint) + typecheck both packages (api: tsc; web: svelte-check)
+pnpm lint                   # oxlint only
 pnpm build                  # build web → copy to api/static → build api
 pnpm db:generate            # generate drizzle migrations after schema changes
 docker compose up --build   # full containerized deployment
@@ -90,6 +91,7 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 - Comments in Spanish, technical terms in English
 - No magic numbers — constants in `packages/api/src/constants.ts`
 - Run `pnpm check` before committing: Vite only transpiles types, so nothing else catches type errors in `packages/web`. The web gate is `--threshold warning` and the tree is at 0/0 — a11y and unused-CSS warnings block too. Where a mouse-only handler is a deliberate enhancement over already-accessible content, suppress with `<!-- svelte-ignore <code>, <code> -->` (comma-separated) plus a comment saying why.
+- `pnpm check` runs oxlint first (`.oxlintrc.json`, tree at 0 findings). Only `correctness` is on plus a few hand-picked rules; the `perf`/`suspicious` categories are off on purpose (they flag the deliberate sequential `await`s in Spotify pagination). Two rules are disabled for `.svelte` only, because the Svelte compiler defeats them: `no-unassigned-vars` (`bind:this` targets are assigned by the compiler) and `no-unused-expressions` (a bare `store.value;` inside `$effect` is how a dependency is registered — deleting it silently breaks reactivity).
 - Svelte 5 runes ($state, $derived, $effect)
 - ECharts tree-shaken imports via echarts/core
 
