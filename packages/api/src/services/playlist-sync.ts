@@ -6,7 +6,9 @@ import { spotifyFetch } from './spotify-client.js';
 import { upsertTrack } from './ingestion.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
 import type { SpotifyPlaylistsResponse, SpotifyPlaylistTracksResponse } from '../types/spotify.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('playlist-sync');
 function isAlgorithmic(ownerId: string): boolean {
   return ownerId === 'spotify';
 }
@@ -115,7 +117,7 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
   const seenSpotifyIds = new Set<string>();
   let offset = 0;
 
-  console.log(`[playlist-sync] sincronizando playlists para usuario ${userId}...`);
+  log.info(`sincronizando playlists para usuario ${userId}...`);
 
   // paginar todas las playlists del usuario
   while (true) {
@@ -161,7 +163,7 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
           db.run(sql`DELETE FROM spotify_playlists WHERE id = ${row.id}`);
           continue;
         }
-        console.log(`[playlist-sync] + ${pl.name} (${count} tracks)`);
+        log.info(`+ ${pl.name} (${count} tracks)`);
       } else if (existing.snapshot_id !== pl.snapshot_id) {
         // snapshot cambió — actualizar metadata y re-sincronizar tracks
         db.run(sql`
@@ -178,7 +180,7 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
         `);
 
         const count = await syncPlaylistTracks(userId, pl.id, existing.id);
-        console.log(`[playlist-sync] ~ ${pl.name} (${count} tracks, snapshot changed)`);
+        log.info(`~ ${pl.name} (${count} tracks, snapshot changed)`);
       } else {
         // sin cambios — solo actualizar timestamp
         db.run(sql`UPDATE spotify_playlists SET last_synced_at = ${now} WHERE id = ${existing.id}`);
@@ -202,12 +204,12 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
         SELECT id FROM generated_playlists WHERE spotify_playlist_id = ${dbPl.spotify_id} AND user_id = ${userId}
       )`);
       db.run(sql`DELETE FROM generated_playlists WHERE spotify_playlist_id = ${dbPl.spotify_id} AND user_id = ${userId}`);
-      console.log(`[playlist-sync] - ${dbPl.name} (removed)`);
+      log.info(`- ${dbPl.name} (removed)`);
     }
   }
 
   rebuildPlaylistSearchIndex(db, userId);
-  console.log(`[playlist-sync] usuario ${userId}: ${seenSpotifyIds.size} playlists sincronizadas`);
+  log.info(`usuario ${userId}: ${seenSpotifyIds.size} playlists sincronizadas`);
 }
 
 export async function syncAllUsersPlaylists(): Promise<void> {
@@ -216,7 +218,7 @@ export async function syncAllUsersPlaylists(): Promise<void> {
     try {
       await syncUserPlaylists(userId);
     } catch (err) {
-      console.error(`[playlist-sync] error usuario ${userId}:`, err);
+      log.error(`error usuario ${userId}:`, err);
     }
   }
 }

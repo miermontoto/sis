@@ -2,6 +2,9 @@ import { Hono } from 'hono';
 import { isLastfmConfigured } from '../services/lastfm-client.js';
 import { getLastfmAccount, deleteLastfmAccount, syncRecentScrobbles, backfillHistory, getBackfillProgress } from '../services/lastfm-sync.js';
 import type { AppVariables } from '../app.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('lastfm');
 
 const lastfm = new Hono<{ Variables: AppVariables }>();
 
@@ -30,7 +33,7 @@ lastfm.post('/sync', async (c) => {
     const imported = await syncRecentScrobbles(userId);
     return c.json({ ok: true, imported });
   } catch (err) {
-    console.error(`[lastfm:${userId}] error en sync manual:`, err);
+    log.child(userId).error(`error en sync manual:`, err);
     return c.json({ error: 'error al sincronizar con last.fm' }, 502);
   }
 });

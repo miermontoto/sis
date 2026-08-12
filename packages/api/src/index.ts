@@ -7,7 +7,9 @@ import { initReadWorker, closeReadWorker } from './db/read-pool.js';
 import { startPolling, stopPolling } from './services/polling.js';
 import { cleanupExpiredSessions } from './services/session.js';
 import { VERSION } from './constants.js';
+import { createLogger } from './services/logger.js';
 
+const log = createLogger('sis');
 // .env desde raíz de la app (dev en monorepo) o cwd (docker); .env.local sobrescribe
 loadAppEnv(import.meta.url);
 
@@ -18,7 +20,7 @@ await initReadWorker();
 
 // iniciar polling en background (DISABLE_POLLING=1 para dev local con snapshot de prod)
 if (process.env.DISABLE_POLLING === '1') {
-  console.log('[sis] polling deshabilitado (DISABLE_POLLING=1)');
+  log.info('polling deshabilitado (DISABLE_POLLING=1)');
 } else {
   startPolling();
 }

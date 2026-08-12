@@ -4,7 +4,10 @@ import { artists, albums, trackArtists } from '../../db/schema.js';
 import { spotifyFetch, isRateLimited } from '../spotify-client.js';
 import { mergeTrackArtists } from './upsert.js';
 import type { SpotifyTrack, SpotifySearchArtistResult, SpotifySearchAlbumResult } from '../../types/spotify.js';
+import { createLogger } from '../logger.js';
 
+const logCleanup = createLogger('cleanup');
+const logResolve = createLogger('resolve');
 const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -29,7 +32,7 @@ export function cleanOrphanImports() {
       AND spotify_id NOT IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)`
   );
   if (orphanArtists.changes || orphanAlbums.changes) {
-    console.log(`[cleanup] eliminados ${orphanArtists.changes} artistas y ${orphanAlbums.changes} álbumes import: huérfanos`);
+    logCleanup.info(`eliminados ${orphanArtists.changes} artistas y ${orphanAlbums.changes} álbumes import: huérfanos`);
   }
 }
 
@@ -74,7 +77,7 @@ export function cleanNonMusicImports() {
     db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${spotify_id}`);
     db.run(sql`DELETE FROM tracks WHERE spotify_id = ${spotify_id}`);
   }
-  console.log(`[cleanup] eliminados ${trash.length} tracks no-música (${deletedPlays} plays)`);
+  logCleanup.info(`eliminados ${trash.length} tracks no-música (${deletedPlays} plays)`);
 }
 
 export async function resolveImportArtists(userId: number) {
@@ -89,7 +92,7 @@ export async function resolveImportArtists(userId: number) {
   ) as { spotify_id: string; name: string }[];
 
   if (pending.length === 0) return;
-  console.log(`[resolve] ${pending.length} artistas import: por resolver...`);
+  logResolve.info(`${pending.length} artistas import: por resolver...`);
 
   let resolved = 0;
 
@@ -156,7 +159,7 @@ export async function resolveImportArtists(userId: number) {
         db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
       }
     } catch (err) {
-      console.error(`[resolve] error resolviendo artista "${row.name}":`, err);
+      logResolve.error(`error resolviendo artista "${row.name}":`, err);
       await sleep(SEARCH_DELAY_MS);
       continue;
     }
@@ -165,7 +168,7 @@ export async function resolveImportArtists(userId: number) {
     await sleep(SEARCH_DELAY_MS);
   }
 
-  console.log(`[resolve] ${resolved}/${pending.length} artistas resueltos`);
+  logResolve.info(`${resolved}/${pending.length} artistas resueltos`);
 }
 
 // resolver álbumes con ID import: buscándolos en la API de Spotify
@@ -184,7 +187,7 @@ export async function resolveImportAlbums(userId: number) {
   ) as { spotify_id: string; name: string; artist_name: string | null }[];
 
   if (pending.length === 0) return;
-  console.log(`[resolve] ${pending.length} álbumes import: por resolver...`);
+  logResolve.info(`${pending.length} álbumes import: por resolver...`);
 
   let resolved = 0;
 
@@ -269,7 +272,7 @@ export async function resolveImportAlbums(userId: number) {
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${row.spotify_id}`);
       }
     } catch (err) {
-      console.error(`[resolve] error resolviendo álbum "${row.name}":`, err);
+      logResolve.error(`error resolviendo álbum "${row.name}":`, err);
       await sleep(SEARCH_DELAY_MS);
       continue;
     }
@@ -278,7 +281,7 @@ export async function resolveImportAlbums(userId: number) {
     await sleep(SEARCH_DELAY_MS);
   }
 
-  console.log(`[resolve] ${resolved}/${pending.length} álbumes resueltos`);
+  logResolve.info(`${resolved}/${pending.length} álbumes resueltos`);
 }
 
 // corregir tracks con Spotify ID real que están asignados al álbum incorrecto
@@ -348,7 +351,7 @@ export async function fixTrackAlbumAssignments(userId: number) {
     await sleep(SEARCH_DELAY_MS);
   }
 
-  if (fixed > 0) console.log(`[resolve] ${fixed} tracks reasignados al álbum correcto`);
+  if (fixed > 0) logResolve.info(`${fixed} tracks reasignados al álbum correcto`);
 }
 
 // corregir track_artists para tracks con Spotify ID real que solo tienen 1 artista
@@ -368,7 +371,7 @@ export async function fixTrackArtistAssociations(userId: number) {
   `) as { spotify_id: string }[];
 
   if (candidates.length === 0) return;
-  console.log(`[resolve] verificando artistas de ${candidates.length} tracks...`);
+  logResolve.info(`verificando artistas de ${candidates.length} tracks...`);
 
   let fixed = 0;
   for (let i = 0; i < candidates.length; i += 50) {
@@ -435,7 +438,7 @@ export async function fixTrackArtistAssociations(userId: number) {
     await sleep(SEARCH_DELAY_MS);
   }
 
-  if (fixed > 0) console.log(`[resolve] ${fixed} tracks con artistas actualizados`);
+  if (fixed > 0) logResolve.info(`${fixed} tracks con artistas actualizados`);
 }
 
 // unificar tracks import: con su equivalente real de Spotify (mismo nombre + artista principal)
@@ -454,7 +457,7 @@ export function mergeImportTracks() {
   `) as { import_id: string; real_id: string; track_name: string }[];
 
   if (groups.length === 0) return;
-  console.log(`[cleanup] ${groups.length} tracks import: con equivalente real`);
+  logCleanup.info(`${groups.length} tracks import: con equivalente real`);
 
   let merged = 0;
   for (const { import_id, real_id, track_name } of groups) {
@@ -469,9 +472,9 @@ export function mergeImportTracks() {
       db.run(sql`DELETE FROM tracks WHERE spotify_id = ${import_id}`);
       merged++;
     } catch (err) {
-      console.error(`[cleanup] error unificando "${track_name}":`, err);
+      logCleanup.error(`error unificando "${track_name}":`, err);
     }
   }
 
-  if (merged > 0) console.log(`[cleanup] ${merged} tracks import: unificados con reales`);
+  if (merged > 0) logCleanup.info(`${merged} tracks import: unificados con reales`);
 }

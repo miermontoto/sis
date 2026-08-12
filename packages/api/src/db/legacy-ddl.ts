@@ -2,7 +2,9 @@
 // multi-user/social, fts5 y la tabla canónica de sesiones de la plataforma.
 // se ejecuta en cada boot (idempotente) tras las migraciones de drizzle.
 import type Database from 'better-sqlite3';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('db');
 export function applyLegacyDdl(sqlite: Database.Database): void {
   // columnas e índices adicionales no gestionados por drizzle
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_album INTEGER'); } catch {}
@@ -236,10 +238,10 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
         WHERE t.spotify_id = OLD.track_id AND t.spotify_id NOT LIKE 'import:%';
       END`);
 
-    console.log('[db] índice FTS5 creado y poblado');
+    log.info('índice FTS5 creado y poblado');
   } catch (err) {
     try { sqlite.exec('ROLLBACK'); } catch {}
-    console.error('[db] error creando índice FTS5:', err);
+    log.error('error creando índice FTS5:', err);
   }
 
   // tabla canónica de sesiones de la plataforma (@platform/auth). ddl ad-hoc en vez

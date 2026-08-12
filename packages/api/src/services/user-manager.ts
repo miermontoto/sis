@@ -1,7 +1,9 @@
 import { eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { users, listeningHistory, authTokens, pollingState, mergeRules, lastfmAccounts } from '../db/schema.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('users');
 export interface User {
   id: number;
   spotifyId: string;
@@ -53,7 +55,7 @@ export function findOrCreateUser(spotifyId: string, displayName: string | null, 
     updatedAt: now,
   }).returning().get();
 
-  console.log(`[users] usuario creado: ${displayName} (${spotifyId})${isFirstUser ? ' [ADMIN]' : ''}`);
+  log.info(`usuario creado: ${displayName} (${spotifyId})${isFirstUser ? ' [ADMIN]' : ''}`);
   return mapUser(result);
 }
 
@@ -130,7 +132,7 @@ export function migrateExistingData(userId: number): void {
 
   const total = lhCount + atCount + psCount + mrCount;
   if (total > 0) {
-    console.log(`[users] migrados ${lhCount} plays, ${atCount} tokens, ${psCount} polling states, ${mrCount} merge rules → usuario ${userId}`);
+    log.info(`migrados ${lhCount} plays, ${atCount} tokens, ${psCount} polling states, ${mrCount} merge rules → usuario ${userId}`);
   }
 }
 

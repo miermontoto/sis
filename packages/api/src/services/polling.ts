@@ -38,6 +38,19 @@ import type {
   SpotifyCurrentlyPlayingResponse,
   SpotifyRecentlyPlayedResponse,
 } from '../types/spotify.js';
+import { createLogger } from './logger.js';
+
+// polling es el orquestador: dispara jobs de otros módulos y reporta por ellos, así
+// que necesita el scope de cada uno. `log` a secas es el suyo propio; los ciclos por
+// usuario usan log.child(userId) para escribir `[poll:12]`.
+const log = createLogger('poll');
+const logMetadata = createLogger('metadata');
+const logResolve = createLogger('resolve');
+const logLastfm = createLogger('lastfm');
+const logLastfmMeta = createLogger('lastfm-meta');
+const logRecordsCache = createLogger('records-cache');
+const logPlaylistSync = createLogger('playlist-sync');
+const logAutoRegen = createLogger('auto-regen');
 
 // timers por usuario
 interface UserTimers {
@@ -128,10 +141,10 @@ let tokenlessEnrichTimer: ReturnType<typeof setInterval> | null = null;
 // las cuentas last.fm no requieren tokens de spotify (usuarios solo-last.fm)
 function startLastfmPolling() {
   if (lastfmSyncTimer || !isLastfmConfigured()) return;
-  const tick = () => syncAllLastfmAccounts().catch(err => console.error('[lastfm] error en sync:', err));
+  const tick = () => syncAllLastfmAccounts().catch(err => logLastfm.error('error en sync:', err));
   lastfmSyncTimer = setInterval(tick, LASTFM_POLL_INTERVAL_MS);
   tick();
-  console.log(`[poll] last.fm sync cada ${LASTFM_POLL_INTERVAL_MS / 1000}s`);
+  log.info(`last.fm sync cada ${LASTFM_POLL_INTERVAL_MS / 1000}s`);
 }
 
 // enrichment que NO depende de un token de spotify: duraciones (last.fm →
@@ -148,15 +161,15 @@ function startTokenlessEnrichment() {
       if (isLastfmConfigured()) await enrichLastfmDurations();
       await enrichImportTrackDurations();
     } catch (err) {
-      console.error('[metadata] error duraciones:', err);
+      logMetadata.error('error duraciones:', err);
     }
     // portadas (musicbrainz) y géneros (last.fm) son independientes entre sí
-    enrichLocalAlbumCovers().catch(err => console.error('[metadata] error portadas:', err));
-    if (isLastfmConfigured()) enrichLastfmGenres().catch(err => console.error('[lastfm-meta] error géneros:', err));
+    enrichLocalAlbumCovers().catch(err => logMetadata.error('error portadas:', err));
+    if (isLastfmConfigured()) enrichLastfmGenres().catch(err => logLastfmMeta.error('error géneros:', err));
   };
   run();
   tokenlessEnrichTimer = setInterval(run, METADATA_REFRESH_INTERVAL_MS);
-  console.log('[poll] enrichment sin-token activo (musicbrainz + last.fm)');
+  log.info('enrichment sin-token activo (musicbrainz + last.fm)');
 }
 
 function getPollingStateForUser(userId: number) {
@@ -191,7 +204,7 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
       if (lastActive) {
         if (lastActive.isLocal && lastActive.lastProgressMs >= MIN_PLAY_MS) {
           insertLocalPlay(lastActive.id, lastActive.startedAt, userId, lastActive.lastProgressMs);
-          console.log(`[poll:${userId}] registrada reproducción local: ${lastActive.id}`);
+          log.child(userId).info(`registrada reproducción local: ${lastActive.id}`);
         } else if (!lastActive.isLocal) {
           pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: lastActive.lastProgressMs, endedAt: Date.now() });
         }
@@ -235,7 +248,7 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
       if (lastActive) {
         if (lastActive.isLocal && lastActive.lastProgressMs >= MIN_PLAY_MS) {
           insertLocalPlay(lastActive.id, lastActive.startedAt, userId, lastActive.lastProgressMs);
-          console.log(`[poll:${userId}] registrada reproducción local: ${lastActive.id}`);
+          log.child(userId).info(`registrada reproducción local: ${lastActive.id}`);
         } else if (!lastActive.isLocal) {
           pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: lastActive.lastProgressMs, endedAt: Date.now() });
         }
@@ -244,7 +257,7 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
       if (trackChanged) {
         upsertTrack(data.item);
         const nextDelay = computeNextPollDelay(data);
-        console.log(`[poll:${userId}] reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name} (siguiente poll en ${Math.round(nextDelay / 1000)}s)`);
+        log.child(userId).info(`reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name} (siguiente poll en ${Math.round(nextDelay / 1000)}s)`);
       }
 
       userActiveTrack.set(userId, { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs, isLocal: !!data.item.is_local });
@@ -265,7 +278,7 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
     }
     return computeNextPollDelay(data);
   } catch (err) {
-    console.error(`[poll:${userId}] error en currently playing:`, err);
+    log.child(userId).error(`error en currently playing:`, err);
     return CURRENTLY_PLAYING_INTERVAL_MS;
   }
 }
@@ -304,7 +317,7 @@ async function pollRecentlyPlayed(userId: number) {
     const spotifyId = getUserById(userId)?.spotifyId;
     if (spotifyId) checkChartClosings(userId, spotifyId);
   } catch (err) {
-    console.error(`[poll:${userId}] error en checkChartClosings:`, err);
+    log.child(userId).error(`error en checkChartClosings:`, err);
   }
 
   try {
@@ -340,10 +353,10 @@ async function pollRecentlyPlayed(userId: number) {
     }
 
     if (inserted > 0) {
-      console.log(`[poll:${userId}] ${inserted} nuevas reproducciones registradas`);
+      log.child(userId).info(`${inserted} nuevas reproducciones registradas`);
     }
   } catch (err) {
-    console.error(`[poll:${userId}] error en recently played:`, err);
+    log.child(userId).error(`error en recently played:`, err);
   }
 }
 
@@ -352,11 +365,11 @@ function startPollingForUser(userId: number) {
 
   const tokens = getStoredTokens(userId);
   if (!tokens) {
-    console.log(`[poll:${userId}] sin tokens, saltando`);
+    log.child(userId).info(`sin tokens, saltando`);
     return;
   }
 
-  console.log(`[poll:${userId}] iniciando polling...`);
+  log.child(userId).info(`iniciando polling...`);
 
   const timers: UserTimers = {
     currentlyPlaying: null,
@@ -401,12 +414,12 @@ export function startPolling() {
   if (activeUsers.length === 0) {
     // sin usuarios spotify el catálogo aún se enriquece desde fuentes sin token
     // (scrobbles de usuarios solo-last.fm)
-    console.log('[poll] sin usuarios spotify; solo enrichment sin-token');
+    log.info('sin usuarios spotify; solo enrichment sin-token');
     startTokenlessEnrichment();
     return;
   }
 
-  console.log(`[poll] iniciando polling para ${activeUsers.length} usuario(s)...`);
+  log.info(`iniciando polling para ${activeUsers.length} usuario(s)...`);
 
   // polling per-user
   for (const { userId } of activeUsers) {
@@ -427,28 +440,28 @@ export function startPolling() {
   startTokenlessEnrichment();
 
   // imágenes/géneros de artistas y artist_ids de álbumes con IDs reales vía spotify api (requiere token)
-  enrichArtistMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
-  enrichAlbumMetadata(globalUserId).catch(err => console.error('[metadata] error:', err));
+  enrichArtistMetadata(globalUserId).catch(err => logMetadata.error('error:', err));
+  enrichAlbumMetadata(globalUserId).catch(err => logMetadata.error('error:', err));
   // portadas: quitar miniaturas de vídeo y recuperar el arte del hermano de audio
   fixVideoCovers(globalUserId)
     .then(() => recoverSingleCovers(globalUserId))
-    .catch(err => console.error('[metadata] error portadas de vídeo:', err));
+    .catch(err => logMetadata.error('error portadas de vídeo:', err));
 
   metadataRefreshTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
-    enrichArtistMetadata(uid).catch(err => console.error('[metadata] error:', err));
-    enrichAlbumMetadata(uid).catch(err => console.error('[metadata] error:', err));
+    enrichArtistMetadata(uid).catch(err => logMetadata.error('error:', err));
+    enrichAlbumMetadata(uid).catch(err => logMetadata.error('error:', err));
     fixVideoCovers(uid)
       .then(() => recoverSingleCovers(uid))
-      .catch(err => console.error('[metadata] error portadas de vídeo:', err));
+      .catch(err => logMetadata.error('error portadas de vídeo:', err));
   }, METADATA_REFRESH_INTERVAL_MS);
 
   // resolución de entidades import:
   const runResolve = (uid: number) => {
-    resolveImportArtists(uid).catch(err => console.error('[resolve] error artistas:', err));
-    resolveImportAlbums(uid).catch(err => console.error('[resolve] error álbumes:', err));
-    fixTrackAlbumAssignments(uid).catch(err => console.error('[resolve] error álbumes tracks:', err));
+    resolveImportArtists(uid).catch(err => logResolve.error('error artistas:', err));
+    resolveImportAlbums(uid).catch(err => logResolve.error('error álbumes:', err));
+    fixTrackAlbumAssignments(uid).catch(err => logResolve.error('error álbumes tracks:', err));
   };
   runResolve(globalUserId);
   resolveImportsTimer = setInterval(() => {
@@ -459,18 +472,18 @@ export function startPolling() {
 
   fixTrackArtistAssociations(globalUserId)
     .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateLocalAlbums(); })
-    .catch(err => console.error('[resolve] error artistas:', err));
+    .catch(err => logResolve.error('error artistas:', err));
   artistFixTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
     fixTrackArtistAssociations(uid)
       .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateLocalAlbums(); })
-      .catch(err => console.error('[resolve] error artistas:', err));
+      .catch(err => logResolve.error('error artistas:', err));
   }, ARTIST_FIX_INTERVAL_MS);
 
   // records cache — la primera computación se delega al login/navegación del usuario
   recordsCacheTimer = setInterval(
-    () => { try { computeAndCacheRecords(); } catch (err) { console.error('[records-cache] error:', err); } },
+    () => { try { computeAndCacheRecords(); } catch (err) { logRecordsCache.error('error:', err); } },
     RECORDS_CACHE_INTERVAL_MS,
   );
 
@@ -478,17 +491,17 @@ export function startPolling() {
   playlistSyncTimer = setInterval(() => {
     syncAllUsersPlaylists()
       .then(() => { try { computeAndCacheRecords(); } catch {} })
-      .catch(err => console.error('[playlist-sync] error:', err));
+      .catch(err => logPlaylistSync.error('error:', err));
   }, PLAYLIST_SYNC_INTERVAL_MS);
 
   // auto-regeneración de playlists generadas (check horario; la cadencia real por
   // playlist la fija su regenerate_interval_ms). solo por intervalo, sin run inicial.
   autoRegenerateTimer = setInterval(() => {
-    runDueRegenerations().catch(err => console.error('[auto-regen] error:', err));
+    runDueRegenerations().catch(err => logAutoRegen.error('error:', err));
   }, AUTO_REGENERATE_CHECK_INTERVAL_MS);
 
-  console.log(`[poll] currently playing con scheduling dinámico (${CURRENTLY_PLAYING_MIN_MS / 1000}s–${CURRENTLY_PLAYING_MAX_MS / 1000}s)`);
-  console.log(`[poll] recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
+  log.info(`currently playing con scheduling dinámico (${CURRENTLY_PLAYING_MIN_MS / 1000}s–${CURRENTLY_PLAYING_MAX_MS / 1000}s)`);
+  log.info(`recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
 }
 
 export function stopPolling() {
@@ -514,7 +527,7 @@ export function stopPolling() {
   autoRegenerateTimer = null;
   lastfmSyncTimer = null;
   tokenlessEnrichTimer = null;
-  console.log('[poll] polling detenido');
+  log.info('polling detenido');
 }
 
 // re-iniciar polling (útil después de OAuth de nuevo usuario).
@@ -538,3 +551,4 @@ export function restartPolling() {
     startPollingForUser(userId); // no-op para usuarios ya activos
   }
 }
+

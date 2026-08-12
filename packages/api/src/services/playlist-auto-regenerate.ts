@@ -7,7 +7,9 @@ import { getDb } from '../db/connection.js';
 import { getUserById } from './user-manager.js';
 import { regeneratePlaylist } from './playlist-generation.js';
 import { notifyPlaylistRegenerated } from './notification-events.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('auto-regen');
 interface DuePlaylistRow {
   id: number;
   user_id: number;
@@ -37,10 +39,10 @@ export async function runDueRegenerations(): Promise<void> {
     try {
       const result = await regeneratePlaylist(row.user_id, row.id);
       if (!result.ok) {
-        console.warn(`[auto-regen] playlist ${row.id} no regenerada: ${result.error}`);
+        log.warn(`playlist ${row.id} no regenerada: ${result.error}`);
         continue;
       }
-      console.log(`[auto-regen] regenerada playlist ${row.id} (${result.playlist.trackCount} tracks)`);
+      log.info(`regenerada playlist ${row.id} (${result.playlist.trackCount} tracks)`);
 
       // notificación push (gated por prefs + canal entregable dentro de la función)
       const spotifyId = getUserById(row.user_id)?.spotifyId;
@@ -48,7 +50,7 @@ export async function runDueRegenerations(): Promise<void> {
         notifyPlaylistRegenerated(row.user_id, spotifyId, result.playlist.name, result.playlist.trackCount);
       }
     } catch (err) {
-      console.error(`[auto-regen] error regenerando playlist ${row.id}:`, err);
+      log.error(`error regenerando playlist ${row.id}:`, err);
     }
   }
 }

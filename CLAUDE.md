@@ -44,6 +44,7 @@ Required in `.env` at repo root:
 - `SPOTIFY_REDIRECT_URI` — default: `http://localhost:3000/auth/callback`
 - `DATABASE_PATH` — default: `./data/sis.db` (relative to repo root)
 - `PORT` — default: `3000`
+- `LOG_LEVEL` — `debug|info|warn|error|silent`, default `info`. Read once at startup; an invalid value falls back to `info` rather than muting the process.
 
 Push notifications (optional — credential-gated; if unset the pipeline detects events but the sender no-ops + logs, never throws — see `docs/PUSH_NOTIFICATIONS_SETUP.md`):
 - `FIREBASE_SERVICE_ACCOUNT` — path to the Firebase service-account JSON (enables Android/FCM)
@@ -60,6 +61,7 @@ Last.fm integration (optional — credential-gated, no-ops if unset; enables Las
 - `services/ingestion.ts` — `upsertTrack()` upserts album/artists/track from Spotify data; `enrichArtistMetadata()` batch-fetches full artist details (images, genres) via `/v1/artists?ids=`
 - `services/spotify-client.ts` — `spotifyFetch<T>()` handles auth headers, 401 token refresh, and 429 rate-limit retry
 - `services/token-manager.ts` — stores tokens in DB, auto-refreshes before expiry
+- `services/logger.ts` — `createLogger(scope)` for all API logging; no raw `console.*` in `packages/api` (the linter would let one through, so keep it by convention). Output is `[scope] message`, and `log.child(userId)` gives `[scope:12]` for per-user cycles. Chatty per-cycle lines belong at `debug`.
 
 ### Stats endpoints (`routes/stats.ts`)
 All top-* endpoints accept `?range=` (from `TIME_RANGES` in constants.ts), `?limit=`, and `?sort=time|plays`. The `sort` param controls SQL ORDER BY (sum of duration vs count). All return both `playCount` and `totalMs`.

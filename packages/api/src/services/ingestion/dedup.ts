@@ -1,7 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, mergeTrackArtists } from './upsert.js';
+import { createLogger } from '../logger.js';
 
+const logDedup = createLogger('dedup');
+const logCleanup = createLogger('cleanup');
 // deduplicar tracks: unificar versiones del mismo tema (single, álbum, remaster)
 // en un solo track canónico, re-apuntando listening_history y track_artists
 export function deduplicateTracks() {
@@ -19,7 +22,7 @@ export function deduplicateTracks() {
   `) as { track_name: string; artist_id: string | null; ids: string }[];
 
   if (groups.length === 0) return;
-  console.log(`[dedup] ${groups.length} grupos de tracks duplicados`);
+  logDedup.info(`${groups.length} grupos de tracks duplicados`);
 
   let merged = 0;
 
@@ -68,11 +71,11 @@ export function deduplicateTracks() {
       }
       merged++;
     } catch (err) {
-      console.error(`[dedup] error deduplicando "${group.track_name}":`, err);
+      logDedup.error(`error deduplicando "${group.track_name}":`, err);
     }
   }
 
-  if (merged > 0) console.log(`[dedup] ${merged} grupos de tracks unificados`);
+  if (merged > 0) logDedup.info(`${merged} grupos de tracks unificados`);
 }
 
 // deduplicar albums: unificar albums con el mismo nombre y artista
@@ -94,7 +97,7 @@ export function deduplicateAlbums() {
   `) as { album_name: string; artist_id: string | null; ids: string }[];
 
   if (groups.length === 0) return;
-  console.log(`[dedup] ${groups.length} grupos de álbumes duplicados`);
+  logDedup.info(`${groups.length} grupos de álbumes duplicados`);
 
   let merged = 0;
 
@@ -133,11 +136,11 @@ export function deduplicateAlbums() {
       }
       merged++;
     } catch (err) {
-      console.error(`[dedup] error deduplicando álbum "${group.album_name}":`, err);
+      logDedup.error(`error deduplicando álbum "${group.album_name}":`, err);
     }
   }
 
-  if (merged > 0) console.log(`[dedup] ${merged} grupos de álbumes unificados`);
+  if (merged > 0) logDedup.info(`${merged} grupos de álbumes unificados`);
 }
 
 // deduplicar "shells" de lanzamientos: spotify sirve el mismo lanzamiento como varias
@@ -167,7 +170,7 @@ export function deduplicateAlbumShells() {
   `) as { lname: string; release_date: string; album_type: string | null; artist_ids: string; ids: string }[];
 
   if (groups.length === 0) return;
-  console.log(`[dedup] ${groups.length} grupos de lanzamientos duplicados`);
+  logDedup.info(`${groups.length} grupos de lanzamientos duplicados`);
 
   let merged = 0;
 
@@ -211,11 +214,11 @@ export function deduplicateAlbumShells() {
       }
       merged++;
     } catch (err) {
-      console.error(`[dedup] error deduplicando lanzamiento "${group.lname}":`, err);
+      logDedup.error(`error deduplicando lanzamiento "${group.lname}":`, err);
     }
   }
 
-  if (merged > 0) console.log(`[dedup] ${merged} grupos de lanzamientos unificados`);
+  if (merged > 0) logDedup.info(`${merged} grupos de lanzamientos unificados`);
 }
 
 // deduplicar albums y tracks locales entre sí (no mezclar con Spotify)
@@ -237,7 +240,7 @@ export function deduplicateLocalAlbums() {
   `) as { album_name: string; artist_id: string | null; ids: string }[];
 
   if (groups.length === 0) return;
-  console.log(`[dedup] ${groups.length} grupos de álbumes locales duplicados`);
+  logDedup.info(`${groups.length} grupos de álbumes locales duplicados`);
 
   let merged = 0;
   for (const group of groups) {
@@ -288,11 +291,11 @@ export function deduplicateLocalAlbums() {
       }
       merged++;
     } catch (err) {
-      console.error(`[dedup] error deduplicando álbum local "${group.album_name}":`, err);
+      logDedup.error(`error deduplicando álbum local "${group.album_name}":`, err);
     }
   }
 
-  if (merged > 0) console.log(`[dedup] ${merged} grupos de álbumes locales unificados`);
+  if (merged > 0) logDedup.info(`${merged} grupos de álbumes locales unificados`);
 }
 
 export function cleanDuplicatePlays() {
@@ -317,7 +320,7 @@ export function cleanDuplicatePlays() {
     const batch = ids.slice(i, i + 500);
     db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
-  console.log(`[cleanup] eliminados ${ids.length} plays duplicados (±${DEDUP_WINDOW_S}s)`);
+  logCleanup.info(`eliminados ${ids.length} plays duplicados (±${DEDUP_WINDOW_S}s)`);
 }
 
 // eliminar duplicados Basic/Extended: el mismo play aparece como entrada Basic (sin
@@ -347,5 +350,5 @@ export function cleanBasicExtendedDuplicates() {
     const batch = ids.slice(i, i + 500);
     db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
-  console.log(`[cleanup] eliminados ${ids.length} duplicados Basic/Extended`);
+  logCleanup.info(`eliminados ${ids.length} duplicados Basic/Extended`);
 }

@@ -3,7 +3,9 @@
 import { parentPort } from 'worker_threads';
 import { getDb } from './connection.js';
 import * as queries from './queries/index.js';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('worker');
 const db = getDb();
 
 // auto-register: todas las funciones exportadas que toman db como primer arg
@@ -25,4 +27,4 @@ parentPort!.on('message', (msg: { id: number; fn: string; args: any[] }) => {
   }
 });
 
-console.log(`[worker] read worker listo (${Object.keys(fns).length} funciones)`);
+log.info(`read worker listo (${Object.keys(fns).length} funciones)`);

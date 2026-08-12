@@ -12,7 +12,9 @@ import { findLastfmAccountByUsername, upsertLastfmAccount } from '../services/la
 import type { SpotifyTokenResponse } from '../types/spotify.js';
 import crypto from 'crypto';
 import { MOBILE_SCHEME } from '../constants.js';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('auth');
 const auth = new Hono();
 
 // almacenar state para prevenir CSRF
@@ -79,14 +81,14 @@ function finishLogin(c: Context, userId: number): Response {
   if (getCookie(c, 'sis_mobile') === '1') {
     deleteCookie(c, 'sis_mobile', { path: '/' });
     const code = mobileAuthCodes.issue(sessionToken);
-    console.log('[auth] login completado, entregando código a la app');
+    log.info('login completado, entregando código a la app');
     return c.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
   }
 
   // solo permitir rutas relativas para evitar open redirect
   const safePath = returnTo.startsWith('/') ? returnTo : '/';
 
-  console.log('[auth] login completado exitosamente');
+  log.info('login completado exitosamente');
   return c.redirect(safePath);
 }
 
@@ -149,7 +151,7 @@ auth.get('/callback', async (c) => {
 
   if (!res.ok) {
     const text = await res.text();
-    console.error(`[auth] error al intercambiar code: ${res.status} ${text}`);
+    log.error(`error al intercambiar code: ${res.status} ${text}`);
     return c.json({ error: 'error al obtener tokens de spotify' }, 500);
   }
 
@@ -162,19 +164,19 @@ auth.get('/callback', async (c) => {
   if (meRes.status === 429) {
     const retryAfter = parseInt(meRes.headers.get('Retry-After') || '60', 10);
     markRateLimited(retryAfter);
-    console.error(`[auth] spotify rate limited ${retryAfter}s`);
+    log.error(`spotify rate limited ${retryAfter}s`);
     return c.redirect(`/login?error=rate_limited&retryAfter=${retryAfter}`);
   }
   if (!meRes.ok) {
     const meText = await meRes.text();
-    console.error(`[auth] error al obtener perfil de spotify: ${meRes.status} ${meText}`);
+    log.error(`error al obtener perfil de spotify: ${meRes.status} ${meText}`);
     return c.json({ error: 'error al verificar identidad' }, 500);
   }
   const me: { id: string; display_name: string; images?: { url: string }[] } = await meRes.json();
 
   // verificar si el usuario está permitido
   if (!isAllowedUser(me.id)) {
-    console.warn(`[auth] usuario ${me.id} no está autorizado`);
+    log.warn(`usuario ${me.id} no está autorizado`);
     return c.json({ error: 'usuario no autorizado' }, 403);
   }
 
@@ -182,7 +184,7 @@ auth.get('/callback', async (c) => {
   const user = findOrCreateUser(me.id, me.display_name, me.images?.[0]?.url ?? null);
 
   if (!user.isActive) {
-    console.warn(`[auth] usuario ${me.id} está desactivado`);
+    log.warn(`usuario ${me.id} está desactivado`);
     return c.json({ error: 'usuario desactivado' }, 403);
   }
 
@@ -198,7 +200,7 @@ auth.get('/callback', async (c) => {
   migrateExistingData(user.id);
 
   // crear sesión (spotifyId/isAdmin se resuelven desde users al validar)
-  console.log(`[auth] sesión creada para usuario ${me.id} (id: ${user.id})`);
+  log.info(`sesión creada para usuario ${me.id} (id: ${user.id})`);
   return finishLogin(c, user.id);
 });
 
@@ -246,7 +248,7 @@ auth.get('/lastfm/callback', async (c) => {
   try {
     lfm = await getAuthSession(token);
   } catch (err) {
-    console.error('[auth] error en auth.getSession de last.fm:', err);
+    log.error('error en auth.getSession de last.fm:', err);
     return c.json({ error: 'error al verificar identidad con last.fm' }, 500);
   }
 
@@ -258,7 +260,7 @@ auth.get('/lastfm/callback', async (c) => {
     deleteCookie(c, 'sis_mobile', { path: '/' });
     const owner = findLastfmAccountByUsername(lfm.name);
     if (owner && owner.userId !== current.userId) {
-      console.warn(`[auth] last.fm ${lfm.name} ya vinculado al usuario ${owner.userId}`);
+      log.warn(`last.fm ${lfm.name} ya vinculado al usuario ${owner.userId}`);
       return c.redirect('/settings?lastfm=already_linked');
     }
     upsertLastfmAccount(current.userId, lfm.name, lfm.key);
@@ -275,11 +277,11 @@ auth.get('/lastfm/callback', async (c) => {
   }
 
   if (!user) {
-    console.warn(`[auth] usuario last.fm ${lfm.name} no está autorizado`);
+    log.warn(`usuario last.fm ${lfm.name} no está autorizado`);
     return c.json({ error: 'usuario no autorizado' }, 403);
   }
   if (!user.isActive) {
-    console.warn(`[auth] usuario last.fm ${lfm.name} está desactivado`);
+    log.warn(`usuario last.fm ${lfm.name} está desactivado`);
     return c.json({ error: 'usuario desactivado' }, 403);
   }
 
@@ -287,7 +289,7 @@ auth.get('/lastfm/callback', async (c) => {
   if (!user.displayName) updateUser(user.id, { displayName: lfm.name });
   upsertLastfmAccount(user.id, lfm.name, lfm.key);
 
-  console.log(`[auth] sesión creada para usuario last.fm ${lfm.name} (id: ${user.id})`);
+  log.info(`sesión creada para usuario last.fm ${lfm.name} (id: ${user.id})`);
   return finishLogin(c, user.id);
 });
 

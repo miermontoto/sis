@@ -16,6 +16,9 @@ import {
 } from '../../services/playlist-generation.js';
 import type { RegenerateInterval } from '@sis/shared';
 import type { AppVariables } from '../../app.js';
+import { createLogger } from '../../services/logger.js';
+
+const log = createLogger('playlists');
 
 const generated = new Hono<{ Variables: AppVariables }>();
 
@@ -81,7 +84,7 @@ generated.post('/generate', async (c) => {
     return c.json({ error: 'error al crear playlist en Spotify' }, 502);
   }
 
-  console.log(`[playlists] creada playlist ${created.id} con ${trackIds.length} tracks`);
+  log.info(`creada playlist ${created.id} con ${trackIds.length} tracks`);
 
   // agregar tracks (máx 100 por request)
   const uris = trackIds.map(id => `spotify:track:${id}`);
@@ -94,7 +97,7 @@ generated.post('/generate', async (c) => {
       body: { uris: batch },
     });
     snapshotId = addResult?.snapshot_id ?? snapshotId;
-    console.log(`[playlists] añadidos ${batch.length} tracks, snapshot: ${addResult?.snapshot_id ?? 'ERROR'}`);
+    log.info(`añadidos ${batch.length} tracks, snapshot: ${addResult?.snapshot_id ?? 'ERROR'}`);
   }
 
   // guardar en DB

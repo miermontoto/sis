@@ -6,7 +6,9 @@ import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
+import { createLogger } from '../logger.js';
 
+const log = createLogger('metadata');
 const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -102,7 +104,7 @@ export async function enrichArtistMetadata(userId: number) {
   ) as { spotify_id: string }[];
 
   if (missing.length === 0) return;
-  console.log(`[metadata] ${missing.length} artistas sin imagen, enriqueciendo...`);
+  log.info(`${missing.length} artistas sin imagen, enriqueciendo...`);
 
   const BATCH_SIZE = 50;
   let updated = 0;
@@ -129,7 +131,7 @@ export async function enrichArtistMetadata(userId: number) {
     }
   }
 
-  console.log(`[metadata] ${updated} artistas actualizados con imagen`);
+  log.info(`${updated} artistas actualizados con imagen`);
 }
 
 // enriquecer álbumes sin artist_ids consultando /albums en lotes de 20 (límite del
@@ -144,7 +146,7 @@ export async function enrichAlbumMetadata(userId: number) {
   ) as { spotify_id: string }[];
 
   if (missing.length === 0) return;
-  console.log(`[metadata] ${missing.length} álbumes sin artist_ids, enriqueciendo...`);
+  log.info(`${missing.length} álbumes sin artist_ids, enriqueciendo...`);
 
   const BATCH_SIZE = 20;
   let updated = 0;
@@ -180,7 +182,7 @@ export async function enrichAlbumMetadata(userId: number) {
     }
   }
 
-  console.log(`[metadata] ${updated} álbumes con artist_ids completados`);
+  log.info(`${updated} álbumes con artist_ids completados`);
 }
 
 // reemplazar portadas de vídeo por el arte cuadrado del álbum. las variantes "vídeo"
@@ -202,7 +204,7 @@ export async function fixVideoCovers(userId: number) {
   `) as { spotify_id: string }[];
 
   if (affected.length === 0) return;
-  console.log(`[metadata] ${affected.length} álbumes con portada de vídeo, corrigiendo...`);
+  log.info(`${affected.length} álbumes con portada de vídeo, corrigiendo...`);
 
   const BATCH_SIZE = 20;
   let fixed = 0;
@@ -226,7 +228,7 @@ export async function fixVideoCovers(userId: number) {
     }
   }
 
-  console.log(`[metadata] ${fixed} portadas de vídeo reemplazadas por arte del álbum`);
+  log.info(`${fixed} portadas de vídeo reemplazadas por arte del álbum`);
 }
 
 // paginación de /artists/{id}/albums
@@ -270,7 +272,7 @@ export async function recoverSingleCovers(userId: number) {
     if (list) list.push(m); else byArtist.set(artistId, [m]);
   }
 
-  console.log(`[metadata] recuperando portadas de ${missing.length} singles sin arte (${byArtist.size} artistas)...`);
+  log.info(`recuperando portadas de ${missing.length} singles sin arte (${byArtist.size} artistas)...`);
   let recovered = 0;
 
   for (const [artistId, items] of byArtist) {
@@ -312,7 +314,7 @@ export async function recoverSingleCovers(userId: number) {
     }
   }
 
-  console.log(`[metadata] ${recovered}/${missing.length} portadas de single recuperadas de la discografía del artista`);
+  log.info(`${recovered}/${missing.length} portadas de single recuperadas de la discografía del artista`);
 }
 
 // --- MusicBrainz + Cover Art Archive (portadas de álbumes locales / importados) ---
@@ -361,7 +363,7 @@ export async function enrichLocalAlbumCovers() {
   ) as { spotify_id: string; name: string }[];
 
   if (missing.length === 0) return;
-  console.log(`[metadata] ${missing.length} álbumes locales sin portada, buscando en MusicBrainz...`);
+  log.info(`${missing.length} álbumes locales sin portada, buscando en MusicBrainz...`);
 
   let updated = 0;
 
@@ -387,16 +389,16 @@ export async function enrichLocalAlbumCovers() {
       if (coverUrl) {
         db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${album.spotify_id}, ${coverUrl}, 'musicbrainz')`);
         updated++;
-        console.log(`[metadata] portada encontrada: ${artist.name} - ${album.name}`);
+        log.info(`portada encontrada: ${artist.name} - ${album.name}`);
       }
     } catch (err) {
-      console.error(`[metadata] error buscando portada de "${album.name}":`, err);
+      log.error(`error buscando portada de "${album.name}":`, err);
     }
 
     await sleep(MB_DELAY_MS);
   }
 
-  console.log(`[metadata] ${updated} álbumes locales actualizados con portada`);
+  log.info(`${updated} álbumes locales actualizados con portada`);
 }
 
 export async function enrichImportTrackDurations() {
@@ -410,7 +412,7 @@ export async function enrichImportTrackDurations() {
   `) as { spotify_id: string; name: string; artist_name: string }[];
 
   if (missing.length === 0) return;
-  console.log(`[metadata] ${missing.length} tracks importados sin duración, buscando en MusicBrainz...`);
+  log.info(`${missing.length} tracks importados sin duración, buscando en MusicBrainz...`);
 
   let updated = 0;
   for (const track of missing) {
@@ -428,17 +430,17 @@ export async function enrichImportTrackDurations() {
         if (recording && recording.score >= 80 && recording.length) {
           db.run(sql`UPDATE tracks SET duration_ms = ${recording.length}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
           updated++;
-          console.log(`[metadata] duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(recording.length / 1000)}s)`);
+          log.info(`duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(recording.length / 1000)}s)`);
         } else {
           db.run(sql`UPDATE tracks SET duration_ms = -1, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
         }
       }
     } catch (err) {
-      console.error(`[metadata] error buscando duración de "${track.name}":`, err);
+      log.error(`error buscando duración de "${track.name}":`, err);
     }
 
     await sleep(MB_DELAY_MS);
   }
 
-  console.log(`[metadata] ${updated} tracks importados actualizados con duración`);
+  log.info(`${updated} tracks importados actualizados con duración`);
 }

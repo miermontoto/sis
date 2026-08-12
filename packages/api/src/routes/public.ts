@@ -7,7 +7,9 @@ import { buildProfile, parseTimeRange } from '../services/social.js';
 import { generateOgImage } from '../services/og-image.js';
 import type { TimeRange } from '../constants.js';
 import type { User } from '../services/user-manager.js';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('og');
 const publicRoutes = new Hono();
 
 // resultado de resolver un token: distingue inexistente (404) de revocado (410)
@@ -66,7 +68,7 @@ publicRoutes.get('/share/:token/og.png', async (c) => {
       'Cache-Control': 'public, max-age=600',
     });
   } catch (err) {
-    console.error('[og] error generando imagen:', err);
+    log.error('error generando imagen:', err);
     return c.notFound();
   }
 });

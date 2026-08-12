@@ -10,6 +10,9 @@ import { hasDeliverableChannel } from './push-dispatch.js';
 import { RECORDS_LIMIT } from '../constants.js';
 
 import type { RankingMetric, WeekStartOption, EntityType } from '@sis/shared';
+import { createLogger } from './logger.js';
+
+const log = createLogger('records-cache');
 type WeekStart = WeekStartOption;
 type Sort = RankingMetric;
 type EntityTypeFilter = EntityType;
@@ -67,7 +70,7 @@ function runRecordNotifications(userId: number, spotifyId: string, result: Recor
   const base = notifyBaseline.get(userId);
   if (base) {
     try { emitRecordEvents(userId, spotifyId, base, result); }
-    catch (err) { console.error('[records-cache] error en emitRecordEvents:', err); }
+    catch (err) { log.error('error en emitRecordEvents:', err); }
   }
   notifyBaseline.set(userId, result);
 }
@@ -89,15 +92,15 @@ export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: num
   const k = cacheKey(userId, weekStart, sort, unique);
 
   if (cache.has(k) && !hasNewData(db, userId)) {
-    console.log(`[records-cache] skip user ${userId} — no new data`);
+    log.info(`skip user ${userId} — no new data`);
     return;
   }
 
-  console.log(`[records-cache] computing records for user ${userId} (${k})...`);
+  log.info(`computing records for user ${userId} (${k})...`);
   const start = performance.now();
   const result = getRecords(db, weekStart, sort, 50, undefined, userId, unique) as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
-  console.log(`[records-cache] done in ${ms}ms`);
+  log.info(`done in ${ms}ms`);
 
   updateDataTimestamp(db, userId);
 
@@ -119,11 +122,11 @@ export async function computeAndCacheForUserAsync(userId: number, spotifyId: str
   const k = cacheKey(userId, weekStart, sort, unique);
 
   if (cache.has(k) && !hasNewData(db, userId)) {
-    console.log(`[records-cache] skip user ${userId} — no new data`);
+    log.info(`skip user ${userId} — no new data`);
     return;
   }
 
-  console.log(`[records-cache] computing records for user ${userId} (${k}) [worker]...`);
+  log.info(`computing records for user ${userId} (${k}) [worker]...`);
   const start = performance.now();
   const [trackResult, albumResult, artistResult] = await Promise.all([
     dbRead('getRecords', weekStart, sort, 50, 'track', userId, unique),
@@ -132,7 +135,7 @@ export async function computeAndCacheForUserAsync(userId: number, spotifyId: str
   ]);
   const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
   const ms = (performance.now() - start).toFixed(0);
-  console.log(`[records-cache] done in ${ms}ms`);
+  log.info(`done in ${ms}ms`);
 
   updateDataTimestamp(db, userId);
 

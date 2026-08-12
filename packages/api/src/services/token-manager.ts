@@ -3,7 +3,9 @@ import { getDb } from '../db/connection.js';
 import { authTokens } from '../db/schema.js';
 import { SPOTIFY_TOKEN_URL, TOKEN_REFRESH_BUFFER_MS } from '../constants.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('token');
 export interface TokenData {
   accessToken: string;
   refreshToken: string;
@@ -49,7 +51,7 @@ export function storeTokens(userId: number, data: { accessToken: string; refresh
     })
     .run();
 
-  console.log(`[token] almacenado para usuario ${userId}, expira en ${data.expiresIn}s`);
+  log.info(`almacenado para usuario ${userId}, expira en ${data.expiresIn}s`);
 }
 
 export function isTokenExpiringSoon(userId: number): boolean {

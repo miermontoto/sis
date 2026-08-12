@@ -1,6 +1,8 @@
 import { SPOTIFY_API_BASE } from '../constants.js';
 import { getValidAccessToken, refreshAccessToken } from './token-manager.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('spotify');
 interface SpotifyRequestOptions {
   userId: number;
   params?: Record<string, string>;
@@ -32,7 +34,7 @@ function logRateLimitSkipOccasionally(endpoint: string) {
   if (now - lastRateLimitLogMs < 60_000) return;
   lastRateLimitLogMs = now;
   const remainingS = Math.ceil(rateLimitedRemainingMs() / 1000);
-  console.log(`[spotify] rate limited ${remainingS}s, saltando (ej. ${endpoint})`);
+  log.info(`rate limited ${remainingS}s, saltando (ej. ${endpoint})`);
 }
 
 // versión raw que devuelve el Response para inspección de status/body
@@ -110,7 +112,7 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
 
   // si 401, refrescar token y reintentar una vez
   if (res.status === 401) {
-    console.log(`[spotify] token expirado para usuario ${userId}, refrescando...`);
+    log.info(`token expirado para usuario ${userId}, refrescando...`);
     accessToken = await refreshAccessToken(userId);
     res = await fetch(url.toString(), buildInit(accessToken));
   }
@@ -120,10 +122,10 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
     const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
     if (retryAfter > 30) {
       markRateLimited(retryAfter);
-      console.log(`[spotify] rate limited ${retryAfter}s, marcando lockout global`);
+      log.info(`rate limited ${retryAfter}s, marcando lockout global`);
       return null;
     }
-    console.log(`[spotify] rate limited, esperando ${retryAfter}s`);
+    log.info(`rate limited, esperando ${retryAfter}s`);
     await new Promise(r => setTimeout(r, retryAfter * 1000));
     return spotifyFetch(endpoint, options);
   }
@@ -132,7 +134,7 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
   if (res.status === 204) return null;
 
   if (!res.ok) {
-    console.error(`[spotify] error ${res.status}: ${await res.text()}`);
+    log.error(`error ${res.status}: ${await res.text()}`);
     return null;
   }
 
@@ -142,7 +144,7 @@ export async function spotifyFetch<T>(endpoint: string, options: SpotifyRequestO
   try {
     return JSON.parse(text);
   } catch {
-    console.error(`[spotify] respuesta no-JSON de ${endpoint}: ${text.slice(0, 80)}`);
+    log.error(`respuesta no-JSON de ${endpoint}: ${text.slice(0, 80)}`);
     return null;
   }
 }

@@ -2,7 +2,9 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { syntheticId } from './ids.js';
 import { MIN_PLAY_MS } from '../constants.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('import');
 // cache de resolución nombre → ID existente en DB
 const artistIdCache = new Map<string, string>();
 const albumIdCache = new Map<string, string>();
@@ -294,7 +296,7 @@ function buildPlayIndex(userId: number): Map<string, number[]> {
     else index.set(row.name, [ts]);
   }
   for (const arr of index.values()) arr.sort((a, b) => a - b);
-  console.log(`[import] índice de dedup: ${rows.length} plays, ${index.size} tracks`);
+  log.info(`índice de dedup: ${rows.length} plays, ${index.size} tracks`);
   return index;
 }
 
@@ -433,10 +435,10 @@ export function importHistory(data: unknown, userId: number): ImportResult {
     });
 
     if ((i + BATCH_SIZE) % 10000 < BATCH_SIZE) {
-      console.log(`[import] progreso: ${Math.min(i + BATCH_SIZE, entries.length)}/${entries.length}`);
+      log.info(`progreso: ${Math.min(i + BATCH_SIZE, entries.length)}/${entries.length}`);
     }
   }
 
-  console.log(`[import] total: ${result.total}, importados: ${result.imported}, duplicados: ${result.duplicates}, omitidos: ${result.skipped}`);
+  log.info(`total: ${result.total}, importados: ${result.imported}, duplicados: ${result.duplicates}, omitidos: ${result.skipped}`);
   return result;
 }

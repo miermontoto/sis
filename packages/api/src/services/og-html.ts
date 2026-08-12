@@ -4,7 +4,9 @@ import type { Context } from 'hono';
 import { dbRead } from '../db/read-pool.js';
 import { findUserBySpotifyId, type User } from './user-manager.js';
 import { isUserHidden, publicBase } from './social.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('og');
 // HTML shell del SPA con <meta> OG inyectados para crawlers.
 // Los navegadores reciben el mismo HTML y arrancan el SPA con normalidad.
 
@@ -101,7 +103,7 @@ export async function renderOgHtml(c: Context, target: OgTarget): Promise<Respon
       }
     }
   } catch (err) {
-    console.error('[og] error construyendo meta tags:', err);
+    log.error('error construyendo meta tags:', err);
   }
 
   // sin datos (token inválido, usuario oculto, error): servir el shell tal cual

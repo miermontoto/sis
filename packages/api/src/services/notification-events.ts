@@ -34,6 +34,9 @@ import type {
   WeekStartOption,
   RankingMetric,
 } from '@sis/shared';
+import { createLogger } from './logger.js';
+
+const log = createLogger('notify');
 
 // --- constantes locales (sin magic strings) ---
 
@@ -142,7 +145,7 @@ function dispatchEvent(
 
   // 4. envío desacoplado del hilo del polling / recomputo de cache
   queueMicrotask(() => {
-    void sendPush(userId, payload).catch(err => console.error('[notify] error en sendPush:', err));
+    void sendPush(userId, payload).catch(err => log.error('error en sendPush:', err));
   });
 }
 
@@ -360,6 +363,6 @@ export function notifyPlaylistRegenerated(userId: number, spotifyId: string, nam
   };
 
   queueMicrotask(() => {
-    void sendPush(userId, payload).catch(err => console.error('[notify] error en sendPush:', err));
+    void sendPush(userId, payload).catch(err => log.error('error en sendPush:', err));
   });
 }

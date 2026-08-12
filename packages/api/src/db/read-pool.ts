@@ -6,7 +6,10 @@ import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import type { Db } from './queries/helpers.js';
+import { createLogger } from '../services/logger.js';
 
+const logWorker = createLogger('worker');
+const logPool = createLogger('pool');
 const POOL_SIZE = 4;
 
 // El contrato de dbRead se deriva del propio módulo de queries en vez de repetirse a
@@ -55,9 +58,9 @@ function setupWorker(w: PoolWorker) {
     else p.resolve(msg.result);
   });
 
-  w.worker.on('error', (err) => console.error('[worker] error:', err));
+  w.worker.on('error', (err) => logWorker.error('error:', err));
   w.worker.on('exit', (code) => {
-    if (code !== 0) console.error(`[worker] terminó con código ${code}`);
+    if (code !== 0) logWorker.error(`terminó con código ${code}`);
     pool = pool.filter(pw => pw !== w);
   });
 }
@@ -85,7 +88,7 @@ export async function initReadWorker() {
         directFns[name] = (args: any[]) => (fn as any)(db, ...args);
       }
     }
-    console.log(`[pool] modo directo (dev, ${Object.keys(directFns).length} funciones)`);
+    logPool.info(`modo directo (dev, ${Object.keys(directFns).length} funciones)`);
     return;
   }
 
@@ -96,7 +99,7 @@ export async function initReadWorker() {
     setupWorker(pw);
     pool.push(pw);
   }
-  console.log(`[pool] ${POOL_SIZE} read workers iniciados`);
+  logPool.info(`${POOL_SIZE} read workers iniciados`);
 }
 
 /**

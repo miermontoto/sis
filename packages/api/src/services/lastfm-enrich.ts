@@ -6,7 +6,9 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { getTrackInfo, getArtistTopTags } from './lastfm-client.js';
 import { LASTFM_ENRICH_MAX_TAGS } from '../constants.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('lastfm-meta');
 const now = () => new Date().toISOString();
 
 // duraciones: solo tracks import:/local: aún sin intentar (duration_ms = 0). los
@@ -24,7 +26,7 @@ export async function enrichLastfmDurations(): Promise<number> {
   `) as { spotify_id: string; name: string; artist_name: string }[];
 
   if (missing.length === 0) return 0;
-  console.log(`[lastfm-meta] ${missing.length} tracks sin duración, consultando last.fm...`);
+  log.info(`${missing.length} tracks sin duración, consultando last.fm...`);
 
   let updated = 0;
   for (const track of missing) {
@@ -35,7 +37,7 @@ export async function enrichLastfmDurations(): Promise<number> {
     }
   }
 
-  console.log(`[lastfm-meta] ${updated} duraciones desde last.fm (resto → musicbrainz)`);
+  log.info(`${updated} duraciones desde last.fm (resto → musicbrainz)`);
   return updated;
 }
 
@@ -55,7 +57,7 @@ export async function enrichLastfmGenres(): Promise<number> {
   `) as { spotify_id: string; name: string }[];
 
   if (missing.length === 0) return 0;
-  console.log(`[lastfm-meta] ${missing.length} artistas sin géneros, consultando last.fm...`);
+  log.info(`${missing.length} artistas sin géneros, consultando last.fm...`);
 
   let updated = 0;
   for (const artist of missing) {
@@ -66,6 +68,6 @@ export async function enrichLastfmGenres(): Promise<number> {
     updated++;
   }
 
-  console.log(`[lastfm-meta] ${updated} artistas con géneros desde last.fm`);
+  log.info(`${updated} artistas con géneros desde last.fm`);
   return updated;
 }

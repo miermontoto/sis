@@ -15,6 +15,9 @@ import {
   computeMostUniquePerMonth, computeMostDistinctTracks, computeOneHitWonders,
   computeYearEndFinishes, computeMostAccolades,
 } from './records-extended.js';
+import { createLogger } from '../../services/logger.js';
+
+const log = createLogger('records-timing');
 
 // records semanales solo permiten 'time' o 'plays' — no usan 'natural' (irrelevante para charts).
 type Sort = RankingMetric;
@@ -29,7 +32,7 @@ function timed<T>(label: string, fn: () => T): T {
     return fn();
   } finally {
     const ms = (performance.now() - start).toFixed(0);
-    console.log(`[records-timing] ${label}: ${ms}ms`);
+    log.info(`${label}: ${ms}ms`);
   }
 }
 

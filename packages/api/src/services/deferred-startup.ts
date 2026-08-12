@@ -4,7 +4,10 @@
 import { syncUserPlaylists } from './playlist-sync.js';
 import { computeAndCacheForUserAsync } from './records-cache.js';
 import { getUserById } from './user-manager.js';
+import { createLogger } from './logger.js';
 
+const logPlaylistSync = createLogger('playlist-sync');
+const logRecordsCache = createLogger('records-cache');
 const deferredUsers = new Set<number>();
 
 /** Lanzar tareas diferidas para un usuario (playlist sync + records cache).
@@ -14,13 +17,13 @@ export function triggerDeferredStartup(userId: number) {
   deferredUsers.add(userId);
 
   syncUserPlaylists(userId).catch(err =>
-    console.error(`[playlist-sync] error lazy sync usuario ${userId}:`, err));
+    logPlaylistSync.error(`error lazy sync usuario ${userId}:`, err));
 
   // records cache: ejecuta getRecords en worker thread via dbRead
   const user = getUserById(userId);
   if (user) {
     computeAndCacheForUserAsync(userId, user.spotifyId).catch(err =>
-      console.error(`[records-cache] error lazy compute usuario ${userId}:`, err));
+      logRecordsCache.error(`error lazy compute usuario ${userId}:`, err));
   }
 }
 

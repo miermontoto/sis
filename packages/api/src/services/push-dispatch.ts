@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type { PushPayload } from '@sis/shared';
 import { listActiveTokens, invalidateToken } from './device-token-manager.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('push-dispatch');
 
 // ─── despacho de push (FCM android/ios + web push VAPID) ───────────────────
 //
@@ -10,7 +13,6 @@ import { listActiveTokens, invalidateToken } from './device-token-manager.js';
 // envío para que no penalicen el arranque cuando no hay credenciales.
 
 // prefijo de logs del módulo
-const LOG = '[push-dispatch]';
 
 // nombres de env vars (sin magic strings)
 const ENV_FIREBASE_SERVICE_ACCOUNT = 'FIREBASE_SERVICE_ACCOUNT';
@@ -53,12 +55,12 @@ let webInit: Promise<WebPushSender | null> | null = null;
 async function initFcm(): Promise<FcmMessaging | null> {
   const saPath = process.env[ENV_FIREBASE_SERVICE_ACCOUNT];
   if (!saPath) {
-    console.warn(`${LOG} FCM deshabilitado: falta ${ENV_FIREBASE_SERVICE_ACCOUNT}`);
+    log.warn(`FCM deshabilitado: falta ${ENV_FIREBASE_SERVICE_ACCOUNT}`);
     return null;
   }
   try {
     if (!existsSync(saPath)) {
-      console.warn(`${LOG} FCM deshabilitado: no existe el service-account en ${saPath}`);
+      log.warn(`FCM deshabilitado: no existe el service-account en ${saPath}`);
       return null;
     }
     // export = admin → el default lleva el namespace completo
@@ -68,10 +70,10 @@ async function initFcm(): Promise<FcmMessaging | null> {
     const app = admin.apps.length > 0
       ? admin.apps[0]!
       : admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    console.log(`${LOG} FCM inicializado`);
+    log.info(`FCM inicializado`);
     return admin.messaging(app);
   } catch (err) {
-    console.warn(`${LOG} FCM deshabilitado: error al inicializar`, err);
+    log.warn(`FCM deshabilitado: error al inicializar`, err);
     return null;
   }
 }
@@ -82,7 +84,7 @@ async function initWebPush(): Promise<WebPushSender | null> {
   const privateKey = process.env[ENV_VAPID_PRIVATE_KEY];
   const subject = process.env[ENV_VAPID_SUBJECT];
   if (!publicKey || !privateKey || !subject) {
-    console.warn(`${LOG} web push deshabilitado: faltan ${ENV_VAPID_PUBLIC_KEY} / ${ENV_VAPID_PRIVATE_KEY} / ${ENV_VAPID_SUBJECT}`);
+    log.warn(`web push deshabilitado: faltan ${ENV_VAPID_PUBLIC_KEY} / ${ENV_VAPID_PRIVATE_KEY} / ${ENV_VAPID_SUBJECT}`);
     return null;
   }
   try {
@@ -91,10 +93,10 @@ async function initWebPush(): Promise<WebPushSender | null> {
     const mod = (await import('web-push')) as unknown as WebPushSender & { default?: WebPushSender };
     const webpush = mod.default ?? mod;
     webpush.setVapidDetails(subject, publicKey, privateKey);
-    console.log(`${LOG} web push inicializado`);
+    log.info(`web push inicializado`);
     return webpush;
   } catch (err) {
-    console.warn(`${LOG} web push deshabilitado: error al inicializar`, err);
+    log.warn(`web push deshabilitado: error al inicializar`, err);
     return null;
   }
 }
@@ -124,7 +126,7 @@ async function sendFcm(token: string, payload: PushPayload): Promise<void> {
       invalidateToken(token);
       return;
     }
-    console.error(`${LOG} fallo FCM:`, err);
+    log.error(`fallo FCM:`, err);
   }
 }
 
@@ -150,7 +152,7 @@ async function sendWeb(token: string, payload: PushPayload): Promise<void> {
       invalidateToken(token);
       return;
     }
-    console.error(`${LOG} fallo web push:`, err);
+    log.error(`fallo web push:`, err);
   }
 }
 
@@ -166,7 +168,7 @@ export async function sendPush(userId: number, payload: PushPayload): Promise<vo
     );
   } catch (err) {
     // salvaguarda final: el envío de push nunca debe lanzar hacia el caller
-    console.error(`${LOG} error inesperado enviando a user ${userId}:`, err);
+    log.error(`error inesperado enviando a user ${userId}:`, err);
   }
 }
 

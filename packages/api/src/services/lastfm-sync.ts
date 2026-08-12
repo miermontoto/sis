@@ -12,7 +12,9 @@ import { getUserById } from './user-manager.js';
 import { checkChartClosings } from './notification-events.js';
 import { getRecentTracks, type LastfmRecentTrack } from './lastfm-client.js';
 import { LASTFM_SYNC_MAX_PAGES, LASTFM_SYNC_GRACE_MS } from '../constants.js';
+import { createLogger } from './logger.js';
 
+const log = createLogger('lastfm');
 export interface LastfmAccount {
   userId: number;
   username: string;
@@ -47,15 +49,14 @@ export function findLastfmAccountByUsername(username: string): LastfmAccount | n
 
 export function getAllLastfmAccounts(): LastfmAccount[] {
   const db = getDb();
-  // solo cuentas de usuarios activos
+  // solo cuentas de usuarios activos. sqlite devuelve backfill_done como 0/1; el
+  // resto de columnas ya llegan con el nombre del DTO por los alias del SELECT
   return db.all(sql`
     SELECT la.user_id AS userId, la.username, la.session_key AS sessionKey,
            la.last_scrobble_uts AS lastScrobbleUts, la.backfill_done AS backfillDone
     FROM lastfm_accounts la
     JOIN users u ON u.id = la.user_id
     WHERE u.is_active = 1
-  // sqlite devuelve backfill_done como 0/1; el resto de columnas ya vienen con el
-  // nombre del DTO por los alias del SELECT
   `).map(r => {
     const row = r as Omit<LastfmAccount, 'backfillDone'> & { backfillDone: number };
     return { ...row, backfillDone: !!row.backfillDone };
@@ -81,7 +82,7 @@ export function upsertLastfmAccount(userId: number, username: string, sessionKey
       set: { username, sessionKey: sessionKey ?? sql`session_key`, updatedAt: now },
     })
     .run();
-  console.log(`[lastfm] cuenta ${username} vinculada al usuario ${userId}`);
+  log.info(`cuenta ${username} vinculada al usuario ${userId}`);
 }
 
 export function deleteLastfmAccount(userId: number): void {
@@ -175,7 +176,7 @@ export async function syncRecentScrobbles(userId: number): Promise<number> {
   const result = importHistory(collected, userId);
   const cursor = maxUts(collected);
   if (cursor) updateCursor(userId, cursor);
-  console.log(`[lastfm:${userId}] ${result.imported} scrobbles nuevos (${result.duplicates} ya registrados)`);
+  log.child(userId).info(`${result.imported} scrobbles nuevos (${result.duplicates} ya registrados)`);
   return result.imported;
 }
 
@@ -191,13 +192,13 @@ export async function syncAllLastfmAccounts(): Promise<void> {
         const spotifyId = getUserById(account.userId)?.spotifyId;
         if (spotifyId) checkChartClosings(account.userId, spotifyId);
       } catch (err) {
-        console.error(`[lastfm:${account.userId}] error en checkChartClosings:`, err);
+        log.child(account.userId).error(`error en checkChartClosings:`, err);
       }
     }
     try {
       await syncRecentScrobbles(account.userId);
     } catch (err) {
-      console.error(`[lastfm:${account.userId}] error en sync:`, err);
+      log.child(account.userId).error(`error en sync:`, err);
     }
   }
 }
@@ -228,7 +229,7 @@ export async function backfillHistory(userId: number): Promise<void> {
 
   const progress: BackfillProgress = { running: true, phase: 'fetching', page: 0, totalPages: 0, imported: 0 };
   backfills.set(userId, progress);
-  console.log(`[lastfm:${userId}] iniciando backfill de ${account.username}...`);
+  log.child(userId).info(`iniciando backfill de ${account.username}...`);
 
   try {
     // `to` fijo: congela el snapshot durante la paginación (los scrobbles que
@@ -258,11 +259,11 @@ export async function backfillHistory(userId: number): Promise<void> {
       .run();
 
     progress.phase = 'done';
-    console.log(`[lastfm:${userId}] backfill completo: ${result.imported} importados, ${result.duplicates} duplicados de ${collected.length} scrobbles`);
+    log.child(userId).info(`backfill completo: ${result.imported} importados, ${result.duplicates} duplicados de ${collected.length} scrobbles`);
   } catch (err) {
     progress.phase = 'error';
     progress.error = err instanceof Error ? err.message : String(err);
-    console.error(`[lastfm:${userId}] error en backfill:`, err);
+    log.child(userId).error(`error en backfill:`, err);
   } finally {
     progress.running = false;
   }

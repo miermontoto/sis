@@ -2,7 +2,9 @@ import { readFileSync } from 'fs';
 import { Hono } from 'hono';
 import { importHistory, type ImportResult } from '../services/history-import.js';
 import type { AppVariables } from '../app.js';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('import');
 const importRoute = new Hono<{ Variables: AppVariables }>();
 
 importRoute.post('/', async (c) => {
@@ -35,7 +37,7 @@ importRoute.post('/', async (c) => {
       aggregated.duplicates += result.duplicates;
       aggregated.skipped += result.skipped;
     } catch (err) {
-      console.error(`[import] error procesando ${file.name}:`, err);
+      log.error(`error procesando ${file.name}:`, err);
       return c.json({ error: `error procesando ${file.name}: ${(err as Error).message}` }, 400);
     }
   }
@@ -52,13 +54,13 @@ importRoute.post('/file', async (c) => {
   }
 
   try {
-    console.log(`[import] leyendo archivo: ${path}`);
+    log.info(`leyendo archivo: ${path}`);
     const text = readFileSync(path, 'utf-8');
     const data = JSON.parse(text);
     const result = importHistory(data, userId);
     return c.json(result);
   } catch (err) {
-    console.error(`[import] error procesando ${path}:`, err);
+    log.error(`error procesando ${path}:`, err);
     return c.json({ error: `error procesando archivo: ${(err as Error).message}` }, 400);
   }
 });
