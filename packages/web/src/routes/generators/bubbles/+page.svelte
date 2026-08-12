@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { hierarchy, pack } from 'd3-hierarchy';
   import { api, createFetchController, getRankingMetric, type TopArtistItem, type DateRangeParams, type RankingMetric } from '$lib/api';
@@ -61,8 +62,8 @@
     loading = true;
     try {
       artists = await api.topArtists(range, 40, metric, getCustomDates(), undefined, signal);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;

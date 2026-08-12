@@ -1,3 +1,4 @@
+import { isAbortError } from './errors';
 export function canShare(): boolean {
   return typeof navigator !== 'undefined' && !!navigator.share;
 }
@@ -7,7 +8,7 @@ export async function shareEntity(title: string, url: string): Promise<void> {
   try {
     await navigator.share({ title, url });
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return;
+    if (e instanceof DOMException && isAbortError(e)) return;
     throw e;
   }
 }

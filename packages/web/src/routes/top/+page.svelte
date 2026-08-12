@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy, tick } from 'svelte';
   import { goto, afterNavigate } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
@@ -9,7 +10,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
-  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, zoomX } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, zoomX, tooltipPoint, tooltipTuplePoints, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import RankChange from '$lib/components/RankChange.svelte';
@@ -46,7 +47,7 @@
   function loadChartCount(): number {
     if (typeof localStorage === 'undefined') return DEFAULT_CHART_COUNT;
     const v = Number(localStorage.getItem(CHART_COUNT_KEY));
-    return CHART_COUNT_OPTIONS.includes(v as any) ? v : DEFAULT_CHART_COUNT;
+    return (CHART_COUNT_OPTIONS as readonly number[]).includes(v) ? v : DEFAULT_CHART_COUNT;
   }
 
   function setChartCount(n: number) {
@@ -132,8 +133,8 @@
       tooltip: {
         ...TOOLTIP_BASE,
         axisPointer: { type: 'shadow' },
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
+        formatter: (params: TooltipParams) => {
+          const p = tooltipPoint(params);
           return `${p.name}<br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
         },
       },
@@ -184,17 +185,22 @@
           position: 'right',
           color: '#6a7a7a',
           fontSize: 11,
-          formatter: (p: any) => metric === 'plays' ? `${p.value}` : formatChartValue(p.value),
+          formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return metric === 'plays' ? `${p.value}` : formatChartValue(p.value); },
         },
       }],
     };
   });
 
-  function handleBarChartClick(params: any) {
+  function handleBarChartClick(params: ChartClickEvent) {
     let dataIdx: number;
     if (params.componentType === 'yAxis') {
-      const names = (barChartOption as any)?.yAxis?.data as string[] | undefined;
-      dataIdx = names ? names.indexOf(params.value) : -1;
+      // el eje se construye siempre como uno solo (categoryAxis), pero el tipo de
+      // EChartsOption['yAxis'] es "uno o varios" y `data` sólo existe en la rama de
+      // categorías: se estrecha a la forma que de verdad se lee
+      const yAxis = barChartOption.yAxis;
+      const axis = (Array.isArray(yAxis) ? yAxis[0] : yAxis) as { data?: string[] } | undefined;
+      const names = axis?.data;
+      dataIdx = names ? names.indexOf(String(params.value)) : -1;
     } else {
       dataIdx = params.dataIndex;
     }
@@ -368,13 +374,13 @@
       dataZoom: zoomX(),
       tooltip: {
         ...TOOLTIP_BASE,
-        formatter: (params: any) => {
-          const list = Array.isArray(params) ? params : [params];
+        formatter: (params: TooltipParams) => {
+          const list = tooltipTuplePoints(params);
           if (list.length === 0) return '';
           const header = formatShortDate(String(list[0].value[0]));
           const rows = list
-            .sort((a: any, b: any) => b.value[1] - a.value[1])
-            .map((p: any) => `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${velFormatMetric(p.value[1])}</b>`)
+            .sort((a, b) => b.value[1] - a.value[1])
+            .map(p => `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${velFormatMetric(p.value[1])}</b>`)
             .join('<br/>');
           return `<b>${header}</b><br/>${rows}`;
         },
@@ -395,7 +401,7 @@
     };
   });
 
-  function handleVelocityClick(params: any) {
+  function handleVelocityClick(params: ChartClickEvent) {
     const id = params?.seriesId as string | undefined;
     if (!id) return;
     const next = new Set(velHiddenIds);
@@ -465,8 +471,8 @@
       if (!signal.aborted) {
         barColors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums, chartCount);
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;

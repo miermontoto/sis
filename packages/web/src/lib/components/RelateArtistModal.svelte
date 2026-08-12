@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   // Gestor de relaciones "soft" de un artista: declara el vínculo (Julian Casablancas
   // ←→ The Strokes) sin tocar el tracking. Para absorber un artista dentro de otro
   // ("Ye" en "Kanye West") el sitio es MergeEntityModal: eso es un merge.
@@ -58,8 +59,8 @@
     try {
       suggestions = await api.mergeSuggestions('artist', { exclude: artistId });
       loadedFor = artistId;
-    } catch (e: any) {
-      error = e.message || 'Error loading artists';
+    } catch (e) {
+      error = errorMessage(e, 'Error loading artists');
       suggestions = [];
     } finally {
       loading = false;
@@ -73,8 +74,8 @@
       await api.createArtistRelation(target.id, artistId);
       search = '';
       onChanged();
-    } catch (e: any) {
-      error = e.message || 'Error creating relation';
+    } catch (e) {
+      error = errorMessage(e, 'Error creating relation');
     } finally {
       busyId = '';
     }
@@ -88,8 +89,8 @@
     try {
       await Promise.all(relation.ruleIds.map(id => api.deleteArtistRelation(id)));
       onChanged();
-    } catch (e: any) {
-      error = e.message || 'Error removing relation';
+    } catch (e) {
+      error = errorMessage(e, 'Error removing relation');
     } finally {
       busyId = '';
     }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, createFetchController, getRankingMetric, type TopAlbumItem, type DateRangeParams, type MeResponse, type RankingMetric } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -34,8 +35,8 @@
     try {
       const count = gridSize * gridSize;
       albums = await api.topAlbums(range, count, metric, getCustomDates(), undefined, signal);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;

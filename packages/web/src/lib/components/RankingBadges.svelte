@@ -3,7 +3,7 @@
   import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPointWithCrossovers, type RankingMetric, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
   import { periodLabel } from '$lib/utils/periods';
-  import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type * as echarts from 'echarts/core';
   import type { EChartsOption } from 'echarts';
@@ -90,8 +90,8 @@
       tooltip: {
         ...TOOLTIP_BASE,
         className: 'xo-tooltip',
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
+        formatter: (params: TooltipParams) => {
+          const p = tooltipPoint(params);
           const point = history[p.dataIndex];
           if (!point) return '';
           if (point.period && highlightedMonth !== point.period) highlightedMonth = point.period;

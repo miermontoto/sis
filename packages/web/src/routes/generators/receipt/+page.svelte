@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, createFetchController, type TopTrackItem, type TopArtistItem, type DateRangeParams, type MeResponse } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -40,8 +41,8 @@
       } else {
         artists = await api.topArtists(range, ITEM_COUNT, 'plays', getCustomDates(), undefined, signal);
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;

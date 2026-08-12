@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError, errorMessage } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import {
     api, createFetchController, getRankingMetric,
@@ -6,7 +7,7 @@
   } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import { formatNumber, formatHours, formatDuration, formatTrackLength } from '$lib/utils/format';
-  import { fromTopItem, type EntityTab, type LibraryItem } from '$lib/utils/library-items';
+  import { fromTopItem, type EntityTab, type LibraryItem, type TopItem } from '$lib/utils/library-items';
   import {
     computeRows, fillGoal, msPerPlay, planTrackIds, slotsCount, slotsDuration,
     WEIGHT_PLAYS, WEIGHT_TIME, type PlanCandidate, type PlanGroup,
@@ -121,7 +122,7 @@
         api.listeningTime('month', 'day', undefined, signal).catch(() => []),
       ]);
       if (signal.aborted) return;
-      const items = raw.map((r) => fromTopItem(r as any, entityTab)).filter((i): i is LibraryItem => i !== null);
+      const items = (raw as TopItem[]).map((r) => fromTopItem(r, entityTab)).filter((i): i is LibraryItem => i !== null);
       baseOrder = items;
       order = [...items];
       // los días sin escuchas no vienen en la serie, pero cuentan para el ritmo
@@ -129,9 +130,9 @@
       resetPlan();
       candidateCache.clear();
       loadedSig = configSig;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
-      error = e?.message ?? 'Could not load the ranking';
+    } catch (e) {
+      if (isAbortError(e)) return;
+      error = errorMessage(e, 'Could not load the ranking');
     } finally {
       if (!signal.aborted) loading = false;
     }
@@ -344,8 +345,8 @@
       plan = groups;
       planSkipped = skipped;
       planUnreached = targets.length - reached;
-    } catch (e: any) {
-      error = e?.message ?? 'Could not build the plan';
+    } catch (e) {
+      error = errorMessage(e, 'Could not build the plan');
     } finally {
       building = false;
     }
@@ -364,10 +365,10 @@
         name: `[SIS] Rerank plan (${entityTab}) — ${stamp}`,
       }) as GeneratedPlaylist;
       createdUrl = res.spotifyUrl ?? (res.spotifyPlaylistId ? `https://open.spotify.com/playlist/${res.spotifyPlaylistId}` : null);
-    } catch (e: any) {
-      error = e?.message === 'missing_scopes'
+    } catch (e) {
+      error = errorMessage(e) === 'missing_scopes'
         ? 'Spotify needs playlist permissions — log in again to grant them.'
-        : e?.message ?? 'Could not create the playlist';
+        : errorMessage(e, 'Could not create the playlist');
     } finally {
       creating = false;
     }

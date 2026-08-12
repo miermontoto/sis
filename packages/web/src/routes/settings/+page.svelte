@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/state';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
@@ -104,8 +105,8 @@
     try {
       await api.lastfmBackfill();
       await refreshLastfm();
-    } catch (err: any) {
-      lastfmError = err.message || 'Backfill failed';
+    } catch (err) {
+      lastfmError = errorMessage(err, 'Backfill failed');
     } finally {
       lastfmBusy = false;
     }
@@ -118,8 +119,8 @@
     try {
       await api.lastfmDisconnect();
       await refreshLastfm();
-    } catch (err: any) {
-      lastfmError = err.message || 'Disconnect failed';
+    } catch (err) {
+      lastfmError = errorMessage(err, 'Disconnect failed');
     } finally {
       lastfmBusy = false;
     }
@@ -143,8 +144,8 @@
     try {
       importResult = await api.importHistory(importFiles);
       health = await api.health();
-    } catch (err: any) {
-      importError = err.message || 'Import failed';
+    } catch (err) {
+      importError = errorMessage(err, 'Import failed');
     } finally {
       importing = false;
     }
@@ -184,8 +185,8 @@
       ]);
       api.listMerges().then(m => { mergeCount = m.length; }).catch(() => {});
       refreshLastfm();
-    } catch (err: any) {
-      error = err.message || 'Failed to load settings';
+    } catch (err) {
+      error = errorMessage(err, 'Failed to load settings');
     } finally {
       loading = false;
     }

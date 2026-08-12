@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
   import { api, createFetchController, getRankingMetric, getWeekStart, getRecordsUnique, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
@@ -47,8 +48,8 @@
         next.set(key, data as TabData);
         cache = next;
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loadingTab = null;

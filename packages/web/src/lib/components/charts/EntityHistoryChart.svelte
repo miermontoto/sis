@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, type ChartEvent } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, eventsMarkLine, type ChartEvent, tooltipPoint, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import ReleaseRail from './ReleaseRail.svelte';
   import type * as echarts from 'echarts/core';
@@ -92,8 +92,8 @@
       grid: GRID,
       tooltip: {
         ...TOOLTIP_BASE,
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
+        formatter: (params: TooltipParams) => {
+          const p = tooltipPoint(params);
           const val = isPlays ? `${p.value} plays` : formatDuration(p.value);
           return `${val}<br/><span style="color:#6a7a7a">${names[p.dataIndex] ?? p.name}</span>`;
         },
@@ -105,7 +105,7 @@
     };
   });
 
-  function handleClick(params: any) {
+  function handleClick(params: ChartClickEvent) {
     if (effectiveYear) return; // ya en vista de meses
     if (params?.componentType !== 'series') return;
     const y = yearTotals[params.dataIndex]?.year;

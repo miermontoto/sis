@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api, createFetchController, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption, type Granularity } from '$lib/api';
@@ -75,8 +76,8 @@
       if (periods.length > 0 && !periods.includes(selectedPeriod)) {
         selectedPeriod = periods[0];
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) periodsLoading = false;
@@ -127,8 +128,8 @@
           peaksLoaded = new Set([...peaksLoaded, key]);
         }).catch(() => {});
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;

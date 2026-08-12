@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { page } from '$app/stores';
   import { api, createFetchController, type CompareResponse, type TimeRange, type ProfileSummary, type TopArtistItem, type TopTrackItem, type TopAlbumItem, type SharedRankedItem } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
@@ -26,8 +27,8 @@
       const result = await api.socialCompare(id, range, signal);
       if (signal.aborted) return;
       data = result;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       data = null;
       notFound = true;
     } finally {

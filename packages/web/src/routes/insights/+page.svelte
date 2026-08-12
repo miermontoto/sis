@@ -1,11 +1,12 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
   import { api, createFetchController, getWeekStart, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type MonthlyDistributionItem, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatHours, formatDurationAs, DURATION_UNITS, type DurationUnit, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, PIE_TOOLTIP, PIE_COLORS, GREEN } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, PIE_TOOLTIP, PIE_COLORS, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -67,8 +68,8 @@
         api.streaks(signal),
         api.monthlyDistribution(range, dates, signal),
       ]);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;
@@ -215,33 +216,33 @@
   let lineChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis(),
-    series: [lineSeries(pulseData(listeningData.map(d => d.play_count), listeningData.length - 1) as any, { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
+    series: [lineSeries(pulseData(listeningData.map(d => d.play_count), listeningData.length - 1), { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
   });
 
   let barChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(pulseData(listeningData.map(d => d.total_ms), listeningData.length - 1) as any), trendSeries(timeRegression.line)],
+    series: [barSeries(pulseData(listeningData.map(d => d.total_ms), listeningData.length - 1)), trendSeries(timeRegression.line)],
   });
 
   let yearlyChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(yearlyData.map(d => d[0]), { axisLabel: { ...AXIS_LABEL } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(pulseData(yearlyData.map(d => d[1]), currentYearIdx) as any), trendSeries(yearlyRegression.line)],
+    series: [barSeries(pulseData(yearlyData.map(d => d[1]), currentYearIdx)), trendSeries(yearlyRegression.line)],
   });
 
   let heatmapOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
-    tooltip: { ...TOOLTIP_BASE, trigger: 'item', formatter: (params: any) => { const [hour, day] = params.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${params.value[2]}</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, trigger: 'item', formatter: (params: TooltipParams) => { const p = tooltipTuplePoint(params); const [hour, day] = p.value; return `${dayNames[day]} ${hour}:00<br/>Plays: <b>${p.value[2]}</b>`; } },
     grid: { ...GRID },
     xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     yAxis: { type: 'category', data: dayNames, inverse: true, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
@@ -252,7 +253,7 @@
   const polarBase = {
     polar: { radius: ['12%', '75%'] },
     radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, splitLine: { lineStyle: { color: '#1e2a2a' } } },
-    tooltip: { ...TOOLTIP_BASE, trigger: 'item' as const, formatter: (params: any) => `${params.name}<br/>Plays: <b>${params.value}</b>` },
+    tooltip: { ...TOOLTIP_BASE, trigger: 'item' as const, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.name}<br/>Plays: <b>${p.value}</b>`; } },
   };
   const polarAngle = (data: string[], n: number, overrides?: Record<string, any>) => ({
     type: 'category' as const, data, startAngle: 90 + 180 / n, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE }, ...overrides,
@@ -285,8 +286,8 @@
     grid: dualAxisGrid(),
     tooltip: {
       ...TOOLTIP_BASE,
-      formatter: (params: any) => {
-        const ps = Array.isArray(params) ? params : [params];
+      formatter: (params: TooltipParams) => {
+        const ps = tooltipPoints(params);
         let s = ps[0].axisValue;
         for (const p of ps) s += `<br/>${p.seriesName}: <b>${p.value}</b>`;
         return s;
@@ -295,7 +296,7 @@
     xAxis: categoryAxis(discovery.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(discovery as any) } }),
     yAxis: [valueAxis(), secondaryValueAxis()],
     series: [
-      barSeries(pulseData(discovery.map(d => d.distinct_count), discovery.length - 1) as any, {
+      barSeries(pulseData(discovery.map(d => d.distinct_count), discovery.length - 1), {
         name: 'Distinct', yAxisIndex: 0,
         itemStyle: { color: entityColors[discoveryEntity] + '99', borderRadius: [1, 1, 0, 0] },
       }),

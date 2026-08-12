@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { api } from '$lib/api';
 
   let {
@@ -26,8 +27,8 @@
     try {
       await api.makeCanonical(entityType, entityId);
       onUnmerge();
-    } catch (e: any) {
-      error = e.message || 'Error swapping merge direction';
+    } catch (e) {
+      error = errorMessage(e, 'Error swapping merge direction');
     } finally {
       swapping = false;
     }

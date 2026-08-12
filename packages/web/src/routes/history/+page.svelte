@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage, isAbortError } from '$lib/utils/errors';
   import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -61,8 +62,8 @@
       }
       hasMore = res.hasMore;
       currentPage = p;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     }
   }
@@ -182,8 +183,8 @@
       await api.deleteHistory([...selected]);
       showConfirm = false;
       await reload();
-    } catch (e: any) {
-      alert(e.message || 'Delete failed');
+    } catch (e) {
+      alert(errorMessage(e, 'Delete failed'));
     } finally {
       deleting = false;
     }

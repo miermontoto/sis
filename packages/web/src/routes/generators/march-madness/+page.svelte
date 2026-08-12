@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, createFetchController, getRankingMetric, type DateRangeParams, type MeResponse, type RankingMetric } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -6,7 +7,7 @@
   import { downloadCanvasPng, tryLoadImage } from '$lib/canvas-export';
   import { formatNumber, formatHours } from '$lib/utils/format';
   import { weightedSample } from '$lib/utils/sample';
-  import { fromTopItem, metricValue, type EntityTab, type LibraryItem } from '$lib/utils/library-items';
+  import { fromTopItem, metricValue, type EntityTab, type LibraryItem, type TopItem } from '$lib/utils/library-items';
 
   const BRACKET_SIZES = [8, 16, 32, 64] as const;
   // el backend topa el limit de /stats/top-* en 200 (routes/stats/_shared.ts)
@@ -145,11 +146,11 @@
       const items = await fetcher(range, limit, metric, getCustomDates(), undefined, signal);
       if (signal.aborted) return;
       pool = items
-        .map((i) => fromTopItem(i as any, entityTab))
+        .map((i) => fromTopItem(i as TopItem, entityTab))
         .filter((e): e is PoolItem => e !== null);
       buildField();
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;

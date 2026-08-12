@@ -3,6 +3,11 @@ import type { TopTrackItem, TopArtistItem, TopAlbumItem, RankingMetric } from '@
 export type ItemKind = 'artist' | 'album' | 'track';
 export type EntityTab = 'artists' | 'tracks' | 'albums';
 
+// una fila de /stats/top-*, sea cual sea la pestaña. Los generadores eligen el
+// fetcher con un ternario, así que reciben la unión de los tres arrays y necesitan
+// nombrarla para mapearla sin recurrir a `any`.
+export type TopItem = TopTrackItem | TopArtistItem | TopAlbumItem;
+
 // forma común a la que se normaliza cualquier cosa de la biblioteca (top,
 // búsqueda o discografía) para que los generators la traten igual
 export interface LibraryItem {
@@ -28,7 +33,7 @@ export function metricValue(item: LibraryItem, metric: RankingMetric): number {
 }
 
 // normaliza una entrada de /stats/top-* según la pestaña que la pidió
-export function fromTopItem(raw: TopTrackItem | TopArtistItem | TopAlbumItem, tab: EntityTab): LibraryItem | null {
+export function fromTopItem(raw: TopItem, tab: EntityTab): LibraryItem | null {
   if (tab === 'tracks') {
     const t = raw as TopTrackItem;
     if (!t.track) return null;

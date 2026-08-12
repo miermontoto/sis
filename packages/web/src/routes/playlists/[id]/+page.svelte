@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { api, type LibraryPlaylistDetail, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, PIE_TOOLTIP, PIE_COLORS, AXIS_LABEL } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, PIE_TOOLTIP, PIE_COLORS, AXIS_LABEL, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import type { EChartsOption } from 'echarts';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
@@ -44,7 +44,7 @@
     const isPlays = metric === 'plays';
     return {
       grid: { ...GRID },
-      tooltip: { ...TOOLTIP_BASE, formatter: (params: any) => { const p = Array.isArray(params) ? params[0] : params; return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
+      tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return isPlays ? `${p.name}<br/>${p.value} plays` : `${p.name}<br/>${formatDuration(p.value)}`; } },
       xAxis: categoryAxis(s.map(d => d.period)),
       yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: isPlays ? undefined : (v: number) => formatDuration(v) } }),
       series: [lineSeries(s.map(d => isPlays ? d.play_count : d.total_ms), {

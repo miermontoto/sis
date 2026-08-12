@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { ChartClickEvent } from '$lib/utils/chart';
   import * as echarts from 'echarts/core';
   import { CanvasRenderer } from 'echarts/renderers';
   import { BarChart, LineChart, HeatmapChart, PieChart, RadarChart, GraphChart } from 'echarts/charts';
@@ -39,9 +40,9 @@
   interface Props {
     option: EChartsOption;
     height?: string;
-    onclick?: (params: any) => void;
-    onmouseover?: (params: any) => void;
-    onmouseout?: (params: any) => void;
+    onclick?: (params: ChartClickEvent) => void;
+    onmouseover?: (params: ChartClickEvent) => void;
+    onmouseout?: (params: ChartClickEvent) => void;
     instance?: echarts.ECharts | null;
     replaceMerge?: string[];
   }

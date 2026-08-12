@@ -76,6 +76,14 @@ const SETTINGS_DEFAULTS: SettingsData = {
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
 let settingsLoaded = false;
 
+// Escritura por clave dinámica. Cada clave de SettingsData tiene su propio tipo de
+// valor, y loadSettings recorre SETTINGS_DEFAULTS con Object.entries, así que TS no
+// puede correlacionar clave y valor en un índice genérico. El ensanchamiento se
+// concentra aquí —a `unknown`, no a `any`— en vez de repetirse en cada asignación.
+function writeCache(key: keyof SettingsData, value: SettingsData[keyof SettingsData]) {
+  (settingsCache as unknown as Record<string, unknown>)[key] = value;
+}
+
 const lsKey = (key: string) =>
   key.startsWith('lastPeriod') ? `sis:lastPeriod:${key.slice(10).toLowerCase()}` : `sis:${key}`;
 
@@ -105,7 +113,7 @@ export async function loadSettings(): Promise<void> {
   const healPatch: Record<string, string> = {};
   for (const [key, def] of Object.entries(SETTINGS_DEFAULTS)) {
     const raw = data[key];
-    if (typeof def === 'boolean') (settingsCache as any)[key] = raw !== undefined ? raw !== 'false' : def;
+    if (typeof def === 'boolean') writeCache(key as keyof SettingsData, raw !== undefined ? raw !== 'false' : def);
     else if (def === null) {
       // marcador monótono (lastPeriod*): reconciliamos server vs localStorage
       // con el máximo. así un descarte local reciente no se pierde si su PUT
@@ -114,10 +122,10 @@ export async function loadSettings(): Promise<void> {
       const server = raw || null;
       const local = localStorage.getItem(lsKey(key));
       const merged = maxMarker(server, local);
-      (settingsCache as any)[key] = merged;
+      writeCache(key as keyof SettingsData, merged);
       if (merged !== null && merged !== server) healPatch[key] = merged;
     }
-    else (settingsCache as any)[key] = raw || def;
+    else writeCache(key as keyof SettingsData, raw || def);
   }
 
   for (const [key, val] of Object.entries(settingsCache)) {
@@ -142,7 +150,7 @@ function updateSetting(patch: Partial<Record<string, string>>) {
 function stringSetting<T extends string>(key: keyof SettingsData, defaultValue: T) {
   return [
     (): T => settingsLoaded ? settingsCache[key] as T : (localStorage.getItem(`sis:${key}`) as T) || defaultValue,
-    (v: T) => { (settingsCache as any)[key] = v; localStorage.setItem(`sis:${key}`, v); updateSetting({ [key]: v }); },
+    (v: T) => { writeCache(key, v); localStorage.setItem(`sis:${key}`, v); updateSetting({ [key]: v }); },
   ] as const;
 }
 
@@ -151,7 +159,7 @@ function stringSetting<T extends string>(key: keyof SettingsData, defaultValue: 
 function boolSetting(key: keyof SettingsData, defaultValue = true) {
   return [
     (): boolean => settingsLoaded ? settingsCache[key] as boolean : (localStorage.getItem(`sis:${key}`) ?? String(defaultValue)) !== 'false',
-    (v: boolean) => { (settingsCache as any)[key] = v; localStorage.setItem(`sis:${key}`, String(v)); updateSetting({ [key]: String(v) }); },
+    (v: boolean) => { writeCache(key, v); localStorage.setItem(`sis:${key}`, String(v)); updateSetting({ [key]: String(v) }); },
   ] as const;
 }
 
@@ -243,7 +251,7 @@ const LAST_PERIOD_SETTING_KEY: Record<string, string> = {
 
 export function setLastPeriod(gran: string, value: string) {
   const settingKey = LAST_PERIOD_SETTING_KEY[gran] as keyof SettingsData;
-  (settingsCache as any)[settingKey] = value;
+  writeCache(settingKey, value);
   localStorage.setItem(`sis:lastPeriod:${gran}`, value);
   updateSetting({ [settingKey]: value });
 }

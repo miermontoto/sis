@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { api, type HealthData, type UserRecord, type MeResponse } from '$lib/api';
@@ -25,8 +26,8 @@
       await api.addUser(newSpotifyId.trim(), newUserKind);
       newSpotifyId = '';
       await loadUsers();
-    } catch (err: any) {
-      userError = err.message || 'Failed to add user';
+    } catch (err) {
+      userError = errorMessage(err, 'Failed to add user');
     } finally {
       addingUser = false;
     }
@@ -36,8 +37,8 @@
     try {
       await api.updateUser(user.id, { isAdmin: !user.isAdmin });
       await loadUsers();
-    } catch (err: any) {
-      userError = err.message;
+    } catch (err) {
+      userError = errorMessage(err);
     }
   }
 
@@ -46,8 +47,8 @@
     try {
       await api.deleteUser(user.id);
       await loadUsers();
-    } catch (err: any) {
-      userError = err.message;
+    } catch (err) {
+      userError = errorMessage(err);
     }
   }
 
@@ -56,8 +57,8 @@
     try {
       await api.deleteUser(user.id);
       await loadUsers();
-    } catch (err: any) {
-      userError = err.message;
+    } catch (err) {
+      userError = errorMessage(err);
     }
   }
 
@@ -65,8 +66,8 @@
     try {
       await api.updateUser(user.id, { isActive: true });
       await loadUsers();
-    } catch (err: any) {
-      userError = err.message;
+    } catch (err) {
+      userError = errorMessage(err);
     }
   }
 

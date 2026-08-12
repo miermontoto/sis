@@ -16,8 +16,8 @@ let started = false;
 
 function idle(timeout = 2000): Promise<void> {
   return new Promise(resolve => {
-    if (typeof (window as any).requestIdleCallback === 'function') {
-      (window as any).requestIdleCallback(() => resolve(), { timeout });
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => resolve(), { timeout });
     } else {
       setTimeout(resolve, 50);
     }

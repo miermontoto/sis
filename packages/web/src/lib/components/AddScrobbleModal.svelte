@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { api, type SearchResults } from '$lib/api';
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
@@ -165,8 +166,8 @@
         ? `Added ${res.inserted} of ${res.total} — ${res.duplicates} already existed`
         : `Added ${res.inserted} scrobble${res.inserted === 1 ? '' : 's'}`;
       onAdded?.();
-    } catch (e: any) {
-      error = e?.message || 'Failed to add scrobbles';
+    } catch (e) {
+      error = errorMessage(e, 'Failed to add scrobbles');
     } finally {
       submitting = false;
     }

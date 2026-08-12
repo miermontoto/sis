@@ -1,4 +1,54 @@
-import type { EChartsOption } from 'echarts';
+import type {
+  EChartsOption,
+  TooltipComponentFormatterCallbackParams,
+  DefaultLabelFormatterCallbackParams,
+} from 'echarts';
+// desde 'echarts/core', no 'echarts': BaseChart monta el chart con el build
+// tree-shaken y los dos paquetes declaran ECElementEvent por separado (llevan
+// clases Group distintas con miembros privados), así que no son intercambiables
+import type { ECElementEvent } from 'echarts/core';
+
+// El formatter de tooltip recibe un punto suelto o un array de puntos según el
+// trigger ('item' vs 'axis'), y esa unión es la razón por la que los call sites
+// acababan en `any`. Los helpers de abajo hacen el estrechamiento una sola vez.
+export type TooltipParams = TooltipComponentFormatterCallbackParams;
+export type ChartClickEvent = ECElementEvent;
+
+// Forma que las gráficas de sis leen de verdad. No se puede usar el
+// CallbackDataParams de echarts tal cual: declara `value` como una unión enorme
+// (escalar | array | objeto | Date | null) y ni siquiera incluye `axisValue`, que
+// sí llega con trigger 'axis'. El cast vive aquí y solo aquí: a cambio, los call
+// sites quedan tipados y leer un campo fuera de esta forma pasa a ser un error.
+export interface TooltipPoint extends Omit<DefaultLabelFormatterCallbackParams, 'value'> {
+  axisValue: string;
+  value: number;
+}
+
+// series cuyos puntos son tuplas [x, y, ...]: heatmap, scatter, velocity
+export interface TooltipTuplePoint extends Omit<DefaultLabelFormatterCallbackParams, 'value'> {
+  axisValue: string;
+  value: number[];
+}
+
+/** Primer punto del tooltip, venga suelto (trigger 'item') o en array ('axis'). */
+export function tooltipPoint(params: TooltipParams): TooltipPoint {
+  return (Array.isArray(params) ? params[0] : params) as unknown as TooltipPoint;
+}
+
+/** Igual que tooltipPoint pero para series de tuplas. */
+export function tooltipTuplePoint(params: TooltipParams): TooltipTuplePoint {
+  return (Array.isArray(params) ? params[0] : params) as unknown as TooltipTuplePoint;
+}
+
+/** Todos los puntos escalares, para tooltips multi-serie que los listan. */
+export function tooltipPoints(params: TooltipParams): TooltipPoint[] {
+  return (Array.isArray(params) ? params : [params]) as unknown as TooltipPoint[];
+}
+
+/** Todos los puntos, para tooltips multi-serie que los ordenan o listan. */
+export function tooltipTuplePoints(params: TooltipParams): TooltipTuplePoint[] {
+  return (Array.isArray(params) ? params : [params]) as unknown as TooltipTuplePoint[];
+}
 
 // EChartsOption['xAxis'|'yAxis'] es una unión "un eje o varios": los helpers de
 // abajo construyen exactamente uno, así que devuelven solo la rama no-array. Si
@@ -58,6 +108,11 @@ export function secondaryValueAxis(overrides?: Record<string, any>): SingleYAxis
 }
 
 // --- Series style helpers ---
+
+// un punto de serie: el valor pelado, o el valor con estilo propio. Las gráficas de
+// insights usan la segunda forma para atenuar el punto "en curso"; declarar los
+// helpers como number[] obligaba a castear en cada llamada.
+export type SeriesDataPoint = number | { value: number; itemStyle?: Record<string, unknown> };
 
 // --- Adaptación de densidad temporal ---
 // el ancho de barra de un chart de categorías es plotWidth/N: con series largas
@@ -128,7 +183,7 @@ export function fitSeries(data: SeriesPoint[], containerWidth: number): SeriesPo
   return best;
 }
 
-export function barSeries(data: number[], overrides?: Record<string, any>) {
+export function barSeries(data: SeriesDataPoint[], overrides?: Record<string, any>) {
   return {
     type: 'bar' as const,
     data,
@@ -138,7 +193,7 @@ export function barSeries(data: number[], overrides?: Record<string, any>) {
   };
 }
 
-export function lineSeries(data: number[], overrides?: Record<string, any>) {
+export function lineSeries(data: SeriesDataPoint[], overrides?: Record<string, any>) {
   return {
     type: 'line' as const,
     data,
@@ -150,7 +205,7 @@ export function lineSeries(data: number[], overrides?: Record<string, any>) {
   };
 }
 
-export function cumulativeLineSeries(data: number[], overrides?: Record<string, any>) {
+export function cumulativeLineSeries(data: SeriesDataPoint[], overrides?: Record<string, any>) {
   return lineSeries(data, {
     yAxisIndex: 1,
     lineStyle: { color: 'rgba(255,255,255,0.3)', width: 2 },

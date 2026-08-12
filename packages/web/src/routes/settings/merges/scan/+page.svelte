@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, type BulkRemergePreview, type BulkRemergeAlbum, type AlbumMergeTrack, type RemergeConfidence, type MergeImpact } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
@@ -112,8 +113,8 @@
       );
       canonicalOverride = new Map();
       expanded = new Set();
-    } catch (e: any) {
-      error = e.message || 'Error scanning albums';
+    } catch (e) {
+      error = errorMessage(e, 'Error scanning albums');
       data = null;
     } finally {
       loading = false;
@@ -198,8 +199,8 @@
         targetTrackId: p.targetId,
       })));
       await scan(true, true);
-    } catch (e: any) {
-      error = e.message || 'Error applying merges';
+    } catch (e) {
+      error = errorMessage(e, 'Error applying merges');
     } finally {
       applying = false;
     }

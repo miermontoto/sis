@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, createFetchController, getRankingMetric, type DateRangeParams, type MeResponse, type RankingMetric } from '$lib/api';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -6,7 +7,7 @@
   import { downloadCanvasPng, tryLoadImage } from '$lib/canvas-export';
   import { formatNumber, formatHours } from '$lib/utils/format';
   import { weightedSample } from '$lib/utils/sample';
-  import { fromTopItem, metricValue, type EntityTab, type LibraryItem } from '$lib/utils/library-items';
+  import { fromTopItem, metricValue, type EntityTab, type LibraryItem, type TopItem } from '$lib/utils/library-items';
 
   // por debajo de este desplazamiento el gesto cuenta como toque, no arrastre
   const DRAG_THRESHOLD_PX = 5;
@@ -125,10 +126,10 @@
       const isRandom = sourceMode === 'random';
       const raw = await fetcher(range, isRandom ? poolDepth : topCount, metric, getCustomDates(), undefined, signal);
       if (signal.aborted) return;
-      const items = raw.map((r) => fromTopItem(r as any, entityTab)).filter((i): i is Item => i !== null);
+      const items = (raw as TopItem[]).map((r) => fromTopItem(r, entityTab)).filter((i): i is Item => i !== null);
       addItems(isRandom ? weightedSample(items, topCount, metricOf) : items);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) adding = false;

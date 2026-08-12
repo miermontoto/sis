@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair, type RemergeConfidence } from '$lib/api';
   import MergeImpactBar from '$lib/components/MergeImpactBar.svelte';
 
@@ -229,8 +230,8 @@
       }
       trackMatches = initial;
       step = 'tracks';
-    } catch (e: any) {
-      error = e.message || 'Error loading track preview';
+    } catch (e) {
+      error = errorMessage(e, 'Error loading track preview');
     } finally {
       loadingPreview = false;
     }
@@ -251,8 +252,8 @@
       const preview = await api.albumRemergePreview(target.id, new AbortController().signal);
       remergePairs = preview.pairs.map(p => ({ ...p, checked: true }));
       step = 'remerge';
-    } catch (e: any) {
-      error = e.message || 'Error loading remerge preview';
+    } catch (e) {
+      error = errorMessage(e, 'Error loading remerge preview');
     } finally {
       remergeLoading = false;
     }
@@ -270,8 +271,8 @@
       })));
       onMerged();
       close();
-    } catch (e: any) {
-      error = e.message || 'Error merging tracks';
+    } catch (e) {
+      error = errorMessage(e, 'Error merging tracks');
     } finally {
       remergeApplying = false;
     }
@@ -299,8 +300,8 @@
       }
       onMerged();
       close();
-    } catch (e: any) {
-      error = e.message || 'Error creating merge';
+    } catch (e) {
+      error = errorMessage(e, 'Error creating merge');
     } finally {
       merging = false;
     }
@@ -310,8 +311,8 @@
     try {
       await api.deleteMerge(ruleId);
       onMerged();
-    } catch (e: any) {
-      error = e.message || 'Error removing merge';
+    } catch (e) {
+      error = errorMessage(e, 'Error removing merge');
     }
   }
 
@@ -324,8 +325,8 @@
       await api.makeCanonical(entityType, sourceId);
       onMerged();
       close();
-    } catch (e: any) {
-      error = e.message || 'Error swapping merge direction';
+    } catch (e) {
+      error = errorMessage(e, 'Error swapping merge direction');
     } finally {
       swappingId = null;
     }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { api, type PlaylistStrategy, type RegenerateInterval, type GeneratedPlaylist, type PlaylistPreviewResponse, type TrackInfo, type GenreItem, type MeResponse, type LibraryPlaylist } from '$lib/api';
@@ -198,8 +199,8 @@
         preview: true,
       }) as PlaylistPreviewResponse;
       previewTracks = res.tracks;
-    } catch (err: any) {
-      error = err.message || 'Error al generar preview';
+    } catch (err) {
+      error = errorMessage(err, 'Error al generar preview');
     } finally {
       loading = false;
     }
@@ -220,11 +221,11 @@
       await loadLibrary();
       previewTracks = res.tracks || [];
       playlistName = '';
-    } catch (err: any) {
-      if (err.message === 'missing_scopes') {
+    } catch (err) {
+      if (errorMessage(err) === 'missing_scopes') {
         hasPlaylistScopes = false;
       } else {
-        error = err.message || 'Error al crear playlist';
+        error = errorMessage(err, 'Error al crear playlist');
       }
     } finally {
       creating = false;
@@ -237,8 +238,8 @@
       const plData = await api.listPlaylists();
       savedPlaylists = plData.items;
       if (expandedPlaylist === id) expandedPlaylist = null;
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     }
   }
 
@@ -249,8 +250,8 @@
       const plData = await api.listPlaylists();
       savedPlaylists = plData.items;
       if (expandedPlaylist === id) expandedPlaylist = null;
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     }
   }
 
@@ -270,8 +271,8 @@
       await api.setPlaylistSchedule(pl.id, enabled, interval);
       const plData = await api.listPlaylists();
       savedPlaylists = plData.items;
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     }
   }
 
@@ -281,8 +282,8 @@
       await api.setPlaylistSchedule(pl.id, true, interval);
       const plData = await api.listPlaylists();
       savedPlaylists = plData.items;
-    } catch (err: any) {
-      error = err.message;
+    } catch (err) {
+      error = errorMessage(err);
     }
   }
 

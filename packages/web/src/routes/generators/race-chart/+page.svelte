@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, createFetchController, getRankingMetric, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric } from '$lib/api';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import { GRID, AXIS_LINE, AXIS_LABEL, SPLIT_LINE } from '$lib/utils/chart';
+  import { GRID, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
+  import type { TopItem } from '$lib/utils/library-items';
   import { formatNumber } from '$lib/utils/format';
   import type { EChartsOption } from 'echarts';
   import type * as echarts from 'echarts/core';
@@ -62,7 +64,7 @@
     return out;
   }
 
-  function extractEntity(item: TopTrackItem | TopArtistItem | TopAlbumItem, tab: EntityTab): { id: string; name: string } | null {
+  function extractEntity(item: TopItem, tab: EntityTab): { id: string; name: string } | null {
     if (tab === 'tracks') {
       const t = item as TopTrackItem;
       return t.track ? { id: t.trackId, name: t.track.name } : null;
@@ -75,7 +77,7 @@
     return al.album ? { id: al.albumId, name: al.album.name } : null;
   }
 
-  function metricValue(item: TopTrackItem | TopArtistItem | TopAlbumItem): number {
+  function metricValue(item: TopItem): number {
     return metric === 'plays' ? item.playCount : item.totalMs;
   }
 
@@ -107,11 +109,11 @@
       const builtFrames: Frame[] = [];
 
       for (let mIdx = 0; mIdx < months.length; mIdx++) {
-        const items = perMonth[mIdx];
+        const items = perMonth[mIdx] as TopItem[];
         for (const item of items) {
-          const entity = extractEntity(item as any, entityTab);
+          const entity = extractEntity(item, entityTab);
           if (!entity) continue;
-          const val = metricValue(item as any);
+          const val = metricValue(item);
           const prev = cumulative.get(entity.id);
           cumulative.set(entity.id, { name: entity.name, total: (prev?.total ?? 0) + val });
           if (!colorMap.has(entity.id)) {
@@ -129,8 +131,8 @@
       }
 
       frames = builtFrames;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loading = false;
@@ -184,7 +186,7 @@
         label: {
           show: true,
           position: 'right',
-          formatter: (p: any) => formatMetricValue(p.value),
+          formatter: (params: TooltipParams) => formatMetricValue(tooltipPoint(params).value),
           color: '#6a7a7a',
           fontSize: 11,
         },

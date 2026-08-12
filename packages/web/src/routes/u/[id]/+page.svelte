@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api, createFetchController, type ProfileResponse, type TimeRange } from '$lib/api';
@@ -34,8 +35,8 @@
       const result = await api.socialProfile(id, range, signal);
       if (signal.aborted) return;
       profile = result;
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       profile = null;
       notFound = true;
     } finally {

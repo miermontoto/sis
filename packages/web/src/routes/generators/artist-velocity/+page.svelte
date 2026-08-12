@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { isAbortError } from '$lib/utils/errors';
   import { onMount } from 'svelte';
   import { api, createFetchController, getRankingMetric, type TopArtistItem, type ArtistDetail, type RankingMetric } from '$lib/api';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, zoomX } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, zoomX, tooltipTuplePoints, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
 
   // paleta fija de colores asignados por orden de selección
@@ -50,8 +51,8 @@
     selected = [];
     try {
       topArtists = await api.topArtists('all', 50, metric, undefined, undefined, signal);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+    } catch (e) {
+      if (isAbortError(e)) return;
       throw e;
     } finally {
       if (!signal.aborted) loadingTop = false;
@@ -149,16 +150,16 @@
       dataZoom: zoomX(),
       tooltip: {
         ...TOOLTIP_BASE,
-        formatter: (params: any) => {
-          const list = Array.isArray(params) ? params : [params];
+        formatter: (params: TooltipParams) => {
+          const list = tooltipTuplePoints(params);
           if (list.length === 0) return '';
           const xVal = list[0].value[0];
           const header = mode === 'absolute'
             ? formatShortDate(String(xVal))
             : `day ${formatNumber(Number(xVal))}`;
           const rows = list
-            .sort((a: any, b: any) => b.value[1] - a.value[1])
-            .map((p: any) => `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${formatMetric(p.value[1])}</b>`)
+            .sort((a, b) => b.value[1] - a.value[1])
+            .map(p => `<span style="color:${p.color}">●</span> ${p.seriesName}: <b>${formatMetric(p.value[1])}</b>`)
             .join('<br/>');
           return `<b>${header}</b><br/>${rows}`;
         },
