@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import { rangeWhere, userFilter, playDuration } from './helpers.js';
-import { versionBaseKey } from '../../services/versions.js';
+import { versionBaseKey, versionKeys } from '../../services/versions.js';
 import type { TrackVersion } from '@sis/shared';
 
 export interface EnrichedTrack {
@@ -84,7 +84,8 @@ export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: stri
 }
 
 /** Otras versiones del mismo tema (live, remix, remaster...) que el usuario ha escuchado.
- *  Agrupa por artista principal (position=0, misma clave que dedup) + título base normalizado.
+ *  Agrupa por artista principal (position=0, misma clave que dedup) + título base normalizado,
+ *  con los medleys entrando por cada uno de sus temas ("Heathens / Trees" es versión de "Heathens").
  *  Devuelve todas las versiones del cluster (incluida la actual, marcada isCurrent) ordenadas por
  *  plays; vacío si no hay ninguna otra versión. Siempre all-time (la página de track es all-time). */
 export function getTrackVersions(db: Db, trackId: string, userId: number): TrackVersion[] {
@@ -100,6 +101,13 @@ export function getTrackVersions(db: Db, trackId: string, userId: number): Track
   if (!current || !current.artist_id) return [];
 
   const currentBase = versionBaseKey(current.name);
+  const currentKeys = new Set(versionKeys(current.name));
+
+  // son versiones si comparten base, o si una es un medley que contiene a la otra. Exigimos que
+  // la clave compartida sea la base COMPLETA de alguno de los dos lados: dos medleys que solo
+  // comparten una parte suelen compartir prefijo de obra, no tema ("Luisa Miller / Act 2: ...").
+  const isVersion = (name: string) =>
+    versionKeys(name).includes(currentBase) || currentKeys.has(versionBaseKey(name));
 
   // todos los tracks reproducidos por el usuario cuyo artista principal coincide, con sus stats
   const rows = db.all(sql`
@@ -126,7 +134,7 @@ export function getTrackVersions(db: Db, trackId: string, userId: number): Track
     isCurrent: r.spotify_id === trackId,
   });
 
-  const members = rows.filter(r => versionBaseKey(r.name) === currentBase).map(toVersion);
+  const members = rows.filter(r => isVersion(r.name)).map(toVersion);
 
   // si el track actual no tiene plays del usuario no aparece en rows: añadirlo con stats a 0
   if (!members.some(m => m.isCurrent)) {
