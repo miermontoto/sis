@@ -1,28 +1,33 @@
 <script lang="ts">
-  // editor de disposición de las vistas de detalle: tablero drag-and-drop con
-  // tres zonas (main / rail / oculto) por tipo de entidad. reordena y mueve
-  // secciones entre columnas arrastrando; el ojo oculta/muestra. persiste en
-  // settings (sync server + localStorage) tras cada cambio.
+  // editor de disposición del dashboard y las vistas de detalle: tablero
+  // drag-and-drop con zonas (main / rail / oculto) por tipo de vista — el
+  // dashboard es de columna única y no ofrece rail. reordena y mueve secciones
+  // arrastrando; el ojo oculta/muestra. persiste en settings (sync server +
+  // localStorage) tras cada cambio.
   import { getDetailLayout, setDetailLayout } from '$lib/api/settings';
   import {
     defaultLayout, sectionLabel, moveSection, toggleSectionHidden,
-    type EntityKind, type DetailLayout,
+    type LayoutKind, type DetailLayout,
   } from '$lib/detail-layout';
 
   type Zone = keyof DetailLayout; // 'main' | 'rail' | 'hidden'
   const ZONES: Zone[] = ['main', 'rail', 'hidden'];
-  const KINDS: EntityKind[] = ['artist', 'album', 'track'];
+  const KINDS: LayoutKind[] = ['dashboard', 'artist', 'album', 'track'];
+  const KIND_LABELS: Record<LayoutKind, string> = { dashboard: 'Dashboard', artist: 'Artists', album: 'Albums', track: 'Tracks' };
 
-  let kind = $state<EntityKind>('artist');
-  let board = $state<DetailLayout>(getDetailLayout('artist'));
+  let kind = $state<LayoutKind>('dashboard');
+  let board = $state<DetailLayout>(getDetailLayout('dashboard'));
   let dragKey = $state<string | null>(null);
+
+  // zonas de columna visibles según la vista (el dashboard no tiene rail)
+  let columnZones = $derived<Zone[]>(kind === 'dashboard' ? ['main'] : ['main', 'rail']);
 
   // contenedor raíz: las zonas se localizan por [data-zone] para hit-testing
   // durante el arrastre (bind:this no admite expresiones dinámicas)
   let rootEl = $state<HTMLElement | null>(null);
   const zoneEl = (z: Zone): HTMLElement | null => rootEl?.querySelector(`[data-zone="${z}"]`) ?? null;
 
-  function selectKind(k: EntityKind) {
+  function selectKind(k: LayoutKind) {
     if (k === kind) return;
     kind = k;
     board = getDetailLayout(k);
@@ -94,22 +99,24 @@
   }
 
   const ZONE_LABEL: Record<Zone, string> = { main: 'Main column', rail: 'Side column', hidden: 'Hidden' };
+  // en columna única "main column" no significa nada: es simplemente el orden
+  let mainLabel = $derived(kind === 'dashboard' ? 'Sections' : ZONE_LABEL.main);
 </script>
 
 <div class="dl" bind:this={rootEl}>
   <div class="dl-tabs" role="tablist">
     {#each KINDS as k}
       <button class="dl-tab" class:dl-tab--active={kind === k} role="tab" aria-selected={kind === k} onclick={() => selectKind(k)}>
-        {k[0].toUpperCase() + k.slice(1)}s
+        {KIND_LABELS[k]}
       </button>
     {/each}
     <button class="dl-reset" onclick={reset} title="Reset to default order">Reset</button>
   </div>
 
-  <div class="dl-columns" class:dl-columns--dragging={dragKey !== null}>
-    {#each (['main', 'rail'] as Zone[]) as z}
+  <div class="dl-columns" class:dl-columns--single={columnZones.length === 1} class:dl-columns--dragging={dragKey !== null}>
+    {#each columnZones as z}
       <div class="dl-zone">
-        <div class="dl-zone-title">{ZONE_LABEL[z]}</div>
+        <div class="dl-zone-title">{z === 'main' ? mainLabel : ZONE_LABEL[z]}</div>
         <div class="dl-list" data-zone={z}>
           {#each board[z] as key (key)}
             <div class="dl-chip" class:dl-chip--dragging={dragKey === key} data-key={key}>
@@ -183,6 +190,7 @@
   .dl-reset:hover { color: var(--accent); border-color: var(--accent); }
 
   .dl-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .dl-columns--single { grid-template-columns: 1fr; }
   .dl-columns--dragging { user-select: none; }
   @media (max-width: 560px) { .dl-columns { grid-template-columns: 1fr; } }
 

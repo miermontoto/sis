@@ -1,8 +1,12 @@
 // registro de secciones configurables de las vistas de detalle (artist/album/
-// track) + resolución de la disposición guardada por el usuario. módulo puro
-// (sin dependencias de settings) para poder testearlo y evitar ciclos de import.
+// track) y del dashboard + resolución de la disposición guardada por el usuario.
+// módulo puro (sin dependencias de settings) para poder testearlo y evitar
+// ciclos de import.
 
 export type EntityKind = 'artist' | 'album' | 'track';
+// el dashboard reutiliza toda la maquinaria de layouts; su "columna" es única
+// (todo en main) y el editor no le ofrece rail
+export type LayoutKind = EntityKind | 'dashboard';
 export type LayoutColumn = 'main' | 'rail';
 
 export interface SectionDef {
@@ -19,9 +23,10 @@ export interface DetailLayout {
   hidden: string[];
 }
 
-// orden y columna por defecto de cada sección, por tipo de entidad. el hero y
-// los merge banners son estructurales (no configurables) y no aparecen aquí.
-export const DETAIL_SECTIONS: Record<EntityKind, SectionDef[]> = {
+// orden y columna por defecto de cada sección, por tipo de vista. el hero y
+// los merge banners son estructurales (no configurables) y no aparecen aquí;
+// en el dashboard, tampoco el aviso de charts cerrados (es descartable).
+export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
   artist: [
     { key: 'stats', label: 'Stats', column: 'main' },
     { key: 'rankingBadges', label: 'Ranking badges', column: 'main' },
@@ -53,14 +58,22 @@ export const DETAIL_SECTIONS: Record<EntityKind, SectionDef[]> = {
     { key: 'versions', label: 'Versions', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
+  dashboard: [
+    { key: 'statsBar', label: 'Stats bar', column: 'main' },
+    { key: 'topTracks', label: 'Top tracks this week', column: 'main' },
+    { key: 'topAlbums', label: 'Top albums this week', column: 'main' },
+    { key: 'topArtists', label: 'Top artists this week', column: 'main' },
+    { key: 'rankChanges', label: 'Recent ranking changes', column: 'main' },
+    { key: 'recentPlays', label: 'Recent plays', column: 'main' },
+  ],
 };
 
-export function sectionLabel(kind: EntityKind, key: string): string {
+export function sectionLabel(kind: LayoutKind, key: string): string {
   return DETAIL_SECTIONS[kind].find(d => d.key === key)?.label ?? key;
 }
 
 // disposición por defecto: cada sección en su columna de registro, nada oculto
-export function defaultLayout(kind: EntityKind): DetailLayout {
+export function defaultLayout(kind: LayoutKind): DetailLayout {
   const main: string[] = [];
   const rail: string[] = [];
   for (const d of DETAIL_SECTIONS[kind]) (d.column === 'rail' ? rail : main).push(d.key);
@@ -81,7 +94,7 @@ export function parseLayout(raw: string | null | undefined): Partial<DetailLayou
 // y duplicadas (precedencia main > rail > hidden) y añade las secciones nuevas
 // a su columna por defecto, respetando el orden guardado para las ya colocadas.
 // así añadir una sección al registro la hace aparecer sin romper layouts viejos.
-export function resolveLayout(kind: EntityKind, stored: Partial<DetailLayout> | null | undefined): DetailLayout {
+export function resolveLayout(kind: LayoutKind, stored: Partial<DetailLayout> | null | undefined): DetailLayout {
   const defs = DETAIL_SECTIONS[kind];
   const known = new Set(defs.map(d => d.key));
   const seen = new Set<string>();
@@ -126,7 +139,7 @@ export function moveSection(layout: DetailLayout, key: string, zone: keyof Detai
 
 // oculta la sección (la manda a 'hidden') o, si ya estaba oculta, la restaura
 // al final de su columna por defecto
-export function toggleSectionHidden(kind: EntityKind, layout: DetailLayout, key: string): DetailLayout {
+export function toggleSectionHidden(kind: LayoutKind, layout: DetailLayout, key: string): DetailLayout {
   if (layout.hidden.includes(key)) {
     const col = DETAIL_SECTIONS[kind].find(d => d.key === key)?.column ?? 'main';
     return moveSection(layout, key, col, layout[col].length);

@@ -3,7 +3,7 @@ import type {
   AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay,
   NowPlayingDisplay, SocialVisibility,
 } from '@sis/shared';
-import { type EntityKind, type DetailLayout, resolveLayout, parseLayout } from '../detail-layout.js';
+import { type LayoutKind, type DetailLayout, resolveLayout, parseLayout } from '../detail-layout.js';
 import { apiFetch, API_BASE } from './client.js';
 
 interface SettingsData {
@@ -39,6 +39,7 @@ interface SettingsData {
   detailLayoutArtist: string;
   detailLayoutAlbum: string;
   detailLayoutTrack: string;
+  dashboardLayout: string;
 }
 
 const SETTINGS_DEFAULTS: SettingsData = {
@@ -75,6 +76,7 @@ const SETTINGS_DEFAULTS: SettingsData = {
   detailLayoutArtist: '',
   detailLayoutAlbum: '',
   detailLayoutTrack: '',
+  dashboardLayout: '',
 };
 
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
@@ -228,17 +230,18 @@ export const onNowPlayingDisplayChange = _npd.onChange;
 // disposición de vistas de detalle: JSON por tipo de entidad. get* reconcilia
 // lo guardado contra el registro actual (secciones nuevas aparecen, keys
 // retiradas se descartan); set* serializa el DetailLayout ya normalizado.
-const DETAIL_LAYOUT_RAW: Record<EntityKind, readonly [() => string, (v: string) => void]> = {
+const DETAIL_LAYOUT_RAW: Record<LayoutKind, readonly [() => string, (v: string) => void]> = {
   artist: stringSetting<string>('detailLayoutArtist', ''),
   album: stringSetting<string>('detailLayoutAlbum', ''),
   track: stringSetting<string>('detailLayoutTrack', ''),
+  dashboard: stringSetting<string>('dashboardLayout', ''),
 };
 
-export function getDetailLayout(kind: EntityKind): DetailLayout {
+export function getDetailLayout(kind: LayoutKind): DetailLayout {
   return resolveLayout(kind, parseLayout(DETAIL_LAYOUT_RAW[kind][0]()));
 }
 
-export function setDetailLayout(kind: EntityKind, layout: DetailLayout): void {
+export function setDetailLayout(kind: LayoutKind, layout: DetailLayout): void {
   DETAIL_LAYOUT_RAW[kind][1](JSON.stringify(layout));
 }
 

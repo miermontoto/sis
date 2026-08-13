@@ -12,6 +12,8 @@
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import PullToRefresh from '$lib/components/PullToRefresh.svelte';
   import RecentRankChanges from '$lib/components/RecentRankChanges.svelte';
+  import { getDetailLayout } from '$lib/api/settings';
+  import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
 
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
@@ -23,6 +25,8 @@
   let weekMs = $state(0);
   let streaks = $state<StreaksData | null>(null);
   let metric = $state<RankingMetric>('time');
+  // orden configurable de las secciones del dashboard (settings, como las vistas de detalle)
+  let layout = $state<DetailLayout>(defaultLayout('dashboard'));
 
   // estado de carga por petición independiente
   let loadingTracks = $state(true);
@@ -112,6 +116,7 @@
   }
 
   onMount(() => {
+    layout = getDetailLayout('dashboard');
     loadData();
     const pollInterval = setInterval(pollRecent, 15_000);
     return () => clearInterval(pollInterval);
@@ -149,157 +154,170 @@
   </div>
 {/if}
 
-<div class="card stats-bar">
-  <div class="stats-bar-item">
-    {#if loadingTime}
-      <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
-    {:else}
-      <span class="stats-bar-value">{formatNumber(todayPlays)}</span>
-    {/if}
-    <span class="stats-bar-label">plays today</span>
-  </div>
-  <div class="stats-bar-sep"></div>
-  <div class="stats-bar-item">
-    {#if loadingTime}
-      <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
-    {:else}
-      <span class="stats-bar-value">{formatHours(todayMs)}</span>
-    {/if}
-    <span class="stats-bar-label">listened today</span>
-  </div>
-  <div class="stats-bar-sep"></div>
-  <div class="stats-bar-item">
-    {#if loadingTime}
-      <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
-    {:else}
-      <span class="stats-bar-value">{formatHours(weekMs)}</span>
-    {/if}
-    <span class="stats-bar-label">this week</span>
-  </div>
-  <div class="stats-bar-sep"></div>
-  <div class="stats-bar-item">
-    {#if loadingStreaks}
-      <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
-    {:else}
-      <span class="stats-bar-value">{streaks?.currentStreak ?? 0}d</span>
-    {/if}
-    <span class="stats-bar-label">streak</span>
-  </div>
-  <div class="stats-bar-sep"></div>
-  <div class="stats-bar-item">
-    {#if loadingHealth}
-      <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
-    {:else}
-      <span class="stats-bar-value">{formatNumber(health?.totalPlays ?? 0)}</span>
-    {/if}
-    <span class="stats-bar-label">total plays</span>
-  </div>
-</div>
-
-<div class="card" style="margin-bottom: 1.5rem;">
-  <h3 class="section-title"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>
-  {#if loadingTracks}
-    <div class="track-list">
-      {#each Array(5) as _, i}
-        <div class="track-item compact ghost-item">
-          <span class="track-rank ghost-rank">{i + 1}</span>
-          <div class="track-art ghost-shimmer"></div>
-          <div class="track-info">
-            <div class="ghost-line ghost-line--title"></div>
-            <div class="ghost-line ghost-line--sub"></div>
-          </div>
-          <div class="track-meta">
-            <div class="ghost-line ghost-line--meta"></div>
-          </div>
-        </div>
-      {/each}
+<!-- despacha cada sección configurable del dashboard por su key (ver detail-layout.ts).
+     el div evita que el snippet, como hijo directo de PullToRefresh, se interprete
+     como prop implícita del componente -->
+<div>
+{#snippet section(key: string)}
+  {#if key === 'statsBar'}
+    <div class="card stats-bar">
+      <div class="stats-bar-item">
+        {#if loadingTime}
+          <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
+        {:else}
+          <span class="stats-bar-value">{formatNumber(todayPlays)}</span>
+        {/if}
+        <span class="stats-bar-label">plays today</span>
+      </div>
+      <div class="stats-bar-sep"></div>
+      <div class="stats-bar-item">
+        {#if loadingTime}
+          <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
+        {:else}
+          <span class="stats-bar-value">{formatHours(todayMs)}</span>
+        {/if}
+        <span class="stats-bar-label">listened today</span>
+      </div>
+      <div class="stats-bar-sep"></div>
+      <div class="stats-bar-item">
+        {#if loadingTime}
+          <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
+        {:else}
+          <span class="stats-bar-value">{formatHours(weekMs)}</span>
+        {/if}
+        <span class="stats-bar-label">this week</span>
+      </div>
+      <div class="stats-bar-sep"></div>
+      <div class="stats-bar-item">
+        {#if loadingStreaks}
+          <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
+        {:else}
+          <span class="stats-bar-value">{streaks?.currentStreak ?? 0}d</span>
+        {/if}
+        <span class="stats-bar-label">streak</span>
+      </div>
+      <div class="stats-bar-sep"></div>
+      <div class="stats-bar-item">
+        {#if loadingHealth}
+          <span class="stats-bar-value"><span class="ghost-text ghost-stat"></span></span>
+        {:else}
+          <span class="stats-bar-value">{formatNumber(health?.totalPlays ?? 0)}</span>
+        {/if}
+        <span class="stats-bar-label">total plays</span>
+      </div>
     </div>
-  {:else if topTracks.length > 0}
-    <TrackList items={topTracks} showRank {metric} compact />
-  {:else}
-    <p class="empty-inline">No data yet.</p>
-  {/if}
-</div>
-
-<div class="card" style="margin-bottom: 1.5rem;">
-  <h3 class="section-title"><a href="/top?range=week&tab=albums" class="section-link">Top albums this week</a></h3>
-  {#if loadingAlbums}
-    <div class="cover-row-ghost">
-      {#each Array(5) as _, i}
-        <div class="cover-item-ghost">
-          <div class="cover-img-ghost ghost-shimmer"></div>
-          <div class="ghost-line ghost-line--cover-name"></div>
-          <div class="ghost-line ghost-line--cover-stat"></div>
+  {:else if key === 'topTracks'}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <h3 class="section-title"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>
+      {#if loadingTracks}
+        <div class="track-list">
+          {#each Array(5) as _, i}
+            <div class="track-item compact ghost-item">
+              <span class="track-rank ghost-rank">{i + 1}</span>
+              <div class="track-art ghost-shimmer"></div>
+              <div class="track-info">
+                <div class="ghost-line ghost-line--title"></div>
+                <div class="ghost-line ghost-line--sub"></div>
+              </div>
+              <div class="track-meta">
+                <div class="ghost-line ghost-line--meta"></div>
+              </div>
+            </div>
+          {/each}
         </div>
-      {/each}
+      {:else if topTracks.length > 0}
+        <TrackList items={topTracks} showRank {metric} compact />
+      {:else}
+        <p class="empty-inline">No data yet.</p>
+      {/if}
     </div>
-  {:else if topAlbums.length > 0}
-    <CoverGrid items={topAlbums.filter(a => a.album).map((item, i) => ({
-      href: `/album/${item.albumId}`,
-      rank: i + 1,
-      imageUrl: item.album?.imageUrl,
-      name: item.album?.name ?? '',
-      stat: metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs),
-      isLive: item.albumId === nowPlayingStore.albumId,
-      oncontextmenu: openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album?.name ?? '', imageUrl: item.album?.imageUrl ?? null }),
-    }))} />
-  {:else}
-    <p class="empty-inline">No data yet.</p>
-  {/if}
-</div>
-
-<div class="card" style="margin-bottom: 1.5rem;">
-  <h3 class="section-title"><a href="/top?range=week&tab=artists" class="section-link">Top artists this week</a></h3>
-  {#if loadingArtists}
-    <div class="cover-row-ghost">
-      {#each Array(5) as _, i}
-        <div class="cover-item-ghost">
-          <div class="cover-img-ghost cover-img-ghost--round ghost-shimmer"></div>
-          <div class="ghost-line ghost-line--cover-name"></div>
-          <div class="ghost-line ghost-line--cover-stat"></div>
+  {:else if key === 'topAlbums'}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <h3 class="section-title"><a href="/top?range=week&tab=albums" class="section-link">Top albums this week</a></h3>
+      {#if loadingAlbums}
+        <div class="cover-row-ghost">
+          {#each Array(5) as _, i}
+            <div class="cover-item-ghost">
+              <div class="cover-img-ghost ghost-shimmer"></div>
+              <div class="ghost-line ghost-line--cover-name"></div>
+              <div class="ghost-line ghost-line--cover-stat"></div>
+            </div>
+          {/each}
         </div>
-      {/each}
+      {:else if topAlbums.length > 0}
+        <CoverGrid items={topAlbums.filter(a => a.album).map((item, i) => ({
+          href: `/album/${item.albumId}`,
+          rank: i + 1,
+          imageUrl: item.album?.imageUrl,
+          name: item.album?.name ?? '',
+          stat: metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs),
+          isLive: item.albumId === nowPlayingStore.albumId,
+          oncontextmenu: openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album?.name ?? '', imageUrl: item.album?.imageUrl ?? null }),
+        }))} />
+      {:else}
+        <p class="empty-inline">No data yet.</p>
+      {/if}
     </div>
-  {:else if topArtists.length > 0}
-    <CoverGrid items={topArtists.filter(a => a.artist).map((item, i) => ({
-      href: `/artist/${item.artistId}`,
-      rank: i + 1,
-      imageUrl: item.artist?.imageUrl,
-      name: item.artist?.name ?? '',
-      stat: metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs),
-      isLive: nowPlayingStore.artistIds.includes(item.artistId),
-      round: true,
-      oncontextmenu: openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist?.name ?? '', imageUrl: item.artist?.imageUrl ?? null }),
-    }))} />
-  {:else}
-    <p class="empty-inline">No data yet.</p>
-  {/if}
-</div>
-
-<RecentRankChanges />
-
-<div class="card">
-  <h3 class="section-title"><a href="/history" class="section-link">Recent plays</a></h3>
-  {#if loadingHistory}
-    <div class="track-list">
-      {#each Array(10) as _, i}
-        <div class="track-item compact ghost-item">
-          <div class="track-art ghost-shimmer"></div>
-          <div class="track-info">
-            <div class="ghost-line ghost-line--title"></div>
-            <div class="ghost-line ghost-line--sub"></div>
-          </div>
-          <div class="track-meta">
-            <div class="ghost-line ghost-line--meta"></div>
-          </div>
+  {:else if key === 'topArtists'}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <h3 class="section-title"><a href="/top?range=week&tab=artists" class="section-link">Top artists this week</a></h3>
+      {#if loadingArtists}
+        <div class="cover-row-ghost">
+          {#each Array(5) as _, i}
+            <div class="cover-item-ghost">
+              <div class="cover-img-ghost cover-img-ghost--round ghost-shimmer"></div>
+              <div class="ghost-line ghost-line--cover-name"></div>
+              <div class="ghost-line ghost-line--cover-stat"></div>
+            </div>
+          {/each}
         </div>
-      {/each}
+      {:else if topArtists.length > 0}
+        <CoverGrid items={topArtists.filter(a => a.artist).map((item, i) => ({
+          href: `/artist/${item.artistId}`,
+          rank: i + 1,
+          imageUrl: item.artist?.imageUrl,
+          name: item.artist?.name ?? '',
+          stat: metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs),
+          isLive: nowPlayingStore.artistIds.includes(item.artistId),
+          round: true,
+          oncontextmenu: openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist?.name ?? '', imageUrl: item.artist?.imageUrl ?? null }),
+        }))} />
+      {:else}
+        <p class="empty-inline">No data yet.</p>
+      {/if}
     </div>
-  {:else if recentPlays.length > 0}
-    <TrackList items={recentPlays} showTime compact sessionStartedAt={getSessionTrackingDisplay() !== 'off' ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
-  {:else}
-    <p class="empty-inline">No listening data yet.</p>
+  {:else if key === 'rankChanges'}
+    <RecentRankChanges />
+  {:else if key === 'recentPlays'}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <h3 class="section-title"><a href="/history" class="section-link">Recent plays</a></h3>
+      {#if loadingHistory}
+        <div class="track-list">
+          {#each Array(10) as _, i}
+            <div class="track-item compact ghost-item">
+              <div class="track-art ghost-shimmer"></div>
+              <div class="track-info">
+                <div class="ghost-line ghost-line--title"></div>
+                <div class="ghost-line ghost-line--sub"></div>
+              </div>
+              <div class="track-meta">
+                <div class="ghost-line ghost-line--meta"></div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else if recentPlays.length > 0}
+        <TrackList items={recentPlays} showTime compact sessionStartedAt={getSessionTrackingDisplay() !== 'off' ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
+      {:else}
+        <p class="empty-inline">No listening data yet.</p>
+      {/if}
+    </div>
   {/if}
+{/snippet}
+
+{#each [...layout.main, ...layout.rail] as key (key)}
+  {@render section(key)}
+{/each}
 </div>
 </PullToRefresh>
 

@@ -5,7 +5,14 @@ describe('defaultLayout', () => {
   it('coloca cada sección del registro en su columna por defecto, nada oculto', () => {
     const layout = defaultLayout('artist');
     expect(layout.main).toEqual(['stats', 'rankingBadges', 'chartStats', 'activity', 'topTracks', 'topAlbums']);
-    expect(layout.rail).toEqual(['historyByYear', 'recentPlays']);
+    expect(layout.rail).toEqual(['historyByYear', 'relations', 'recentPlays']);
+    expect(layout.hidden).toEqual([]);
+  });
+
+  it('el dashboard es de columna única: todo en main, rail vacío', () => {
+    const layout = defaultLayout('dashboard');
+    expect(layout.main).toEqual(DETAIL_SECTIONS.dashboard.map(d => d.key));
+    expect(layout.rail).toEqual([]);
     expect(layout.hidden).toEqual([]);
   });
 });
@@ -31,12 +38,12 @@ describe('resolveLayout', () => {
   });
 
   it('añade secciones nuevas a su columna por defecto sin romper el orden guardado', () => {
-    // layout viejo sin 'chartStats' ni 'recentPlays' (añadidas después)
+    // layout viejo sin 'chartStats', 'relations' ni 'recentPlays' (añadidas después)
     const stored = { main: ['stats', 'rankingBadges', 'activity', 'topTracks', 'topAlbums'], rail: ['historyByYear'], hidden: [] };
     const resolved = resolveLayout('artist', stored);
-    // chartStats (main por defecto) se añade al final de main; recentPlays al final de rail
+    // chartStats (main por defecto) se añade al final de main; relations y recentPlays al final de rail
     expect(resolved.main).toEqual(['stats', 'rankingBadges', 'activity', 'topTracks', 'topAlbums', 'chartStats']);
-    expect(resolved.rail).toEqual(['historyByYear', 'recentPlays']);
+    expect(resolved.rail).toEqual(['historyByYear', 'relations', 'recentPlays']);
     // cobertura total: cada sección del registro aparece exactamente una vez
     const all = [...resolved.main, ...resolved.rail, ...resolved.hidden].sort();
     expect(all).toEqual(DETAIL_SECTIONS.artist.map(d => d.key).sort());

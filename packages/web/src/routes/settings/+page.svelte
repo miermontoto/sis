@@ -552,12 +552,12 @@
       </div>
     </div>
 
-    <div class="prefs-subtitle">Detail views</div>
+    <div class="prefs-subtitle">Layouts</div>
     <div class="prefs-list">
       <div class="pref-row pref-row--stack">
         <div class="pref-info">
           <div class="pref-label">Sections layout</div>
-          <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to every artist, album or track page.</div>
+          <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to the dashboard and every artist, album or track page.</div>
         </div>
         <DetailLayoutEditor />
       </div>
