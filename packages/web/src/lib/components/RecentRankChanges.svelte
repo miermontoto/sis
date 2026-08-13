@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api, getRankingMetric, type RecentRankChangeItem } from '$lib/api';
+  import { api, getRankingMetric, getSessionRankDisplay, onSessionRankDisplayChange, type RecentRankChangeItem, type SessionRankDisplay } from '$lib/api';
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
@@ -10,9 +10,20 @@
   const TAB_MAP: Record<string, string> = { track: 'tracks', artist: 'artists', album: 'albums' };
   const GHOST_ROWS = 4;
 
+  // mismos rangos visibles que la session card según la preferencia del usuario
+  const ALLOWED_RANGES: Record<string, Set<string>> = {
+    'all': new Set(['all']),
+    'all+ytd': new Set(['all', 'thisYear']),
+  };
+
   let days = $state(WINDOWS[0]);
   let items = $state<RecentRankChangeItem[]>([]);
   let loading = $state(true);
+  let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
+
+  $effect(() => {
+    return onSessionRankDisplayChange(() => { displayMode = getSessionRankDisplay(); });
+  });
 
   type Change = RecentRankChangeItem['changes'][number];
 
@@ -32,8 +43,15 @@
     load(days);
   });
 
+  function filterChanges(changes: Change[]): Change[] {
+    const allowed = ALLOWED_RANGES[displayMode];
+    if (!allowed) return [];
+    return changes.filter(c => allowed.has(c.range));
+  }
+
   // mejor cambio de una entidad: mayor |delta|; si solo hay entradas nuevas, la mejor posición
-  function bestChange(changes: Change[]): Change {
+  function bestChange(changes: Change[]): Change | null {
+    if (changes.length === 0) return null;
     const moved = changes.filter(c => c.delta !== null);
     if (moved.length > 0) {
       return moved.reduce((best, c) => Math.abs(c.delta!) > Math.abs(best.delta!) ? c : best);
@@ -44,64 +62,69 @@
   function rankingHref(item: RecentRankChangeItem, range: string): string {
     return `/top?tab=${TAB_MAP[item.entityType] ?? 'tracks'}&range=${range === 'thisYear' ? 'thisYear' : 'all'}&focus=${item.entityId}`;
   }
+
+  let visible = $derived(items
+    .map(item => ({ item, best: bestChange(filterChanges(item.changes)) }))
+    .filter((v): v is { item: RecentRankChangeItem; best: Change } => v.best !== null));
 </script>
 
-<div class="card changes-card">
-  <div class="changes-header">
-    <h3>Recent ranking changes</h3>
-    <div class="changes-windows">
-      {#each WINDOWS as w}
-        <button class="window-btn" class:window-active={days === w} onclick={() => { days = w; }}>{w}d</button>
-      {/each}
+{#if displayMode !== 'none'}
+  <div class="card changes-card">
+    <div class="changes-header">
+      <h3>Recent ranking changes</h3>
+      <div class="changes-windows">
+        {#each WINDOWS as w}
+          <button class="range-btn" class:active={days === w} onclick={() => { days = w; }}>{w}d</button>
+        {/each}
+      </div>
     </div>
-  </div>
 
-  {#if loading}
-    <div class="changes-list">
-      {#each Array(GHOST_ROWS) as _}
-        <div class="change-row"><span class="ghost-text" style="width: 60%;"></span></div>
-      {/each}
-    </div>
-  {:else if items.length === 0}
-    <p class="changes-empty">No ranking changes in the last {days} days.</p>
-  {:else}
-    <div class="changes-list">
-      {#each items as item (item.entityType + item.entityId)}
-        {@const best = bestChange(item.changes)}
-        <div class="change-row">
-          <span class="change-thumb" class:change-thumb--art={item.imageUrl} class:change-thumb--round={item.entityType === 'artist'}>
-            {#if item.imageUrl}
-              <img class="change-thumb-img" src={item.imageUrl} alt="" loading="lazy" />
-              <span class="change-thumb-badge" aria-hidden="true">
-                {#if item.entityType === 'track'}<IconTrack size={8} />
-                {:else if item.entityType === 'artist'}<IconArtist size={8} />
-                {:else}<IconAlbum size={8} />
-                {/if}
-              </span>
-            {:else if item.entityType === 'track'}<IconTrack size={12} />
-            {:else if item.entityType === 'artist'}<IconArtist size={12} />
-            {:else}<IconAlbum size={12} />
-            {/if}
-          </span>
-          <span class="change-names">
-            <a href="/{item.entityType}/{item.entityId}" class="change-name">{item.name}</a>
-            {#if item.artistName}
-              <span class="change-artist">{item.artistName}</span>
-            {/if}
-          </span>
-          <a href={rankingHref(item, best.range)} class="change-badge" class:up={best.delta !== null && best.delta > 0} class:down={best.delta !== null && best.delta < 0} class:new={best.delta === null}>
-            {RANGE_LABELS[best.range] ?? best.range}
-            {#if best.delta === null}
-              NEW #{best.currentRank}
-            {:else}
-              #{best.previousRank}→#{best.currentRank}
-            {/if}
-          </a>
-        </div>
-      {/each}
-    </div>
-  {/if}
-</div>
+    {#if loading}
+      <div class="changes-list">
+        {#each Array(GHOST_ROWS) as _}
+          <div class="change-row"><span class="ghost-text" style="width: 60%;"></span></div>
+        {/each}
+      </div>
+    {:else if visible.length === 0}
+      <p class="changes-empty">No ranking changes in the last {days} days.</p>
+    {:else}
+      <div class="changes-list">
+        {#each visible as { item, best } (item.entityType + item.entityId)}
+          <div class="change-row">
+            <span class="change-thumb" class:change-thumb--art={item.imageUrl} class:change-thumb--round={item.entityType === 'artist'}>
+              {#if item.imageUrl}
+                <img class="change-thumb-img" src={item.imageUrl} alt="" loading="lazy" />
+                <span class="change-thumb-badge" aria-hidden="true">
+                  {#if item.entityType === 'track'}<IconTrack size={8} />
+                  {:else if item.entityType === 'artist'}<IconArtist size={8} />
+                  {:else}<IconAlbum size={8} />
+                  {/if}
+                </span>
+              {:else if item.entityType === 'track'}<IconTrack size={12} />
+              {:else if item.entityType === 'artist'}<IconArtist size={12} />
+              {:else}<IconAlbum size={12} />
+              {/if}
+            </span>
+            <span class="change-names">
+              <a href="/{item.entityType}/{item.entityId}" class="change-name">{item.name}</a>
+              {#if item.artistName}
+                <span class="change-artist">{item.artistName}</span>
+              {/if}
+            </span>
+            <a href={rankingHref(item, best.range)} class="change-badge" class:up={best.delta !== null && best.delta > 0} class:down={best.delta !== null && best.delta < 0} class:new={best.delta === null}>
+              {#if displayMode !== 'all'}{RANGE_LABELS[best.range] ?? best.range}{/if}
+              {#if best.delta === null}
+                NEW #{best.currentRank}
+              {:else}
+                #{best.previousRank}→#{best.currentRank}
+              {/if}
+            </a>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <style>
   .changes-card {
@@ -112,6 +135,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     margin-bottom: 0.75rem;
   }
 
@@ -119,29 +144,12 @@
     margin: 0;
   }
 
+  /* mismo patrón visual que TimeRangeSelector (botones .range-btn globales),
+     sin su margin-bottom de cabecera de página */
   .changes-windows {
     display: flex;
+    align-items: center;
     gap: 0.25rem;
-  }
-
-  .window-btn {
-    padding: 0.15rem 0.5rem;
-    font-size: 0.7rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
-    background: none;
-    color: var(--text-secondary, #aaa);
-    cursor: pointer;
-  }
-
-  .window-btn:hover {
-    color: var(--text-primary, #fff);
-  }
-
-  .window-active {
-    background: rgba(74, 158, 255, 0.15);
-    border-color: rgba(74, 158, 255, 0.3);
-    color: var(--text-primary, #fff);
   }
 
   .changes-empty {
@@ -257,6 +265,7 @@
     text-decoration: underline;
   }
 
+  /* mismos colores de subida/bajada que la session card */
   .change-badge.up {
     color: #1db954;
   }
@@ -266,7 +275,7 @@
   }
 
   .change-badge.new {
-    color: #4a9eff;
+    color: var(--accent, #1db954);
   }
 
   .ghost-text {

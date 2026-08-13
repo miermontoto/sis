@@ -240,9 +240,11 @@ function buildRankMap(scores: ScoreRow[], key: 'val_all' | 'val_year' | 'pre_all
 
 /** Cambios de posición recientes: ranking actual vs ranking de hace `days` días,
  *  recomputado desde listening_history (sin snapshots — "permanente en el tiempo").
- *  Devuelve entidades dentro del top vigente cuyo rank cambió, mejor posición primero. */
+ *  Devuelve entidades dentro del top vigente (según rankLimits del usuario, mismos
+ *  ajustes que la session card) cuyo rank cambió, mejor posición primero. */
 export function getRecentRankChanges(
-  db: Db, entityType: EntityType, days: number, sort: Sort, userId: number, limit: number
+  db: Db, entityType: EntityType, days: number, sort: Sort, userId: number, limit: number,
+  rankLimits?: Record<string, number>
 ): RecentRankChangeItem[] {
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
   const scores = scanPrePostScores(db, entityType, sort, userId, cutoff);
@@ -258,7 +260,7 @@ export function getRecentRankChanges(
   for (const { range, now, pre } of ranges) {
     const nowRanks = buildRankMap(scores, now);
     const preRanks = buildRankMap(scores, pre);
-    const rankLimit = DEFAULT_RANK_LIMITS[range];
+    const rankLimit = (rankLimits ?? DEFAULT_RANK_LIMITS)[range] ?? DEFAULT_RANK_LIMITS[range];
 
     for (const [eid, currentRank] of nowRanks) {
       if (currentRank > rankLimit) continue;

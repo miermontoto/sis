@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w33k';
+export const VERSION = '26w33l';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -156,6 +156,10 @@ export const RECENT_CHANGES_MAX_DAYS = 90;
 
 // máximo de entidades devueltas por tipo (artist/album/track)
 export const RECENT_CHANGES_LIMIT = 20;
+
+// edad a partir de la cual el resultado cacheado se refresca en background
+// (stale-while-revalidate: siempre se sirve lo cacheado al instante)
+export const RECENT_CHANGES_CACHE_MS = 10 * 60_000;
 
 // --- notificaciones push ---
 

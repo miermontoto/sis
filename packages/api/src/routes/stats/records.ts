@@ -1,10 +1,11 @@
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { dbRead } from '../../db/read-pool.js';
-import { RECORDS_LIMIT, SESSION_GAP_MS, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS, RECENT_CHANGES_LIMIT } from '../../constants.js';
+import { RECORDS_LIMIT, SESSION_GAP_MS, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS } from '../../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../../services/records-cache.js';
+import { getRecentRankChangesCached, readRankLimits } from '../../services/recent-changes-cache.js';
 import { computeProjectedRankingsBatch } from '../../db/queries/index.js';
-import { pollingState, tracks, artists, trackArtists, albums, userSettings } from '../../db/schema.js';
+import { pollingState, tracks, artists, trackArtists, albums } from '../../db/schema.js';
 import { fetchEntityMetadata } from '../../db/queries/charts.js';
 import type { ProjectionResult, ProjectedRankingsResponse, CrossoverEntity, EntityType, RecentRankChangesResponse } from '@sis/shared';
 import { statsRouter, parseWeekStart, parseSort, parseRecordsUnique, toEntityType } from './_shared.js';
@@ -49,20 +50,16 @@ records.get('/ranking-history/:type/:id', async (c) => {
 
 // cambios de posición recientes: ranking actual vs hace N días, por tipo de entidad.
 // mismo espíritu que projected-rankings pero permanente (no depende de la sesión).
+// respeta los mismos límites de rank que la session card y sirve desde la cache SWR.
 records.get('/recent-rank-changes', async (c) => {
   const userId = c.get('userId');
+  const spotifyId = c.get('spotifyId');
   const sort = parseSort(c);
   const rawDays = parseInt(c.req.query('days') || String(RECENT_CHANGES_DEFAULT_DAYS), 10);
   const days = Math.min(Math.max(Number.isNaN(rawDays) ? RECENT_CHANGES_DEFAULT_DAYS : rawDays, 1), RECENT_CHANGES_MAX_DAYS);
 
-  const [artistItems, albumItems, trackItems] = await Promise.all([
-    dbRead('getRecentRankChanges', 'artist', days, sort, userId, RECENT_CHANGES_LIMIT),
-    dbRead('getRecentRankChanges', 'album', days, sort, userId, RECENT_CHANGES_LIMIT),
-    dbRead('getRecentRankChanges', 'track', days, sort, userId, RECENT_CHANGES_LIMIT),
-  ]);
-
-  // mismo orden que la session card: artistas, álbumes, tracks (cada tipo ya viene ordenado)
-  return c.json({ days, items: [...artistItems, ...albumItems, ...trackItems] } satisfies RecentRankChangesResponse);
+  const data = await getRecentRankChangesCached(userId, spotifyId, days, sort);
+  return c.json(data satisfies RecentRankChangesResponse);
 });
 
 records.get('/projected-rankings', (c) => {
@@ -71,14 +68,7 @@ records.get('/projected-rankings', (c) => {
   const sort = parseSort(c);
   const db = getDb();
 
-  const settingsRows = db.select().from(userSettings)
-    .where(eq(userSettings.userId, spotifyId))
-    .all();
-  const settingsMap = new Map(settingsRows.map(r => [r.key, r.value]));
-  const rankLimits: Record<string, number> = {
-    thisYear: parseInt(settingsMap.get('sessionRankLimitYear') ?? '50', 10) || 50,
-    all: parseInt(settingsMap.get('sessionRankLimitAll') ?? '200', 10) || 200,
-  };
+  const rankLimits = readRankLimits(spotifyId);
 
   const state = db.select().from(pollingState).where(eq(pollingState.userId, userId)).get();
 
