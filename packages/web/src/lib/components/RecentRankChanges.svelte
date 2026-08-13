@@ -38,7 +38,9 @@
   function filterChanges(changes: Change[]): Change[] {
     const allowed = ALLOWED_RANGES[displayMode];
     if (!allowed) return [];
-    return changes.filter(c => allowed.has(c.range));
+    // el server ya emite solo subidas; el filtro delta protege frente a payloads
+    // cacheados por el cliente (maxStale 1h) de versiones previas que incluían bajadas
+    return changes.filter(c => allowed.has(c.range) && (c.delta === null || c.delta > 0));
   }
 
   // mejor cambio de una entidad: mayor subida; si solo hay entradas nuevas, la mejor posición
