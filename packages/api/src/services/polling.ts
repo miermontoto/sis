@@ -5,7 +5,7 @@ import { spotifyFetch } from './spotify-client.js';
 import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
-import { checkChartClosings } from './notification-events.js';
+import { checkChartClosings, checkDailyEvents } from './notification-events.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   CURRENTLY_PLAYING_MIN_MS,
@@ -311,13 +311,17 @@ export function triggerCurrentlyPlayingPoll(userId: number, delayMs = CURRENTLY_
 }
 
 async function pollRecentlyPlayed(userId: number) {
-  // cierre de chart (time-driven): debe correr cada ciclo aún sin datos nuevos, por eso
-  // va antes del early-return de recently-played. guardado para que nunca rompa el polling.
+  // cierre de chart y eventos diarios (time-driven): deben correr cada ciclo aún sin
+  // datos nuevos, por eso van antes del early-return de recently-played. guardados
+  // para que nunca rompan el polling.
   try {
     const spotifyId = getUserById(userId)?.spotifyId;
-    if (spotifyId) checkChartClosings(userId, spotifyId);
+    if (spotifyId) {
+      checkChartClosings(userId, spotifyId);
+      checkDailyEvents(userId, spotifyId);
+    }
   } catch (err) {
-    log.child(userId).error(`error en checkChartClosings:`, err);
+    log.child(userId).error(`error en eventos de notificación:`, err);
   }
 
   try {

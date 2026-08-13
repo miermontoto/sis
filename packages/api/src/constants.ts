@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w33i';
+export const VERSION = '26w33j';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -167,6 +167,14 @@ export const RECORD_NOTIFY_CATEGORIES = ['peakWeekPlays', 'mostWeeksAtNo1', 'lon
 
 // número de entradas del top incluidas en el recap de 'chart_closing'
 export const NOTIFY_CHART_TOP_N = 3;
+
+// mínimo de plays de una entidad para que dispare eventos de aniversario
+// (evita notificar aniversarios de cosas escuchadas de pasada)
+export const ANNIVERSARY_MIN_PLAYS = 25;
+
+// escalera de umbrales de reproducciones que disparan un 'milestone'; al cruzar
+// varios a la vez solo se notifica el más alto
+export const MILESTONE_THRESHOLDS = [100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000] as const;
 
 // --- auto-match / auto-dedup de tracks al mergear álbumes ---
 

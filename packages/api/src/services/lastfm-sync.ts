@@ -9,7 +9,7 @@ import { lastfmAccounts, pollingState } from '../db/schema.js';
 import { importHistory, upsertScrobbleTrack } from './history-import.js';
 import { getStoredTokens } from './token-manager.js';
 import { getUserById } from './user-manager.js';
-import { checkChartClosings } from './notification-events.js';
+import { checkChartClosings, checkDailyEvents } from './notification-events.js';
 import { getRecentTracks, type LastfmRecentTrack } from './lastfm-client.js';
 import { LASTFM_SYNC_MAX_PAGES, LASTFM_SYNC_GRACE_MS } from '../constants.js';
 import { createLogger } from './logger.js';
@@ -184,15 +184,18 @@ export async function syncRecentScrobbles(userId: number): Promise<number> {
 // espacia las llamadas; secuencial evita solaparlas)
 export async function syncAllLastfmAccounts(): Promise<void> {
   for (const account of getAllLastfmAccounts()) {
-    // cierre de chart (time-driven) para usuarios solo-last.fm: los híbridos ya
-    // lo reciben en el poll de recently-played de spotify. corre cada tick aunque
-    // no haya scrobbles nuevos; aislado para que nunca rompa el sync.
+    // cierre de chart y eventos diarios (time-driven) para usuarios solo-last.fm:
+    // los híbridos ya los reciben en el poll de recently-played de spotify. corren
+    // cada tick aunque no haya scrobbles nuevos; aislados para que nunca rompan el sync.
     if (!getStoredTokens(account.userId)) {
       try {
         const spotifyId = getUserById(account.userId)?.spotifyId;
-        if (spotifyId) checkChartClosings(account.userId, spotifyId);
+        if (spotifyId) {
+          checkChartClosings(account.userId, spotifyId);
+          checkDailyEvents(account.userId, spotifyId);
+        }
       } catch (err) {
-        log.child(account.userId).error(`error en checkChartClosings:`, err);
+        log.child(account.userId).error(`error en eventos de notificación:`, err);
       }
     }
     try {

@@ -152,7 +152,7 @@ disabled — the app still builds and runs.
 
 ## 6. What each notification means
 
-There are exactly four event types. Two sources produce them.
+Three sources produce the event types.
 
 **From the records cache** (fires when a headline record is broken):
 
@@ -175,19 +175,36 @@ app was down and several weeks were skipped, only that most recent closed week
 fires; older weeks are not backfilled. On first boot the current week is just
 recorded (nothing fires), so backfills/imports don't trigger a burst.
 
+**From the daily check** (fires once per user shortly after a UTC day rolls
+over; same first-boot-records-without-firing pattern as the chart close):
+
+- **`release_anniversary`** — an album/single with a full release date whose
+  month-day is today, at least one year old, and with at least
+  `ANNIVERSARY_MIN_PLAYS` (25) of your plays. Once per album per year.
+- **`first_listen_anniversary`** — an artist you first listened to on this
+  month-day one or more years ago (min plays as above). Once per artist per year.
+- **`milestone`** — an artist, album or track whose total play count crossed a
+  ladder threshold (100, 250, 500, 1k, 2.5k, 5k, 10k…) since the previous daily
+  check. Only the highest threshold crossed fires; each `(entity, threshold)`
+  fires at most once ever. Historical imports raise both sides of the
+  comparison, so backfills never produce a milestone burst.
+
 ### Delivery guards
 
 - **Opt-in**: an event sends only if the user has `notificationsEnabled` on
   **and** the matching per-type toggle on (`notifyRecords`, `notifyNumberOne`,
-  `notifyChartClosings`, `notifyBiggestDebut`).
+  `notifyChartClosings`, `notifyBiggestDebut`, `notifyAnniversaries`,
+  `notifyMilestones`).
 - **No deliverable channel**: if the user has no active device token *on a
   configured transport* (no device at all, or FCM/VAPID creds not set for the
   device's platform), nothing is sent and nothing is recorded — so the event can
   still fire once a device is registered **and** credentials exist. This is why
   events aren't "consumed" while you run credential-less.
-- **Throttle**: only `record` is capped at `NOTIFICATION_MAX_PER_DAY` (15) per
-  user per rolling 24h. The weekly-close events (`number_one`, `chart_closing`,
-  `biggest_debut`) bypass the cap so a busy records day can't swallow them.
+- **Throttle**: the chatty types (`record`, `release_anniversary`,
+  `first_listen_anniversary`, `milestone`) share a `NOTIFICATION_MAX_PER_DAY`
+  (15) cap per user per rolling 24h. The weekly-close events (`number_one`,
+  `chart_closing`, `biggest_debut`) bypass the cap so a busy day can't swallow
+  them.
 - **Dedup**: each `(user, type, entity, period)` is sent at most once.
 
 ---

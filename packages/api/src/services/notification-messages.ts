@@ -74,3 +74,29 @@ export function playlistRegeneratedMessage(locale: NotifyLocale, name: string, t
   }
   return { title: 'Playlist refreshed', body: `"${name}" was refreshed with ${trackCount} tracks.` };
 }
+
+// release_anniversary: un álbum/single escuchado cumple años desde su publicación
+export function releaseAnniversaryMessage(locale: NotifyLocale, name: string, artistName: string | null, years: number): NotifyMessage {
+  const subject = withArtist(name, artistName, locale);
+  if (locale === 'es') {
+    return { title: 'Aniversario', body: `${subject} cumple hoy ${years} ${years === 1 ? 'año' : 'años'}.` };
+  }
+  return { title: 'Anniversary', body: `${subject} turns ${years} today.` };
+}
+
+// first_listen_anniversary: aniversario de la primera escucha de un artista
+export function firstListenAnniversaryMessage(locale: NotifyLocale, name: string, years: number): NotifyMessage {
+  if (locale === 'es') {
+    return { title: 'Aniversario de escucha', body: years === 1 ? `Hace 1 año que escuchaste a ${name} por primera vez.` : `Hace ${years} años que escuchaste a ${name} por primera vez.` };
+  }
+  return { title: 'Listening anniversary', body: years === 1 ? `1 year since you first listened to ${name}.` : `${years} years since you first listened to ${name}.` };
+}
+
+// milestone: una entidad cruza un umbral de reproducciones
+export function milestoneMessage(locale: NotifyLocale, name: string, artistName: string | null, threshold: number): NotifyMessage {
+  const subject = withArtist(name, artistName, locale);
+  if (locale === 'es') {
+    return { title: 'Nuevo hito', body: `Has alcanzado las ${threshold.toLocaleString('es-ES')} reproducciones de ${subject}.` };
+  }
+  return { title: 'New milestone', body: `You've reached ${threshold.toLocaleString('en-US')} plays of ${subject}.` };
+}

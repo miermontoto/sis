@@ -29,6 +29,8 @@ interface SettingsData {
   notifyNumberOne: boolean;
   notifyChartClosings: boolean;
   notifyBiggestDebut: boolean;
+  notifyAnniversaries: boolean;
+  notifyMilestones: boolean;
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
   lastPeriodYear: string | null;
@@ -65,6 +67,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   notifyNumberOne: true,
   notifyChartClosings: true,
   notifyBiggestDebut: true,
+  notifyAnniversaries: true,
+  notifyMilestones: true,
   lastPeriodWeek: null,
   lastPeriodMonth: null,
   lastPeriodYear: null,
@@ -192,6 +196,8 @@ export const [getNotifyRecords, setNotifyRecords] = boolSetting('notifyRecords')
 export const [getNotifyNumberOne, setNotifyNumberOne] = boolSetting('notifyNumberOne');
 export const [getNotifyChartClosings, setNotifyChartClosings] = boolSetting('notifyChartClosings');
 export const [getNotifyBiggestDebut, setNotifyBiggestDebut] = boolSetting('notifyBiggestDebut');
+export const [getNotifyAnniversaries, setNotifyAnniversaries] = boolSetting('notifyAnniversaries');
+export const [getNotifyMilestones, setNotifyMilestones] = boolSetting('notifyMilestones');
 
 export function getLocale(): string {
   const raw = getRawLocale();

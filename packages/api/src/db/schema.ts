@@ -245,11 +245,12 @@ export const sentNotifications = sqliteTable('sent_notifications', {
   uniqueIndex('idx_sent_notifications_dedup').on(table.userId, table.notificationType, table.entityId, table.period),
 ]);
 
-// notificaciones push: último periodo (chart) procesado por usuario y granularidad,
-// para detectar cierres de chart en el tick de polling sin refirar.
+// notificaciones push: último periodo procesado por usuario y granularidad, para
+// detectar cierres de chart ('week') y el cambio de día de los eventos diarios
+// ('day') en el tick de polling sin refirar.
 export const notificationPeriodState = sqliteTable('notification_period_state', {
   userId: integer('user_id').notNull(),
-  granularity: text('granularity').notNull(), // 'week' (extensible a 'month'|'year')
+  granularity: text('granularity').notNull(), // 'week' | 'day' (extensible a 'month'|'year')
   lastPeriod: text('last_period').notNull(),
 }, (table) => [
   primaryKey({ columns: [table.userId, table.granularity] }),

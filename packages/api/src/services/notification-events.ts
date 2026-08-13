@@ -1,14 +1,16 @@
-// detección de eventos de notificación push (fase 1: granularidad WEEK).
-// dos puntos de enganche producen los 4 tipos de evento (NotificationType):
+// detección de eventos de notificación push.
+// tres puntos de enganche producen los tipos de evento (NotificationType):
 //  - emitRecordEvents: diff de la cache de records -> 'record'
 //  - checkChartClosings: cierre de semana time-driven -> 'chart_closing' | 'number_one' | 'biggest_debut'
+//  - checkDailyEvents: cambio de día time-driven -> 'release_anniversary' | 'first_listen_anniversary' | 'milestone'
 // el envío real (sendPush) es credential-gated y fire-and-forget: nunca bloquea
 // ni lanza hacia el polling / recomputo de cache.
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { getChart } from '../db/queries/index.js';
-import { periodExpr } from '../db/queries/helpers.js';
-import type { Db } from '../db/queries/index.js';
+import { periodExpr, userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter } from '../db/queries/helpers.js';
+import type { Db, EntityType } from '../db/queries/index.js';
+import { fetchEntityMetadata } from '../db/queries/charts.js';
 import { userSettings } from '../db/schema.js';
 import { sendPush, hasDeliverableChannel } from './push-dispatch.js';
 import {
@@ -16,6 +18,8 @@ import {
   RECORD_NOTIFY_CATEGORIES,
   NOTIFICATION_MAX_PER_DAY,
   NOTIFY_CHART_TOP_N,
+  ANNIVERSARY_MIN_PLAYS,
+  MILESTONE_THRESHOLDS,
 } from '../constants.js';
 import {
   resolveLocale,
@@ -24,7 +28,11 @@ import {
   chartClosingMessage,
   biggestDebutMessage,
   playlistRegeneratedMessage,
+  releaseAnniversaryMessage,
+  firstListenAnniversaryMessage,
+  milestoneMessage,
 } from './notification-messages.js';
+import type { NotifyLocale } from './notification-messages.js';
 import type {
   NotificationType,
   PushPayload,
@@ -60,6 +68,18 @@ const EVENT_NUMBER_ONE: NotificationType = 'number_one';
 const EVENT_CHART_CLOSING: NotificationType = 'chart_closing';
 const EVENT_BIGGEST_DEBUT: NotificationType = 'biggest_debut';
 const EVENT_PLAYLIST_REGENERATED: NotificationType = 'playlist_regenerated';
+const EVENT_RELEASE_ANNIVERSARY: NotificationType = 'release_anniversary';
+const EVENT_FIRST_LISTEN_ANNIVERSARY: NotificationType = 'first_listen_anniversary';
+const EVENT_MILESTONE: NotificationType = 'milestone';
+
+// tipos potencialmente frecuentes que comparten el presupuesto diario
+// NOTIFICATION_MAX_PER_DAY (los eventos de cierre de semana quedan exentos)
+const THROTTLED_TYPES: readonly NotificationType[] = [
+  EVENT_RECORD,
+  EVENT_RELEASE_ANNIVERSARY,
+  EVENT_FIRST_LISTEN_ANNIVERSARY,
+  EVENT_MILESTONE,
+];
 
 // ruta de deep link a la vista de playlists (destino al abrir la notificación)
 const PLAYLISTS_ROUTE = '/playlists';
@@ -78,6 +98,8 @@ const PREF_RECORDS = 'notifyRecords';
 const PREF_NUMBER_ONE = 'notifyNumberOne';
 const PREF_CHART_CLOSINGS = 'notifyChartClosings';
 const PREF_BIGGEST_DEBUT = 'notifyBiggestDebut';
+const PREF_ANNIVERSARIES = 'notifyAnniversaries';
+const PREF_MILESTONES = 'notifyMilestones';
 const PREF_LOCALE = 'locale';
 const PREF_WEEK_START = 'weekStart';
 const PREF_RANKING_METRIC = 'rankingMetric';
@@ -104,7 +126,7 @@ function entityRoute(entityType: string, entityId: string): string {
 // intenta despachar un evento. aplica, en orden:
 //  1. si no hay dispositivos activos -> no hace nada (no registra, para que pueda
 //     dispararse cuando exista un dispositivo)
-//  2. throttle diario solo para 'record'/'number_one' (chart_closing/biggest_debut lo saltan)
+//  2. throttle diario compartido para THROTTLED_TYPES (los eventos de cierre de semana lo saltan)
 //  3. dedup vía INSERT OR IGNORE: si no insertó fila, ya se envió -> skip
 //  4. sendPush fire-and-forget (queueMicrotask): nunca bloquea al llamante
 function dispatchEvent(
@@ -122,14 +144,16 @@ function dispatchEvent(
   //    existan dispositivo + credenciales (evita "consumir" eventos sin entrega real)
   if (!hasDeliverableChannel(userId)) return;
 
-  // 2. throttle diario: solo 'record' (los eventos de cierre de semana
-  //    —number_one/chart_closing/biggest_debut— son poco frecuentes y lo saltan).
-  //    el conteo se limita a filas 'record' para no mezclar con los tipos exentos.
-  if (type === EVENT_RECORD) {
+  // 2. throttle diario compartido entre los tipos frecuentes (records, aniversarios,
+  //    milestones); los eventos de cierre de semana —number_one/chart_closing/
+  //    biggest_debut— son poco frecuentes y lo saltan. el conteo se limita a filas
+  //    de THROTTLED_TYPES para no mezclar con los tipos exentos.
+  if (THROTTLED_TYPES.includes(type)) {
+    const typeList = sql.join(THROTTLED_TYPES.map(t => sql`${t}`), sql`, `);
     const row = db.all(sql`
       SELECT COUNT(*) as n FROM sent_notifications
       WHERE user_id = ${userId}
-        AND notification_type = ${EVENT_RECORD}
+        AND notification_type IN (${typeList})
         AND sent_at >= datetime('now', ${THROTTLE_WINDOW})
     `)[0] as { n: number };
     if (row.n >= NOTIFICATION_MAX_PER_DAY) return;
@@ -341,7 +365,240 @@ export function checkChartClosings(userId: number, spotifyId: string): void {
   `);
 }
 
-// --- C) auto-regeneración de playlist -> 'playlist_regenerated' ---
+// --- C) eventos diarios time-driven -> release_anniversary / first_listen_anniversary / milestone ---
+
+// granularidad del estado diario en notification_period_state
+const GRANULARITY_DAY = 'day';
+// tipos de entidad que se escanean para milestones
+const MILESTONE_ENTITY_TYPES: readonly EntityType[] = ['artist', 'album', 'track'];
+
+// fecha UTC 'YYYY-MM-DD' actual (mismo reloj que datetime('now') en SQLite)
+function currentUtcDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// aniversarios de publicación: álbumes/singles con release_date completo cuyo MM-DD
+// es hoy, con al menos un año de antigüedad y ANNIVERSARY_MIN_PLAYS plays del usuario
+function emitReleaseAnniversaries(db: Db, userId: number, locale: NotifyLocale, today: string): void {
+  const year = parseInt(today.slice(0, 4), 10);
+  const mmdd = today.slice(5);
+  const uf = userFilter(userId);
+
+  const rows = db.all(sql`
+    WITH album_plays AS (
+      SELECT ${entityGroupCol('album', userId)} as eid, count(*) as plays
+      FROM listening_history lh
+      ${resolvedPlayJoins('album', userId)}
+      WHERE 1=1 ${uf} ${albumNullFilter('album')}
+      GROUP BY eid
+    )
+    SELECT ap.eid as id, al.release_date as releaseDate, ap.plays as plays
+    FROM album_plays ap
+    JOIN albums al ON al.spotify_id = ap.eid
+    WHERE ap.plays >= ${ANNIVERSARY_MIN_PLAYS}
+      AND length(al.release_date) = 10
+      AND substr(al.release_date, 6) = ${mmdd}
+      AND CAST(substr(al.release_date, 1, 4) AS INTEGER) < ${year}
+    ORDER BY ap.plays DESC
+  `) as { id: string; releaseDate: string; plays: number }[];
+  if (rows.length === 0) return;
+
+  const metaMap = fetchEntityMetadata(db, 'album', rows.map(r => r.id));
+  for (const row of rows) {
+    const meta = metaMap.get(row.id);
+    if (!meta) continue;
+    const years = year - parseInt(row.releaseDate.slice(0, 4), 10);
+    const msg = releaseAnniversaryMessage(locale, meta.name, meta.artistName, years);
+    const payload: PushPayload = {
+      title: msg.title,
+      body: msg.body,
+      data: {
+        type: EVENT_RELEASE_ANNIVERSARY,
+        entityType: 'album',
+        entityId: row.id,
+        period: String(year),
+        route: entityRoute('album', row.id),
+      },
+    };
+    // dedup period = año en curso: un aniversario por álbum y año
+    dispatchEvent(userId, EVENT_RELEASE_ANNIVERSARY, row.id, String(year), null, payload);
+  }
+}
+
+// aniversarios de primera escucha: artistas cuya primera play (merges resueltos)
+// fue tal día como hoy hace >= 1 año, con un mínimo de plays acumuladas
+function emitFirstListenAnniversaries(db: Db, userId: number, locale: NotifyLocale, today: string): void {
+  const year = parseInt(today.slice(0, 4), 10);
+  const mmdd = today.slice(5);
+
+  const rows = db.all(sql`
+    WITH plays_dedup AS (
+      SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at
+      FROM listening_history lh
+      JOIN track_artists ta ON ta.track_id = lh.track_id
+      ${entityMergeJoin('artist', userId)}
+      WHERE lh.user_id = ${userId}
+    )
+    SELECT eid as id, min(played_at) as firstPlayed, count(*) as plays
+    FROM plays_dedup
+    GROUP BY eid
+    HAVING plays >= ${ANNIVERSARY_MIN_PLAYS}
+      AND substr(min(played_at), 6, 5) = ${mmdd}
+      AND CAST(substr(min(played_at), 1, 4) AS INTEGER) < ${year}
+    ORDER BY plays DESC
+  `) as { id: string; firstPlayed: string; plays: number }[];
+  if (rows.length === 0) return;
+
+  const metaMap = fetchEntityMetadata(db, 'artist', rows.map(r => r.id));
+  for (const row of rows) {
+    const meta = metaMap.get(row.id);
+    if (!meta) continue;
+    const years = year - parseInt(row.firstPlayed.slice(0, 4), 10);
+    const msg = firstListenAnniversaryMessage(locale, meta.name, years);
+    const payload: PushPayload = {
+      title: msg.title,
+      body: msg.body,
+      data: {
+        type: EVENT_FIRST_LISTEN_ANNIVERSARY,
+        entityType: 'artist',
+        entityId: row.id,
+        period: String(year),
+        route: entityRoute('artist', row.id),
+      },
+    };
+    dispatchEvent(userId, EVENT_FIRST_LISTEN_ANNIVERSARY, row.id, String(year), null, payload);
+  }
+}
+
+// milestones de reproducciones: entidades cuyo total cruzó un umbral de la escalera
+// entre el último check (cutoff) y ahora. comparar contra el cutoff hace la detección
+// agnóstica a la fuente (spotify, last.fm, scrobbles manuales) y robusta a imports:
+// los plays históricos entran en ambos conteos y no producen cruce.
+function emitMilestones(db: Db, userId: number, locale: NotifyLocale, cutoff: string): void {
+  const minThreshold = MILESTONE_THRESHOLDS[0];
+  const uf = userFilter(userId);
+
+  type MilestoneRow = { eid: string; playsNow: number; playsBefore: number };
+  const crossings: { entityType: EntityType; id: string; threshold: number }[] = [];
+
+  for (const entityType of MILESTONE_ENTITY_TYPES) {
+    let rows: MilestoneRow[];
+    if (entityType === 'artist') {
+      rows = db.all(sql`
+        WITH plays_dedup AS (
+          SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at
+          FROM listening_history lh
+          JOIN track_artists ta ON ta.track_id = lh.track_id
+          ${entityMergeJoin('artist', userId)}
+          WHERE lh.user_id = ${userId}
+        )
+        SELECT eid, count(*) as playsNow,
+               sum(CASE WHEN played_at < ${cutoff} THEN 1 ELSE 0 END) as playsBefore
+        FROM plays_dedup
+        GROUP BY eid
+        HAVING playsNow >= ${minThreshold} AND playsBefore < playsNow
+      `) as MilestoneRow[];
+    } else {
+      // alias 'eid' (no 'id'): un alias 'id' sería ambiguo con lh.id en el GROUP BY
+      rows = db.all(sql`
+        SELECT ${entityGroupCol(entityType, userId)} as eid, count(*) as playsNow,
+               sum(CASE WHEN lh.played_at < ${cutoff} THEN 1 ELSE 0 END) as playsBefore
+        FROM listening_history lh
+        ${resolvedPlayJoins(entityType, userId)}
+        WHERE 1=1 ${uf} ${albumNullFilter(entityType)}
+        GROUP BY eid
+        HAVING playsNow >= ${minThreshold} AND playsBefore < playsNow
+      `) as MilestoneRow[];
+    }
+
+    for (const row of rows) {
+      // el umbral más alto cruzado en la ventana; los inferiores quedan cubiertos
+      const threshold = [...MILESTONE_THRESHOLDS].reverse().find(t => row.playsBefore < t && t <= row.playsNow);
+      if (threshold) crossings.push({ entityType, id: row.eid, threshold });
+    }
+  }
+  if (crossings.length === 0) return;
+
+  // los hitos más altos primero: si el throttle diario corta, que sobrevivan los grandes
+  crossings.sort((a, b) => b.threshold - a.threshold);
+
+  const metaByType = new Map<EntityType, ReturnType<typeof fetchEntityMetadata>>();
+  for (const entityType of MILESTONE_ENTITY_TYPES) {
+    const ids = crossings.filter(c => c.entityType === entityType).map(c => c.id);
+    if (ids.length > 0) metaByType.set(entityType, fetchEntityMetadata(db, entityType, ids));
+  }
+
+  for (const { entityType, id, threshold } of crossings) {
+    const meta = metaByType.get(entityType)?.get(id);
+    if (!meta) continue;
+    const msg = milestoneMessage(locale, meta.name, meta.artistName, threshold);
+    const payload: PushPayload = {
+      title: msg.title,
+      body: msg.body,
+      data: {
+        type: EVENT_MILESTONE,
+        entityType,
+        entityId: id,
+        period: String(threshold),
+        route: entityRoute(entityType, id),
+      },
+    };
+    // dedup period = umbral: cada hito de una entidad se notifica una sola vez
+    dispatchEvent(userId, EVENT_MILESTONE, id, String(threshold), null, payload);
+  }
+}
+
+// comprueba una vez al día (time-driven) aniversarios y milestones. mismo patrón que
+// checkChartClosings: notification_period_state (granularity 'day') detecta el cambio
+// de día; la primera vez inicializa sin disparar (backfill-safe). debe llamarse en
+// cada ciclo de polling aunque no haya datos nuevos.
+export function checkDailyEvents(userId: number, spotifyId: string): void {
+  const db = getDb();
+  const settings = getUserSettingsMap(db, spotifyId);
+
+  if (!boolPref(settings, PREF_ENABLED, false)) return;
+
+  // sin canal entregable no se avanza el estado: el día pendiente se procesa
+  // cuando existan dispositivo + credenciales (los dedup por año/umbral evitan spam)
+  if (!hasDeliverableChannel(userId)) return;
+
+  const today = currentUtcDate();
+  const stored = db.all(sql`
+    SELECT last_period as p FROM notification_period_state
+    WHERE user_id = ${userId} AND granularity = ${GRANULARITY_DAY}
+  `)[0] as { p: string } | undefined;
+
+  // primera vez: inicializar sin disparar (evita firing en primer arranque / backfill)
+  if (!stored) {
+    db.run(sql`
+      INSERT OR IGNORE INTO notification_period_state (user_id, granularity, last_period)
+      VALUES (${userId}, ${GRANULARITY_DAY}, ${today})
+    `);
+    return;
+  }
+
+  // sin cambio de día: nada que comprobar
+  if (stored.p === today) return;
+
+  const locale = resolveLocale(settings.get(PREF_LOCALE));
+
+  if (boolPref(settings, PREF_ANNIVERSARIES, true)) {
+    emitReleaseAnniversaries(db, userId, locale, today);
+    emitFirstListenAnniversaries(db, userId, locale, today);
+  }
+
+  // cutoff = último día procesado: cubre huecos si la app estuvo caída varios días
+  if (boolPref(settings, PREF_MILESTONES, true)) {
+    emitMilestones(db, userId, locale, stored.p);
+  }
+
+  db.run(sql`
+    UPDATE notification_period_state SET last_period = ${today}
+    WHERE user_id = ${userId} AND granularity = ${GRANULARITY_DAY}
+  `);
+}
+
+// --- D) auto-regeneración de playlist -> 'playlist_regenerated' ---
 
 // notifica que una playlist generada se auto-regeneró en segundo plano. gated por
 // el master switch de notificaciones + canal entregable; fire-and-forget (nunca

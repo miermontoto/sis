@@ -5,7 +5,7 @@
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
   import type { LastfmStatus } from '$lib/api';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -44,6 +44,8 @@
   let notifNumberOnePref = $state(true);
   let notifChartClosingsPref = $state(true);
   let notifBiggestDebutPref = $state(true);
+  let notifAnniversariesPref = $state(true);
+  let notifMilestonesPref = $state(true);
   // bloquea el master mientras se pide permiso al SO/navegador (evita doble click)
   let notifBusy = $state(false);
 
@@ -178,6 +180,8 @@
     notifNumberOnePref = getNotifyNumberOne();
     notifChartClosingsPref = getNotifyChartClosings();
     notifBiggestDebutPref = getNotifyBiggestDebut();
+    notifAnniversariesPref = getNotifyAnniversaries();
+    notifMilestonesPref = getNotifyMilestones();
     try {
       [health, me] = await Promise.all([
         api.health(),
@@ -318,6 +322,30 @@
           <div class="segmented">
             <button class="segmented-btn" class:segmented-active={!notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = false; setNotifyBiggestDebut(false); }} disabled={!notifEnabledPref}>Off</button>
             <button class="segmented-btn" class:segmented-active={notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = true; setNotifyBiggestDebut(true); }} disabled={!notifEnabledPref}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+        <div class="pref-info">
+          <div class="pref-label">Anniversaries</div>
+          <div class="pref-desc">Release anniversaries of albums you love and first-listen anniversaries of your artists</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifAnniversariesPref} onclick={() => { notifAnniversariesPref = false; setNotifyAnniversaries(false); }} disabled={!notifEnabledPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifAnniversariesPref} onclick={() => { notifAnniversariesPref = true; setNotifyAnniversaries(true); }} disabled={!notifEnabledPref}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+        <div class="pref-info">
+          <div class="pref-label">Milestones</div>
+          <div class="pref-desc">When an artist, album or track crosses a play-count milestone (100, 500, 1,000…)</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!notifMilestonesPref} onclick={() => { notifMilestonesPref = false; setNotifyMilestones(false); }} disabled={!notifEnabledPref}>Off</button>
+            <button class="segmented-btn" class:segmented-active={notifMilestonesPref} onclick={() => { notifMilestonesPref = true; setNotifyMilestones(true); }} disabled={!notifEnabledPref}>On</button>
           </div>
         </div>
       </div>

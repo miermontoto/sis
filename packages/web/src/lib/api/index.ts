@@ -54,6 +54,8 @@ export {
   getNotifyNumberOne, setNotifyNumberOne,
   getNotifyChartClosings, setNotifyChartClosings,
   getNotifyBiggestDebut, setNotifyBiggestDebut,
+  getNotifyAnniversaries, setNotifyAnniversaries,
+  getNotifyMilestones, setNotifyMilestones,
   getSessionRankDisplay, setSessionRankDisplay, onSessionRankDisplayChange,
   getSessionRankLimitYear, setSessionRankLimitYear,
   getSessionRankLimitAll, setSessionRankLimitAll,
