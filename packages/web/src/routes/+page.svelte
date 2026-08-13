@@ -196,8 +196,6 @@
   </div>
 </div>
 
-<RecentRankChanges />
-
 <div class="card" style="margin-bottom: 1.5rem;">
   <h3 class="section-title"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>
   {#if loadingTracks}
@@ -277,6 +275,8 @@
     <p class="empty-inline">No data yet.</p>
   {/if}
 </div>
+
+<RecentRankChanges />
 
 <div class="card">
   <h3 class="section-title"><a href="/history" class="section-link">Recent plays</a></h3>
