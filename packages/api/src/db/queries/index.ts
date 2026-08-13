@@ -6,7 +6,7 @@ export { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, ge
 export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getGlobalSeries, getRecentPlays, getHistoryPage, deleteHistoryEntries } from './entity.js';
 
 // rankings
-export { computeRankings, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers } from './rankings.js';
+export { computeRankings, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers, getRecentRankChanges } from './rankings.js';
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums, getArtistReleases } from './artist.js';

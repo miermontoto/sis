@@ -10,6 +10,7 @@ import type {
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
+  RecentRankChangesResponse,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
 } from '@sis/shared';
@@ -66,6 +67,9 @@ export const api = {
     apiFetch<MonthlyDistributionItem[]>('/stats/monthly-distribution', { ...rangeParams(range, dates) }, signal),
 
   streaks: (signal?: AbortSignal) => apiFetch<StreaksData>('/stats/streaks', undefined, signal),
+
+  recentRankChanges: (days = 7, sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<RecentRankChangesResponse>('/stats/recent-rank-changes', { days: String(days), sort }, signal),
 
   artistDetail: (id: string, range = 'all', opts?: { sort?: string; trackLimit?: number; albumLimit?: number; signal?: AbortSignal }) =>
     apiFetch<ArtistDetail>(`/stats/artist/${encodeURIComponent(id)}`, {

@@ -24,3 +24,28 @@ export interface ProjectedRankingsResponse {
   sessionTotalMs: number;
   sessionStartedAt: string | null;
 }
+
+// --- cambios de posición recientes (permanentes, no ligados a la sesión) ---
+
+// un cambio de rank en un rango: comparación del ranking actual contra el ranking
+// tal y como estaba hace N días (recomputado desde listening_history, sin snapshots)
+export interface RecentRankChange {
+  range: string; // 'thisYear' | 'all'
+  previousRank: number | null; // null = entrada nueva (sin plays antes del cutoff)
+  currentRank: number;
+  delta: number | null; // previousRank - currentRank; null si es entrada nueva
+}
+
+export interface RecentRankChangeItem {
+  entityId: string;
+  entityType: EntityType;
+  name: string;
+  imageUrl: string | null;
+  artistName: string | null;
+  changes: RecentRankChange[];
+}
+
+export interface RecentRankChangesResponse {
+  days: number;
+  items: RecentRankChangeItem[];
+}

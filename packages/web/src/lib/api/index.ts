@@ -27,6 +27,7 @@ export type {
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeMatch, AlbumMergeTrack, AlbumMergeResult, MergeImpact, MergeImpactItem, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MakeCanonicalResult, BatchMergeResult,
   RelatedArtist, ArtistRelationRule,
   ProjectedRankingsResponse, ProjectionResult, RankProjection,
+  RecentRankChange, RecentRankChangeItem, RecentRankChangesResponse,
   ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedItem, StreaksSummary, CompareResponse,
   DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,

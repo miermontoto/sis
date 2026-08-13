@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w33h';
+export const VERSION = '26w33i';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -147,6 +147,15 @@ export const NOW_PLAYING_STALE_MS = 2 * 60_000;
 // cada LASTFM_POLL_INTERVAL_MS, así que la ventana debe cubrir ese intervalo +
 // margen para que la tarjeta no parpadee entre ticks
 export const LASTFM_NOW_PLAYING_STALE_MS = LASTFM_POLL_INTERVAL_MS + 60_000;
+
+// --- cambios de posición recientes (/stats/recent-rank-changes) ---
+
+// ventana de comparación por defecto y máxima, en días
+export const RECENT_CHANGES_DEFAULT_DAYS = 7;
+export const RECENT_CHANGES_MAX_DAYS = 90;
+
+// máximo de entidades devueltas por tipo (artist/album/track)
+export const RECENT_CHANGES_LIMIT = 20;
 
 // --- notificaciones push ---
 

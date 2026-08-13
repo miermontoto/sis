@@ -1,12 +1,12 @@
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { dbRead } from '../../db/read-pool.js';
-import { RECORDS_LIMIT, SESSION_GAP_MS } from '../../constants.js';
+import { RECORDS_LIMIT, SESSION_GAP_MS, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS, RECENT_CHANGES_LIMIT } from '../../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../../services/records-cache.js';
 import { computeProjectedRankingsBatch } from '../../db/queries/index.js';
 import { pollingState, tracks, artists, trackArtists, albums, userSettings } from '../../db/schema.js';
 import { fetchEntityMetadata } from '../../db/queries/charts.js';
-import type { ProjectionResult, ProjectedRankingsResponse, CrossoverEntity, EntityType } from '@sis/shared';
+import type { ProjectionResult, ProjectedRankingsResponse, CrossoverEntity, EntityType, RecentRankChangesResponse } from '@sis/shared';
 import { statsRouter, parseWeekStart, parseSort, parseRecordsUnique, toEntityType } from './_shared.js';
 
 const records = statsRouter();
@@ -45,6 +45,24 @@ records.get('/ranking-history/:type/:id', async (c) => {
   const userId = c.get('userId');
   const fn = c.req.query('crossovers') === 'true' ? 'getRankingHistoryWithCrossovers' : 'getRankingHistory';
   return c.json(await dbRead(fn, entityType, id, parseSort(c), userId));
+});
+
+// cambios de posición recientes: ranking actual vs hace N días, por tipo de entidad.
+// mismo espíritu que projected-rankings pero permanente (no depende de la sesión).
+records.get('/recent-rank-changes', async (c) => {
+  const userId = c.get('userId');
+  const sort = parseSort(c);
+  const rawDays = parseInt(c.req.query('days') || String(RECENT_CHANGES_DEFAULT_DAYS), 10);
+  const days = Math.min(Math.max(Number.isNaN(rawDays) ? RECENT_CHANGES_DEFAULT_DAYS : rawDays, 1), RECENT_CHANGES_MAX_DAYS);
+
+  const [artistItems, albumItems, trackItems] = await Promise.all([
+    dbRead('getRecentRankChanges', 'artist', days, sort, userId, RECENT_CHANGES_LIMIT),
+    dbRead('getRecentRankChanges', 'album', days, sort, userId, RECENT_CHANGES_LIMIT),
+    dbRead('getRecentRankChanges', 'track', days, sort, userId, RECENT_CHANGES_LIMIT),
+  ]);
+
+  // mismo orden que la session card: artistas, álbumes, tracks (cada tipo ya viene ordenado)
+  return c.json({ days, items: [...artistItems, ...albumItems, ...trackItems] } satisfies RecentRankChangesResponse);
 });
 
 records.get('/projected-rankings', (c) => {

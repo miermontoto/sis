@@ -11,6 +11,7 @@
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import PullToRefresh from '$lib/components/PullToRefresh.svelte';
+  import RecentRankChanges from '$lib/components/RecentRankChanges.svelte';
 
   let topTracks = $state<TopTrackItem[]>([]);
   let topArtists = $state<TopArtistItem[]>([]);
@@ -194,6 +195,8 @@
     <span class="stats-bar-label">total plays</span>
   </div>
 </div>
+
+<RecentRankChanges />
 
 <div class="card" style="margin-bottom: 1.5rem;">
   <h3 style="margin-bottom: 0.75rem;"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>

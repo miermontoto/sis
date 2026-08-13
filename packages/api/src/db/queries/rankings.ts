@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
-import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers } from '@sis/shared';
+import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers, RecentRankChange, RecentRankChangeItem } from '@sis/shared';
 import { getRangeStart, entityGroupCol, entityMergeJoin, resolvedEntityId, userFilter, resolvedPlayJoins, albumNullFilter, playDuration } from './helpers.js';
 import { fetchEntityMetadata } from './charts.js';
 
@@ -111,28 +111,19 @@ const DEFAULT_RANK_LIMITS: Record<string, number> = { thisYear: 50, all: 200 };
 
 interface ScoreRow { eid: string; val_all: number; val_year: number; pre_all: number; pre_year: number }
 
-/** Ranking proyectado batch: 1 scan de entity_scores, N targets resueltos in-memory.
- *  Solo calcula YTD y All. Cuando sessionStart se pasa, "current" es el rank pre-sesión
- *  y "projected" es el rank post-sesión (incluyendo el track en curso vía extra). */
-export function computeProjectedRankingsBatch(
-  db: Db, entityType: EntityType, targets: ProjectionTarget[],
-  sort: Sort, userId: number, sessionStart?: string | null,
-  rankLimits?: Record<string, number>
-): Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>> {
-  if (targets.length === 0) return new Map();
-
+/** Scan único de scores por entidad (YTD + All): val_* = score actual, pre_* = score
+ *  antes de `cutoff` (o el total si cutoff es null). Base compartida entre proyecciones
+ *  de sesión (cutoff = inicio de sesión) y cambios recientes (cutoff = hace N días). */
+function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: number, cutoff: string | null): ScoreRow[] {
   const uf = userFilter(userId);
   const yearStart = getRangeStart('thisYear')!;
-  const hasSession = !!sessionStart;
-
-  let scores: ScoreRow[];
 
   if (entityType === 'artist') {
     const mrJoin = entityMergeJoin('artist', userId);
     const valExpr = sort === 'plays' ? sql`1` : sql.raw('duration_ms');
-    const preAllExpr = hasSession ? sql`sum(CASE WHEN played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
-    const preYearExpr = hasSession ? sql`sum(CASE WHEN played_at >= ${yearStart} AND played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
-    scores = db.all(sql`
+    const preAllExpr = cutoff ? sql`sum(CASE WHEN played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
+    const preYearExpr = cutoff ? sql`sum(CASE WHEN played_at >= ${yearStart} AND played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
+    return db.all(sql`
       WITH plays_dedup AS (
         SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
@@ -149,24 +140,37 @@ export function computeProjectedRankingsBatch(
       FROM plays_dedup
       GROUP BY eid
     `) as ScoreRow[];
-  } else {
-    const groupCol = entityGroupCol(entityType, userId);
-    const valExpr = sort === 'plays' ? sql`1` : playDuration();
-    const preAllExpr = hasSession ? sql`sum(CASE WHEN lh.played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
-    const preYearExpr = hasSession ? sql`sum(CASE WHEN lh.played_at >= ${yearStart} AND lh.played_at < ${sessionStart} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
-
-    scores = db.all(sql`
-      SELECT ${groupCol} as eid,
-             sum(${valExpr}) as val_all,
-             sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year,
-             ${preAllExpr} as pre_all,
-             ${preYearExpr} as pre_year
-      FROM listening_history lh
-      ${resolvedPlayJoins(entityType, userId)}
-      WHERE 1=1 ${uf} ${albumNullFilter(entityType)}
-      GROUP BY eid
-    `) as ScoreRow[];
   }
+
+  const groupCol = entityGroupCol(entityType, userId);
+  const valExpr = sort === 'plays' ? sql`1` : playDuration();
+  const preAllExpr = cutoff ? sql`sum(CASE WHEN lh.played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
+  const preYearExpr = cutoff ? sql`sum(CASE WHEN lh.played_at >= ${yearStart} AND lh.played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
+
+  return db.all(sql`
+    SELECT ${groupCol} as eid,
+           sum(${valExpr}) as val_all,
+           sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year,
+           ${preAllExpr} as pre_all,
+           ${preYearExpr} as pre_year
+    FROM listening_history lh
+    ${resolvedPlayJoins(entityType, userId)}
+    WHERE 1=1 ${uf} ${albumNullFilter(entityType)}
+    GROUP BY eid
+  `) as ScoreRow[];
+}
+
+/** Ranking proyectado batch: 1 scan de entity_scores, N targets resueltos in-memory.
+ *  Solo calcula YTD y All. Cuando sessionStart se pasa, "current" es el rank pre-sesión
+ *  y "projected" es el rank post-sesión (incluyendo el track en curso vía extra). */
+export function computeProjectedRankingsBatch(
+  db: Db, entityType: EntityType, targets: ProjectionTarget[],
+  sort: Sort, userId: number, sessionStart?: string | null,
+  rankLimits?: Record<string, number>
+): Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>> {
+  if (targets.length === 0) return new Map();
+
+  const scores = scanPrePostScores(db, entityType, sort, userId, sessionStart ?? null);
 
   const results = new Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>>();
   const ranges = ['thisYear', 'all'] as const;
@@ -218,6 +222,74 @@ export function computeProjectedRankingsBatch(
   }
 
   return results;
+}
+
+// ranking competition (empates comparten puesto, semántica count-greater de computeRankings)
+// sobre las filas con score > 0 de una clave dada
+function buildRankMap(scores: ScoreRow[], key: 'val_all' | 'val_year' | 'pre_all' | 'pre_year'): Map<string, number> {
+  const ranked = scores.filter(s => s[key] > 0).sort((a, b) => b[key] - a[key]);
+  const map = new Map<string, number>();
+  let rank = 0;
+  let prevVal = Infinity;
+  ranked.forEach((s, i) => {
+    if (s[key] < prevVal) { rank = i + 1; prevVal = s[key]; }
+    map.set(s.eid, rank);
+  });
+  return map;
+}
+
+/** Cambios de posición recientes: ranking actual vs ranking de hace `days` días,
+ *  recomputado desde listening_history (sin snapshots — "permanente en el tiempo").
+ *  Devuelve entidades dentro del top vigente cuyo rank cambió, mejor posición primero. */
+export function getRecentRankChanges(
+  db: Db, entityType: EntityType, days: number, sort: Sort, userId: number, limit: number
+): RecentRankChangeItem[] {
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const scores = scanPrePostScores(db, entityType, sort, userId, cutoff);
+  if (scores.length === 0) return [];
+
+  const ranges = [
+    { range: 'thisYear', now: 'val_year', pre: 'pre_year' },
+    { range: 'all', now: 'val_all', pre: 'pre_all' },
+  ] as const;
+
+  const changesByEntity = new Map<string, RecentRankChange[]>();
+
+  for (const { range, now, pre } of ranges) {
+    const nowRanks = buildRankMap(scores, now);
+    const preRanks = buildRankMap(scores, pre);
+    const rankLimit = DEFAULT_RANK_LIMITS[range];
+
+    for (const [eid, currentRank] of nowRanks) {
+      if (currentRank > rankLimit) continue;
+      const previousRank = preRanks.get(eid) ?? null;
+      if (previousRank === currentRank) continue;
+      const list = changesByEntity.get(eid) ?? [];
+      list.push({ range, previousRank, currentRank, delta: previousRank === null ? null : previousRank - currentRank });
+      changesByEntity.set(eid, list);
+    }
+  }
+
+  if (changesByEntity.size === 0) return [];
+
+  // mejor posición vigente primero; el cap se aplica antes de resolver metadata
+  const ordered = [...changesByEntity.entries()]
+    .sort((a, b) => Math.min(...a[1].map(c => c.currentRank)) - Math.min(...b[1].map(c => c.currentRank)))
+    .slice(0, limit);
+
+  const metaMap = fetchEntityMetadata(db, entityType, ordered.map(([eid]) => eid));
+
+  return ordered.map(([entityId, changes]) => {
+    const meta = metaMap.get(entityId);
+    return {
+      entityId,
+      entityType,
+      name: meta?.name ?? '',
+      imageUrl: meta?.imageUrl ?? null,
+      artistName: meta?.artistName ?? null,
+      changes,
+    };
+  });
 }
 
 /** Wrapper single-entity para compatibilidad */

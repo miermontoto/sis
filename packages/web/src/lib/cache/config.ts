@@ -37,6 +37,7 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/now-playing/playlists/',       { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
 
   ['/stats/projected-rankings',     { ttl: 30 * SEC, maxStale: 5 * MIN }],
+  ['/stats/recent-rank-changes',    { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/stats/charts/periods',         { ttl: 30 * MIN, maxStale: 7 * DAY }],
   ['/stats/charts/peaks',           { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/charts',                 { ttl: 1 * HOUR, maxStale: 7 * DAY }],

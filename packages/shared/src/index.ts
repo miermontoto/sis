@@ -51,7 +51,7 @@ export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, A
 export type { RelatedArtist, ArtistRelationRule } from './relations.js';
 
 // proyecciones de ranking
-export type { RankProjection, ProjectionResult, ProjectedRankingsResponse } from './projections.js';
+export type { RankProjection, ProjectionResult, ProjectedRankingsResponse, RecentRankChange, RecentRankChangeItem, RecentRankChangesResponse } from './projections.js';
 
 // usuarios
 export type { MeResponse, UserRecord, ImportResult, HealthData, LastfmStatus, LastfmBackfillProgress } from './users.js';
