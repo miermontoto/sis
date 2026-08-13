@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w33j';
+export const VERSION = '26w33k';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -159,7 +159,8 @@ export const RECENT_CHANGES_LIMIT = 20;
 
 // --- notificaciones push ---
 
-// máximo de notificaciones por usuario y día (throttle de 'record' y 'number_one')
+// máximo de notificaciones por usuario y día, compartido entre los tipos frecuentes
+// (record, aniversarios, milestones — ver THROTTLED_TYPES en notification-events.ts)
 export const NOTIFICATION_MAX_PER_DAY = 15;
 
 // categorías de records cuyo top-10 se vigila para disparar un 'record'
