@@ -5,12 +5,12 @@
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import DisplacedTooltip from '$lib/components/DisplacedTooltip.svelte';
   import { getSessionRankDisplay, onSessionRankDisplayChange } from '$lib/api';
   import type { ProjectionResult, RankProjection, SessionRankDisplay } from '$lib/api';
 
   const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
   const TAB_MAP: Record<string, string> = { track: 'tracks', artist: 'artists', album: 'albums' };
-  const DISPLACED_LIMIT = 5; // máximo de desplazados listados en el tooltip
   const TOOLTIP_CLOSE_MS = 120; // margen para cruzar del cambio al tooltip sin cerrarlo
 
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
@@ -135,24 +135,14 @@
 {/if}
 
 {#if displacedHover}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="displaced-tooltip"
-    style="left: {displacedHover.x}px; top: {displacedHover.y}px;"
-    onmouseenter={keepDisplaced}
-    onmouseleave={scheduleClose}
-  >
-    {#each displacedHover.items.slice(0, DISPLACED_LIMIT) as d}
-      <div class="displaced-row">
-        <span class="displaced-arrow">▲</span>
-        {#if d.imageUrl}<img class="displaced-img" src={d.imageUrl} alt="" />{/if}
-        <a href="/{displacedHover.entityType}/{d.id}" class="displaced-name">{d.name}</a>
-      </div>
-    {/each}
-    {#if displacedHover.items.length > DISPLACED_LIMIT}
-      <div class="displaced-more">+{displacedHover.items.length - DISPLACED_LIMIT} más</div>
-    {/if}
-  </div>
+  <DisplacedTooltip
+    entityType={displacedHover.entityType}
+    items={displacedHover.items}
+    x={displacedHover.x}
+    y={displacedHover.y}
+    onenter={keepDisplaced}
+    onleave={scheduleClose}
+  />
 {/if}
 
 <style>
@@ -314,59 +304,4 @@
     color: #e34234;
   }
 
-  /* fixed + translateX(-100%): ancla el borde derecho en la coordenada x del cambio,
-     escapando el overflow del sidebar y del scroll interno de la lista */
-  .displaced-tooltip {
-    position: fixed;
-    transform: translateX(-100%);
-    z-index: 1000;
-    padding: 0.4rem 0.5rem;
-    background: var(--bg-elevated, #1e1e1e);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    white-space: nowrap;
-    min-width: max-content;
-  }
-
-  .displaced-row {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.1rem 0;
-    font-size: 0.6rem;
-    color: var(--text-secondary, #aaa);
-  }
-
-  .displaced-arrow {
-    color: #1db954;
-    font-size: 0.5rem;
-    flex-shrink: 0;
-  }
-
-  .displaced-img {
-    width: 16px;
-    height: 16px;
-    border-radius: 2px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-
-  .displaced-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 160px;
-    text-decoration: none;
-    color: inherit;
-  }
-
-  .displaced-name:hover {
-    color: var(--text-primary, #fff);
-  }
-
-  .displaced-more {
-    font-size: 0.55rem;
-    color: var(--text-muted, #666);
-    padding-top: 0.1rem;
-  }
 </style>

@@ -3,12 +3,14 @@
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import DisplacedTooltip from '$lib/components/DisplacedTooltip.svelte';
 
-  // ventanas de comparación ofrecidas (días hacia atrás)
-  const WINDOWS = [7, 14, 30];
+  // "reciente" es una ventana fija de 7 días (coincide con el default del server)
+  const WINDOW_DAYS = 7;
   const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
   const TAB_MAP: Record<string, string> = { track: 'tracks', artist: 'artists', album: 'albums' };
   const GHOST_ROWS = 4;
+  const TOOLTIP_CLOSE_MS = 120; // margen para cruzar del cambio al tooltip sin cerrarlo
 
   // mismos rangos visibles que la session card según la preferencia del usuario
   const ALLOWED_RANGES: Record<string, Set<string>> = {
@@ -16,7 +18,6 @@
     'all+ytd': new Set(['all', 'thisYear']),
   };
 
-  let days = $state(WINDOWS[0]);
   let items = $state<RecentRankChangeItem[]>([]);
   let loading = $state(true);
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
@@ -27,20 +28,11 @@
 
   type Change = RecentRankChangeItem['changes'][number];
 
-  async function load(windowDays: number) {
-    loading = true;
-    try {
-      const res = await api.recentRankChanges(windowDays, getRankingMetric());
-      items = res.items;
-    } catch {
-      items = [];
-    } finally {
-      loading = false;
-    }
-  }
-
   $effect(() => {
-    load(days);
+    api.recentRankChanges(WINDOW_DAYS, getRankingMetric())
+      .then(res => { items = res.items; })
+      .catch(() => { items = []; })
+      .finally(() => { loading = false; });
   });
 
   function filterChanges(changes: Change[]): Change[] {
@@ -49,12 +41,12 @@
     return changes.filter(c => allowed.has(c.range));
   }
 
-  // mejor cambio de una entidad: mayor |delta|; si solo hay entradas nuevas, la mejor posición
+  // mejor cambio de una entidad: mayor subida; si solo hay entradas nuevas, la mejor posición
   function bestChange(changes: Change[]): Change | null {
     if (changes.length === 0) return null;
     const moved = changes.filter(c => c.delta !== null);
     if (moved.length > 0) {
-      return moved.reduce((best, c) => Math.abs(c.delta!) > Math.abs(best.delta!) ? c : best);
+      return moved.reduce((best, c) => c.delta! > best.delta! ? c : best);
     }
     return changes.reduce((best, c) => c.currentRank < best.currentRank ? c : best);
   }
@@ -66,18 +58,32 @@
   let visible = $derived(items
     .map(item => ({ item, best: bestChange(filterChanges(item.changes)) }))
     .filter((v): v is { item: RecentRankChangeItem; best: Change } => v.best !== null));
+
+  // tooltip de desplazados: mismo comportamiento que la session card
+  type Displaced = Change['displaced'];
+  let displacedHover = $state<{ entityType: string; items: Displaced; x: number; y: number } | null>(null);
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function openDisplaced(e: MouseEvent, item: RecentRankChangeItem, best: Change) {
+    if (best.displaced.length === 0) return;
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    displacedHover = { entityType: item.entityType, items: best.displaced, x: rect.right, y: rect.bottom + 4 };
+  }
+
+  function keepDisplaced() {
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+  }
+
+  function scheduleClose() {
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => { displacedHover = null; closeTimer = null; }, TOOLTIP_CLOSE_MS);
+  }
 </script>
 
 {#if displayMode !== 'none'}
   <div class="card changes-card">
-    <div class="changes-header">
-      <h3>Recent ranking changes</h3>
-      <div class="changes-windows">
-        {#each WINDOWS as w}
-          <button class="range-btn" class:active={days === w} onclick={() => { days = w; }}>{w}d</button>
-        {/each}
-      </div>
-    </div>
+    <h3 class="section-title"><a href="/top?range=all" class="section-link">Recent ranking changes</a></h3>
 
     {#if loading}
       <div class="changes-list">
@@ -86,7 +92,7 @@
         {/each}
       </div>
     {:else if visible.length === 0}
-      <p class="changes-empty">No ranking changes in the last {days} days.</p>
+      <p class="changes-empty">No ranking climbs in the last {WINDOW_DAYS} days.</p>
     {:else}
       <div class="changes-list">
         {#each visible as { item, best } (item.entityType + item.entityId)}
@@ -111,14 +117,18 @@
                 <span class="change-artist">{item.artistName}</span>
               {/if}
             </span>
-            <a href={rankingHref(item, best.range)} class="change-badge" class:up={best.delta !== null && best.delta > 0} class:down={best.delta !== null && best.delta < 0} class:new={best.delta === null}>
-              {#if displayMode !== 'all'}{RANGE_LABELS[best.range] ?? best.range}{/if}
-              {#if best.delta === null}
-                NEW #{best.currentRank}
-              {:else}
-                #{best.previousRank}→#{best.currentRank}
-              {/if}
-            </a>
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <!-- el hover del tooltip es una mejora: el enlace del badge sigue siendo accesible -->
+            <span class="change-wrap" onmouseenter={(e) => openDisplaced(e, item, best)} onmouseleave={scheduleClose}>
+              <a href={rankingHref(item, best.range)} class="change-badge" class:new={best.delta === null}>
+                {#if displayMode !== 'all'}{RANGE_LABELS[best.range] ?? best.range}{/if}
+                {#if best.delta === null}
+                  NEW #{best.currentRank}
+                {:else}
+                  #{best.previousRank}→#{best.currentRank}
+                {/if}
+              </a>
+            </span>
           </div>
         {/each}
       </div>
@@ -126,30 +136,20 @@
   </div>
 {/if}
 
+{#if displacedHover}
+  <DisplacedTooltip
+    entityType={displacedHover.entityType}
+    items={displacedHover.items}
+    x={displacedHover.x}
+    y={displacedHover.y}
+    onenter={keepDisplaced}
+    onleave={scheduleClose}
+  />
+{/if}
+
 <style>
   .changes-card {
     margin-bottom: 1.5rem;
-  }
-
-  .changes-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .changes-header h3 {
-    margin: 0;
-  }
-
-  /* mismo patrón visual que TimeRangeSelector (botones .range-btn globales),
-     sin su margin-bottom de cabecera de página */
-  .changes-windows {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
   }
 
   .changes-empty {
@@ -252,26 +252,21 @@
     color: var(--text-muted, #666);
   }
 
-  .change-badge {
+  .change-wrap {
     flex-shrink: 0;
+  }
+
+  /* solo subidas: verde como la session card; NEW en accent */
+  .change-badge {
     font-weight: 600;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
     text-decoration: none;
-    color: var(--text-muted, #666);
+    color: #1db954;
   }
 
   .change-badge:hover {
     text-decoration: underline;
-  }
-
-  /* mismos colores de subida/bajada que la session card */
-  .change-badge.up {
-    color: #1db954;
-  }
-
-  .change-badge.down {
-    color: #e34234;
   }
 
   .change-badge.new {

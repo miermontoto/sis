@@ -1343,6 +1343,21 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   margin: 1.5rem 0 0.75rem;
 }
 
+/* dentro de una card el padding ya separa: el margen superior de página sobra */
+.card > .section-title {
+  margin-top: 0;
+}
+
+/* título de sección enlazado (dashboard y cards): hereda color, accent al hover */
+.section-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.section-link:hover {
+  color: var(--accent);
+}
+
 .section-header {
   display: flex;
   align-items: center;

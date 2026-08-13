@@ -240,8 +240,9 @@ function buildRankMap(scores: ScoreRow[], key: 'val_all' | 'val_year' | 'pre_all
 
 /** Cambios de posición recientes: ranking actual vs ranking de hace `days` días,
  *  recomputado desde listening_history (sin snapshots — "permanente en el tiempo").
- *  Devuelve entidades dentro del top vigente (según rankLimits del usuario, mismos
- *  ajustes que la session card) cuyo rank cambió, mejor posición primero. */
+ *  Solo subidas (mismo diseño que las proyecciones de sesión), con las entidades
+ *  desplazadas de cada cambio. Respeta los rankLimits del usuario (los de la
+ *  session card); mejor posición vigente primero. */
 export function getRecentRankChanges(
   db: Db, entityType: EntityType, days: number, sort: Sort, userId: number, limit: number,
   rankLimits?: Record<string, number>
@@ -265,9 +266,10 @@ export function getRecentRankChanges(
     for (const [eid, currentRank] of nowRanks) {
       if (currentRank > rankLimit) continue;
       const previousRank = preRanks.get(eid) ?? null;
-      if (previousRank === currentRank) continue;
+      // solo subidas: entrada nueva o mejora de posición
+      if (previousRank !== null && previousRank <= currentRank) continue;
       const list = changesByEntity.get(eid) ?? [];
-      list.push({ range, previousRank, currentRank, delta: previousRank === null ? null : previousRank - currentRank });
+      list.push({ range, previousRank, currentRank, delta: previousRank === null ? null : previousRank - currentRank, displaced: [] });
       changesByEntity.set(eid, list);
     }
   }
@@ -279,10 +281,38 @@ export function getRecentRankChanges(
     .sort((a, b) => Math.min(...a[1].map(c => c.currentRank)) - Math.min(...b[1].map(c => c.currentRank)))
     .slice(0, limit);
 
-  const metaMap = fetchEntityMetadata(db, entityType, ordered.map(([eid]) => eid));
+  // desplazados por cambio: estaban por encima antes del cutoff y ahora al nivel o por
+  // debajo (mismo criterio por valor que computeProjectedRankingsBatch), solo para las
+  // entidades devueltas — coste O(items × scores) en memoria
+  const scoreByEid = new Map(scores.map(s => [s.eid, s]));
+  const displacedIds = new Set<string>();
+  for (const [entityId, changes] of ordered) {
+    const my = scoreByEid.get(entityId);
+    if (!my) continue;
+    for (const change of changes) {
+      const { now, pre } = ranges.find(r => r.range === change.range)!;
+      const passed: { eid: string; val: number }[] = [];
+      for (const s of scores) {
+        if (s.eid === entityId) continue;
+        if (s[pre] > my[pre] && s[now] <= my[now]) passed.push({ eid: s.eid, val: s[now] });
+      }
+      passed.sort((a, b) => b.val - a.val);
+      change.displaced = passed.slice(0, CROSSOVER_LIMIT).map(d => ({ id: d.eid, name: '', imageUrl: null, artistName: null }));
+      for (const d of change.displaced) displacedIds.add(d.id);
+    }
+  }
+
+  // una sola resolución de metadata para entidades devueltas + desplazadas
+  const metaMap = fetchEntityMetadata(db, entityType, [...new Set([...ordered.map(([eid]) => eid), ...displacedIds])]);
 
   return ordered.map(([entityId, changes]) => {
     const meta = metaMap.get(entityId);
+    for (const change of changes) {
+      for (const d of change.displaced) {
+        const dMeta = metaMap.get(d.id);
+        if (dMeta) { d.name = dMeta.name; d.imageUrl = dMeta.imageUrl; d.artistName = dMeta.artistName; }
+      }
+    }
     return {
       entityId,
       entityType,

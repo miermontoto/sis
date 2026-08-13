@@ -199,7 +199,7 @@
 <RecentRankChanges />
 
 <div class="card" style="margin-bottom: 1.5rem;">
-  <h3 style="margin-bottom: 0.75rem;"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>
+  <h3 class="section-title"><a href="/top?range=week" class="section-link">Top tracks this week</a></h3>
   {#if loadingTracks}
     <div class="track-list">
       {#each Array(5) as _, i}
@@ -224,7 +224,7 @@
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem;">
-  <h3 style="margin-bottom: 0.75rem;"><a href="/top?range=week&tab=albums" class="section-link">Top albums this week</a></h3>
+  <h3 class="section-title"><a href="/top?range=week&tab=albums" class="section-link">Top albums this week</a></h3>
   {#if loadingAlbums}
     <div class="cover-row-ghost">
       {#each Array(5) as _, i}
@@ -251,7 +251,7 @@
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem;">
-  <h3 style="margin-bottom: 0.75rem;"><a href="/top?range=week&tab=artists" class="section-link">Top artists this week</a></h3>
+  <h3 class="section-title"><a href="/top?range=week&tab=artists" class="section-link">Top artists this week</a></h3>
   {#if loadingArtists}
     <div class="cover-row-ghost">
       {#each Array(5) as _, i}
@@ -279,7 +279,7 @@
 </div>
 
 <div class="card">
-  <h3 style="margin-bottom: 0.75rem;"><a href="/history" class="section-link">Recent plays</a></h3>
+  <h3 class="section-title"><a href="/history" class="section-link">Recent plays</a></h3>
   {#if loadingHistory}
     <div class="track-list">
       {#each Array(10) as _, i}
@@ -396,20 +396,6 @@
     opacity: 1;
   }
 
-  h3 {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .section-link {
-    color: inherit;
-    text-decoration: none;
-  }
-  .section-link:hover {
-    color: var(--accent);
-  }
 
   /* ghost loading placeholders */
   .ghost-stat {
