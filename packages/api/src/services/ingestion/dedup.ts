@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, mergeTrackArtists } from './upsert.js';
+import { MIN_PLAY_MS } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
 const logDedup = createLogger('dedup');
@@ -351,4 +352,42 @@ export function cleanBasicExtendedDuplicates() {
     db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
   logCleanup.info(`eliminados ${ids.length} duplicados Basic/Extended`);
+}
+
+// ventana de tolerancia al comparar el hueco entre plays con la duración del track
+const FULL_PLAY_TOLERANCE_S = 15;
+
+// reparar duraciones fantasma: hasta el arreglo de la extrapolación en polling, un
+// track cubierto por un solo poll de currently-playing se guardaba con el progreso
+// que tenía al detectarlo, no con el final. se detectan porque el hueco respecto al
+// play anterior del usuario coincide con la duración COMPLETA del track: sonó entero,
+// así que la duración guardada (<MIN_PLAY_MS) es un artefacto de medición.
+// se pone a NULL en vez de borrar la fila: playDuration() hace COALESCE a la duración
+// del track, que es justo lo que se escuchó. idempotente (tras pasar ya no casan).
+export function cleanStaleShortDurations() {
+  const db = getDb();
+  const toNull = db.all(sql`
+    SELECT lh.id
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE lh.duration_played_ms IS NOT NULL
+      AND lh.duration_played_ms < ${MIN_PLAY_MS}
+      AND t.duration_ms > 0
+      AND abs(
+        (strftime('%s', lh.played_at) - (
+          SELECT strftime('%s', p.played_at) FROM listening_history p
+          WHERE p.user_id = lh.user_id AND p.played_at < lh.played_at
+          ORDER BY p.played_at DESC LIMIT 1
+        )) - t.duration_ms / 1000.0
+      ) < ${FULL_PLAY_TOLERANCE_S}
+  `) as { id: number }[];
+
+  if (toNull.length === 0) return;
+
+  const ids = toNull.map(r => r.id);
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = ids.slice(i, i + 500);
+    db.run(sql`UPDATE listening_history SET duration_played_ms = NULL WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+  }
+  logCleanup.info(`${ids.length} duraciones fantasma (<${MIN_PLAY_MS / 1000}s en plays completos) puestas a NULL`);
 }

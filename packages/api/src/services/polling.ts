@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings, checkDailyEvents } from './notification-events.js';
@@ -66,9 +66,24 @@ interface ActiveTrackState {
   startedAt: string;
   durationMs: number;
   lastProgressMs: number;
+  // instante (epoch ms) de la lectura que fijó lastProgressMs y si en ella el track
+  // sonaba: lastProgressMs es una MUESTRA, no un acumulador. sin extrapolar hasta el
+  // final, un track cubierto por un solo poll se registraba con el progreso que tenía
+  // al detectarlo (a menudo <30s) aunque se hubiese escuchado entero
+  lastSeenAt: number;
+  isPlaying: boolean;
   isLocal: boolean;
 }
 const userActiveTrack = new Map<number, ActiveTrackState>();
+
+// progreso final estimado de un track que acaba de terminar: última muestra + tiempo
+// transcurrido desde que se tomó, capado a la duración del track. si en la última
+// lectura estaba pausado no se extrapola (el reloj no avanzaba)
+function finalProgressMs(state: ActiveTrackState): number {
+  const elapsed = state.isPlaying ? Math.max(0, Date.now() - state.lastSeenAt) : 0;
+  const estimated = state.lastProgressMs + elapsed;
+  return state.durationMs > 0 ? Math.min(estimated, state.durationMs) : estimated;
+}
 
 // buffer de reproducciones completadas detectadas por currently-playing,
 // pendientes de ser correlacionadas con recently-played
@@ -202,11 +217,12 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
     if (!data || !data.item || data.currently_playing_type !== 'track') {
       const lastActive = userActiveTrack.get(userId);
       if (lastActive) {
-        if (lastActive.isLocal && lastActive.lastProgressMs >= MIN_PLAY_MS) {
-          insertLocalPlay(lastActive.id, lastActive.startedAt, userId, lastActive.lastProgressMs);
+        const finalMs = finalProgressMs(lastActive);
+        if (lastActive.isLocal && finalMs >= MIN_PLAY_MS) {
+          insertLocalPlay(lastActive.id, lastActive.startedAt, userId, finalMs);
           log.child(userId).info(`registrada reproducción local: ${lastActive.id}`);
         } else if (!lastActive.isLocal) {
-          pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: lastActive.lastProgressMs, endedAt: Date.now() });
+          pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: finalMs, endedAt: Date.now() });
         }
         userActiveTrack.delete(userId);
       }
@@ -246,11 +262,12 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
 
     if (trackChanged || loopDetected) {
       if (lastActive) {
-        if (lastActive.isLocal && lastActive.lastProgressMs >= MIN_PLAY_MS) {
-          insertLocalPlay(lastActive.id, lastActive.startedAt, userId, lastActive.lastProgressMs);
+        const finalMs = finalProgressMs(lastActive);
+        if (lastActive.isLocal && finalMs >= MIN_PLAY_MS) {
+          insertLocalPlay(lastActive.id, lastActive.startedAt, userId, finalMs);
           log.child(userId).info(`registrada reproducción local: ${lastActive.id}`);
         } else if (!lastActive.isLocal) {
-          pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: lastActive.lastProgressMs, endedAt: Date.now() });
+          pushCompletedPlay(userId, { trackId: lastActive.id, progressMs: finalMs, endedAt: Date.now() });
         }
       }
 
@@ -260,9 +277,11 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
         log.child(userId).info(`reproduciendo: ${data.item.artists[0]?.name} - ${data.item.name} (siguiente poll en ${Math.round(nextDelay / 1000)}s)`);
       }
 
-      userActiveTrack.set(userId, { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs, isLocal: !!data.item.is_local });
+      userActiveTrack.set(userId, { id: data.item.id, startedAt: new Date().toISOString(), durationMs: data.item.duration_ms, lastProgressMs: progressMs, lastSeenAt: Date.now(), isPlaying: data.is_playing, isLocal: !!data.item.is_local });
     } else if (lastActive) {
       lastActive.lastProgressMs = progressMs;
+      lastActive.lastSeenAt = Date.now();
+      lastActive.isPlaying = data.is_playing;
     }
 
     updatePollingStateForUser(userId, {
@@ -343,8 +362,15 @@ async function pollRecentlyPlayed(userId: number) {
     if (!data?.items?.length) return;
 
     let inserted = 0;
+    let discarded = 0;
     for (const item of data.items) {
       const estimatedMs = getCompletedPlayDuration(userId, item.track.id);
+      // solo se descarta con medición propia: sin correlacionar no sabemos cuánto
+      // sonó y vale la regla de spotify (recently-played ya filtra por debajo de 30s)
+      if (estimatedMs !== null && estimatedMs < MIN_PLAY_MS) {
+        discarded++;
+        continue;
+      }
       if (insertPlay(item, userId, estimatedMs ?? undefined)) inserted++;
     }
 
@@ -358,6 +384,9 @@ async function pollRecentlyPlayed(userId: number) {
 
     if (inserted > 0) {
       log.child(userId).info(`${inserted} nuevas reproducciones registradas`);
+    }
+    if (discarded > 0) {
+      log.child(userId).debug(`${discarded} reproducciones descartadas por durar menos de ${MIN_PLAY_MS / 1000}s`);
     }
   } catch (err) {
     log.child(userId).error(`error en recently played:`, err);
@@ -434,6 +463,9 @@ export function startPolling() {
   const globalUserId = activeUsers[0].userId;
 
   cleanOrphanImports();
+  // antes de cleanDuplicatePlays: su desempate conserva la fila CON duración, así que
+  // una duración fantasma ganaría a la del scrobble equivalente (NULL = track completo)
+  cleanStaleShortDurations();
   cleanDuplicatePlays();
   cleanBasicExtendedDuplicates();
   mergeImportTracks();
