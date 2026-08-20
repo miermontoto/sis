@@ -64,6 +64,9 @@ export function getPlaylistTrackStats(db: Db, playlistId: number, userId: number
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       WHERE lh.user_id = ${userId}
+        -- acotar el agregado a los tracks de la playlist: sin esto se agrega el historial
+        -- entero (~350k filas) para luego descartar casi todo en el LEFT JOIN
+        AND lh.track_id IN (SELECT track_id FROM spotify_playlist_tracks WHERE playlist_id = ${playlistId})
       GROUP BY lh.track_id
     ) stats ON stats.track_id = spt.track_id
     WHERE spt.playlist_id = ${playlistId}

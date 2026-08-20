@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w34a';
+export const VERSION = '26w34b';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -160,6 +160,11 @@ export const RECENT_CHANGES_LIMIT = 20;
 // edad a partir de la cual el resultado cacheado se refresca en background
 // (stale-while-revalidate: siempre se sirve lo cacheado al instante)
 export const RECENT_CHANGES_CACHE_MS = 10 * 60_000;
+
+// SWR de la "tarjeta de identidad" social (resumen de perfil + rachas, siempre all-time):
+// son scans completos del historial que cambian play a play sobre totales enormes,
+// así que un valor de <10 min es indistinguible de fresco
+export const PROFILE_CARD_CACHE_MS = 10 * 60_000;
 
 // --- notificaciones push ---
 

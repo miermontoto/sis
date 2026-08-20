@@ -213,12 +213,44 @@ export function entityWhereCol(entityType: EntityType, id: string, ids?: string[
   return sql`t.album_id = ${id}`;
 }
 
+// comparador = ó IN según cardinalidad, para listas de ids
+function idCmp(ids: string[]): SqlChunk {
+  if (ids.length === 1) return sql`= ${ids[0]}`;
+  return sql`IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`;
+}
+
 /** Filtro por track_id usando la tabla track_artists — una fila por play,
- *  evita duplicados cuando varias artist_ids de la misma track acaban en el mismo target */
+ *  evita duplicados cuando varias artist_ids de la misma track acaban en el mismo target.
+ *  Filtra sobre lh.track_id (no t.spotify_id) para que el planner ataque listening_history
+ *  por idx_lh_user_track en vez de escanearla; con el JOIN t.spotify_id = lh.track_id de los
+ *  call sites ambas formas son equivalentes. */
 export function tracksWithArtistIn(ids: string[]): SqlChunk {
-  const placeholders = ids.length === 1 ? sql`${ids[0]}` : sql.join(ids.map(id => sql`${id}`), sql`, `);
-  const cmp = ids.length === 1 ? sql`= ${ids[0]}` : sql`IN (${placeholders})`;
-  return sql`t.spotify_id IN (SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${cmp})`;
+  return sql`lh.track_id IN (SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${idCmp(ids)})`;
+}
+
+/** Predicado driving sobre lh.track_id para queries de álbum que resuelven track merges:
+ *  tracks del álbum + sources de merges cuyo target es un track del álbum. Es un SUPERSET
+ *  del set cualificado (los JOINs de resolución siguen filtrando exacto) — su único papel
+ *  es dar al planner un camino por idx_lh_user_track en vez del scan completo que provoca
+ *  el JOIN por COALESCE de trackJoinResolvingMerges. */
+export function albumPlaysPredicate(albumIds: string[], userId: number): SqlChunk {
+  return sql`AND lh.track_id IN (
+    SELECT spotify_id FROM tracks WHERE album_id ${idCmp(albumIds)}
+    UNION
+    SELECT mr_p.source_id FROM merge_rules mr_p JOIN tracks t_p ON t_p.spotify_id = mr_p.target_id
+    WHERE mr_p.entity_type = 'track' AND mr_p.user_id = ${userId} AND t_p.album_id ${idCmp(albumIds)}
+  )`;
+}
+
+/** Ídem para artista, en queries que resuelven track merges (el filtro por track_artists
+ *  a secas no basta como superset: un source mergeado hacia un track del artista cuenta). */
+export function artistPlaysPredicate(artistIds: string[], userId: number): SqlChunk {
+  return sql`AND lh.track_id IN (
+    SELECT track_id FROM track_artists WHERE artist_id ${idCmp(artistIds)}
+    UNION
+    SELECT mr_p.source_id FROM merge_rules mr_p JOIN track_artists ta_p ON ta_p.track_id = mr_p.target_id
+    WHERE mr_p.entity_type = 'track' AND mr_p.user_id = ${userId} AND ta_p.artist_id ${idCmp(artistIds)}
+  )`;
 }
 
 // filtro de usuario para listening_history

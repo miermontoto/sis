@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, userFilter, albumIdIn, playDuration } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn, albumPlaysPredicate, playDuration } from './helpers.js';
 
 /** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists */
 export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
@@ -60,7 +60,7 @@ export function getAlbumTracks(db: Db, albumId: string, rangeStart: string | nul
       FROM listening_history lh
       LEFT JOIN merge_rules mr_track ON mr_track.entity_type = 'track' AND mr_track.source_id = lh.track_id AND mr_track.user_id = ${userId}
       JOIN tracks tr ON tr.spotify_id = COALESCE(mr_track.target_id, lh.track_id)
-      WHERE ${albumIdIn(albumIds, 'tr')} ${wr} ${uf}
+      WHERE ${albumIdIn(albumIds, 'tr')} ${wr} ${uf} ${albumPlaysPredicate(albumIds, userId)}
       GROUP BY resolved_track_id
     ) s ON s.resolved_track_id = t.spotify_id
     WHERE ${albumIdIn(albumIds)}
@@ -89,24 +89,28 @@ export function getAlbumRelatedSingles(db: Db, albumId: string, ids: string[] | 
       JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
       WHERE t.album_id IN (${albumPlaceholders})
     ),
+    -- pre-candidatos por artista, driven desde track_artists/json en vez de escanear todos los
+    -- singles del catálogo con un EXISTS por fila (~10x menos coste con el mismo resultado)
+    candidate_albums AS (
+      SELECT DISTINCT st.album_id AS id FROM track_artists sta
+      JOIN tracks st ON st.spotify_id = sta.track_id
+      WHERE sta.artist_id IN (SELECT artist_id FROM album_artists) AND sta.position = 0
+        AND st.album_id IS NOT NULL
+      UNION
+      SELECT s2.spotify_id FROM albums s2, json_each(s2.artist_ids) je
+      WHERE s2.album_type = 'single' AND je.value IN (SELECT artist_id FROM album_artists)
+    ),
     candidates AS (
+      -- CROSS JOIN a propósito: candidate_albums es co-routine (no indexable) y sin él el
+      -- planner invierte el join y escanea albums entero probando contra los candidatos
       SELECT DISTINCT s.spotify_id AS id, s.name AS name, s.release_date AS date, s.image_url AS image_url
-      FROM albums s
+      FROM candidate_albums ca
+      CROSS JOIN albums s ON s.spotify_id = ca.id
       WHERE s.album_type = 'single' AND s.release_date IS NOT NULL
         -- solo se excluye el álbum de la página, NO sus alias de merge: mergear un single de
         -- adelanto en su álbum (para unificar plays) no debe borrarlo de la lista de singles ni
         -- del eje de las gráficas, que es justo donde su fecha de lanzamiento aporta información
         AND s.spotify_id != ${albumId}
-        AND (
-          EXISTS (
-            SELECT 1 FROM tracks st
-            JOIN track_artists sta ON sta.track_id = st.spotify_id AND sta.position = 0
-            WHERE st.album_id = s.spotify_id AND sta.artist_id IN (SELECT artist_id FROM album_artists)
-          )
-          OR EXISTS (
-            SELECT 1 FROM json_each(s.artist_ids) je WHERE je.value IN (SELECT artist_id FROM album_artists)
-          )
-        )
         AND (
           lower(s.name) IN (SELECT ln FROM album_track_names)
           OR EXISTS (
@@ -134,9 +138,11 @@ export function getAlbumRelatedSingles(db: Db, albumId: string, ids: string[] | 
            coalesce(st.play_count, 0) AS play_count, coalesce(st.total_ms, 0) AS total_ms
     FROM candidates c
     LEFT JOIN (
+      -- CROSS JOIN por el mismo motivo que en candidates: forzar el acceso a
+      -- listening_history por idx_lh_user_track desde los pocos tracks emparejados
       SELECT mt.cid AS cid, count(*) AS play_count, sum(${playDuration()}) AS total_ms
       FROM matched_tracks mt
-      JOIN listening_history lh ON lh.track_id = mt.track_id
+      CROSS JOIN listening_history lh ON lh.track_id = mt.track_id
       JOIN tracks t ON t.spotify_id = lh.track_id
       WHERE lh.user_id = ${userId}
       GROUP BY mt.cid

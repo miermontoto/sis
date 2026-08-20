@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, resolvedPlayJoins, playDuration } from './helpers.js';
+import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, artistPlaysPredicate, resolvedPlayJoins, playDuration } from './helpers.js';
 
 /** Top tracks de un artista. Usa IDs pre-resueltos para incluir plays mergeados. Agrupa por track canónico (merge-aware). */
 export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number, artistIds?: string[]) {
@@ -40,6 +40,7 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
       WHERE t.spotify_id IN (
         SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${artistCmp}
       ) AND t.album_id IS NOT NULL ${wr} ${uf}
+        ${artistPlaysPredicate(ids, userId)}
         AND (
           t.album_id IN (
             SELECT DISTINCT t2.album_id FROM tracks t2

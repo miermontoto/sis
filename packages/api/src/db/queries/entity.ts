@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow } from './helpers.js';
-import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration } from './helpers.js';
+import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
+import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 
 /** Stats agregados para cualquier entidad. Para álbumes y artistas, pasar IDs pre-resueltos. */
@@ -19,15 +19,43 @@ export function getEntityStats(db: Db, entityType: EntityType, entityId: string,
     `)[0] as StatsRow;
   }
 
-  // album ó track: resolvedPlayJoins resuelve track merges para álbumes automáticamente
+  // album ó track: resolvedPlayJoins resuelve track merges para álbumes automáticamente.
+  // para álbum, el predicado driving evita el scan completo que provoca el JOIN por COALESCE
   const where = entityWhereCol(entityType, entityId, entityIds);
+  const drive = entityType === 'album' ? albumPlaysPredicate(entityIds ?? [entityId], userId) : sql``;
   return db.all(sql`
     SELECT count(*) as play_count, coalesce(sum(${playDuration()}), 0) as total_ms,
            min(lh.played_at) as first_played, max(lh.played_at) as last_played
     FROM listening_history lh
     ${resolvedPlayJoins(entityType, userId)}
-    WHERE ${where} ${wr} ${uf}
+    WHERE ${where} ${wr} ${uf} ${drive}
   `)[0] as StatsRow;
+}
+
+/** Agregación de top artistas: pre-agrega por track (una pasada sobre el historial) y expande
+ *  al set dedupeado de (track, artista resuelto). Equivale al DISTINCT (artista, play) sobre el
+ *  producto lh × track_artists — que un mismo play cuente una sola vez por artista aunque dos
+ *  créditos del track resuelvan al mismo target — pero sin materializar ese producto (~3x menos
+ *  coste en rangos largos). */
+function topArtistsAggregate(db: Db, playsWhere: SqlChunk, ob: SqlChunk, limit: number, userId: number): AggregateRow[] {
+  return db.all(sql`
+    SELECT entity_id, sum(cnt) as play_count, sum(ms) as total_ms
+    FROM (
+      SELECT lh.track_id, count(*) as cnt, sum(${playDuration()}) as ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE ${playsWhere}
+      GROUP BY lh.track_id
+    ) pt
+    JOIN (
+      SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist', userId)} as entity_id
+      FROM track_artists ta
+      ${entityMergeJoin('artist', userId)}
+    ) am ON am.track_id = pt.track_id
+    GROUP BY entity_id
+    ORDER BY ${ob} DESC
+    LIMIT ${limit}
+  `) as AggregateRow[];
 }
 
 /** Top entidades con agregados de reproducciones */
@@ -39,22 +67,7 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
   const wr = rangeWhere(rangeStart, rangeEnd);
 
   if (entityType === 'artist') {
-    const mrJoin = entityMergeJoin('artist', userId);
-
-    return db.all(sql`
-      SELECT entity_id, count(*) as play_count, sum(duration_ms) as total_ms
-      FROM (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId} ${wr}
-      )
-      GROUP BY entity_id
-      ORDER BY ${ob} DESC
-      LIMIT ${limit}
-    `) as AggregateRow[];
+    return topArtistsAggregate(db, sql`lh.user_id = ${userId} ${wr}`, ob, limit, userId);
   }
 
   return db.all(sql`
@@ -75,21 +88,7 @@ export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart:
   const uf = userFilter(userId);
 
   if (entityType === 'artist') {
-    const mrJoin = entityMergeJoin('artist', userId);
-    return db.all(sql`
-      SELECT entity_id, count(*) as play_count, sum(duration_ms) as total_ms
-      FROM (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd} AND lh.user_id = ${userId}
-      )
-      GROUP BY entity_id
-      ORDER BY ${ob} DESC
-      LIMIT 200
-    `) as AggregateRow[];
+    return topArtistsAggregate(db, sql`lh.played_at >= ${prevStart} AND lh.played_at < ${prevEnd} AND lh.user_id = ${userId}`, ob, 200, userId);
   }
 
   // album ó track
@@ -122,13 +121,14 @@ export function getEntitySeries(db: Db, entityType: EntityType, entityId: string
     `) as SeriesRow[];
   }
 
-  // album ó track
+  // album ó track (mismo predicado driving que en getEntityStats)
   const where = entityWhereCol(entityType, entityId, entityIds);
+  const drive = entityType === 'album' ? albumPlaysPredicate(entityIds ?? [entityId], userId) : sql``;
   return db.all(sql`
     SELECT ${dateTrunc} as period, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     ${resolvedPlayJoins(entityType, userId)}
-    WHERE ${where} ${wr} ${uf}
+    WHERE ${where} ${wr} ${uf} ${drive}
     GROUP BY period
     ORDER BY period ASC
   `) as SeriesRow[];
@@ -161,14 +161,19 @@ export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: 
 export function getRecentPlays(db: Db, entityType: EntityType, entityId: string, limit: number, entityIds: string[] | undefined, userId: number): RecentPlayRow[] {
   const uf = userFilter(userId);
 
+  // ORDER BY +lh.played_at (unary plus) descalifica idx_listening_history_user_played_at como
+  // orden: sin él, el planner escanea el historial entero hacia atrás "hasta encontrar limit
+  // filas", que para entidades sin plays recientes es un scan completo (~cientos de ms). Con
+  // el predicado driving las filas cualificadas se leen por idx_lh_user_track y el sort
+  // explícito es sobre ese subconjunto pequeño.
   if (entityType === 'album') {
     const where = entityIds ? albumIdIn(entityIds) : sql`t.album_id = ${entityId}`;
     return db.all(sql`
       SELECT lh.id, lh.played_at, lh.track_id
       FROM listening_history lh
       ${trackJoinResolvingMerges(userId)}
-      WHERE ${where} ${uf}
-      ORDER BY lh.played_at DESC
+      WHERE ${where} ${uf} ${albumPlaysPredicate(entityIds ?? [entityId], userId)}
+      ORDER BY +lh.played_at DESC
       LIMIT ${limit}
     `) as RecentPlayRow[];
   }
@@ -180,7 +185,7 @@ export function getRecentPlays(db: Db, entityType: EntityType, entityId: string,
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       WHERE ${tracksWithArtistIn(ids)} ${uf}
-      ORDER BY lh.played_at DESC
+      ORDER BY +lh.played_at DESC
       LIMIT ${limit}
     `) as RecentPlayRow[];
   }
