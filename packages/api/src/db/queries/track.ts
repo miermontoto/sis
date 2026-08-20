@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { rangeWhere, userFilter, playDuration } from './helpers.js';
+import { rangeWhere, userFilter, playDuration, trackJoinResolvingMerges, artistPlaysPredicate } from './helpers.js';
 import { versionBaseKey, versionKeys } from '../../services/versions.js';
 import type { TrackVersion } from '@sis/shared';
 
@@ -87,7 +87,8 @@ export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: stri
  *  Agrupa por artista principal (position=0, misma clave que dedup) + título base normalizado,
  *  con los medleys entrando por cada uno de sus temas ("Heathens / Trees" es versión de "Heathens").
  *  Devuelve todas las versiones del cluster (incluida la actual, marcada isCurrent) ordenadas por
- *  plays; vacío si no hay ninguna otra versión. Siempre all-time (la página de track es all-time). */
+ *  plays; vacío si no hay ninguna otra versión. Siempre all-time (la página de track es all-time).
+ *  Merge-aware: los tracks mergeados no salen como versión, sus plays van al canónico. */
 export function getTrackVersions(db: Db, trackId: string, userId: number): TrackVersion[] {
   // artista principal + nombre/álbum del track actual
   const current = db.get(sql`
@@ -109,15 +110,19 @@ export function getTrackVersions(db: Db, trackId: string, userId: number): Track
   const isVersion = (name: string) =>
     versionKeys(name).includes(currentBase) || currentKeys.has(versionBaseKey(name));
 
-  // todos los tracks reproducidos por el usuario cuyo artista principal coincide, con sus stats
+  // todos los tracks reproducidos por el usuario cuyo artista principal coincide, con sus stats.
+  // resuelve track merges: los sources absorbidos no aparecen como versión propia, sus plays
+  // cuentan para el track canónico. artistPlaysPredicate da al planner el camino por
+  // idx_lh_user_track que el JOIN por COALESCE le quita.
   const rows = db.all(sql`
     SELECT t.spotify_id, t.name, t.duration_ms,
            al.spotify_id as album_id, al.name as album_name, al.image_url as album_image,
            count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
-    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${trackJoinResolvingMerges(userId)}
     LEFT JOIN albums al ON al.spotify_id = t.album_id
     WHERE lh.user_id = ${userId}
+      ${artistPlaysPredicate([current.artist_id], userId)}
       AND t.spotify_id IN (
         SELECT track_id FROM track_artists WHERE artist_id = ${current.artist_id} AND position = 0
       )
