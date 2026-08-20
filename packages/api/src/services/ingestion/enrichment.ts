@@ -21,9 +21,13 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
   if (!totalTracks || albumId.startsWith('local:') || albumId.startsWith('import:')) return;
 
   const db = getDb();
+  // los tracks sintéticos (import:/local:) no cuentan como "disc pendiente": nunca vienen
+  // en el tracklist de Spotify, así que contarlos hacía refetch en CADA visita del álbum
   const row = db.all(sql`
     SELECT count(*) as c,
-           sum(CASE WHEN disc_number IS NULL THEN 1 ELSE 0 END) as missing_disc
+           sum(CASE WHEN disc_number IS NULL
+                     AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'
+               THEN 1 ELSE 0 END) as missing_disc
     FROM tracks
     WHERE album_id = ${albumId}
   `)[0] as { c: number; missing_disc: number | null };
