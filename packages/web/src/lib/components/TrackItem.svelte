@@ -74,7 +74,7 @@
     {@render extra()}
   {/if}
   {#if globalRank != null}
-    <span class="global-rank" title="All-time rank" style:color={medalColor(globalRank)}><span class="global-rank-label">all</span>#{globalRank}</span>
+    <span class="global-rank" title="All-time rank" style:color={medalColor(globalRank)}>#{globalRank}</span>
   {/if}
   {#if meta}
     <div class="track-meta">

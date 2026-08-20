@@ -241,7 +241,7 @@
                   <Accolades entityType="album" entityId={item.albumId} />
                 {/if}
                 {#if albumGlobalRanks?.[item.albumId] != null}
-                  <span class="global-rank" title="All-time rank" style:color={medalColor(albumGlobalRanks[item.albumId])}><span class="global-rank-label">all</span>#{albumGlobalRanks[item.albumId]}</span>
+                  <span class="global-rank" title="All-time rank" style:color={medalColor(albumGlobalRanks[item.albumId])}>#{albumGlobalRanks[item.albumId]}</span>
                 {/if}
                 <div class="track-meta">
                   <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>

@@ -277,7 +277,7 @@
                 <div class="track-artist">{s.date}</div>
               </div>
               {#if singleGlobalRanks?.[s.id] != null}
-                <span class="global-rank" title="All-time rank" style:color={medalColor(singleGlobalRanks[s.id])}><span class="global-rank-label">all</span>#{singleGlobalRanks[s.id]}</span>
+                <span class="global-rank" title="All-time rank" style:color={medalColor(singleGlobalRanks[s.id])}>#{singleGlobalRanks[s.id]}</span>
               {/if}
               <div class="track-meta">
                 <div class="track-plays">{metric === 'plays' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>

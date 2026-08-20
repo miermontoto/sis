@@ -104,8 +104,8 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
 /** Ranking all-time de un lote de tracks/albums en una sola pasada: mismo criterio
  *  de empates que computeRankings (RANK comparte posición) pero solo rango 'all'.
  *  Agrupa por el mismo resolvedEntityId que las queries de listado, así que las keys
- *  coinciden con los ids canónicos que ya tiene el frontend. Entidades sin plays no
- *  aparecen en el resultado. */
+ *  coinciden con los ids canónicos que ya tiene el frontend. Entidades sin plays o
+ *  más allá del top-200 (DEFAULT_RANK_LIMITS.all) no aparecen en el resultado. */
 export function computeRankingsBatch(db: Db, entityType: 'track' | 'album', entityIds: string[], sort: Sort, userId: number): Record<string, number> {
   if (entityIds.length === 0) return {};
 
@@ -125,7 +125,7 @@ export function computeRankingsBatch(db: Db, entityType: 'track' | 'album', enti
     ranked AS (
       SELECT eid, RANK() OVER (ORDER BY val DESC) as rnk FROM entity_scores
     )
-    SELECT eid, rnk FROM ranked WHERE eid IN (${idList})
+    SELECT eid, rnk FROM ranked WHERE eid IN (${idList}) AND rnk <= ${DEFAULT_RANK_LIMITS.all}
   `) as { eid: string; rnk: number }[];
 
   return Object.fromEntries(rows.map(r => [r.eid, r.rnk]));

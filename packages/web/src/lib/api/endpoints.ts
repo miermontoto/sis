@@ -135,7 +135,7 @@ export const api = {
   rankings: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<Rankings>(`/stats/rankings/${type}/${encodeURIComponent(id)}`, { sort }, signal),
 
-  // posición all-time de un lote de ids (un solo scan server-side); id → rank
+  // posición all-time de un lote de ids (un solo scan server-side); id → rank, solo top 200
   rankingsBatch: (type: 'track' | 'album', ids: string[], sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<Record<string, number>>('/stats/rankings-batch', { type, ids: ids.join(','), sort }, signal),
 

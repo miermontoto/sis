@@ -516,7 +516,7 @@
       <div class="pref-row row-border">
         <div class="pref-info">
           <div class="pref-label">All-time ranks</div>
-          <div class="pref-desc">Show each track's and album's all-time position next to its stats</div>
+          <div class="pref-desc">Show each track's and album's all-time position next to its stats (top 200)</div>
         </div>
         <div class="pref-control">
           <div class="segmented">
@@ -569,7 +569,7 @@
       <div class="pref-row row-border">
         <div class="pref-info">
           <div class="pref-label">All-time ranks</div>
-          <div class="pref-desc">Show each track's all-time position in the track and singles lists</div>
+          <div class="pref-desc">Show each track's all-time position in the track and singles lists (top 200)</div>
         </div>
         <div class="pref-control">
           <div class="segmented">
