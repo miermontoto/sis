@@ -44,6 +44,7 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/stats/chart-history/',         { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/records',                { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/accolades/',             { ttl: 1 * HOUR, maxStale: 7 * DAY }],
+  ['/stats/rankings-batch',         { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/rankings/',              { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/ranking-history/',       { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/artist/',                { ttl: 1 * HOUR, maxStale: 7 * DAY }],

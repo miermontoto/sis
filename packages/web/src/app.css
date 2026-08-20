@@ -663,6 +663,29 @@ a.track-item {
   opacity: 0.8;
 }
 
+/* chip de posición all-time en los listados de las vistas de detalle;
+   el color inline (medalColor) lo tiñe cuando la entidad es top-3 global */
+.global-rank {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2em;
+  align-self: center;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.global-rank-label {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
 .track-meta {
   text-align: right;
   flex-shrink: 0;

@@ -8,6 +8,7 @@
     href?: string;
     rank?: number;
     rankChange?: number | null;
+    globalRank?: number | null;
     isNew?: boolean;
     imageUrl?: string | null;
     imageHref?: string;
@@ -27,7 +28,7 @@
     cover?: Snippet;
   }
 
-  let { href, rank, rankChange, isNew = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
+  let { href, rank, rankChange, globalRank, isNew = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
 
   let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
 </script>
@@ -71,6 +72,9 @@
   </div>
   {#if extra}
     {@render extra()}
+  {/if}
+  {#if globalRank != null}
+    <span class="global-rank" title="All-time rank" style:color={medalColor(globalRank)}><span class="global-rank-label">all</span>#{globalRank}</span>
   {/if}
   {#if meta}
     <div class="track-meta">

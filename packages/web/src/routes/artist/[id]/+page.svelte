@@ -2,7 +2,7 @@
   import { isAbortError } from '$lib/utils/errors';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
@@ -48,6 +48,9 @@
   let playActing = $state(false);
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
+  let artistShowGlobalRanks = $state(true);
+  let trackGlobalRanks = $state<Record<string, number> | null>(null);
+  let albumGlobalRanks = $state<Record<string, number> | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let layout = $state<DetailLayout>(defaultLayout('artist'));
   const fetchCtrl = createFetchController();
@@ -74,6 +77,19 @@
       });
       if (signal.aborted) return;
       data = result;
+      // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
+      if (artistShowGlobalRanks) {
+        if (result.topTracks.length > 0) {
+          api.rankingsBatch('track', result.topTracks.map(t => t.trackId), sort, signal)
+            .then(r => { if (!signal.aborted) trackGlobalRanks = r; })
+            .catch(() => {});
+        }
+        if (result.topAlbums.length > 0) {
+          api.rankingsBatch('album', result.topAlbums.map(a => a.albumId), sort, signal)
+            .then(r => { if (!signal.aborted) albumGlobalRanks = r; })
+            .catch(() => {});
+        }
+      }
       if (result.artist.imageUrl) {
         extractColor(result.artist.imageUrl).then(([r, g, b]) => {
           if (!signal.aborted) heroColor = `${r},${g},${b}`;
@@ -96,6 +112,7 @@
     metric = getRankingMetric();
     artistShowAlbumAccolades = getArtistShowAlbumAccolades();
     artistShowTrackAccolades = getArtistShowTrackAccolades();
+    artistShowGlobalRanks = getArtistShowGlobalRanks();
     layout = getDetailLayout('artist');
     initialized = true;
   });
@@ -110,6 +127,8 @@
     if (id !== prevId) {
       data = null;
       chartHistoryData = null;
+      trackGlobalRanks = null;
+      albumGlobalRanks = null;
       prevId = id;
     }
     loadData(id);
@@ -190,7 +209,7 @@
             {showAllTracks ? 'Show less' : 'Show all'}
           </button>
         </div>
-        <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} />
+        <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
       {/if}
     {:else if key === 'topAlbums'}
       {#if d.topAlbums.length > 0}
@@ -220,6 +239,9 @@
                 </div>
                 {#if artistShowAlbumAccolades}
                   <Accolades entityType="album" entityId={item.albumId} />
+                {/if}
+                {#if albumGlobalRanks?.[item.albumId] != null}
+                  <span class="global-rank" title="All-time rank" style:color={medalColor(albumGlobalRanks[item.albumId])}><span class="global-rank-label">all</span>#{albumGlobalRanks[item.albumId]}</span>
                 {/if}
                 <div class="track-meta">
                   <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>

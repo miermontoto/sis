@@ -2,11 +2,12 @@
   import { isAbortError } from '$lib/utils/errors';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getAlbumShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
+  import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
@@ -48,6 +49,9 @@
   let albumTrackDisplay = $state<AlbumTrackDisplay>('fill');
   let albumShowDuration = $state(true);
   let albumShowAccolades = $state(true);
+  let albumShowGlobalRanks = $state(true);
+  let trackGlobalRanks = $state<Record<string, number> | null>(null);
+  let singleGlobalRanks = $state<Record<string, number> | null>(null);
   let naturalTracks = $state<TopTrackItem[] | null>(null);
   let loadingNatural = $state(false);
   let coverContainerEl: HTMLDivElement | undefined = $state();
@@ -150,6 +154,20 @@
       const result = await api.albumDetail(id, 'all', metric === 'plays' ? 'plays' : 'time', signal);
       if (signal.aborted) return;
       data = result;
+      // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
+      if (albumShowGlobalRanks) {
+        const sort = metric === 'plays' ? 'plays' : 'time';
+        if (result.tracks.length > 0) {
+          api.rankingsBatch('track', result.tracks.map(t => t.trackId), sort, signal)
+            .then(r => { if (!signal.aborted) trackGlobalRanks = r; })
+            .catch(() => {});
+        }
+        if ((result.relatedSingles ?? []).length > 0) {
+          api.rankingsBatch('album', result.relatedSingles.map(s => s.id), sort, signal)
+            .then(r => { if (!signal.aborted) singleGlobalRanks = r; })
+            .catch(() => {});
+        }
+      }
       if (result.album.imageUrl) {
         extractColor(result.album.imageUrl).then(([r, g, b]) => {
           if (!signal.aborted) heroColor = `${r},${g},${b}`;
@@ -173,6 +191,7 @@
     albumTrackDisplay = getAlbumTrackDisplay();
     albumShowDuration = getAlbumShowDuration();
     albumShowAccolades = getAlbumShowAccolades();
+    albumShowGlobalRanks = getAlbumShowGlobalRanks();
     layout = getDetailLayout('album');
     initialized = true;
   });
@@ -188,6 +207,8 @@
       chartHistoryData = null;
       naturalTracks = null;
       trackSort = 'ranked';
+      trackGlobalRanks = null;
+      singleGlobalRanks = null;
       prevId = id;
     }
     loadData(id);
@@ -229,9 +250,9 @@
         {#if trackSort === 'natural' && loadingNatural}
           <div class="loading"><div class="spinner"></div></div>
         {:else if trackSort === 'natural'}
-          <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
+          <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
         {:else}
-          <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} />
+          <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
         {/if}
       {/if}
     {:else if key === 'historyByYear'}
@@ -255,6 +276,9 @@
                 <div class="track-name">{s.name}</div>
                 <div class="track-artist">{s.date}</div>
               </div>
+              {#if singleGlobalRanks?.[s.id] != null}
+                <span class="global-rank" title="All-time rank" style:color={medalColor(singleGlobalRanks[s.id])}><span class="global-rank-label">all</span>#{singleGlobalRanks[s.id]}</span>
+              {/if}
               <div class="track-meta">
                 <div class="track-plays">{metric === 'plays' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
                 <div class="track-time">{metric === 'time' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>

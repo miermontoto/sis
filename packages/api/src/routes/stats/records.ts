@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { dbRead } from '../../db/read-pool.js';
-import { RECORDS_LIMIT, SESSION_GAP_MS, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS } from '../../constants.js';
+import { RECORDS_LIMIT, SESSION_GAP_MS, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS, RANKINGS_BATCH_LIMIT } from '../../constants.js';
 import { getCachedRecords, getEntityAccolades } from '../../services/records-cache.js';
 import { getRecentRankChangesCached, readRankLimits } from '../../services/recent-changes-cache.js';
 import { computeProjectedRankingsBatch } from '../../db/queries/index.js';
@@ -38,6 +38,17 @@ records.get('/rankings/:type/:id', async (c) => {
   const id = c.req.param('id');
   const userId = c.get('userId');
   return c.json(await dbRead('computeRankings', entityType, id, parseSort(c), userId));
+});
+
+// ranking all-time por lotes: posición global de cada entidad listada en una vista
+// de detalle (top tracks/albums del artista, tracks del álbum) con un solo scan.
+records.get('/rankings-batch', async (c) => {
+  const userId = c.get('userId');
+  const type = c.req.query('type');
+  if (type !== 'track' && type !== 'album') return c.json({ error: 'invalid type' }, 400);
+  const ids = (c.req.query('ids') ?? '').split(',').filter(Boolean).slice(0, RANKINGS_BATCH_LIMIT);
+  if (ids.length === 0) return c.json({});
+  return c.json(await dbRead('computeRankingsBatch', type, ids, parseSort(c), userId));
 });
 
 records.get('/ranking-history/:type/:id', async (c) => {

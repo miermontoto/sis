@@ -5,7 +5,7 @@
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
   import type { LastfmStatus } from '$lib/api';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -31,6 +31,8 @@
   let albumShowAccoladesPref = $state(true);
   let artistShowAlbumAccoladesPref = $state(true);
   let artistShowTrackAccoladesPref = $state(true);
+  let artistShowGlobalRanksPref = $state(true);
+  let albumShowGlobalRanksPref = $state(true);
   let sessionRankDisplayPref = $state<SessionRankDisplay>('all+ytd');
   let sessionRankLimitYearPref = $state('50');
   let sessionRankLimitAllPref = $state('200');
@@ -169,6 +171,8 @@
     albumShowAccoladesPref = getAlbumShowAccolades();
     artistShowAlbumAccoladesPref = getArtistShowAlbumAccolades();
     artistShowTrackAccoladesPref = getArtistShowTrackAccolades();
+    artistShowGlobalRanksPref = getArtistShowGlobalRanks();
+    albumShowGlobalRanksPref = getAlbumShowGlobalRanks();
     sessionRankDisplayPref = getSessionRankDisplay();
     sessionRankLimitYearPref = getSessionRankLimitYear();
     sessionRankLimitAllPref = getSessionRankLimitAll();
@@ -509,6 +513,18 @@
           </div>
         </div>
       </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">All-time ranks</div>
+          <div class="pref-desc">Show each track's and album's all-time position next to its stats</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = false; setArtistShowGlobalRanks(false); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = true; setArtistShowGlobalRanks(true); }}>On</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="prefs-subtitle">Album details</div>
@@ -547,6 +563,18 @@
           <div class="segmented">
             <button class="segmented-btn" class:segmented-active={!albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = false; setAlbumShowAccolades(false); }}>Off</button>
             <button class="segmented-btn" class:segmented-active={albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = true; setAlbumShowAccolades(true); }}>On</button>
+          </div>
+        </div>
+      </div>
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label">All-time ranks</div>
+          <div class="pref-desc">Show each track's all-time position in the track and singles lists</div>
+        </div>
+        <div class="pref-control">
+          <div class="segmented">
+            <button class="segmented-btn" class:segmented-active={!albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = false; setAlbumShowGlobalRanks(false); }}>Off</button>
+            <button class="segmented-btn" class:segmented-active={albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = true; setAlbumShowGlobalRanks(true); }}>On</button>
           </div>
         </div>
       </div>

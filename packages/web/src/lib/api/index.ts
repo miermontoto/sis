@@ -48,6 +48,8 @@ export {
   getAlbumShowAccolades, setAlbumShowAccolades,
   getArtistShowAlbumAccolades, setArtistShowAlbumAccolades,
   getArtistShowTrackAccolades, setArtistShowTrackAccolades,
+  getArtistShowGlobalRanks, setArtistShowGlobalRanks,
+  getAlbumShowGlobalRanks, setAlbumShowGlobalRanks,
   getSocialVisibility, setSocialVisibility,
   getNotificationsEnabled, setNotificationsEnabled,
   getNotifyRecords, setNotifyRecords,

@@ -135,6 +135,10 @@ export const api = {
   rankings: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<Rankings>(`/stats/rankings/${type}/${encodeURIComponent(id)}`, { sort }, signal),
 
+  // posición all-time de un lote de ids (un solo scan server-side); id → rank
+  rankingsBatch: (type: 'track' | 'album', ids: string[], sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<Record<string, number>>('/stats/rankings-batch', { type, ids: ids.join(','), sort }, signal),
+
   rankingHistory: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<RankingHistoryPointWithCrossovers[]>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort, crossovers: 'true' }, signal),
 

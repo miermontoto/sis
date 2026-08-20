@@ -101,6 +101,36 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
   };
 }
 
+/** Ranking all-time de un lote de tracks/albums en una sola pasada: mismo criterio
+ *  de empates que computeRankings (RANK comparte posición) pero solo rango 'all'.
+ *  Agrupa por el mismo resolvedEntityId que las queries de listado, así que las keys
+ *  coinciden con los ids canónicos que ya tiene el frontend. Entidades sin plays no
+ *  aparecen en el resultado. */
+export function computeRankingsBatch(db: Db, entityType: 'track' | 'album', entityIds: string[], sort: Sort, userId: number): Record<string, number> {
+  if (entityIds.length === 0) return {};
+
+  const uf = userFilter(userId);
+  const groupCol = entityGroupCol(entityType, userId);
+  const valExpr = sort === 'plays' ? sql`1` : playDuration();
+  const idList = sql.join(entityIds.map(id => sql`${id}`), sql`, `);
+
+  const rows = db.all(sql`
+    WITH entity_scores AS (
+      SELECT ${groupCol} as eid, sum(${valExpr}) as val
+      FROM listening_history lh
+      ${resolvedPlayJoins(entityType, userId)}
+      WHERE 1=1 ${uf} ${albumNullFilter(entityType)}
+      GROUP BY eid
+    ),
+    ranked AS (
+      SELECT eid, RANK() OVER (ORDER BY val DESC) as rnk FROM entity_scores
+    )
+    SELECT eid, rnk FROM ranked WHERE eid IN (${idList})
+  `) as { eid: string; rnk: number }[];
+
+  return Object.fromEntries(rows.map(r => [r.eid, r.rnk]));
+}
+
 interface ProjectionTarget {
   entityId: string;
   extraPlays: number;

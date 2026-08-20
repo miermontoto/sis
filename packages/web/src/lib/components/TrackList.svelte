@@ -15,6 +15,7 @@
     focusId?: string | null;
     itemFocusKey?: (item: TopTrackItem | HistoryItem) => string | null;
     ranks?: (number | null | undefined)[];
+    globalRanks?: Record<string, number> | null;
     dimUnplayed?: boolean;
     fillPercents?: number[];
     percentLabels?: number[];
@@ -24,7 +25,7 @@
     sessionTotalTracks?: number;
   }
 
-  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false, sessionStartedAt = null, sessionTotalTracks = 0 }: Props = $props();
+  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, globalRanks = null, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false, sessionStartedAt = null, sessionTotalTracks = 0 }: Props = $props();
 
   let sessionStartMs = $derived(sessionStartedAt ? new Date(sessionStartedAt).getTime() : null);
 
@@ -68,6 +69,7 @@
   {#if track}
     <TrackItem
       rank={showRank ? (ranks ? (ranks[i] ?? undefined) : i + 1) : undefined}
+      globalRank={trackId ? globalRanks?.[trackId] : undefined}
       rankChange={showRankChanges && isTopTrack(item) ? item.rankChange : undefined}
       isNew={showRankChanges && isTopTrack(item) ? item.isNew : undefined}
       imageUrl={track.album?.imageUrl}

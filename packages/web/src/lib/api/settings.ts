@@ -17,6 +17,8 @@ interface SettingsData {
   albumShowAccolades: boolean;
   artistShowAlbumAccolades: boolean;
   artistShowTrackAccolades: boolean;
+  artistShowGlobalRanks: boolean;
+  albumShowGlobalRanks: boolean;
   sessionRankDisplay: SessionRankDisplay;
   sessionRankLimitYear: string;
   sessionRankLimitAll: string;
@@ -54,6 +56,9 @@ const SETTINGS_DEFAULTS: SettingsData = {
   albumShowAccolades: true,
   artistShowAlbumAccolades: true,
   artistShowTrackAccolades: true,
+  // chip de posición all-time en los listados de las vistas de detalle
+  artistShowGlobalRanks: true,
+  albumShowGlobalRanks: true,
   sessionRankDisplay: 'all+ytd',
   sessionRankLimitYear: '50',
   sessionRankLimitAll: '200',
@@ -190,6 +195,8 @@ export const [getAlbumShowDuration, setAlbumShowDuration] = boolSetting('albumSh
 export const [getAlbumShowAccolades, setAlbumShowAccolades] = boolSetting('albumShowAccolades');
 export const [getArtistShowAlbumAccolades, setArtistShowAlbumAccolades] = boolSetting('artistShowAlbumAccolades');
 export const [getArtistShowTrackAccolades, setArtistShowTrackAccolades] = boolSetting('artistShowTrackAccolades');
+export const [getArtistShowGlobalRanks, setArtistShowGlobalRanks] = boolSetting('artistShowGlobalRanks');
+export const [getAlbumShowGlobalRanks, setAlbumShowGlobalRanks] = boolSetting('albumShowGlobalRanks');
 export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');
 
 // notificaciones push: master switch (off por defecto) + toggles por tipo

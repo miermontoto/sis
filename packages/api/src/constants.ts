@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w34d';
+export const VERSION = '26w34e';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -90,6 +90,9 @@ export const LASTFM_ENRICH_MAX_TAGS = 5;
 
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;
+
+// rankings-batch: tope de ids por petición (mismo tope que trackLimit/albumLimit de detail)
+export const RANKINGS_BATCH_LIMIT = 200;
 
 // nº máximo de scrobbles manuales aceptados en una sola petición (POST /stats/history)
 export const MANUAL_SCROBBLE_MAX = 500;
