@@ -5,6 +5,7 @@ import { tracks } from '../../db/schema.js';
 import { insertLocalPlay } from '../../services/ingestion.js';
 import { DEFAULT_PAGE_LIMIT, MANUAL_SCROBBLE_MAX } from '../../constants.js';
 import { deleteHistoryEntries } from '../../db/queries/index.js';
+import { getUserStreaksCached } from '../../services/social.js';
 import { statsRouter, parseParams } from './_shared.js';
 
 const insights = statsRouter();
@@ -153,8 +154,8 @@ insights.get('/monthly-distribution', async (c) => {
 
 insights.get('/streaks', async (c) => {
   const userId = c.get('userId');
-  // cálculo movido a getUserStreaks (queries/social.ts) para reusarlo en compare
-  return c.json(await dbRead('getUserStreaks', userId));
+  // cálculo en getUserStreaks (queries/social.ts), servido desde la cache SWR de compare
+  return c.json(await getUserStreaksCached(userId));
 });
 
 export default insights;

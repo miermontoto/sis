@@ -7,8 +7,8 @@ import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
 import type { AggregateRow, ProfileSummaryRow } from '../db/queries/index.js';
 import { findUserBySpotifyId, getUserById } from '../services/user-manager.js';
-import { isUserHidden, hiddenSpotifyIdsSubquery, getSocialNowPlaying, buildProfile, parseTimeRange, publicBase } from '../services/social.js';
-import { SHARE_TOKEN_BYTES, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, TIME_RANGES } from '../constants.js';
+import { isUserHidden, hiddenSpotifyIdsSubquery, getSocialNowPlaying, buildProfile, parseTimeRange, publicBase, getProfileSummaryCached, getUserStreaksCached } from '../services/social.js';
+import { SHARE_TOKEN_BYTES, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, COMPARE_TOP_LIMIT, TIME_RANGES } from '../constants.js';
 import type { TimeRange } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import type { DirectoryUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse, ShareLink, CreateShareLinkRequest, CompareResponse } from '@sis/shared';
@@ -104,15 +104,21 @@ social.get('/compare/:spotifyId', async (c) => {
   const viewer = getUserById(viewerId);
   if (!viewer) return c.json({ error: 'no autorizado' }, 401);
 
-  // resúmenes y rachas siempre all-time (tarjeta de identidad); el range
-  // sólo afecta a tops y compartidos
-  const [comparison, myProfile, theirProfile, myStreaks, theirStreaks] = await Promise.all([
-    dbRead('getUserComparison', viewerId, target.id, rangeStart, null),
-    dbRead('getProfileSummary', viewerId, null, null),
-    dbRead('getProfileSummary', target.id, null, null),
-    dbRead('getUserStreaks', viewerId),
-    dbRead('getUserStreaks', target.id),
+  // resúmenes y rachas siempre all-time (tarjeta de identidad, cache SWR); el range
+  // sólo afecta a tops y compartidos. Los seis tops van como dbReads paralelos: dentro
+  // de una sola query de worker irían en serie y son la parte cara del compare.
+  const topOf = (type: 'artist' | 'track' | 'album', userId: number) =>
+    dbRead('getTopEntities', type, rangeStart, 'time', COMPARE_TOP_LIMIT, null, userId);
+  const [topArtistsA, topArtistsB, topTracksA, topTracksB, topAlbumsA, topAlbumsB, myProfile, theirProfile, myStreaks, theirStreaks] = await Promise.all([
+    topOf('artist', viewerId), topOf('artist', target.id),
+    topOf('track', viewerId), topOf('track', target.id),
+    topOf('album', viewerId), topOf('album', target.id),
+    getProfileSummaryCached(viewerId),
+    getProfileSummaryCached(target.id),
+    getUserStreaksCached(viewerId),
+    getUserStreaksCached(target.id),
   ]);
+  const comparison = await dbRead('composeComparison', { topArtistsA, topArtistsB, topTracksA, topTracksB, topAlbumsA, topAlbumsB });
 
   // un formateador por tipo en vez de nombre suelto + flag `batch`: cada uno conserva
   // su tipo de retorno concreto, que es lo que CompareResponse espera lado a lado

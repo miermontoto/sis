@@ -4,12 +4,14 @@
 import { syncUserPlaylists } from './playlist-sync.js';
 import { computeAndCacheForUserAsync } from './records-cache.js';
 import { warmRecentRankChanges } from './recent-changes-cache.js';
+import { getProfileSummaryCached, getUserStreaksCached } from './social.js';
 import { getUserById } from './user-manager.js';
 import { createLogger } from './logger.js';
 
 const logPlaylistSync = createLogger('playlist-sync');
 const logRecordsCache = createLogger('records-cache');
 const logRecentChanges = createLogger('recent-changes');
+const logSocialCard = createLogger('social-card');
 const deferredUsers = new Set<number>();
 
 /** Lanzar tareas diferidas para un usuario (playlist sync + records cache +
@@ -29,6 +31,12 @@ export function triggerDeferredStartup(userId: number) {
       logRecordsCache.error(`error lazy compute usuario ${userId}:`, err));
     warmRecentRankChanges(userId, user.spotifyId).catch(err =>
       logRecentChanges.error(`error en warmup usuario ${userId}:`, err));
+    // tarjeta de identidad social (resumen + rachas all-time): warmup para que el
+    // primer /u o /compare tras un deploy no pague los scans completos
+    getProfileSummaryCached(userId).catch(err =>
+      logSocialCard.error(`error en warmup de resumen usuario ${userId}:`, err));
+    getUserStreaksCached(userId).catch(err =>
+      logSocialCard.error(`error en warmup de rachas usuario ${userId}:`, err));
   }
 }
 

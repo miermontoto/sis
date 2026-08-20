@@ -31,7 +31,7 @@ export { lookupArtist, lookupAlbum, formatTopTrackRows, formatTopArtistRow, form
 export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries, getTrackPlaylistPresence, getArtistPlaylistPresence, getAlbumPlaylistPresence } from './playlist-library.js';
 
 // social: perfil, compare, feed, streaks
-export { getProfileSummary, getUserComparison, getFeedActivity, getUserStreaks, getRecentPlaysForUsers, getUserPlayCount } from './social.js';
+export { getProfileSummary, composeComparison, getFeedActivity, getUserStreaks, getRecentPlaysForUsers, getUserPlayCount } from './social.js';
 export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRow, StreaksRow, FeedPlayRow } from './social.js';
 
 // inline queries extraídas de stats.ts

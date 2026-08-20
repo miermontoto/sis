@@ -3,7 +3,7 @@ import type { Db, AggregateRow } from './helpers.js';
 import { rangeWhere, userFilter, playDuration } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { getStreakDays } from './inline.js';
-import { COMPARE_TOP_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from '../../constants.js';
+import { SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from '../../constants.js';
 
 // --- perfil ---
 
@@ -22,11 +22,16 @@ export function getProfileSummary(db: Db, userId: number, rangeStart: string | n
   const wr = rangeWhere(rangeStart, rangeEnd);
   const uf = userFilter(userId);
 
+  // distinct_artists (artista principal por track) va como subquery escalar sobre el set de
+  // tracks distintos en vez de correlada por play: mismo conteo con ~25k probes en lugar de
+  // una por cada fila del historial (~350k). min() fija además qué crédito position=0 cuenta
+  // cuando un track tiene duplicados (antes era el primero que devolviera el índice).
   return db.all(sql`
     SELECT
       count(*) as play_count,
       coalesce(sum(${playDuration()}), 0) as total_ms,
-      count(DISTINCT (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = lh.track_id AND ta.position = 0)) as distinct_artists,
+      (SELECT count(DISTINCT (SELECT min(ta.artist_id) FROM track_artists ta WHERE ta.track_id = pt.track_id AND ta.position = 0))
+       FROM (SELECT DISTINCT lh.track_id FROM listening_history lh WHERE 1=1 ${wr} ${uf}) pt) as distinct_artists,
       count(DISTINCT lh.track_id) as distinct_tracks,
       count(DISTINCT t.album_id) as distinct_albums,
       min(lh.played_at) as first_played
@@ -125,15 +130,19 @@ function enrichAlbums(db: Db, items: { id: string; myRank: number; theirRank: nu
   });
 }
 
-/** Comparación de gustos entre dos usuarios: tops independientes + intersección en JS.
+/** Los seis tops (artista/track/álbum × dos usuarios) precomputados que consume
+ *  composeComparison. Se calculan como dbReads paralelos en la ruta: dentro de una sola
+ *  query de worker irían en serie y para rangos largos son la parte cara con diferencia. */
+export interface ComparisonTops {
+  topArtistsA: AggregateRow[]; topArtistsB: AggregateRow[];
+  topTracksA: AggregateRow[]; topTracksB: AggregateRow[];
+  topAlbumsA: AggregateRow[]; topAlbumsB: AggregateRow[];
+}
+
+/** Comparación de gustos entre dos usuarios: intersección en JS sobre tops independientes.
  *  Evita un JOIN cruzado entre los historiales; barato a escala de instancia. */
-export function getUserComparison(db: Db, userIdA: number, userIdB: number, rangeStart: string | null, rangeEnd: string | null | undefined): ComparisonResult {
-  const topArtistsA = getTopEntities(db, 'artist', rangeStart, 'time', COMPARE_TOP_LIMIT, rangeEnd, userIdA);
-  const topArtistsB = getTopEntities(db, 'artist', rangeStart, 'time', COMPARE_TOP_LIMIT, rangeEnd, userIdB);
-  const topTracksA = getTopEntities(db, 'track', rangeStart, 'time', COMPARE_TOP_LIMIT, rangeEnd, userIdA);
-  const topTracksB = getTopEntities(db, 'track', rangeStart, 'time', COMPARE_TOP_LIMIT, rangeEnd, userIdB);
-  const topAlbumsA = getTopEntities(db, 'album', rangeStart, 'time', COMPARE_TOP_LIMIT, rangeEnd, userIdA);
-  const topAlbumsB = getTopEntities(db, 'album', rangeStart, 'time', COMPARE_TOP_LIMIT, rangeEnd, userIdB);
+export function composeComparison(db: Db, tops: ComparisonTops): ComparisonResult {
+  const { topArtistsA, topArtistsB, topTracksA, topTracksB, topAlbumsA, topAlbumsB } = tops;
 
   // overlap por tipo + combinado ponderado (artistas = gusto general)
   const overlapByType = {

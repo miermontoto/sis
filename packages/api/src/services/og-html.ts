@@ -1,9 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import type { Context } from 'hono';
-import { dbRead } from '../db/read-pool.js';
 import { findUserBySpotifyId, type User } from './user-manager.js';
-import { isUserHidden, publicBase } from './social.js';
+import { isUserHidden, publicBase, getProfileSummaryCached } from './social.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('og');
@@ -61,7 +60,7 @@ function buildMetaBlock(fields: OgFields): string {
 }
 
 async function ogFieldsForUser(user: User, opts: { imageUrl: string | null; url: string }): Promise<OgFields> {
-  const summary = await dbRead('getProfileSummary', user.id, null, null);
+  const summary = await getProfileSummaryCached(user.id);
   const name = user.displayName ?? user.spotifyId;
   return {
     title: `${name} en SIS`,
