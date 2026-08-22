@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { artists, albums, trackArtists } from '../../db/schema.js';
 import { spotifyFetch, isRateLimited } from '../spotify-client.js';
-import { mergeTrackArtists } from './upsert.js';
+import { reassignTrackRefs } from './upsert.js';
 import type { SpotifyTrack, SpotifySearchArtistResult, SpotifySearchAlbumResult } from '../../types/spotify.js';
 import { createLogger } from '../logger.js';
 
@@ -462,14 +462,7 @@ export function mergeImportTracks() {
   let merged = 0;
   for (const { import_id, real_id, track_name } of groups) {
     try {
-      db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${real_id} WHERE track_id = ${import_id}`);
-      db.run(sql`DELETE FROM listening_history WHERE track_id = ${import_id}`);
-      mergeTrackArtists(db, import_id, real_id);
-      db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${real_id} WHERE track_id = ${import_id}`);
-      db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${import_id}`);
-      db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${real_id} WHERE track_id = ${import_id}`);
-      db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${import_id}`);
-      db.run(sql`DELETE FROM tracks WHERE spotify_id = ${import_id}`);
+      reassignTrackRefs(db, import_id, real_id);
       merged++;
     } catch (err) {
       logCleanup.error(`error unificando "${track_name}":`, err);

@@ -62,17 +62,66 @@ function resolveAlbumId(artistId: string, artistName: string, albumName: string)
   return id;
 }
 
-function resolveTrackId(artistName: string, trackName: string): string {
+// IDs externos que puede traer un evento (scrobble/import): evidencia de identidad
+// que resuelve ANTES que el nombre. '' y undefined se normalizan a null.
+interface ExternalTrackIds {
+  isrc?: string | null;
+  mbid?: string | null;
+}
+
+// lookup indexado por ID externo (isrc/mbid), prefiriendo entidades reales sobre
+// sintéticas y desempatando por plays (mismo criterio que el resto de resolvers)
+function findTrackByExternalId(column: 'isrc' | 'mbid', value: string): string | null {
+  const db = getDb();
+  const row = db.get(sql`
+    SELECT spotify_id FROM tracks
+    WHERE ${sql.raw(column)} = ${value}
+    ORDER BY CASE
+      WHEN spotify_id LIKE 'local:%' THEN 2
+      WHEN spotify_id LIKE 'import:%' THEN 1
+      ELSE 0
+    END,
+    (SELECT COUNT(*) FROM listening_history WHERE track_id = tracks.spotify_id) DESC
+    LIMIT 1
+  `) as { spotify_id: string } | undefined;
+  return row?.spotify_id ?? null;
+}
+
+// escalera de resolución: isrc → mbid → nombre (artista PRINCIPAL) → sintético.
+// los IDs que asserta el servicio/industria van antes que la igualdad de strings.
+// el match por nombre exige position = 0: casar por cualquier artista acreditado
+// hacía que tracks homónimos "sangraran" artistas equivocados entre sí (y de paso
+// duplicaba posiciones 0 en track_artists al estampar al artista del scrobble).
+function resolveTrackId(artistName: string, trackName: string, ids?: ExternalTrackIds): string {
+  const isrc = ids?.isrc || null;
+  const mbid = ids?.mbid || null;
+
+  for (const [prefix, value] of [['isrc', isrc], ['mbid', mbid]] as const) {
+    if (!value) continue;
+    const cacheKey = `${prefix}:${value}`;
+    if (trackIdCache.has(cacheKey)) return trackIdCache.get(cacheKey)!;
+    const found = findTrackByExternalId(prefix, value);
+    if (found) {
+      trackIdCache.set(cacheKey, found);
+      return found;
+    }
+  }
+
   const key = `${artistName.toLowerCase()}|${trackName.toLowerCase()}`;
   if (trackIdCache.has(key)) return trackIdCache.get(key)!;
 
   const db = getDb();
   const existing = db.get(
     sql`SELECT t.spotify_id FROM tracks t
-        JOIN track_artists ta ON ta.track_id = t.spotify_id
+        JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
         JOIN artists a ON a.spotify_id = ta.artist_id
         WHERE LOWER(t.name) = ${trackName.toLowerCase()}
           AND LOWER(a.name) = ${artistName.toLowerCase()}
+        ORDER BY CASE
+          WHEN t.spotify_id LIKE 'local:%' THEN 2
+          WHEN t.spotify_id LIKE 'import:%' THEN 1
+          ELSE 0
+        END
         LIMIT 1`
   ) as { spotify_id: string } | undefined;
 
@@ -86,41 +135,60 @@ function resolveTrackId(artistName: string, trackName: string): string {
 // reproducción: lo usa el now-playing de last.fm, que necesita que el track
 // exista en el catálogo para renderizarlo pero no es un play completado (no toca
 // listening_history). devuelve el trackId resuelto o null si faltan datos.
-export function upsertScrobbleTrack(track: { name: string; artist: { '#text': string }; album?: { '#text'?: string } }): string | null {
+export function upsertScrobbleTrack(track: {
+  name: string;
+  mbid?: string;
+  artist: { '#text': string; mbid?: string };
+  album?: { '#text'?: string; mbid?: string };
+}): string | null {
   const trackName = track.name;
   const artistName = track.artist['#text'];
   if (!trackName || !artistName) return null;
 
   const albumName = track.album?.['#text'] || null;
   const artistId = resolveArtistId(artistName);
-  const trackId = resolveTrackId(artistName, trackName);
+  const trackId = resolveTrackId(artistName, trackName, { mbid: track.mbid });
   const albumId = albumName ? resolveAlbumId(artistId, artistName, albumName) : null;
   const now = new Date().toISOString();
   const db = getDb();
 
+  // acreción de evidencia: los mbid del scrobble rellenan huecos en entidades ya
+  // existentes (el WHERE del upsert evita escrituras sin nada que aportar)
   db.run(sql`
-    INSERT INTO artists (spotify_id, name, genres, updated_at)
-    VALUES (${artistId}, ${artistName}, '[]', ${now})
-    ON CONFLICT (spotify_id) DO NOTHING
+    INSERT INTO artists (spotify_id, name, genres, mbid, updated_at)
+    VALUES (${artistId}, ${artistName}, '[]', ${track.artist.mbid || null}, ${now})
+    ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
+    WHERE artists.mbid IS NULL AND excluded.mbid IS NOT NULL
   `);
   if (albumId && albumName) {
     db.run(sql`
-      INSERT INTO albums (spotify_id, name, updated_at)
-      VALUES (${albumId}, ${albumName}, ${now})
-      ON CONFLICT (spotify_id) DO NOTHING
+      INSERT INTO albums (spotify_id, name, mbid, updated_at)
+      VALUES (${albumId}, ${albumName}, ${track.album?.mbid || null}, ${now})
+      ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
+      WHERE albums.mbid IS NULL AND excluded.mbid IS NOT NULL
     `);
   }
   db.run(sql`
-    INSERT INTO tracks (spotify_id, name, album_id, duration_ms, updated_at)
-    VALUES (${trackId}, ${trackName}, ${albumId}, 0, ${now})
-    ON CONFLICT (spotify_id) DO NOTHING
+    INSERT INTO tracks (spotify_id, name, album_id, duration_ms, mbid, updated_at)
+    VALUES (${trackId}, ${trackName}, ${albumId}, 0, ${track.mbid || null}, ${now})
+    ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
+    WHERE tracks.mbid IS NULL AND excluded.mbid IS NOT NULL
   `);
+  insertPrimaryArtistIfMissing(db, trackId, artistId);
+  return trackId;
+}
+
+// estampa al artista del evento como principal SOLO si el track no tiene ya un
+// position 0: la PK de track_artists es (track_id, artist_id) con posición no
+// única, así que el insert incondicional dejaba dos artistas en la posición 0
+// cuando un track homónimo resolvía a una entidad de otro artista
+function insertPrimaryArtistIfMissing(db: Pick<ReturnType<typeof getDb>, 'run'>, trackId: string, artistId: string) {
   db.run(sql`
     INSERT INTO track_artists (track_id, artist_id, position)
-    VALUES (${trackId}, ${artistId}, 0)
+    SELECT ${trackId}, ${artistId}, 0
+    WHERE NOT EXISTS (SELECT 1 FROM track_artists WHERE track_id = ${trackId} AND position = 0)
     ON CONFLICT (track_id, artist_id) DO NOTHING
   `);
-  return trackId;
 }
 
 const MIN_PLAYED_MS = MIN_PLAY_MS;
@@ -169,6 +237,7 @@ function importId(a: string, b: string): string {
 // detecta formato y normaliza las entradas a un formato común
 interface LastFmEntry {
   name: string;
+  mbid?: string;
   artist: { '#text': string; mbid?: string };
   album: { '#text': string; mbid?: string };
   date?: { uts: string; '#text'?: string };
@@ -187,6 +256,11 @@ interface NormalizedEntry {
   // scrobbles de last.fm: timestamp de INICIO de reproducción (spotify y
   // extended usan fin) → activa la ventana de dedup asimétrica hacia delante
   isScrobble?: boolean;
+  // evidencia de identidad del evento (mbid de recording/artist/release), para
+  // acreción sobre las entidades resueltas
+  trackMbid?: string | null;
+  artistMbid?: string | null;
+  albumMbid?: string | null;
 }
 
 function isLastFmEntry(item: unknown): item is LastFmEntry {
@@ -209,7 +283,7 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
         const trackName = entry.name;
         const artistName = entry.artist['#text'];
         const albumName = entry.album?.['#text'] || null;
-        const trackId = resolveTrackId(artistName, trackName);
+        const trackId = resolveTrackId(artistName, trackName, { mbid: entry.mbid });
         const playedAt = new Date(parseInt(entry.date!.uts) * 1000).toISOString();
         const artistId = resolveArtistId(artistName);
         return {
@@ -222,6 +296,9 @@ function normalizeEntries(data: unknown[]): NormalizedEntry[] {
           albumId: albumName ? resolveAlbumId(artistId, artistName, albumName) : null,
           msPlayed: null,
           isScrobble: true,
+          trackMbid: entry.mbid || null,
+          artistMbid: entry.artist.mbid || null,
+          albumMbid: entry.album?.mbid || null,
         };
       })
       .filter((e): e is NormalizedEntry => e !== null);
@@ -338,7 +415,10 @@ function addToIndex(index: Map<string, number[]>, trackName: string, playedAtS: 
   else index.set(key, [playedAtS]);
 }
 
-export function importHistory(data: unknown, userId: number): ImportResult {
+// procedencia con la que se registran los plays de esta importación
+export type PlaySource = 'import' | 'lastfm';
+
+export function importHistory(data: unknown, userId: number, source: PlaySource = 'import'): ImportResult {
   let flat: unknown[];
   if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
     flat = (data as unknown[][]).flat();
@@ -388,19 +468,24 @@ export function importHistory(data: unknown, userId: number): ImportResult {
         // en la vía SQL no hace falta: las filas insertadas ya son visibles
         if (playIndex) addToIndex(playIndex, entry.trackName, playedAtS);
 
+        // acreción de evidencia: los mbid del evento rellenan huecos en entidades
+        // existentes. el WHERE del upsert limita la escritura al caso con algo que
+        // aportar (sin él, cada entrada de un import masivo re-escribiría su fila)
         if (entry.artistName) {
           tx.run(sql`
-            INSERT INTO artists (spotify_id, name, genres, updated_at)
-            VALUES (${entry.artistId}, ${entry.artistName}, '[]', ${now})
-            ON CONFLICT (spotify_id) DO NOTHING
+            INSERT INTO artists (spotify_id, name, genres, mbid, updated_at)
+            VALUES (${entry.artistId}, ${entry.artistName}, '[]', ${entry.artistMbid ?? null}, ${now})
+            ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
+            WHERE artists.mbid IS NULL AND excluded.mbid IS NOT NULL
           `);
         }
 
         if (entry.albumId && entry.albumName) {
           tx.run(sql`
-            INSERT INTO albums (spotify_id, name, updated_at)
-            VALUES (${entry.albumId}, ${entry.albumName}, ${now})
-            ON CONFLICT (spotify_id) DO NOTHING
+            INSERT INTO albums (spotify_id, name, mbid, updated_at)
+            VALUES (${entry.albumId}, ${entry.albumName}, ${entry.albumMbid ?? null}, ${now})
+            ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
+            WHERE albums.mbid IS NULL AND excluded.mbid IS NOT NULL
           `);
         }
 
@@ -409,20 +494,17 @@ export function importHistory(data: unknown, userId: number): ImportResult {
         // plays más largos. Se deja 0 y lo rellena el enrichment (import:→MusicBrainz,
         // IDs reales→al reproducir vía polling).
         tx.run(sql`
-          INSERT INTO tracks (spotify_id, name, album_id, duration_ms, updated_at)
-          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, 0, ${now})
-          ON CONFLICT (spotify_id) DO NOTHING
+          INSERT INTO tracks (spotify_id, name, album_id, duration_ms, mbid, updated_at)
+          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, 0, ${entry.trackMbid ?? null}, ${now})
+          ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
+          WHERE tracks.mbid IS NULL AND excluded.mbid IS NOT NULL
         `);
 
-        tx.run(sql`
-          INSERT INTO track_artists (track_id, artist_id, position)
-          VALUES (${entry.trackId}, ${entry.artistId}, 0)
-          ON CONFLICT (track_id, artist_id) DO NOTHING
-        `);
+        insertPrimaryArtistIfMissing(tx, entry.trackId, entry.artistId);
 
         const insertResult = tx.run(sql`
-          INSERT INTO listening_history (track_id, played_at, user_id, duration_played_ms)
-          VALUES (${entry.trackId}, ${entry.playedAt}, ${userId}, ${entry.msPlayed})
+          INSERT INTO listening_history (track_id, played_at, user_id, duration_played_ms, source)
+          VALUES (${entry.trackId}, ${entry.playedAt}, ${userId}, ${entry.msPlayed}, ${source})
           ON CONFLICT (user_id, played_at) DO NOTHING
         `);
 

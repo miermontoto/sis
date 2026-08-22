@@ -3,8 +3,10 @@
 // - enrichment.ts: enriquecimiento desde Spotify API + MusicBrainz
 // - imports.ts: limpieza y resolución de entidades importadas desde Spotify Extended
 // - dedup.ts: deduplicación de tracks/álbumes/plays
+// - identity.ts: cosecha de isrc/mbid y convergencia de sintéticos por identidad
 
 export { resolveLocalFileIds, upsertTrack, insertLocalPlay, insertPlay, DEDUP_WINDOW_S } from './ingestion/upsert.js';
+export { harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity } from './ingestion/identity.js';
 export { ensureFullAlbumTracks, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations } from './ingestion/enrichment.js';
 export {
   cleanOrphanImports, cleanNonMusicImports,

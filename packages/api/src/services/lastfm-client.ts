@@ -59,9 +59,12 @@ export async function getAuthSession(token: string): Promise<LastfmSession> {
   return data.session;
 }
 
-// track del feed recenttracks — mismo shape que acepta history-import
+// track del feed recenttracks — mismo shape que acepta history-import. los mbid
+// (recording/artist/release de musicbrainz) llegan a menudo como '' — se tratan
+// como ausentes al resolver
 export interface LastfmRecentTrack {
   name: string;
+  mbid?: string;
   artist: { '#text': string; mbid?: string };
   album: { '#text': string; mbid?: string };
   date?: { uts: string };

@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings, checkDailyEvents } from './notification-events.js';
@@ -177,6 +177,15 @@ function startTokenlessEnrichment() {
       await enrichImportTrackDurations();
     } catch (err) {
       logMetadata.error('error duraciones:', err);
+    }
+    // identidad musicbrainz (mbid/isrc de sintéticos) tras las duraciones (mismo
+    // throttle de MB, secuencial para no solaparlo) y convergencia inmediata de
+    // los sintéticos que ganaron un id compartido con una entidad real
+    try {
+      await enrichImportTrackIdentity();
+      mergeTracksByIdentity();
+    } catch (err) {
+      logMetadata.error('error identidad:', err);
     }
     // portadas (musicbrainz) y géneros (last.fm) son independientes entre sí
     enrichLocalAlbumCovers().catch(err => logMetadata.error('error portadas:', err));
@@ -482,6 +491,10 @@ export function startPolling() {
   fixVideoCovers(globalUserId)
     .then(() => recoverSingleCovers(globalUserId))
     .catch(err => logMetadata.error('error portadas de vídeo:', err));
+  // isrcs del catálogo real (evidencia de identidad) y convergencia de sintéticos
+  harvestTrackIsrcs(globalUserId)
+    .then(() => mergeTracksByIdentity())
+    .catch(err => logMetadata.error('error isrcs:', err));
 
   metadataRefreshTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
@@ -491,6 +504,9 @@ export function startPolling() {
     fixVideoCovers(uid)
       .then(() => recoverSingleCovers(uid))
       .catch(err => logMetadata.error('error portadas de vídeo:', err));
+    harvestTrackIsrcs(uid)
+      .then(() => mergeTracksByIdentity())
+      .catch(err => logMetadata.error('error isrcs:', err));
   }, METADATA_REFRESH_INTERVAL_MS);
 
   // resolución de entidades import:

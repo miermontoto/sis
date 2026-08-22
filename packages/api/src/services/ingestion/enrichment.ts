@@ -6,6 +6,7 @@ import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
+import { MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('metadata');
@@ -323,15 +324,12 @@ export async function recoverSingleCovers(userId: number) {
 
 // --- MusicBrainz + Cover Art Archive (portadas de álbumes locales / importados) ---
 
-const MB_BASE = 'https://musicbrainz.org/ws/2';
 const CAA_BASE = 'https://coverartarchive.org';
-const MB_USER_AGENT = 'SIS/1.0 (https://sis.mier.info)';
-const MB_DELAY_MS = 1100; // MusicBrainz pide ~1 req/s
 
 async function fetchMusicBrainzCover(artistName: string, albumName: string, albumId: string): Promise<string | null> {
   // buscar release en MusicBrainz
   const query = `release:${albumName} AND artist:${artistName}`;
-  const url = `${MB_BASE}/release?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
+  const url = `${MB_API_BASE}/release?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
 
   const res = await fetch(url, {
     headers: { 'User-Agent': MB_USER_AGENT, 'Accept': 'application/json' },
@@ -341,7 +339,7 @@ async function fetchMusicBrainzCover(artistName: string, albumName: string, albu
 
   const data = await res.json() as { releases?: { id: string; score: number }[] };
   const release = data.releases?.[0];
-  if (!release || release.score < 80) return null;
+  if (!release || release.score < MB_MIN_SCORE) return null;
 
   // descargar portada desde Cover Art Archive
   const caaUrl = `${CAA_BASE}/release/${release.id}/front`;
@@ -421,7 +419,7 @@ export async function enrichImportTrackDurations() {
   let updated = 0;
   for (const track of missing) {
     const query = `recording:${track.name} AND artist:${track.artist_name}`;
-    const url = `${MB_BASE}/recording?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
+    const url = `${MB_API_BASE}/recording?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
 
     try {
       const res = await fetch(url, {
@@ -429,12 +427,18 @@ export async function enrichImportTrackDurations() {
       });
 
       if (res.ok) {
-        const data = await res.json() as { recordings?: { score: number; length?: number }[] };
+        const data = await res.json() as { recordings?: { id: string; score: number; length?: number }[] };
         const recording = data.recordings?.[0];
-        if (recording && recording.score >= 80 && recording.length) {
-          db.run(sql`UPDATE tracks SET duration_ms = ${recording.length}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
+        const matched = recording && recording.score >= MB_MIN_SCORE ? recording : null;
+        // identidad gratis: la búsqueda ya está pagada, capturar el mbid del match
+        // aunque no traiga length (la acreción nunca pisa un mbid previo)
+        if (matched) {
+          db.run(sql`UPDATE tracks SET mbid = COALESCE(mbid, ${matched.id}) WHERE spotify_id = ${track.spotify_id}`);
+        }
+        if (matched?.length) {
+          db.run(sql`UPDATE tracks SET duration_ms = ${matched.length}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
           updated++;
-          log.info(`duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(recording.length / 1000)}s)`);
+          log.info(`duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(matched.length / 1000)}s)`);
         } else {
           db.run(sql`UPDATE tracks SET duration_ms = -1, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
         }

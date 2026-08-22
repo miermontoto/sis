@@ -173,7 +173,7 @@ export async function syncRecentScrobbles(userId: number): Promise<number> {
 
   if (collected.length === 0) return 0;
 
-  const result = importHistory(collected, userId);
+  const result = importHistory(collected, userId, 'lastfm');
   const cursor = maxUts(collected);
   if (cursor) updateCursor(userId, cursor);
   log.child(userId).info(`${result.imported} scrobbles nuevos (${result.duplicates} ya registrados)`);
@@ -252,7 +252,7 @@ export async function backfillHistory(userId: number): Promise<void> {
     } while (page <= totalPages);
 
     progress.phase = 'importing';
-    const result = importHistory(collected, userId);
+    const result = importHistory(collected, userId, 'lastfm');
     progress.imported = result.imported;
 
     const db = getDb();

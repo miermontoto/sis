@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
-import { DEDUP_WINDOW_S, mergeTrackArtists } from './upsert.js';
+import { DEDUP_WINDOW_S, reassignTrackRefs } from './upsert.js';
 import { MIN_PLAY_MS } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
@@ -55,20 +55,10 @@ export function deduplicateTracks() {
     if (dupes.length === 0) continue;
 
     try {
+      // reassignTrackRefs re-apunta historial/créditos/playlists al canónico y
+      // hereda la evidencia isrc/mbid del duplicado antes de borrarlo
       for (const dupe of dupes) {
-        // re-apuntar listening_history (ignorar conflictos por played_at UNIQUE)
-        db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${canonical} WHERE track_id = ${dupe}`);
-        db.run(sql`DELETE FROM listening_history WHERE track_id = ${dupe}`);
-        // fusionar artistas en el canónico sin colisionar posiciones ni arrastrar
-        // feats. de grabaciones homónimas distintas (ver mergeTrackArtists)
-        mergeTrackArtists(db, dupe, canonical);
-        // re-apuntar playlist references (generated + spotify library)
-        db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${canonical} WHERE track_id = ${dupe}`);
-        db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${dupe}`);
-        db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${canonical} WHERE track_id = ${dupe}`);
-        db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${dupe}`);
-        // eliminar track duplicado
-        db.run(sql`DELETE FROM tracks WHERE spotify_id = ${dupe}`);
+        reassignTrackRefs(db, dupe, canonical);
       }
       merged++;
     } catch (err) {
@@ -274,15 +264,8 @@ export function deduplicateLocalAlbums() {
           `) as { spotify_id: string } | undefined;
 
           if (existing) {
-            // track duplicado: mover history y eliminar
-            db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${existing.spotify_id} WHERE track_id = ${dt.spotify_id}`);
-            db.run(sql`DELETE FROM listening_history WHERE track_id = ${dt.spotify_id}`);
-            mergeTrackArtists(db, dt.spotify_id, existing.spotify_id);
-            db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${existing.spotify_id} WHERE track_id = ${dt.spotify_id}`);
-            db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${dt.spotify_id}`);
-            db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${existing.spotify_id} WHERE track_id = ${dt.spotify_id}`);
-            db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${dt.spotify_id}`);
-            db.run(sql`DELETE FROM tracks WHERE spotify_id = ${dt.spotify_id}`);
+            // track duplicado: mover history/créditos/playlists y eliminar
+            reassignTrackRefs(db, dt.spotify_id, existing.spotify_id);
           } else {
             // track único: mover al álbum canónico
             db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE spotify_id = ${dt.spotify_id}`);

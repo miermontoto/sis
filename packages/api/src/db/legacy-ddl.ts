@@ -18,6 +18,28 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_merge_rules_lookup ON merge_rules(entity_type, source_id, user_id)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_merge_rules_target ON merge_rules(user_id, entity_type, target_id)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_ta_artist_position ON track_artists(artist_id, position)'); } catch {}
+  // identidad multi-fuente: IDs externos estables como EVIDENCIA de resolución, no
+  // como claves. isrc viene de spotify (external_ids del track), mbid de last.fm /
+  // musicbrainz. convención de centinela: NULL = no consultado, '' = consultado sin
+  // resultado (misma que image_url en enrichment).
+  try { sqlite.exec('ALTER TABLE tracks ADD COLUMN isrc TEXT'); } catch {}
+  try { sqlite.exec('ALTER TABLE tracks ADD COLUMN mbid TEXT'); } catch {}
+  try { sqlite.exec('ALTER TABLE artists ADD COLUMN mbid TEXT'); } catch {}
+  try { sqlite.exec('ALTER TABLE albums ADD COLUMN mbid TEXT'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_isrc ON tracks(isrc)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tracks_mbid ON tracks(mbid)'); } catch {}
+
+  // procedencia del play: 'spotify' (polling) | 'lastfm' (sync de scrobbles) |
+  // 'import' (ficheros de export) | futuros clientes de scrobbling. el backfill corre
+  // solo cuando el ALTER acaba de crear la columna (si ya existía, lanza y salta al
+  // catch): heurística best-effort — tracks sintéticos vinieron de imports/scrobbles;
+  // el resto queda NULL (= anterior a la columna, fuente no comprobable).
+  try {
+    sqlite.exec('ALTER TABLE listening_history ADD COLUMN source TEXT');
+    sqlite.exec(`UPDATE listening_history SET source = 'import'
+      WHERE track_id LIKE 'import:%' OR track_id LIKE 'local:%'`);
+  } catch {}
+
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN is_playing INTEGER DEFAULT 0'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN session_started_at TEXT'); } catch {}
   try { sqlite.exec('ALTER TABLE polling_state ADD COLUMN progress_ms INTEGER'); } catch {}

@@ -39,6 +39,9 @@ export interface SpotifyTrack {
   explicit: boolean;
   popularity: number;
   is_local?: boolean;
+  // solo en el track object completo (recently-played, currently-playing, /tracks);
+  // los simplified (tracklist de álbum) no lo traen
+  external_ids?: { isrc?: string };
 }
 
 export interface SpotifyPlayHistoryItem {
@@ -75,6 +78,10 @@ export interface SpotifyArtistsBatchResponse {
 
 export interface SpotifyAlbumsBatchResponse {
   albums: (SpotifyAlbum | null)[];
+}
+
+export interface SpotifyTracksBatchResponse {
+  tracks: (SpotifyTrack | null)[];
 }
 
 export interface SpotifyTokenResponse {

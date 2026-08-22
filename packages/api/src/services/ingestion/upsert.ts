@@ -155,7 +155,10 @@ export function upsertTrack(track: SpotifyTrack) {
       .run();
   }
 
-  // upsert track
+  // upsert track. isrc: evidencia de identidad multi-fuente — una observación fresca
+  // de spotify gana siempre; sin isrc en la respuesta se conserva el valor previo
+  // (incluido el centinela '' del harvest)
+  const isrc = track.external_ids?.isrc ?? null;
   db.insert(tracks)
     .values({
       spotifyId: track.id,
@@ -166,6 +169,7 @@ export function upsertTrack(track: SpotifyTrack) {
       discNumber: track.disc_number ?? 1,
       explicit: track.explicit,
       popularity: track.popularity,
+      isrc,
       updatedAt: now(),
     })
     .onConflictDoUpdate({
@@ -177,6 +181,7 @@ export function upsertTrack(track: SpotifyTrack) {
         discNumber: track.disc_number ?? 1,
         explicit: track.explicit,
         popularity: track.popularity,
+        isrc: sql`COALESCE(${isrc}, tracks.isrc)`,
         updatedAt: now(),
       },
     })
@@ -241,6 +246,29 @@ export function mergeTrackArtists(db: ReturnType<typeof getDb>, sourceTrackId: s
   db.run(sql`DELETE FROM track_artists WHERE track_id = ${sourceTrackId}`);
 }
 
+// re-apunta TODAS las referencias de un track origen al destino y borra el origen:
+// historial (ignorando colisiones del UNIQUE por played_at), créditos de artistas
+// (via mergeTrackArtists) y playlists. antes de borrar, hereda al destino la
+// evidencia de identidad (isrc/mbid) que el origen tenga y al destino le falte
+// (NULLIF trata el centinela '' como hueco rellenable). cuerpo común de todos los
+// merges de tracks (dedup, import→real, identidad); reutiliza la conexión del llamante.
+export function reassignTrackRefs(db: ReturnType<typeof getDb>, sourceTrackId: string, targetTrackId: string) {
+  db.run(sql`
+    UPDATE tracks SET
+      isrc = COALESCE(NULLIF(isrc, ''), (SELECT NULLIF(isrc, '') FROM tracks WHERE spotify_id = ${sourceTrackId})),
+      mbid = COALESCE(NULLIF(mbid, ''), (SELECT NULLIF(mbid, '') FROM tracks WHERE spotify_id = ${sourceTrackId}))
+    WHERE spotify_id = ${targetTrackId}
+  `);
+  db.run(sql`UPDATE OR IGNORE listening_history SET track_id = ${targetTrackId} WHERE track_id = ${sourceTrackId}`);
+  db.run(sql`DELETE FROM listening_history WHERE track_id = ${sourceTrackId}`);
+  mergeTrackArtists(db, sourceTrackId, targetTrackId);
+  db.run(sql`UPDATE OR IGNORE generated_playlist_tracks SET track_id = ${targetTrackId} WHERE track_id = ${sourceTrackId}`);
+  db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${sourceTrackId}`);
+  db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${targetTrackId} WHERE track_id = ${sourceTrackId}`);
+  db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${sourceTrackId}`);
+  db.run(sql`DELETE FROM tracks WHERE spotify_id = ${sourceTrackId}`);
+}
+
 function findNearbyPlay(db: ReturnType<typeof getDb>, trackId: string, playedAt: string, userId: number) {
   return db.get(sql`
     SELECT id, duration_played_ms FROM listening_history
@@ -269,6 +297,7 @@ export function insertLocalPlay(trackId: string, playedAt: string, userId: numbe
         playedAt,
         userId,
         durationPlayedMs: durationMs ?? null,
+        source: 'spotify',
       })
       .run();
     return true;
@@ -306,6 +335,7 @@ export function insertPlay(item: SpotifyPlayHistoryItem, userId: number, duratio
         contextType: item.context?.type ?? null,
         contextUri: item.context?.uri ?? null,
         durationPlayedMs: durationPlayedMs ?? null,
+        source: 'spotify',
       })
       .run();
     return true;

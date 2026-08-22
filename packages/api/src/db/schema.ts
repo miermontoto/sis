@@ -12,12 +12,15 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// mbid/isrc: IDs externos estables (musicbrainz / industria) como evidencia de
+// identidad multi-fuente. NULL = no consultado, '' = consultado sin resultado.
 export const artists = sqliteTable('artists', {
   spotifyId: text('spotify_id').primaryKey(),
   name: text('name').notNull(),
   genres: text('genres', { mode: 'json' }).$type<string[]>().default([]),
   imageUrl: text('image_url'),
   popularity: integer('popularity'),
+  mbid: text('mbid'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -29,6 +32,7 @@ export const albums = sqliteTable('albums', {
   releaseDate: text('release_date'),
   totalTracks: integer('total_tracks'),
   albumType: text('album_type'),
+  mbid: text('mbid'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -43,6 +47,8 @@ export const tracks = sqliteTable('tracks', {
   popularity: integer('popularity'),
   verifiedAlbum: integer('verified_album'),
   verifiedArtists: integer('verified_artists'),
+  isrc: text('isrc'),
+  mbid: text('mbid'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
@@ -62,6 +68,9 @@ export const listeningHistory = sqliteTable('listening_history', {
   contextType: text('context_type'),
   contextUri: text('context_uri'),
   durationPlayedMs: integer('duration_played_ms'),
+  // procedencia: 'spotify' | 'lastfm' | 'import' | clientes futuros. NULL = fila
+  // anterior a la columna (fuente no comprobable)
+  source: text('source'),
 }, (table) => [
   uniqueIndex('idx_listening_history_user_played_at').on(table.userId, table.playedAt),
   index('idx_listening_history_played_at').on(table.playedAt),
