@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w34j';
+export const VERSION = '26w34k';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -131,6 +131,17 @@ export const ISRC_HARVEST_MAX_BATCHES = 200;
 // tope de consultas musicbrainz de identidad (mbid/isrc de tracks import:) por
 // ciclo de enrichment: a 1 req/s el backfill inicial se reparte entre días
 export const MB_IDENTITY_MAX_PER_CYCLE = 500;
+
+// --- ingesta de scrobbles (API compatible listenbrainz, /1/*) ---
+
+// bytes de entropía del token de scrobbling (base64url → 32 chars)
+export const LISTEN_TOKEN_BYTES = 24;
+
+// tope de listens por petición a /1/submit-listens (mismo límite que listenbrainz)
+export const LISTENBRAINZ_MAX_LISTENS = 1000;
+
+// tolerancia de timestamps futuros en listens (relojes desajustados de clientes)
+export const LISTENBRAINZ_FUTURE_TOLERANCE_S = 600;
 
 // intervalo de recomputo de records (6h)
 export const RECORDS_CACHE_INTERVAL_MS = 6 * 60 * 60_000;

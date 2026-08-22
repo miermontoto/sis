@@ -197,6 +197,9 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   // /mierid es no-cache y no afecta a /me: nada que invalidar (sin esta regla
   // el fallback conservador limpiaría todo el cache al desvincular)
   { method: 'DELETE', prefix: '/mierid',                    clear: [] },
+  // /listen-token es no-cache y no toca nada más: nada que invalidar
+  { method: 'POST',   prefix: '/listen-token',              clear: [] },
+  { method: 'DELETE', prefix: '/listen-token',              clear: [] },
 ];
 
 export function applyMutationInvalidation(method: string, path: string): void {

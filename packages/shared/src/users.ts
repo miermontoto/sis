@@ -36,6 +36,13 @@ export interface MieridStatus {
   } | null;
 }
 
+// token del endpoint de scrobbling compatible listenbrainz (null = sin generar)
+export interface ListenTokenStatus {
+  token: string | null;
+  createdAt: string | null;
+  lastUsedAt: string | null;
+}
+
 export interface UserRecord {
   id: number;
   spotifyId: string;

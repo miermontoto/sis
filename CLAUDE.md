@@ -88,6 +88,10 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 - Docker WORKDIR is `/app/packages/api` so Hono's serveStatic finds `./static`
 - Deploy: `ssh fa "cd ~/dev/sis && docker compose up --build -d"`
 
+## Scrobble ingestion (ListenBrainz-compatible)
+
+`GET /1/validate-token` + `POST /1/submit-listens` (`single`|`import`|`playing_now`), mounted at the site root *outside* the session gate — auth is a per-user token (`listen_tokens`, managed via `/api/listen-token` and Settings → Connections → Scrobblers). Clients (Pano Scrobbler, Web Scrobbler, Navidrome…) point their custom ListenBrainz server URL at the site origin. Listens map to `ListenEvent` → `importListenEvents()` (`history-import.ts`), which runs the identity ladder — a `spotify_id` URL in `additional_info` resolves directly; isrc/mbid/duration from clients accrete onto entities. `playing_now` writes `polling_state` only for users without Spotify tokens (same rule as Last.fm). Plays are tagged `source='listenbrainz'`; scrobble-vs-polling twins are cleaned by the boot + daily dedup pair.
+
 ## History import
 
 `POST /api/import` — multipart/form-data with `.json` files from Spotify data export.

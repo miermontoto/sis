@@ -355,6 +355,18 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
 
+  // tokens de scrobbling (API compatible listenbrainz): un token por usuario,
+  // regenerable; los clientes (pano scrobbler, web scrobbler, navidrome…) lo
+  // mandan en Authorization: Token <x> hacia /1/submit-listens
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS listen_tokens (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      token TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_used_at TEXT
+    )`);
+  } catch {}
+
   // id.mier.info: cuentas vinculadas (sso propio, oidc)
   try {
     sqlite.exec(`CREATE TABLE IF NOT EXISTS mierid_accounts (

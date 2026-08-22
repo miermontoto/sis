@@ -106,22 +106,20 @@ function maxUts(tracks: LastfmRecentTrack[]): number | null {
   }, null);
 }
 
-// now-playing de usuarios solo-last.fm: el track sin `date` con @attr.nowplaying.
-// escribe polling_state para que /now-playing y el feed de amigos lo muestren.
-// last.fm no da progreso ni duración fiables → tarjeta sin barra y read-only.
-function updateNowPlaying(userId: number, track: LastfmRecentTrack | null): void {
+// escribe polling_state con el now-playing de una fuente externa (last.fm o el
+// endpoint de scrobbling) para que /now-playing y el feed de amigos lo muestren.
+// estas fuentes no dan progreso ni duración fiables → tarjeta sin barra, read-only.
+// exportada: la usa también el playing_now del endpoint compatible listenbrainz.
+export function setExternalNowPlaying(userId: number, trackId: string | null): void {
   const db = getDb();
   const existing = db.select().from(pollingState).where(eq(pollingState.userId, userId)).get();
 
-  if (!track) {
+  if (!trackId) {
     // sin nowplaying: marcar como pausado (la ruta ya filtra por frescura). no
     // se borra el track para no cortar una lectura en curso; caduca solo.
     if (existing) db.run(sql`UPDATE polling_state SET is_playing = 0 WHERE user_id = ${userId}`);
     return;
   }
-
-  const trackId = upsertScrobbleTrack(track);
-  if (!trackId) return;
 
   const nowIso = new Date().toISOString();
   if (existing) {
@@ -136,6 +134,13 @@ function updateNowPlaying(userId: number, track: LastfmRecentTrack | null): void
   }
   // is_playing/progress_ms son columnas raw (fuera del schema drizzle)
   db.run(sql`UPDATE polling_state SET is_playing = 1, progress_ms = NULL WHERE user_id = ${userId}`);
+}
+
+// now-playing de usuarios solo-last.fm: el track sin `date` con @attr.nowplaying
+function updateNowPlaying(userId: number, track: LastfmRecentTrack | null): void {
+  if (!track) return setExternalNowPlaying(userId, null);
+  const trackId = upsertScrobbleTrack(track);
+  if (trackId) setExternalNowPlaying(userId, trackId);
 }
 
 // --- sync incremental (tick de polling) ---

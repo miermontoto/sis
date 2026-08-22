@@ -187,6 +187,16 @@ function startTokenlessEnrichment() {
     } catch (err) {
       logMetadata.error('error identidad:', err);
     }
+    // dedup de plays también en el ciclo diario (además del boot): los scrobbles
+    // push (/1/submit-listens) pueden duplicar un play que el polling registró
+    // con timestamp de fin — el gemelo inicio/fin se limpia con los cleanups
+    // existentes, que antes solo corrían al arrancar
+    try {
+      cleanDuplicatePlays();
+      cleanBasicExtendedDuplicates();
+    } catch (err) {
+      logMetadata.error('error dedup de plays:', err);
+    }
     // portadas (musicbrainz) y géneros (last.fm) son independientes entre sí
     enrichLocalAlbumCovers().catch(err => logMetadata.error('error portadas:', err));
     if (isLastfmConfigured()) enrichLastfmGenres().catch(err => logLastfmMeta.error('error géneros:', err));

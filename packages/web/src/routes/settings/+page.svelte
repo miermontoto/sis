@@ -5,7 +5,8 @@
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
   import IconMier from '$lib/icons/IconMier.svelte';
-  import type { LastfmStatus, MieridStatus } from '$lib/api';
+  import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
+  import IconWifi from '$lib/icons/IconWifi.svelte';
   import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
@@ -166,6 +167,59 @@
     }
   }
 
+  // token de scrobbling (endpoint compatible listenbrainz): clientes push como
+  // Pano Scrobbler / Web Scrobbler apuntan al origen del sitio con este token
+  let listenToken = $state<ListenTokenStatus | null>(null);
+  let listenTokenVisible = $state(false);
+  let listenTokenBusy = $state(false);
+  let listenTokenCopied = $state(false);
+  let listenTokenError = $state<string | null>(null);
+
+  async function refreshListenToken() {
+    try {
+      listenToken = await api.listenTokenStatus();
+    } catch {}
+  }
+
+  async function regenerateListenToken() {
+    if (listenTokenBusy) return;
+    if (listenToken?.token && !confirm('Generate a new token? Clients using the current one will stop working.')) return;
+    listenTokenBusy = true;
+    listenTokenError = null;
+    try {
+      listenToken = await api.listenTokenRegenerate();
+      listenTokenVisible = true;
+    } catch (err) {
+      listenTokenError = errorMessage(err, 'Could not generate token');
+    } finally {
+      listenTokenBusy = false;
+    }
+  }
+
+  async function revokeListenToken() {
+    if (!confirm('Revoke the scrobble token? All connected scrobblers will stop working.')) return;
+    listenTokenBusy = true;
+    listenTokenError = null;
+    try {
+      await api.listenTokenRevoke();
+      listenToken = { token: null, createdAt: null, lastUsedAt: null };
+      listenTokenVisible = false;
+    } catch (err) {
+      listenTokenError = errorMessage(err, 'Could not revoke token');
+    } finally {
+      listenTokenBusy = false;
+    }
+  }
+
+  async function copyListenToken() {
+    if (!listenToken?.token) return;
+    try {
+      await navigator.clipboard.writeText(listenToken.token);
+      listenTokenCopied = true;
+      setTimeout(() => { listenTokenCopied = false; }, 2000);
+    } catch {}
+  }
+
   // estado del import
   let importFiles = $state<FileList | null>(null);
   let importing = $state(false);
@@ -226,6 +280,7 @@
       api.listMerges().then(m => { mergeCount = m.length; }).catch(() => {});
       refreshLastfm();
       refreshMierid();
+      refreshListenToken();
     } catch (err) {
       error = errorMessage(err, 'Failed to load settings');
     } finally {
@@ -714,6 +769,37 @@
           <div class="import-error">{mieridError}</div>
         {/if}
       {/if}
+      <div class="pref-row row-border">
+        <div class="pref-info">
+          <div class="pref-label lastfm-label"><IconWifi size={16} /> Scrobblers</div>
+          <div class="pref-desc">
+            Push plays from any ListenBrainz-compatible client (Pano Scrobbler, Web Scrobbler, Navidrome…) — set the API URL to <strong>{page.url.origin}</strong> and authenticate with your token
+          </div>
+        </div>
+        <div class="pref-control lastfm-control">
+          {#if listenToken?.token}
+            <button class="action-btn action-btn--secondary" onclick={() => { listenTokenVisible = !listenTokenVisible; }}>
+              {listenTokenVisible ? 'Hide token' : 'Show token'}
+            </button>
+            <button class="action-btn action-btn--danger" disabled={listenTokenBusy} onclick={revokeListenToken}>Revoke</button>
+          {:else if listenToken}
+            <button class="action-btn" disabled={listenTokenBusy} onclick={regenerateListenToken}>Generate token</button>
+          {/if}
+        </div>
+      </div>
+      {#if listenToken?.token && listenTokenVisible}
+        <div class="token-reveal">
+          <code class="token-value">{listenToken.token}</code>
+          <button class="action-btn action-btn--secondary" onclick={copyListenToken}>{listenTokenCopied ? 'Copied!' : 'Copy'}</button>
+          <button class="action-btn action-btn--secondary" disabled={listenTokenBusy} onclick={regenerateListenToken}>Regenerate</button>
+        </div>
+      {/if}
+      {#if listenToken?.token && listenToken.lastUsedAt}
+        <div class="lastfm-note">Last scrobble received {new Date(listenToken.lastUsedAt).toLocaleString()}</div>
+      {/if}
+      {#if listenTokenError}
+        <div class="import-error">{listenTokenError}</div>
+      {/if}
     </div>
   </div>
 
@@ -1102,6 +1188,26 @@
     font-size: 0.8rem;
     color: var(--accent);
     padding-top: 0.5rem;
+  }
+
+  .token-reveal {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-top: 0.5rem;
+  }
+
+  .token-value {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    word-break: break-all;
+    user-select: all;
   }
 
   @media (max-width: 768px) {

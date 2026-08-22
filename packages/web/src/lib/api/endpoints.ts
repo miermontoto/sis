@@ -6,7 +6,7 @@ import type {
   ArtistDetail, AlbumDetail, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData, EntityType,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
@@ -208,6 +208,11 @@ export const api = {
 
   mieridStatus: () => apiFetch<MieridStatus>('/mierid'),
   mieridDisconnect: () => apiMutate<{ ok: boolean }>('DELETE', '/mierid'),
+
+  // token del endpoint de scrobbling compatible listenbrainz
+  listenTokenStatus: () => apiFetch<ListenTokenStatus>('/listen-token'),
+  listenTokenRegenerate: () => apiMutate<ListenTokenStatus>('POST', '/listen-token'),
+  listenTokenRevoke: () => apiMutate<{ ok: boolean }>('DELETE', '/listen-token'),
 
   // user management (admin)
   me: () => apiFetch<MeResponse>('/me'),

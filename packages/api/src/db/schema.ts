@@ -201,6 +201,16 @@ export const lastfmAccounts = sqliteTable('lastfm_accounts', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// tokens de scrobbling (API compatible listenbrainz): un token por usuario,
+// regenerable. los clientes push (pano scrobbler, web scrobbler…) lo mandan en
+// Authorization: Token <x>
+export const listenTokens = sqliteTable('listen_tokens', {
+  userId: integer('user_id').primaryKey().references(() => users.id),
+  token: text('token').notNull().unique(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  lastUsedAt: text('last_used_at'),
+});
+
 // cuentas id.mier.info vinculadas (sso propio, oidc). solo identidad: el sub
 // es el identificador estable del issuer; username es informativo (ui/logs)
 export const mieridAccounts = sqliteTable('mierid_accounts', {

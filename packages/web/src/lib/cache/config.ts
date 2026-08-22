@@ -29,6 +29,8 @@ const NO_CACHE_PATHS = new Set<string>([
   // redirect oauth (sin apiMutate que invalide), así que un snapshot cacheado
   // seguiría mostrando "Connect" tras volver del callback
   '/mierid',
+  // token de scrobbling: secreto y regenerable, nunca a IndexedDB
+  '/listen-token',
   '/now-playing/devices',
   '/health',
   '/settings',

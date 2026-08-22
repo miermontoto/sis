@@ -17,6 +17,7 @@ import deviceTokens from './routes/device-tokens.js';
 import push from './routes/push.js';
 import lastfm from './routes/lastfm.js';
 import mierid from './routes/mierid.js';
+import { listenbrainzApi, listenTokenRoutes } from './routes/listens.js';
 import publicRoutes from './routes/public.js';
 import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
@@ -94,6 +95,12 @@ app.route('/api/device-tokens', deviceTokens);
 app.route('/api/push', push);
 app.route('/api/lastfm', lastfm);
 app.route('/api/mierid', mierid);
+app.route('/api/listen-token', listenTokenRoutes);
+
+// API de scrobbling compatible listenbrainz — fuera de /api/* a propósito: los
+// clientes (pano scrobbler, web scrobbler…) apuntan su base URL al origen y
+// añaden /1/...; autentica por token de scrobbling, no por sesión
+app.route('/1', listenbrainzApi);
 
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401

@@ -256,11 +256,15 @@ interface NormalizedEntry {
   // scrobbles de last.fm: timestamp de INICIO de reproducción (spotify y
   // extended usan fin) → activa la ventana de dedup asimétrica hacia delante
   isScrobble?: boolean;
-  // evidencia de identidad del evento (mbid de recording/artist/release), para
-  // acreción sobre las entidades resueltas
+  // evidencia de identidad del evento (mbid de recording/artist/release e isrc),
+  // para acreción sobre las entidades resueltas
   trackMbid?: string | null;
   artistMbid?: string | null;
   albumMbid?: string | null;
+  isrc?: string | null;
+  // duración del TRACK según el cliente (≠ msPlayed, que es la del play): solo
+  // siembra tracks sin duración conocida (0 o -1 de musicbrainz agotado)
+  durationMs?: number | null;
 }
 
 function isLastFmEntry(item: unknown): item is LastFmEntry {
@@ -416,7 +420,7 @@ function addToIndex(index: Map<string, number[]>, trackName: string, playedAtS: 
 }
 
 // procedencia con la que se registran los plays de esta importación
-export type PlaySource = 'import' | 'lastfm';
+export type PlaySource = 'import' | 'lastfm' | 'listenbrainz';
 
 export function importHistory(data: unknown, userId: number, source: PlaySource = 'import'): ImportResult {
   let flat: unknown[];
@@ -428,8 +432,59 @@ export function importHistory(data: unknown, userId: number, source: PlaySource 
     throw new Error('formato de datos no reconocido');
   }
 
-  const entries = normalizeEntries(flat);
-  const result: ImportResult = { total: flat.length, imported: 0, duplicates: 0, skipped: flat.length - entries.length };
+  return ingestNormalized(normalizeEntries(flat), userId, source, flat.length);
+}
+
+// evento de listen ya estructurado (endpoint compatible listenbrainz y futuros
+// clientes push): nombres + toda la evidencia de identidad que el cliente conozca
+export interface ListenEvent {
+  playedAt: string;
+  trackName: string;
+  artistName: string;
+  albumName?: string | null;
+  spotifyTrackId?: string | null;
+  isrc?: string | null;
+  trackMbid?: string | null;
+  artistMbid?: string | null;
+  albumMbid?: string | null;
+  durationMs?: number | null;
+}
+
+// ingesta de eventos push: resuelve cada evento por la escalera de identidad
+// (spotify id directo → isrc/mbid → nombre) y entra por el mismo núcleo de
+// dedup/insert que los imports de fichero y el sync de last.fm. un spotify id
+// desconocido crea la fila real con metadata mínima: fixTrackAlbumAssignments/
+// fixTrackArtistAssociations la verifican después contra la API (verified_*).
+export function importListenEvents(events: ListenEvent[], userId: number, source: PlaySource): ImportResult {
+  const entries = events.map((ev): NormalizedEntry => {
+    const artistId = resolveArtistId(ev.artistName);
+    const trackId = ev.spotifyTrackId
+      ?? resolveTrackId(ev.artistName, ev.trackName, { isrc: ev.isrc, mbid: ev.trackMbid });
+    return {
+      playedAt: ev.playedAt,
+      trackName: ev.trackName,
+      artistName: ev.artistName,
+      albumName: ev.albumName || null,
+      trackId,
+      artistId,
+      albumId: ev.albumName ? resolveAlbumId(artistId, ev.artistName, ev.albumName) : null,
+      msPlayed: null,
+      isScrobble: true,
+      trackMbid: ev.trackMbid || null,
+      artistMbid: ev.artistMbid || null,
+      albumMbid: ev.albumMbid || null,
+      isrc: ev.isrc || null,
+      durationMs: ev.durationMs && ev.durationMs > 0 ? Math.round(ev.durationMs) : null,
+    };
+  });
+  return ingestNormalized(entries, userId, source, events.length);
+}
+
+// núcleo compartido de ingesta: dedup temporal + upsert de entidades + insert de
+// plays sobre entradas ya normalizadas/resueltas. `total` son las entradas crudas
+// de la fuente (para reportar como skipped lo que la normalización descartó).
+function ingestNormalized(entries: NormalizedEntry[], userId: number, source: PlaySource, total: number): ImportResult {
+  const result: ImportResult = { total, imported: 0, duplicates: 0, skipped: total - entries.length };
 
   // por debajo del umbral las consultas puntuales indexadas ganan de largo al
   // escaneo completo; por encima (imports masivos) el índice se amortiza
@@ -491,13 +546,21 @@ export function importHistory(data: unknown, userId: number, source: PlaySource 
 
         // NO sembrar duration_ms con msPlayed: es la duración de UN play (a menudo
         // parcial), no la del track. Hacerlo marcaba como "over-long" todos los demás
-        // plays más largos. Se deja 0 y lo rellena el enrichment (import:→MusicBrainz,
-        // IDs reales→al reproducir vía polling).
+        // plays más largos. Se siembra solo durationMs (duración del track según el
+        // cliente push) y si no, 0 para que lo rellene el enrichment. el WHERE del
+        // upsert limita la escritura a cuando algún campo tiene algo que aportar;
+        // los COALESCE/CASE mantienen la acreción por-columna dentro de ese update.
         tx.run(sql`
-          INSERT INTO tracks (spotify_id, name, album_id, duration_ms, mbid, updated_at)
-          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, 0, ${entry.trackMbid ?? null}, ${now})
-          ON CONFLICT (spotify_id) DO UPDATE SET mbid = excluded.mbid
-          WHERE tracks.mbid IS NULL AND excluded.mbid IS NOT NULL
+          INSERT INTO tracks (spotify_id, name, album_id, duration_ms, isrc, mbid, updated_at)
+          VALUES (${entry.trackId}, ${entry.trackName}, ${entry.albumId}, ${entry.durationMs ?? 0}, ${entry.isrc ?? null}, ${entry.trackMbid ?? null}, ${now})
+          ON CONFLICT (spotify_id) DO UPDATE SET
+            mbid = COALESCE(tracks.mbid, excluded.mbid),
+            isrc = COALESCE(tracks.isrc, excluded.isrc),
+            duration_ms = CASE WHEN tracks.duration_ms <= 0 AND excluded.duration_ms > 0
+                               THEN excluded.duration_ms ELSE tracks.duration_ms END
+          WHERE (tracks.mbid IS NULL AND excluded.mbid IS NOT NULL)
+             OR (tracks.isrc IS NULL AND excluded.isrc IS NOT NULL)
+             OR (tracks.duration_ms <= 0 AND excluded.duration_ms > 0)
         `);
 
         insertPrimaryArtistIfMissing(tx, entry.trackId, entry.artistId);
