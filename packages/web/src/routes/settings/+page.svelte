@@ -138,6 +138,7 @@
   // id.mier.info (sso propio): solo identidad, sin sync de datos
   let mieridStatus = $state<MieridStatus | null>(null);
   let mieridBusy = $state(false);
+  let mieridLinked = $state(page.url.searchParams.get('mierid') === 'linked');
   let mieridError = $state<string | null>(
     page.url.searchParams.get('mierid') === 'already_linked'
       ? 'That mier.info account is already linked to another user.'
@@ -154,6 +155,7 @@
     if (!confirm('Disconnect mier.info? You will no longer be able to sign in with it.')) return;
     mieridBusy = true;
     mieridError = null;
+    mieridLinked = false;
     try {
       await api.mieridDisconnect();
       await refreshMierid();
@@ -705,6 +707,9 @@
             {/if}
           </div>
         </div>
+        {#if mieridLinked}
+          <div class="lastfm-note">mier.info account linked — you can now sign in with it.</div>
+        {/if}
         {#if mieridError}
           <div class="import-error">{mieridError}</div>
         {/if}

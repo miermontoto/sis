@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w34h';
+export const VERSION = '26w34i';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -113,6 +113,24 @@ export const MANUAL_SCROBBLE_MAX = 500;
 
 // intervalo de refresco de metadata de entidades (24h)
 export const METADATA_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
+
+// --- identidad multi-fuente (isrc/mbid) ---
+
+// musicbrainz: base, user-agent y espaciado (~1 req/s que pide su API)
+export const MB_API_BASE = 'https://musicbrainz.org/ws/2';
+export const MB_USER_AGENT = 'SIS/1.0 (https://sis.mier.info)';
+export const MB_DELAY_MS = 1100;
+// score mínimo de una búsqueda musicbrainz para dar el match por bueno
+export const MB_MIN_SCORE = 80;
+
+// harvest de isrcs vía /tracks de spotify: lotes de 50 (límite del endpoint),
+// capado por ciclo para no monopolizar la cuota de la API en el backfill inicial
+export const ISRC_HARVEST_BATCH_SIZE = 50;
+export const ISRC_HARVEST_MAX_BATCHES = 200;
+
+// tope de consultas musicbrainz de identidad (mbid/isrc de tracks import:) por
+// ciclo de enrichment: a 1 req/s el backfill inicial se reparte entre días
+export const MB_IDENTITY_MAX_PER_CYCLE = 500;
 
 // intervalo de recomputo de records (6h)
 export const RECORDS_CACHE_INTERVAL_MS = 6 * 60 * 60_000;

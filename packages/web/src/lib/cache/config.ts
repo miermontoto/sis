@@ -25,6 +25,10 @@ const NO_CACHE_PATHS = new Set<string>([
   '/now-playing',
   '/now-playing/live',
   '/lastfm',
+  // estado de vinculación mier.info: la vinculación ocurre server-side vía
+  // redirect oauth (sin apiMutate que invalide), así que un snapshot cacheado
+  // seguiría mostrando "Connect" tras volver del callback
+  '/mierid',
   '/now-playing/devices',
   '/health',
   '/settings',
