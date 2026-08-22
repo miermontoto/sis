@@ -54,7 +54,7 @@ export type { RelatedArtist, ArtistRelationRule } from './relations.js';
 export type { RankProjection, ProjectionResult, ProjectedRankingsResponse, RecentRankChange, RecentRankChangeItem, RecentRankChangesResponse } from './projections.js';
 
 // usuarios
-export type { MeResponse, UserRecord, ImportResult, HealthData, LastfmStatus, LastfmBackfillProgress } from './users.js';
+export type { MeResponse, UserRecord, ImportResult, HealthData, LastfmStatus, LastfmBackfillProgress, MieridStatus } from './users.js';
 
 // social: perfiles, follows, feed, share links, compare
 export type { ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedItem, StreaksSummary, CompareResponse, DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse, ShareLink, ShareLinkListResponse, CreateShareLinkRequest } from './social.js';

@@ -4,7 +4,8 @@
   import { page } from '$app/state';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
-  import type { LastfmStatus } from '$lib/api';
+  import IconMier from '$lib/icons/IconMier.svelte';
+  import type { LastfmStatus, MieridStatus } from '$lib/api';
   import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
@@ -134,6 +135,35 @@
     if (lastfmPollTimer) clearInterval(lastfmPollTimer);
   });
 
+  // id.mier.info (sso propio): solo identidad, sin sync de datos
+  let mieridStatus = $state<MieridStatus | null>(null);
+  let mieridBusy = $state(false);
+  let mieridError = $state<string | null>(
+    page.url.searchParams.get('mierid') === 'already_linked'
+      ? 'That mier.info account is already linked to another user.'
+      : null
+  );
+
+  async function refreshMierid() {
+    try {
+      mieridStatus = await api.mieridStatus();
+    } catch {}
+  }
+
+  async function disconnectMierid() {
+    if (!confirm('Disconnect mier.info? You will no longer be able to sign in with it.')) return;
+    mieridBusy = true;
+    mieridError = null;
+    try {
+      await api.mieridDisconnect();
+      await refreshMierid();
+    } catch (err) {
+      mieridError = errorMessage(err, 'Disconnect failed');
+    } finally {
+      mieridBusy = false;
+    }
+  }
+
   // estado del import
   let importFiles = $state<FileList | null>(null);
   let importing = $state(false);
@@ -193,6 +223,7 @@
       ]);
       api.listMerges().then(m => { mergeCount = m.length; }).catch(() => {});
       refreshLastfm();
+      refreshMierid();
     } catch (err) {
       error = errorMessage(err, 'Failed to load settings');
     } finally {
@@ -652,6 +683,30 @@
         {/if}
         {#if lastfmError}
           <div class="import-error">{lastfmError}</div>
+        {/if}
+      {/if}
+      {#if mieridStatus && (mieridStatus.configured || mieridStatus.account)}
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label lastfm-label"><IconMier size={16} /> mier.info</div>
+            <div class="pref-desc">
+              {#if mieridStatus.account}
+                Connected as <strong>{mieridStatus.account.username ?? mieridStatus.account.sub}</strong> — sign in to SIS with your mier.info account
+              {:else}
+                Link your mier.info account to sign in without Spotify or Last.fm
+              {/if}
+            </div>
+          </div>
+          <div class="pref-control lastfm-control">
+            {#if mieridStatus.account}
+              <button class="action-btn action-btn--danger" disabled={mieridBusy} onclick={disconnectMierid}>Disconnect</button>
+            {:else}
+              <a href="/auth/mierid/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
+            {/if}
+          </div>
+        </div>
+        {#if mieridError}
+          <div class="import-error">{mieridError}</div>
         {/if}
       {/if}
     </div>

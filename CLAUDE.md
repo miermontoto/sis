@@ -54,6 +54,10 @@ Last.fm integration (optional — credential-gated, no-ops if unset; enables Las
 - `LASTFM_API_KEY`, `LASTFM_API_SECRET` — from https://www.last.fm/api/account/create
 - `LASTFM_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/lastfm/callback`
 
+id.mier.info SSO (optional — credential-gated, no-ops if unset; enables "Sign in with mier.info" via OIDC authorization code + PKCE; identity-only, no data sync):
+- `MIERID_CLIENT_ID`, `MIERID_CLIENT_SECRET` — OAuth client registered at id.mier.info
+- `MIERID_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/mierid/callback`
+
 ## Key patterns
 
 ### API data flow

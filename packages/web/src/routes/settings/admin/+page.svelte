@@ -9,7 +9,7 @@
   let health = $state<HealthData | null>(null);
   let users = $state<UserRecord[]>([]);
   let newSpotifyId = $state('');
-  let newUserKind = $state<'spotify' | 'lastfm'>('spotify');
+  let newUserKind = $state<'spotify' | 'lastfm' | 'mierid'>('spotify');
   let addingUser = $state(false);
   let userError = $state<string | null>(null);
   let loading = $state(true);
@@ -154,17 +154,18 @@
       <div class="pref-row">
         <div class="pref-info">
           <div class="pref-label">Add user to whitelist</div>
-          <div class="pref-desc">Enter a Spotify user ID or a Last.fm username. They can log in once added.</div>
+          <div class="pref-desc">Enter a Spotify user ID, a Last.fm username or a mier.info username. They can log in once added.</div>
         </div>
         <div class="pref-control input-control">
           <select class="kind-select" bind:value={newUserKind}>
             <option value="spotify">Spotify</option>
             <option value="lastfm">Last.fm</option>
+            <option value="mierid">mier.info</option>
           </select>
           <input
             class="text-input"
             type="text"
-            placeholder={newUserKind === 'lastfm' ? 'Last.fm username...' : 'Spotify user ID...'}
+            placeholder={newUserKind === 'lastfm' ? 'Last.fm username...' : newUserKind === 'mierid' ? 'mier.info username...' : 'Spotify user ID...'}
             bind:value={newSpotifyId}
             onkeydown={(e) => { if (e.key === 'Enter') handleAddUser(); }}
           />

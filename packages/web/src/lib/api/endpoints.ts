@@ -6,7 +6,7 @@ import type {
   ArtistDetail, AlbumDetail, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData, EntityType,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus,
+  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail,
@@ -206,11 +206,15 @@ export const api = {
   lastfmBackfill: () => apiMutate<{ ok: boolean }>('POST', '/lastfm/backfill'),
   lastfmDisconnect: () => apiMutate<{ ok: boolean }>('DELETE', '/lastfm'),
 
+  mieridStatus: () => apiFetch<MieridStatus>('/mierid'),
+  mieridDisconnect: () => apiMutate<{ ok: boolean }>('DELETE', '/mierid'),
+
   // user management (admin)
   me: () => apiFetch<MeResponse>('/me'),
   listUsers: () => apiFetch<UserRecord[]>('/admin/users'),
-  addUser: (id: string, kind: 'spotify' | 'lastfm' = 'spotify') =>
-    apiMutate<UserRecord>('POST', '/admin/users', kind === 'lastfm' ? { lastfmUsername: id } : { spotifyId: id }),
+  addUser: (id: string, kind: 'spotify' | 'lastfm' | 'mierid' = 'spotify') =>
+    apiMutate<UserRecord>('POST', '/admin/users',
+      kind === 'lastfm' ? { lastfmUsername: id } : kind === 'mierid' ? { mieridUsername: id } : { spotifyId: id }),
   updateUser: (id: number, fields: { isAdmin?: boolean; isActive?: boolean }) =>
     apiMutate<UserRecord>('PUT', `/admin/users/${id}`, fields),
   deleteUser: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/admin/users/${id}`),

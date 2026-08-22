@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w34g';
+export const VERSION = '26w34h';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -87,6 +87,20 @@ export const LASTFM_ID_PREFIX = 'lastfm:';
 
 // nº máximo de top-tags de last.fm que se guardan como géneros de un artista
 export const LASTFM_ENRICH_MAX_TAGS = 5;
+
+// --- id.mier.info (sso propio, oidc) ---
+
+// endpoints fijos del issuer (ver /.well-known/openid-configuration)
+export const MIERID_ISSUER = 'https://id.mier.info';
+export const MIERID_AUTH_URL = `${MIERID_ISSUER}/oidc/authorize`;
+export const MIERID_TOKEN_URL = `${MIERID_ISSUER}/oidc/token`;
+export const MIERID_USERINFO_URL = `${MIERID_ISSUER}/oidc/userinfo`;
+
+// scopes mínimos para identidad (sub + perfil + email)
+export const MIERID_SCOPES = 'openid profile email';
+
+// prefijo del spotify_id sintético de usuarios que solo tienen mier.info
+export const MIERID_ID_PREFIX = 'mierid:';
 
 // paginación por defecto
 export const DEFAULT_PAGE_LIMIT = 50;

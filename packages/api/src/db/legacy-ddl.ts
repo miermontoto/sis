@@ -332,4 +332,15 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`);
   } catch {}
+
+  // id.mier.info: cuentas vinculadas (sso propio, oidc)
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS mierid_accounts (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      sub TEXT NOT NULL UNIQUE,
+      username TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
 }

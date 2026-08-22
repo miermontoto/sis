@@ -28,6 +28,14 @@ export interface LastfmStatus {
   } | null;
 }
 
+export interface MieridStatus {
+  configured: boolean;
+  account: {
+    sub: string;
+    username: string | null;
+  } | null;
+}
+
 export interface UserRecord {
   id: number;
   spotifyId: string;

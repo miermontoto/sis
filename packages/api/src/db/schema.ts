@@ -192,6 +192,16 @@ export const lastfmAccounts = sqliteTable('lastfm_accounts', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
+// cuentas id.mier.info vinculadas (sso propio, oidc). solo identidad: el sub
+// es el identificador estable del issuer; username es informativo (ui/logs)
+export const mieridAccounts = sqliteTable('mierid_accounts', {
+  userId: integer('user_id').primaryKey().references(() => users.id),
+  sub: text('sub').notNull().unique(),
+  username: text('username'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 export const pollingState = sqliteTable('polling_state', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').references(() => users.id).unique(),

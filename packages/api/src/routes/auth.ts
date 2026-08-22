@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES, LASTFM_AUTH_URL, LASTFM_ID_PREFIX } from '../constants.js';
+import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES, LASTFM_AUTH_URL, LASTFM_ID_PREFIX, MIERID_ID_PREFIX } from '../constants.js';
 import { storeTokens } from '../services/token-manager.js';
 import { restartPolling } from '../services/polling.js';
 import { markRateLimited } from '../services/spotify-client.js';
@@ -9,6 +9,7 @@ import { createOneTimeCodeStore } from '@platform/auth';
 import { findOrCreateUser, findUserBySpotifyId, getUserById, hasAnyUsers, isAllowedUser, migrateExistingData, updateUser } from '../services/user-manager.js';
 import { isLastfmConfigured, getAuthSession } from '../services/lastfm-client.js';
 import { findLastfmAccountByUsername, upsertLastfmAccount } from '../services/lastfm-sync.js';
+import { isMieridConfigured, createPkcePair, buildAuthorizeUrl, exchangeCode, fetchIdentity, findMieridAccountBySub, upsertMieridAccount, type MieridIdentity } from '../services/mierid-client.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
 import crypto from 'crypto';
 import { MOBILE_SCHEME } from '../constants.js';
@@ -290,6 +291,102 @@ auth.get('/lastfm/callback', async (c) => {
   upsertLastfmAccount(user.id, lfm.name, lfm.key);
 
   log.info(`sesión creada para usuario last.fm ${lfm.name} (id: ${user.id})`);
+  return finishLogin(c, user.id);
+});
+
+// --- id.mier.info: sso propio + vinculación de cuenta ---
+
+// url del callback: derivada del redirect de spotify (mismo host), overridable
+function mieridCallbackUrl(): string {
+  if (process.env.MIERID_REDIRECT_URI) return process.env.MIERID_REDIRECT_URI;
+  const spotifyCb = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+  return new URL('/auth/mierid/callback', spotifyCb).toString();
+}
+
+// el state del flujo oidc lleva el verifier pkce como payload: emitirlo y
+// canjearlo en el store de un solo uso valida csrf y recupera el verifier
+// en un único movimiento (misma vida que los states de spotify/last.fm)
+const mieridStates = createOneTimeCodeStore<string>({ ttlMs: 10 * 60_000 });
+
+// público (fuera del gate /api/*): el login decide si mostrar el botón
+auth.get('/mierid/enabled', (c) => c.json({ enabled: isMieridConfigured() }));
+
+auth.get('/mierid/login', (c) => {
+  if (!isMieridConfigured()) {
+    return c.json({ error: 'faltan variables de entorno MIERID_CLIENT_ID o MIERID_CLIENT_SECRET' }, 503);
+  }
+
+  setLoginCookies(c);
+  const { verifier, challenge } = createPkcePair();
+  const state = mieridStates.issue(verifier);
+  return c.redirect(buildAuthorizeUrl(mieridCallbackUrl(), state, challenge));
+});
+
+auth.get('/mierid/callback', async (c) => {
+  const code = c.req.query('code');
+  const state = c.req.query('state');
+  const error = c.req.query('error');
+
+  if (error) {
+    return c.json({ error: `id.mier.info rechazó la autorización: ${error}` }, 400);
+  }
+  if (!code || !state) {
+    return c.json({ error: 'faltan parámetros code o state' }, 400);
+  }
+
+  const verifier = mieridStates.redeem(state);
+  if (!verifier) {
+    return c.json({ error: 'state inválido, posible CSRF' }, 403);
+  }
+
+  let identity: MieridIdentity;
+  try {
+    identity = await fetchIdentity(await exchangeCode(code, verifier, mieridCallbackUrl()));
+  } catch (err) {
+    log.error('error al verificar identidad con id.mier.info:', err);
+    return c.json({ error: 'error al verificar identidad con id.mier.info' }, 500);
+  }
+
+  // handle legible para placeholders y logs; el vínculo real siempre es el sub
+  const handle = identity.username ?? identity.sub;
+
+  // modo vinculación: con sesión sis activa, conectar la cuenta al usuario actual
+  const sessionCookie = getCookie(c, 'sis_session');
+  const current = sessionCookie ? validateSession(sessionCookie) : null;
+  if (current) {
+    deleteCookie(c, 'sis_return_to', { path: '/' });
+    deleteCookie(c, 'sis_mobile', { path: '/' });
+    const owner = findMieridAccountBySub(identity.sub);
+    if (owner && owner.userId !== current.userId) {
+      log.warn(`cuenta mier.info ${handle} ya vinculada al usuario ${owner.userId}`);
+      return c.redirect('/settings?mierid=already_linked');
+    }
+    upsertMieridAccount(current.userId, identity.sub, identity.username);
+    return c.redirect('/settings?mierid=linked');
+  }
+
+  // modo login: cuenta ya vinculada, placeholder pre-creado por un admin
+  // (spotify_id sintético mierid:<username>) o bootstrap del primer usuario
+  const linked = findMieridAccountBySub(identity.sub);
+  let user = linked ? getUserById(linked.userId) : findUserBySpotifyId(MIERID_ID_PREFIX + handle);
+  if (!user && !hasAnyUsers()) {
+    user = findOrCreateUser(MIERID_ID_PREFIX + handle, identity.name ?? handle, identity.picture);
+  }
+
+  if (!user) {
+    log.warn(`usuario mier.info ${handle} no está autorizado`);
+    return c.json({ error: 'usuario no autorizado' }, 403);
+  }
+  if (!user.isActive) {
+    log.warn(`usuario mier.info ${handle} está desactivado`);
+    return c.json({ error: 'usuario desactivado' }, 403);
+  }
+
+  // placeholders pre-creados no tienen displayName hasta el primer login
+  if (!user.displayName) updateUser(user.id, { displayName: identity.name ?? handle });
+  upsertMieridAccount(user.id, identity.sub, identity.username);
+
+  log.info(`sesión creada para usuario mier.info ${handle} (id: ${user.id})`);
   return finishLogin(c, user.id);
 });
 

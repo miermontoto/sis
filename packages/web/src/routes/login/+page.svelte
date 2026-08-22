@@ -4,20 +4,27 @@
   import { Capacitor } from '@capacitor/core';
   import IconSpotify from '$lib/icons/IconSpotify.svelte';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
+  import IconMier from '$lib/icons/IconMier.svelte';
   import IconLock from '$lib/icons/IconLock.svelte';
 
   let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
   let lastfmHref = $derived('/auth/lastfm/login?returnTo=' + encodeURIComponent(returnTo));
+  let mieridHref = $derived('/auth/mierid/login?returnTo=' + encodeURIComponent(returnTo));
 
-  // el botón de last.fm solo aparece si el server tiene credenciales
+  // los botones de sso alternativos solo aparecen si el server tiene credenciales
   let lastfmEnabled = $state(false);
-  onMount(async () => {
-    try {
-      const base = import.meta.env.VITE_API_BASE ?? '';
-      const res = await fetch(`${base}/auth/lastfm/enabled`);
-      lastfmEnabled = (await res.json()).enabled === true;
-    } catch {}
+  let mieridEnabled = $state(false);
+  onMount(() => {
+    const base = import.meta.env.VITE_API_BASE ?? '';
+    const check = async (path: string, set: (v: boolean) => void) => {
+      try {
+        const res = await fetch(`${base}${path}`);
+        set((await res.json()).enabled === true);
+      } catch {}
+    };
+    void check('/auth/lastfm/enabled', (v) => (lastfmEnabled = v));
+    void check('/auth/mierid/enabled', (v) => (mieridEnabled = v));
   });
 
   // oauth móvil (apk): el login va al browser del sistema (custom tab) con
@@ -73,6 +80,13 @@
         <a href={lastfmHref} onclick={(e) => nativeLogin(e, '/auth/lastfm/login')} class="login-btn login-btn--lastfm">
           <IconLastfm />
           Sign in with Last.fm
+        </a>
+      {/if}
+
+      {#if mieridEnabled}
+        <a href={mieridHref} onclick={(e) => nativeLogin(e, '/auth/mierid/login')} class="login-btn login-btn--lastfm login-btn--mier">
+          <IconMier />
+          Sign in with mier.info
         </a>
       {/if}
 
@@ -176,6 +190,11 @@
     background: transparent;
     border-color: #d51007;
     color: #d51007;
+  }
+
+  .login-btn--mier:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .access-notice {

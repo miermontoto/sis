@@ -16,6 +16,7 @@ import social from './routes/social.js';
 import deviceTokens from './routes/device-tokens.js';
 import push from './routes/push.js';
 import lastfm from './routes/lastfm.js';
+import mierid from './routes/mierid.js';
 import publicRoutes from './routes/public.js';
 import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
@@ -92,6 +93,7 @@ app.route('/api/social', social);
 app.route('/api/device-tokens', deviceTokens);
 app.route('/api/push', push);
 app.route('/api/lastfm', lastfm);
+app.route('/api/mierid', mierid);
 
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401

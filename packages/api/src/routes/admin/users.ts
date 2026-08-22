@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { users } from '../../db/schema.js';
 import { getAllUsers, updateUser, getUserById, hardDeleteUser } from '../../services/user-manager.js';
-import { LASTFM_ID_PREFIX } from '../../constants.js';
+import { LASTFM_ID_PREFIX, MIERID_ID_PREFIX } from '../../constants.js';
 import { adminRouter } from './_shared.js';
 
 const usersRoute = adminRouter();
@@ -15,13 +15,14 @@ usersRoute.get('/users', (c) => {
 usersRoute.post('/users', async (c) => {
   if (!c.get('isAdmin')) return c.json({ error: 'forbidden' }, 403);
 
-  // alta por spotify id o por username de last.fm (placeholder lastfm:<user>
-  // que se completa en el primer login vía sso de last.fm)
-  const body = await c.req.json<{ spotifyId?: string; lastfmUsername?: string }>();
+  // alta por spotify id o por username de last.fm / id.mier.info (placeholder
+  // <prefijo>:<user> que se completa en el primer login vía el sso respectivo)
+  const body = await c.req.json<{ spotifyId?: string; lastfmUsername?: string; mieridUsername?: string }>();
   const spotifyId = body.spotifyId?.trim()
-    || (body.lastfmUsername?.trim() ? LASTFM_ID_PREFIX + body.lastfmUsername.trim() : '');
+    || (body.lastfmUsername?.trim() ? LASTFM_ID_PREFIX + body.lastfmUsername.trim() : '')
+    || (body.mieridUsername?.trim() ? MIERID_ID_PREFIX + body.mieridUsername.trim() : '');
   if (!spotifyId) {
-    return c.json({ error: 'spotifyId or lastfmUsername is required' }, 400);
+    return c.json({ error: 'spotifyId, lastfmUsername or mieridUsername is required' }, 400);
   }
 
   const db = getDb();
