@@ -15,6 +15,8 @@
   import IconUpload from '$lib/icons/IconUpload.svelte';
   import IconDownload from '$lib/icons/IconDownload.svelte';
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
+  import SessionsPanel from '@platform/ui/SessionsPanel.svelte';
+  import { listLoginSessions, logoutOtherSessions, type SessionInfo } from '$lib/api';
 
   let health = $state<HealthData | null>(null);
   let me = $state<MeResponse | null>(null);
@@ -28,7 +30,6 @@
   // bloque de admin dentro sigue gateado por me.isAdmin.
   const TABS = [
     { id: 'general', label: 'General' },
-    { id: 'appearance', label: 'Appearance' },
     { id: 'notifications', label: 'Notifications' },
     { id: 'connections', label: 'Connections & data' },
     { id: 'account', label: 'Account' },
@@ -47,6 +48,40 @@
     activeTab = id;
     window.scrollTo({ top: 0 });
   }
+
+  // sesiones de login: el panel vive dentro de "account", así que la lista se
+  // pide la primera vez que se abre esa pestaña y no en cada visita a settings
+  let sessions = $state<SessionInfo[]>([]);
+  let sessionsLoaded = $state(false);
+  let sessionsBusy = $state(false);
+  let sessionsError = $state<string | null>(null);
+
+  async function loadSessions() {
+    sessionsLoaded = true;
+    try {
+      sessions = (await listLoginSessions()).sessions;
+    } catch (err) {
+      sessionsError = errorMessage(err, 'Could not load sessions');
+    }
+  }
+
+  async function logoutOthers() {
+    if (!confirm('Log out all other active sessions?')) return;
+    sessionsBusy = true;
+    sessionsError = null;
+    try {
+      await logoutOtherSessions();
+      await loadSessions();
+    } catch (err) {
+      sessionsError = errorMessage(err, 'Could not log out other sessions');
+    } finally {
+      sessionsBusy = false;
+    }
+  }
+
+  $effect(() => {
+    if (activeTab === 'account' && !sessionsLoaded) loadSessions();
+  });
 
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
@@ -344,6 +379,7 @@
 
   {#if activeTab === 'general'}
     <div class="card prefs-card">
+      <div class="prefs-subtitle">General</div>
       <div class="prefs-list">
         <div class="pref-row">
           <div class="pref-info">
@@ -391,9 +427,6 @@
           </div>
         </div>
       </div>
-    </div>
-  {:else if activeTab === 'appearance'}
-    <div class="card prefs-card">
       <div class="prefs-subtitle">Now playing</div>
       <div class="prefs-list">
         <div class="pref-row">
@@ -929,16 +962,25 @@
       </div>
     </div>
   {:else if activeTab === 'account'}
-    <div class="card section-card">
-      <div class="pref-row" style="padding: 0;">
-        <div class="pref-info">
-          <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Active sessions</h3>
-          <div class="pref-desc">Devices signed in to your account</div>
-        </div>
-        <div class="pref-control">
-          <a href="/settings/sessions" class="action-btn action-btn--secondary">Manage</a>
-        </div>
-      </div>
+    <div class="card prefs-card">
+      <div class="prefs-subtitle">Active sessions</div>
+      <div class="pref-desc sessions-desc">Devices signed in to your account</div>
+      {#if sessionsError}
+        <div class="import-error">{sessionsError}</div>
+      {/if}
+      <SessionsPanel
+        {sessions}
+        busy={sessionsBusy}
+        onlogoutothers={logoutOthers}
+        labels={{
+          current: 'this session',
+          unknownAgent: 'unknown device',
+          created: 'started',
+          expires: 'expires',
+          logoutOthers: 'Log out other sessions',
+          empty: 'No active sessions',
+        }}
+      />
     </div>
 
     {#if me?.isAdmin}
@@ -1006,6 +1048,12 @@
 
   .prefs-subtitle:first-of-type {
     margin-top: 0;
+  }
+
+  /* descripción bajo el subtítulo de sesiones: el panel no trae texto propio */
+  .sessions-desc {
+    margin-top: 0;
+    margin-bottom: 0.6rem;
   }
 
   .section-list, .prefs-list {
