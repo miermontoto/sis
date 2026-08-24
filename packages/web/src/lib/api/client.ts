@@ -72,9 +72,11 @@ async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
 
 // wrapper genérico para llamadas GET. SWR por defecto.
 //
-// con signal (AbortController): se omite el cache read (el caller quiere data
-// fresca y poder abortarla), pero la respuesta exitosa SÍ pobla el cache para
-// que navegaciones posteriores sin signal hagan hit.
+// el signal (AbortController) protege la espera de red (aborto al navegar),
+// no exige red: un hit servible vuelve al caller antes de cualquier abort, y
+// la revalidación background corre sin signal (es una escritura de cache
+// compartida — no debe morir con la navegación del caller). La freshness tras
+// mutaciones la garantiza applyMutationInvalidation, no el bypass del cache.
 export async function apiFetch<T>(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<T> {
   const url = buildUrl(path, params);
 
@@ -83,20 +85,21 @@ export async function apiFetch<T>(path: string, params?: Record<string, string>,
   }
 
   const cacheKey = buildKey(path, params);
-  const fetcher = () => rawFetch<unknown>(url, signal);
-
-  if (signal) {
-    // bypass del cache read + dedup (la dedup compartiría signal entre callers).
-    const data = await rawFetch<T>(url, signal);
-    cache.writeCache(cacheKey, data, cacheDeps);
-    return data;
-  }
+  const fetcher = () => rawFetch<unknown>(url);
 
   // 1) intenta servir desde cache (L1 → L2, con SWR).
   const hit = await cache.lookup<T>(path, cacheKey, fetcher, cacheDeps);
   if (hit) return hit.data;
 
-  // 2) miss: fetch bloqueante con dedup + escritura en ambas capas.
+  if (signal) {
+    // miss con signal: bypass del dedup (la dedup compartiría signal entre
+    // callers), pero la respuesta sí pobla el cache para hits futuros.
+    const data = await rawFetch<T>(url, signal);
+    cache.writeCache(cacheKey, data, cacheDeps);
+    return data;
+  }
+
+  // 2) miss sin signal: fetch bloqueante con dedup + escritura en ambas capas.
   return cache.fetchAndStore<T>(path, cacheKey, fetcher, cacheDeps);
 }
 
