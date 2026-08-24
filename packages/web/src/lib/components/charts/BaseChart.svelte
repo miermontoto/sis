@@ -91,6 +91,15 @@
   // actualizar cuando cambia la opción
   $effect(() => {
     if (chart && option) {
+      // con replaceMerge la nueva opción puede ELIMINAR series (p.ej. ocultar
+      // una línea al clicarla). Si el puntero está sobre el gráfico, echarts
+      // reprograma el tooltip tras el render con el `_lastDataByCoordSys`
+      // cacheado —índices de series de la opción anterior— y en TooltipView
+      // hace `ecModel.getSeriesByIndex(i).getDataParams(...)` sin comprobar
+      // el undefined: TypeError en código minificado y sin frames nuestros.
+      // `hideTip` limpia ese cache (_lastX/_lastY/_lastDataByCoordSys) y el
+      // render posterior ya no intenta restaurar el tooltip.
+      if (replaceMerge) chart.dispatchAction({ type: 'hideTip' });
       chart.setOption(option, replaceMerge ? { replaceMerge } : undefined);
     }
   });
