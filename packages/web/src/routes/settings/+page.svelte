@@ -8,14 +8,14 @@
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
   import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
-  import { formatNumber, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
+  import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
   import IconCheck from '$lib/icons/IconCheck.svelte';
   import IconUpload from '$lib/icons/IconUpload.svelte';
   import IconDownload from '$lib/icons/IconDownload.svelte';
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
-  import { listLoginSessions, logoutOtherSessions, type SessionInfo } from '$lib/api';
+  import { listLoginSessions, logoutOtherSessions, type SessionInfo, type UserRecord } from '$lib/api';
 
   let health = $state<HealthData | null>(null);
   let me = $state<MeResponse | null>(null);
@@ -91,8 +91,70 @@
     }
   }
 
+  // administración: la whitelist de usuarios sólo se pide si eres admin y abres
+  // la pestaña de cuenta; el estado de polling reutiliza el `health` de la página
+  let users = $state<UserRecord[]>([]);
+  let usersLoaded = $state(false);
+  let newUserId = $state('');
+  let newUserKind = $state<'spotify' | 'lastfm' | 'mierid'>('spotify');
+  let addingUser = $state(false);
+  let userError = $state<string | null>(null);
+
+  async function loadUsers() {
+    usersLoaded = true;
+    try {
+      users = await api.listUsers();
+    } catch (err) {
+      userError = errorMessage(err, 'Could not load users');
+    }
+  }
+
+  async function handleAddUser() {
+    if (!newUserId.trim()) return;
+    addingUser = true;
+    userError = null;
+    try {
+      await api.addUser(newUserId.trim(), newUserKind);
+      newUserId = '';
+      await loadUsers();
+    } catch (err) {
+      userError = errorMessage(err, 'Failed to add user');
+    } finally {
+      addingUser = false;
+    }
+  }
+
+  // un update parcial cubre los tres toggles (admin, desactivar, reactivar);
+  // el borrado definitivo es el único que sale por DELETE
+  async function updateUser(user: UserRecord, fields: { isAdmin?: boolean; isActive?: boolean }) {
+    userError = null;
+    try {
+      await api.updateUser(user.id, fields);
+      await loadUsers();
+    } catch (err) {
+      userError = errorMessage(err, 'Could not update user');
+    }
+  }
+
+  async function removeUser(user: UserRecord, permanent: boolean) {
+    const name = user.displayName || user.spotifyId;
+    const prompt = permanent
+      ? `Permanently delete ${name} and all their data? This cannot be undone.`
+      : `Deactivate ${name}? They won't be able to log in.`;
+    if (!confirm(prompt)) return;
+    userError = null;
+    try {
+      await api.deleteUser(user.id);
+      await loadUsers();
+    } catch (err) {
+      userError = errorMessage(err, 'Could not remove user');
+    }
+  }
+
   $effect(() => {
-    if (activeTab === 'account' && !sessionsLoaded) loadSessions();
+    if (activeTab !== 'account') return;
+    if (!sessionsLoaded) loadSessions();
+    if (me?.isAdmin && !usersLoaded) loadUsers();
   });
 
   // preferencias
@@ -1002,17 +1064,109 @@
         {/if}
       </div>
       {#if me?.isAdmin}
-        <div class="prefs-subtitle">Admin</div>
+        <div class="prefs-subtitle">Polling status</div>
         <div class="section-list">
           <div class="pref-row">
             <div class="pref-info">
-              <div class="pref-label">Admin panel</div>
-              <div class="pref-desc">User management and system status</div>
+              <div class="pref-label">Spotify</div>
+              <div class="pref-desc">
+                {#if health?.authenticated}
+                  Polling actively tracks listening — currently playing every 30s, recent plays every 5 minutes
+                {:else}
+                  Not connected to Spotify
+                {/if}
+              </div>
             </div>
             <div class="pref-control">
-              <a href="/settings/admin" class="action-btn action-btn--secondary">Open</a>
+              <span class="value-badge" style="color: {health?.authenticated ? 'var(--accent)' : 'var(--text-muted)'};">
+                {health?.authenticated ? 'Connected' : 'Disconnected'}
+              </span>
             </div>
           </div>
+          <div class="pref-row row-border">
+            <div class="pref-info">
+              <div class="pref-label">Database</div>
+              <div class="pref-desc">Storage engine and status</div>
+            </div>
+            <div class="pref-control">
+              <span class="value-badge">{health?.database ?? 'unknown'}</span>
+            </div>
+          </div>
+          <div class="pref-row row-border">
+            <div class="pref-info">
+              <div class="pref-label">Last check</div>
+              <div class="pref-desc">Most recent polling timestamp</div>
+            </div>
+            <div class="pref-control">
+              <span class="value-badge">{health?.timestamp ? formatDate(health.timestamp) : 'N/A'}</span>
+            </div>
+          </div>
+          <div class="pref-row row-border">
+            <div class="pref-info">
+              <div class="pref-label">Total plays</div>
+              <div class="pref-desc">Listening entries stored in the database</div>
+            </div>
+            <div class="pref-control">
+              <span class="value-badge">{formatNumber(health?.totalPlays ?? 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="prefs-subtitle">User management</div>
+        <div class="section-list">
+          <div class="pref-row">
+            <div class="pref-info">
+              <div class="pref-label">Add user to whitelist</div>
+              <div class="pref-desc">Enter a Spotify user ID, a Last.fm username or a mier.info username. They can log in once added.</div>
+            </div>
+            <div class="pref-control input-control">
+              <select class="locale-select" bind:value={newUserKind}>
+                <option value="spotify">Spotify</option>
+                <option value="lastfm">Last.fm</option>
+                <option value="mierid">mier.info</option>
+              </select>
+              <input
+                class="text-input"
+                type="text"
+                placeholder={newUserKind === 'lastfm' ? 'Last.fm username...' : newUserKind === 'mierid' ? 'mier.info username...' : 'Spotify user ID...'}
+                bind:value={newUserId}
+                onkeydown={(e) => { if (e.key === 'Enter') handleAddUser(); }}
+              />
+              <button class="action-btn" onclick={handleAddUser} disabled={addingUser || !newUserId.trim()}>
+                {addingUser ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          </div>
+          {#if !usersLoaded}
+            <div class="section-note row-border">Loading users…</div>
+          {:else}
+            {#each users as user (user.id)}
+              <div class="pref-row row-border">
+                <div class="pref-info">
+                  <div class="pref-label">
+                    {user.displayName || user.spotifyId}
+                    {#if user.isAdmin}<span class="user-badge user-badge--admin">admin</span>{/if}
+                    {#if !user.isActive}<span class="user-badge user-badge--inactive">inactive</span>{/if}
+                  </div>
+                  <div class="pref-desc">{user.spotifyId}</div>
+                </div>
+                <div class="pref-control input-control">
+                  {#if user.isActive}
+                    <button class="action-btn action-btn--secondary" onclick={() => updateUser(user, { isAdmin: !user.isAdmin })}>
+                      {user.isAdmin ? 'Remove admin' : 'Make admin'}
+                    </button>
+                    <button class="action-btn action-btn--danger" onclick={() => removeUser(user, false)}>Deactivate</button>
+                  {:else}
+                    <button class="action-btn action-btn--secondary" onclick={() => updateUser(user, { isActive: true })}>Reactivate</button>
+                    <button class="action-btn action-btn--danger" onclick={() => removeUser(user, true)}>Delete</button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          {/if}
+          {#if userError}
+            <div class="import-error">{userError}</div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -1187,6 +1341,49 @@
     border-color: var(--accent);
   }
 
+  .text-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.7rem;
+    outline: none;
+    width: 180px;
+    transition: border-color 0.05s;
+  }
+
+  .text-input:focus {
+    border-color: var(--accent);
+  }
+
+  .text-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* marcas de rol/estado junto al nombre en la whitelist */
+  .user-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+
+  .user-badge--admin {
+    background: rgba(29, 185, 84, 0.15);
+    color: var(--accent);
+  }
+
+  .user-badge--inactive {
+    background: rgba(255, 68, 68, 0.12);
+    color: #ff4444;
+  }
+
   .action-btn {
     display: inline-flex;
     align-items: center;
@@ -1262,7 +1459,7 @@
     display: none;
   }
 
-  .import-control, .export-control {
+  .import-control, .export-control, .input-control {
     display: flex;
     gap: 0.5rem;
   }
