@@ -20,6 +20,12 @@ export type TimeRange = keyof typeof TIME_RANGES;
 // tamaño del chart (cuántas posiciones tiene el billboard)
 export const CHART_SIZE = 25;
 
+// ítems que pide la página /top y nº de géneros de /insights. Viven aquí para
+// que el prewarmer del cache use las MISMAS claves que las vistas: la clave
+// incluye `limit`, así que un valor distinto calienta entradas que nadie lee.
+export const TOP_PAGE_LIMIT = 200;
+export const INSIGHTS_GENRES_LIMIT = 10;
+
 // posiciones que cuentan como "record" (lo que muestra la página /records)
 // también es el tope para otorgar accolades en vistas de detalle
 export const RECORDS_LIMIT = 10;

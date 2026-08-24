@@ -1,5 +1,5 @@
 import type { DeviceTokenRecord, DevicePlatform } from '@sis/shared';
-import { apiFetch, API_BASE } from './client.js';
+import { apiFetch, API_BASE, invalidateCache } from './client.js';
 
 // cliente tipado para el registro de tokens de dispositivo y la clave VAPID.
 // API_BASE (no rutas relativas): en el apk el webview corre en https://localhost
@@ -7,7 +7,9 @@ import { apiFetch, API_BASE } from './client.js';
 
 // mutación directa contra API_BASE. se evita apiMutate a propósito: registrar o
 // borrar un token no debe invalidar todo el cache de la app (apiMutate haría un
-// clear total al no existir regla de path para /device-tokens).
+// clear total al no existir regla de path para /device-tokens). Sí se invalida
+// el propio prefijo: sin esto la lista de dispositivos seguía sirviéndose del
+// cache y el token recién dado de alta (o de baja) no aparecía hasta el TTL.
 async function mutate<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
@@ -15,6 +17,7 @@ async function mutate<T>(method: string, path: string, body?: unknown): Promise<
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
+  invalidateCache('/device-tokens');
   // 204 No Content: sin cuerpo que parsear
   if (res.status === 204) return undefined as T;
   return res.json();

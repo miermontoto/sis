@@ -24,6 +24,12 @@ const DEFAULT_CONFIG: EndpointConfig = { ttl: 10 * MIN, maxStale: 24 * HOUR };
 const NO_CACHE_PATHS = new Set<string>([
   '/now-playing',
   '/now-playing/live',
+  // proyecciones de la sesión en curso: la respuesta depende del track sonando
+  // pero la clave de cache sólo lleva `sort`, así que un hit devolvería las
+  // proyecciones del track anterior. projections.svelte.ts lo pide con fetch
+  // directo (controller propio por track); esta entrada protege el invariante
+  // si alguien lo reencamina por apiFetch.
+  '/stats/projected-rankings',
   '/lastfm',
   // estado de vinculación mier.info: la vinculación ocurre server-side vía
   // redirect oauth (sin apiMutate que invalide), así que un snapshot cacheado
@@ -39,6 +45,10 @@ const NO_CACHE_PATHS = new Set<string>([
 // matcher prefijo → config (orden importa: primer match gana).
 const RULES: Array<[string, EndpointConfig]> = [
   ['/now-playing/friends',          { ttl: 1 * MIN,  maxStale: 10 * MIN }],
+  // sesiones de login activas: va ANTES de '/settings' porque el prefijo de
+  // aquella regla (24h/30d) le aplicaba y dejaba ver sesiones ya revocadas
+  // desde otro dispositivo durante un día. Es una vista de seguridad: TTL corto.
+  ['/settings/sessions',            { ttl: 1 * MIN,  maxStale: 10 * MIN }],
   ['/now-playing/like/',            { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/now-playing/playlists/',       { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
 
@@ -67,6 +77,9 @@ const RULES: Array<[string, EndpointConfig]> = [
 
   ['/settings',                     { ttl: 24 * HOUR, maxStale: 30 * DAY }],
   ['/me',                           { ttl: 1 * HOUR, maxStale: 7 * DAY }],
+  // tokens push del dispositivo: la lista se muta con fetch directo (ver
+  // notifications.ts), que invalida este prefijo a mano
+  ['/device-tokens',                { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/version',                      { ttl: 1 * HOUR, maxStale: 7 * DAY }],
 
   ['/playlists/library/',           { ttl: 10 * MIN, maxStale: 24 * HOUR }],
@@ -84,6 +97,7 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/admin/merge-suggestions',      { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/album-merge-preview',    { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/album-remerge-preview',  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
+  ['/admin/bulk-remerge-preview',   { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/merges',                 { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/artist-relations',       { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/admin/users',                  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],

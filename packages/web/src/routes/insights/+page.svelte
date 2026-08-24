@@ -1,6 +1,7 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
+  import { INSIGHTS_GENRES_LIMIT } from '@sis/shared';
   import { api, createFetchController, getWeekStart, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type MonthlyDistributionItem, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -64,7 +65,7 @@
       [listeningData, heatmap, genres, streaks, monthlyDist] = await Promise.all([
         api.listeningTime(range, gran, dates, signal),
         api.heatmap(range, dates, signal),
-        api.topGenres(range, 10, dates, signal),
+        api.topGenres(range, INSIGHTS_GENRES_LIMIT, dates, signal),
         api.streaks(signal),
         api.monthlyDistribution(range, dates, signal),
       ]);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy, tick } from 'svelte';
+  import { TOP_PAGE_LIMIT } from '@sis/shared';
   import { goto, afterNavigate } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
@@ -462,11 +463,11 @@
       const dates = getCustomDates();
       const lb = lookback !== 'disabled' && LOOKBACK_QUALIFYING_RANGES.has(range) ? lookback : undefined;
       if (activeTab === 'tracks') {
-        topTracks = await api.topTracks(range, 200, metric, dates, lb, signal);
+        topTracks = await api.topTracks(range, TOP_PAGE_LIMIT, metric, dates, lb, signal);
       } else if (activeTab === 'artists') {
-        topArtists = await api.topArtists(range, 200, metric, dates, lb, signal);
+        topArtists = await api.topArtists(range, TOP_PAGE_LIMIT, metric, dates, lb, signal);
       } else {
-        topAlbums = await api.topAlbums(range, 200, metric, dates, lb, signal);
+        topAlbums = await api.topAlbums(range, TOP_PAGE_LIMIT, metric, dates, lb, signal);
       }
       if (!signal.aborted) {
         barColors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums, chartCount);

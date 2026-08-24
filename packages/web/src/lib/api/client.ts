@@ -195,8 +195,17 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'DELETE', prefix: '/social/follows/',           clear: ['/social/'] },
   { method: 'POST',   prefix: '/social/share-links',        clear: ['/social/share-links'] },
   { method: 'DELETE', prefix: '/social/share-links/',       clear: ['/social/share-links'] },
+  // sync y backfill IMPORTAN plays: cambian todos los agregados, no sólo /me.
+  // Van antes de la regla genérica '/lastfm' (que cubre el alta de la cuenta).
+  // El backfill es asíncrono: esto limpia lo ya importado en el arranque, y la
+  // pantalla de ajustes vuelve a invalidar cuando el progreso llega a done.
+  { method: 'POST',   prefix: '/lastfm/sync',               clear: ['/stats/', '/now-playing/friends'] },
+  { method: 'POST',   prefix: '/lastfm/backfill',           clear: ['/stats/', '/now-playing/friends'] },
   { method: 'POST',   prefix: '/lastfm',                    clear: ['/me'] },
   { method: 'DELETE', prefix: '/lastfm',                    clear: ['/me'] },
+  // cerrar otras sesiones no cambia ningún dato del usuario: sin esta regla el
+  // fallback conservador vaciaba todo el cache
+  { method: 'POST',   prefix: '/settings/sessions',         clear: ['/settings/sessions'] },
   // /mierid es no-cache y no afecta a /me: nada que invalidar (sin esta regla
   // el fallback conservador limpiaría todo el cache al desvincular)
   { method: 'DELETE', prefix: '/mierid',                    clear: [] },

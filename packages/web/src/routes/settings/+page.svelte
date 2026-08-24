@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyBiggestDebut, setNotifyBiggestDebut, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -100,6 +100,10 @@
       } else if (!running && lastfmPollTimer) {
         clearInterval(lastfmPollTimer);
         lastfmPollTimer = null;
+        // el backfill acaba de terminar: importó plays, así que todo agregado
+        // cacheado quedó obsoleto (la invalidación al lanzarlo era demasiado
+        // pronto, el import corre en background)
+        invalidateCache('/stats/');
       }
     } catch {}
   }

@@ -7,7 +7,16 @@
 // throttling: concurrencia ≤ 3 para no saturar al backend.
 // Tier 2/3 ceden tiempo entre items vía requestIdleCallback.
 
+import { TOP_PAGE_LIMIT, INSIGHTS_GENRES_LIMIT } from '@sis/shared';
 import { api, getRankingMetric, getWeekStart, type RankingMetric } from '../api';
+
+// granularidad que pide /insights por rango. Debe coincidir con
+// granularityForRange() de esa página: la granularidad va en la clave de cache.
+function insightsGranularity(range: string): string {
+  if (range === 'week' || range === 'month') return 'day';
+  if (range === '3months' || range === '6months') return 'week';
+  return 'month';
+}
 
 type Task = () => Promise<unknown>;
 
@@ -73,9 +82,9 @@ function tier2Tasks(metric: RankingMetric, weekStart: string): Task[] {
   const tasks: Task[] = [];
 
   for (const r of ranges) {
-    tasks.push(() => api.topTracks(r, 50, metric));
-    tasks.push(() => api.topArtists(r, 50, metric));
-    tasks.push(() => api.topAlbums(r, 50, metric));
+    tasks.push(() => api.topTracks(r, TOP_PAGE_LIMIT, metric));
+    tasks.push(() => api.topArtists(r, TOP_PAGE_LIMIT, metric));
+    tasks.push(() => api.topAlbums(r, TOP_PAGE_LIMIT, metric));
   }
 
   // periods de charts (3 granularidades).
@@ -89,11 +98,11 @@ function tier2Tasks(metric: RankingMetric, weekStart: string): Task[] {
   }
 
   // insights bundle del mes (range más visto).
-  tasks.push(() => api.listeningTime('month', 'day'));
+  tasks.push(() => api.listeningTime('month', insightsGranularity('month')));
   tasks.push(() => api.heatmap('month'));
-  tasks.push(() => api.topGenres('month'));
+  tasks.push(() => api.topGenres('month', INSIGHTS_GENRES_LIMIT));
   tasks.push(() => api.monthlyDistribution('month'));
-  tasks.push(() => api.discovery('month', 'week', 'track'));
+  tasks.push(() => api.discovery('month', insightsGranularity('month'), 'track'));
 
   return tasks;
 }
@@ -104,23 +113,24 @@ function tier3Tasks(metric: RankingMetric): Task[] {
 
   // resto de ranges con la métrica actual.
   for (const r of ['3months', '6months', 'thisYear'] as const) {
-    tasks.push(() => api.topTracks(r, 50, metric));
-    tasks.push(() => api.topArtists(r, 50, metric));
-    tasks.push(() => api.topAlbums(r, 50, metric));
+    tasks.push(() => api.topTracks(r, TOP_PAGE_LIMIT, metric));
+    tasks.push(() => api.topArtists(r, TOP_PAGE_LIMIT, metric));
+    tasks.push(() => api.topAlbums(r, TOP_PAGE_LIMIT, metric));
   }
 
-  // la otra métrica para los ranges más comunes.
-  for (const r of ['week', 'month', 'year'] as const) {
-    tasks.push(() => api.topTracks(r, 50, otherMetric));
-    tasks.push(() => api.topArtists(r, 50, otherMetric));
-    tasks.push(() => api.topAlbums(r, 50, otherMetric));
+  // la otra métrica, sólo para los dos ranges más vistos: cada lista son
+  // TOP_PAGE_LIMIT filas y es el tier con menos probabilidad de leerse.
+  for (const r of ['week', 'month'] as const) {
+    tasks.push(() => api.topTracks(r, TOP_PAGE_LIMIT, otherMetric));
+    tasks.push(() => api.topArtists(r, TOP_PAGE_LIMIT, otherMetric));
+    tasks.push(() => api.topAlbums(r, TOP_PAGE_LIMIT, otherMetric));
   }
 
   // insights para otros ranges.
   for (const r of ['week', 'year', 'all'] as const) {
-    tasks.push(() => api.listeningTime(r, r === 'week' ? 'day' : r === 'year' ? 'month' : 'month'));
+    tasks.push(() => api.listeningTime(r, insightsGranularity(r)));
     tasks.push(() => api.heatmap(r));
-    tasks.push(() => api.topGenres(r));
+    tasks.push(() => api.topGenres(r, INSIGHTS_GENRES_LIMIT));
     tasks.push(() => api.monthlyDistribution(r));
   }
 
