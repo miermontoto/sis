@@ -58,15 +58,6 @@ export function chartClosingMessage(locale: NotifyLocale, top: ChartEntry[]): No
   return { title: 'Your week in music', body: `This week's top: ${names}.` };
 }
 
-// biggest_debut: mejor debut (isNew) del chart semanal recién cerrado
-export function biggestDebutMessage(locale: NotifyLocale, entry: ChartEntry): NotifyMessage {
-  const subject = withArtist(entry.name, entry.artistName, locale);
-  if (locale === 'es') {
-    return { title: 'Debut de la semana', body: `${subject} debuta en el puesto nº ${entry.rank}.` };
-  }
-  return { title: 'Debut of the week', body: `${subject} debuts at #${entry.rank}.` };
-}
-
 // playlist_regenerated: una playlist generada se auto-regeneró en segundo plano
 export function playlistRegeneratedMessage(locale: NotifyLocale, name: string, trackCount: number): NotifyMessage {
   if (locale === 'es') {

@@ -2,7 +2,6 @@
 // - record: una entidad entra por primera vez al top-10 de una categoría de records
 // - number_one: nuevo número 1 en el chart semanal recién cerrado
 // - chart_closing: recap del top-N del chart semanal recién cerrado
-// - biggest_debut: mejor debut (isNew) del chart semanal recién cerrado
 // - playlist_regenerated: una playlist generada se auto-regeneró en segundo plano
 // - release_anniversary: un álbum/single escuchado cumple años desde su publicación
 // - first_listen_anniversary: aniversario de la primera escucha de un artista
@@ -11,7 +10,6 @@ export type NotificationType =
   | 'record'
   | 'number_one'
   | 'chart_closing'
-  | 'biggest_debut'
   | 'playlist_regenerated'
   | 'release_anniversary'
   | 'first_listen_anniversary'
@@ -47,7 +45,6 @@ export interface NotificationPreferences {
   notifyRecords: boolean;
   notifyNumberOne: boolean;
   notifyChartClosings: boolean;
-  notifyBiggestDebut: boolean;
   notifyAnniversaries: boolean;
   notifyMilestones: boolean;
 }

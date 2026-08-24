@@ -1,7 +1,7 @@
 // detección de eventos de notificación push.
 // tres puntos de enganche producen los tipos de evento (NotificationType):
 //  - emitRecordEvents: diff de la cache de records -> 'record'
-//  - checkChartClosings: cierre de semana time-driven -> 'chart_closing' | 'number_one' | 'biggest_debut'
+//  - checkChartClosings: cierre de semana time-driven -> 'chart_closing' | 'number_one'
 //  - checkDailyEvents: cambio de día time-driven -> 'release_anniversary' | 'first_listen_anniversary' | 'milestone'
 // el envío real (sendPush) es credential-gated y fire-and-forget: nunca bloquea
 // ni lanza hacia el polling / recomputo de cache.
@@ -26,7 +26,6 @@ import {
   recordMessage,
   numberOneMessage,
   chartClosingMessage,
-  biggestDebutMessage,
   playlistRegeneratedMessage,
   releaseAnniversaryMessage,
   firstListenAnniversaryMessage,
@@ -66,7 +65,6 @@ const THROTTLE_WINDOW = '-1 day';
 const EVENT_RECORD: NotificationType = 'record';
 const EVENT_NUMBER_ONE: NotificationType = 'number_one';
 const EVENT_CHART_CLOSING: NotificationType = 'chart_closing';
-const EVENT_BIGGEST_DEBUT: NotificationType = 'biggest_debut';
 const EVENT_PLAYLIST_REGENERATED: NotificationType = 'playlist_regenerated';
 const EVENT_RELEASE_ANNIVERSARY: NotificationType = 'release_anniversary';
 const EVENT_FIRST_LISTEN_ANNIVERSARY: NotificationType = 'first_listen_anniversary';
@@ -97,7 +95,6 @@ const PREF_ENABLED = 'notificationsEnabled';
 const PREF_RECORDS = 'notifyRecords';
 const PREF_NUMBER_ONE = 'notifyNumberOne';
 const PREF_CHART_CLOSINGS = 'notifyChartClosings';
-const PREF_BIGGEST_DEBUT = 'notifyBiggestDebut';
 const PREF_ANNIVERSARIES = 'notifyAnniversaries';
 const PREF_MILESTONES = 'notifyMilestones';
 const PREF_LOCALE = 'locale';
@@ -145,9 +142,9 @@ function dispatchEvent(
   if (!hasDeliverableChannel(userId)) return;
 
   // 2. throttle diario compartido entre los tipos frecuentes (records, aniversarios,
-  //    milestones); los eventos de cierre de semana —number_one/chart_closing/
-  //    biggest_debut— son poco frecuentes y lo saltan. el conteo se limita a filas
-  //    de THROTTLED_TYPES para no mezclar con los tipos exentos.
+  //    milestones); los eventos de cierre de semana —number_one/chart_closing— son
+  //    poco frecuentes y lo saltan. el conteo se limita a filas de THROTTLED_TYPES
+  //    para no mezclar con los tipos exentos.
   if (THROTTLED_TYPES.includes(type)) {
     const typeList = sql.join(THROTTLED_TYPES.map(t => sql`${t}`), sql`, `);
     const row = db.all(sql`
@@ -220,7 +217,7 @@ export function emitRecordEvents(userId: number, spotifyId: string, prev: Record
   }
 }
 
-// --- B) cierre de semana time-driven -> chart_closing / number_one / biggest_debut ---
+// --- B) cierre de semana time-driven -> chart_closing / number_one ---
 
 // etiqueta de la semana actual reutilizando periodExpr() EXACTO: una subquery aliasada
 // 'lh' con played_at = datetime('now') hace que el mismo strftime weekStart-aware
@@ -252,9 +249,9 @@ function emitChartClosing(
 
   const period = PERIOD_PREFIX_WEEK + closedLabel;
 
-  // top-N que muestra el recap. sirve además para deduplicar: number_one y
-  // biggest_debut se omiten cuando el recap se envía y su entidad ya aparece aquí,
-  // porque entonces el recap ya la cubre (evita notificaciones redundantes a la vez).
+  // top-N que muestra el recap. sirve además para deduplicar: number_one se omite
+  // cuando el recap se envía y su entidad ya aparece aquí, porque entonces el recap
+  // ya la cubre (evita notificaciones redundantes a la vez).
   const recapEnabled = boolPref(settings, PREF_CHART_CLOSINGS, true);
   const top = entries.slice(0, NOTIFY_CHART_TOP_N);
   const topIds = new Set(top.map(e => e.entityId));
@@ -292,27 +289,6 @@ function emitChartClosing(
     }
   }
 
-  // biggest_debut: la entrada isNew mejor rankeada (entries ya vienen en orden de rank).
-  // se omite solo si el recap se envía Y el debut ya aparece en su top-N (entonces el
-  // recap lo cubre); si el debut cae fuera del top-N mostrado, sigue siendo info nueva.
-  if (boolPref(settings, PREF_BIGGEST_DEBUT, true)) {
-    const debut = entries.find(e => e.isNew);
-    if (debut && !(recapEnabled && topIds.has(debut.entityId))) {
-      const msg = biggestDebutMessage(locale, debut);
-      const payload: PushPayload = {
-        title: msg.title,
-        body: msg.body,
-        data: {
-          type: EVENT_BIGGEST_DEBUT,
-          entityType: CHART_ENTITY_TYPE,
-          entityId: debut.entityId,
-          period,
-          route: entityRoute(CHART_ENTITY_TYPE, debut.entityId),
-        },
-      };
-      dispatchEvent(userId, EVENT_BIGGEST_DEBUT, debut.entityId, period, debut.rank, payload);
-    }
-  }
 }
 
 // comprueba si la semana ha cambiado desde el último tick y, en tal caso, dispara los
