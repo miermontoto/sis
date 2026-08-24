@@ -22,6 +22,32 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
+  // pestañas: el controlador sticky sustituye a las tarjetas apiladas, así que
+  // solo se monta el panel activo (el editor de layouts, por ejemplo, no vive
+  // en memoria mientras no se mira). "account" agrupa sesiones + admin, y el
+  // bloque de admin dentro sigue gateado por me.isAdmin.
+  const TABS = [
+    { id: 'general', label: 'General' },
+    { id: 'appearance', label: 'Appearance' },
+    { id: 'notifications', label: 'Notifications' },
+    { id: 'connections', label: 'Connections & data' },
+    { id: 'account', label: 'Account' },
+  ] as const;
+  type SettingsTab = (typeof TABS)[number]['id'];
+
+  // los callbacks de oauth (last.fm, mier.info) vuelven a /settings con un query
+  // param: abrimos directamente el panel donde se ve el resultado del enlace
+  const OAUTH_RETURN_PARAMS = ['lastfm', 'mierid'];
+  let activeTab = $state<SettingsTab>(
+    OAUTH_RETURN_PARAMS.some(k => page.url.searchParams.has(k)) ? 'connections' : 'general'
+  );
+
+  function selectTab(id: SettingsTab) {
+    if (id === activeTab) return;
+    activeTab = id;
+    window.scrollTo({ top: 0 });
+  }
+
   // preferencias
   let rankingMetric = $state<RankingMetric>('time');
   let lookbackPref = $state<RankChangeLookback>('disabled');
@@ -307,619 +333,628 @@
     <p style="color: var(--text-muted); margin-top: 0.5rem;">Make sure the API server is running on port 3000.</p>
   </div>
 {:else}
-  <div class="card prefs-card">
-    <h3 class="prefs-title">Preferences</h3>
-
-    <div class="prefs-subtitle">General</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Ranking metric</div>
-          <div class="pref-desc">How tracks, artists and albums are ranked across the app</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button
-              class="segmented-btn"
-              class:segmented-active={rankingMetric === 'time'}
-              onclick={() => handleMetricChange('time')}
-            >
-              <IconClock />
-              Minutes
-            </button>
-            <button
-              class="segmented-btn"
-              class:segmented-active={rankingMetric === 'plays'}
-              onclick={() => handleMetricChange('plays')}
-            >
-              <IconPlayOutline />
-              Plays
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Locale</div>
-          <div class="pref-desc">Affects date and number formatting across the app</div>
-        </div>
-        <div class="pref-control">
-          <select
-            class="locale-select"
-            value={localePref}
-            onchange={(e) => { const v = (e.target as HTMLSelectElement).value; localePref = v; setLocale(v); }}
-          >
-            {#each LOCALE_OPTIONS as opt}
-              <option value={opt.value}>
-                {opt.value === 'auto' ? `${opt.label} (${getLocale()})` : opt.label}
-              </option>
-            {/each}
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Notifications</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Push notifications</div>
-          <div class="pref-desc">Get notified about new records, chart-toppers, weekly recaps and big debuts</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifEnabledPref} onclick={() => toggleNotificationsEnabled(false)} disabled={notifBusy}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifEnabledPref} onclick={() => toggleNotificationsEnabled(true)} disabled={notifBusy}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
-        <div class="pref-info">
-          <div class="pref-label">Records</div>
-          <div class="pref-desc">When a track, album or artist enters an all-time record top-10</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifRecordsPref} onclick={() => { notifRecordsPref = false; setNotifyRecords(false); }} disabled={!notifEnabledPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifRecordsPref} onclick={() => { notifRecordsPref = true; setNotifyRecords(true); }} disabled={!notifEnabledPref}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
-        <div class="pref-info">
-          <div class="pref-label">New #1</div>
-          <div class="pref-desc">When a new track tops your weekly chart</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifNumberOnePref} onclick={() => { notifNumberOnePref = false; setNotifyNumberOne(false); }} disabled={!notifEnabledPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifNumberOnePref} onclick={() => { notifNumberOnePref = true; setNotifyNumberOne(true); }} disabled={!notifEnabledPref}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
-        <div class="pref-info">
-          <div class="pref-label">Weekly recap</div>
-          <div class="pref-desc">A summary of your top tracks when the week's chart closes</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifChartClosingsPref} onclick={() => { notifChartClosingsPref = false; setNotifyChartClosings(false); }} disabled={!notifEnabledPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifChartClosingsPref} onclick={() => { notifChartClosingsPref = true; setNotifyChartClosings(true); }} disabled={!notifEnabledPref}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
-        <div class="pref-info">
-          <div class="pref-label">Biggest debut</div>
-          <div class="pref-desc">The highest-charting new entry when the week's chart closes</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = false; setNotifyBiggestDebut(false); }} disabled={!notifEnabledPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = true; setNotifyBiggestDebut(true); }} disabled={!notifEnabledPref}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
-        <div class="pref-info">
-          <div class="pref-label">Anniversaries</div>
-          <div class="pref-desc">Release anniversaries of albums you love and first-listen anniversaries of your artists</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifAnniversariesPref} onclick={() => { notifAnniversariesPref = false; setNotifyAnniversaries(false); }} disabled={!notifEnabledPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifAnniversariesPref} onclick={() => { notifAnniversariesPref = true; setNotifyAnniversaries(true); }} disabled={!notifEnabledPref}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
-        <div class="pref-info">
-          <div class="pref-label">Milestones</div>
-          <div class="pref-desc">When an artist, album or track crosses a play-count milestone (100, 500, 1,000…)</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!notifMilestonesPref} onclick={() => { notifMilestonesPref = false; setNotifyMilestones(false); }} disabled={!notifEnabledPref}>Off</button>
-            <button class="segmented-btn" class:segmented-active={notifMilestonesPref} onclick={() => { notifMilestonesPref = true; setNotifyMilestones(true); }} disabled={!notifEnabledPref}>On</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Now playing</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Display</div>
-          <div class="pref-desc">How the currently playing track is displayed in the sidebar</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'off'} onclick={() => { nowPlayingDisplayPref = 'off'; setNowPlayingDisplay('off'); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'compact'} onclick={() => { nowPlayingDisplayPref = 'compact'; setNowPlayingDisplay('compact'); }}>Compact</button>
-            <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'auto'} onclick={() => { nowPlayingDisplayPref = 'auto'; setNowPlayingDisplay('auto'); }}>Auto</button>
-            <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'normal'} onclick={() => { nowPlayingDisplayPref = 'normal'; setNowPlayingDisplay('normal'); }}>Normal</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Session</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Session tracking</div>
-          <div class="pref-desc">Show session card in sidebar and highlight session tracks in recent plays and history</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'off'} onclick={() => { sessionTrackingDisplayPref = 'off'; setSessionTrackingDisplay('off'); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'desktop'} onclick={() => { sessionTrackingDisplayPref = 'desktop'; setSessionTrackingDisplay('desktop'); }}>Desktop</button>
-            <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'all'} onclick={() => { sessionTrackingDisplayPref = 'all'; setSessionTrackingDisplay('all'); }}>Mobile+Desktop</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off'}>
-        <div class="pref-info">
-          <div class="pref-label">Rankings</div>
-          <div class="pref-desc">Which projected ranking changes to show during a listening session</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }} disabled={sessionTrackingDisplayPref === 'off'}>Off</button>
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }} disabled={sessionTrackingDisplayPref === 'off'}>ALL</button>
-            <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }} disabled={sessionTrackingDisplayPref === 'off'}>ALL+YTD</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
-        <div class="pref-info">
-          <div class="pref-label">Rank limit (ALL)</div>
-          <div class="pref-desc">Only show all-time ranking changes for entities within this rank</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            {#each ['25', '50', '100', '200'] as v}
-              <button class="segmented-btn" class:segmented-active={sessionRankLimitAllPref === v} onclick={() => { sessionRankLimitAllPref = v; setSessionRankLimitAll(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
-            {/each}
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
-        <div class="pref-info">
-          <div class="pref-label">Rank limit (YTD)</div>
-          <div class="pref-desc">Only show year-to-date ranking changes for entities within this rank</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            {#each ['25', '50', '100', '200'] as v}
-              <button class="segmented-btn" class:segmented-active={sessionRankLimitYearPref === v} onclick={() => { sessionRankLimitYearPref = v; setSessionRankLimitYear(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
-            {/each}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Social</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Activity visibility</div>
-          <div class="pref-desc">Show your currently playing track to other users in the sidebar</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={socialVisibilityPref === 'hidden'} onclick={() => { socialVisibilityPref = 'hidden'; setSocialVisibility('hidden'); }}>Hidden</button>
-            <button class="segmented-btn" class:segmented-active={socialVisibilityPref === 'visible'} onclick={() => { socialVisibilityPref = 'visible'; setSocialVisibility('visible'); }}>Visible</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Rankings & Records</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Ranking changes</div>
-          <div class="pref-desc">Compare rankings to a previous snapshot (3M+ ranges only)</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={lookbackPref === 'disabled'} onclick={() => { lookbackPref = 'disabled'; setRankChangeLookback('disabled'); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={lookbackPref === '7d'} onclick={() => { lookbackPref = '7d'; setRankChangeLookback('7d'); }}>7 days</button>
-            <button class="segmented-btn" class:segmented-active={lookbackPref === '30d'} onclick={() => { lookbackPref = '30d'; setRankChangeLookback('30d'); }}>30 days</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Chart week start</div>
-          <div class="pref-desc">Defines how weekly charts are calculated in the Records page</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={weekStartPref === 'monday'} onclick={() => { weekStartPref = 'monday'; setWeekStart('monday'); }}>Mon</button>
-            <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
-            <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Record entries</div>
-          <div class="pref-desc">Unique keeps one entry per song, album or artist; All lets the same one appear several times (e.g. its biggest weeks in Peak week and each run in Longest chart run)</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={recordsUniquePref} onclick={() => { recordsUniquePref = true; setRecordsUnique(true); }}>Unique</button>
-            <button class="segmented-btn" class:segmented-active={!recordsUniquePref} onclick={() => { recordsUniquePref = false; setRecordsUnique(false); }}>All</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Artist details</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Album accolades</div>
-          <div class="pref-desc">Show record badges next to albums</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!artistShowAlbumAccoladesPref} onclick={() => { artistShowAlbumAccoladesPref = false; setArtistShowAlbumAccolades(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={artistShowAlbumAccoladesPref} onclick={() => { artistShowAlbumAccoladesPref = true; setArtistShowAlbumAccolades(true); }}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Track accolades</div>
-          <div class="pref-desc">Show record badges next to tracks</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!artistShowTrackAccoladesPref} onclick={() => { artistShowTrackAccoladesPref = false; setArtistShowTrackAccolades(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={artistShowTrackAccoladesPref} onclick={() => { artistShowTrackAccoladesPref = true; setArtistShowTrackAccolades(true); }}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">All-time ranks</div>
-          <div class="pref-desc">Show each track's and album's all-time position next to its stats (top 200)</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = false; setArtistShowGlobalRanks(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = true; setArtistShowGlobalRanks(true); }}>On</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Album details</div>
-    <div class="prefs-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Track share</div>
-          <div class="pref-desc">Show each track's share of total album plays</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'off'} onclick={() => { albumTrackDisplayPref = 'off'; setAlbumTrackDisplay('off'); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'fill'} onclick={() => { albumTrackDisplayPref = 'fill'; setAlbumTrackDisplay('fill'); }}>Fill</button>
-            <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'percent'} onclick={() => { albumTrackDisplayPref = 'percent'; setAlbumTrackDisplay('percent'); }}>%</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Track duration</div>
-          <div class="pref-desc">Show individual track length in the track list</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!albumShowDurationPref} onclick={() => { albumShowDurationPref = false; setAlbumShowDuration(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={albumShowDurationPref} onclick={() => { albumShowDurationPref = true; setAlbumShowDuration(true); }}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Track accolades</div>
-          <div class="pref-desc">Show record badges next to tracks</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = false; setAlbumShowAccolades(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = true; setAlbumShowAccolades(true); }}>On</button>
-          </div>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">All-time ranks</div>
-          <div class="pref-desc">Show each track's all-time position in the track and singles lists (top 200)</div>
-        </div>
-        <div class="pref-control">
-          <div class="segmented">
-            <button class="segmented-btn" class:segmented-active={!albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = false; setAlbumShowGlobalRanks(false); }}>Off</button>
-            <button class="segmented-btn" class:segmented-active={albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = true; setAlbumShowGlobalRanks(true); }}>On</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="prefs-subtitle">Layouts</div>
-    <div class="prefs-list">
-      <div class="pref-row pref-row--stack">
-        <div class="pref-info">
-          <div class="pref-label">Sections layout</div>
-          <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to the dashboard and every artist, album or track page.</div>
-        </div>
-        <DetailLayoutEditor />
-      </div>
+  <div class="settings-tabs">
+    <div class="tabs">
+      {#each TABS as tab (tab.id)}
+        <button class="tab" class:active={activeTab === tab.id} onclick={() => selectTab(tab.id)}>
+          {tab.label}
+        </button>
+      {/each}
     </div>
   </div>
 
-  <div class="card section-card">
-    <h3 class="section-card-title">Connections</h3>
-    <div class="section-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label lastfm-label"><IconSpotify size={16} /> Spotify</div>
-          <div class="pref-desc">
-            {#if me?.displayName || me?.spotifyId}
-              Connected as <strong>{me.displayName ?? me.spotifyId}</strong> — your primary listening source, polled continuously
-            {:else}
-              Your primary listening source, polled continuously
+  {#if activeTab === 'general'}
+    <div class="card prefs-card">
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Ranking metric</div>
+            <div class="pref-desc">How tracks, artists and albums are ranked across the app</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button
+                class="segmented-btn"
+                class:segmented-active={rankingMetric === 'time'}
+                onclick={() => handleMetricChange('time')}
+              >
+                <IconClock />
+                Minutes
+              </button>
+              <button
+                class="segmented-btn"
+                class:segmented-active={rankingMetric === 'plays'}
+                onclick={() => handleMetricChange('plays')}
+              >
+                <IconPlayOutline />
+                Plays
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Locale</div>
+            <div class="pref-desc">Affects date and number formatting across the app</div>
+          </div>
+          <div class="pref-control">
+            <select
+              class="locale-select"
+              value={localePref}
+              onchange={(e) => { const v = (e.target as HTMLSelectElement).value; localePref = v; setLocale(v); }}
+            >
+              {#each LOCALE_OPTIONS as opt}
+                <option value={opt.value}>
+                  {opt.value === 'auto' ? `${opt.label} (${getLocale()})` : opt.label}
+                </option>
+              {/each}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else if activeTab === 'appearance'}
+    <div class="card prefs-card">
+      <div class="prefs-subtitle">Now playing</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Display</div>
+            <div class="pref-desc">How the currently playing track is displayed in the sidebar</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'off'} onclick={() => { nowPlayingDisplayPref = 'off'; setNowPlayingDisplay('off'); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'compact'} onclick={() => { nowPlayingDisplayPref = 'compact'; setNowPlayingDisplay('compact'); }}>Compact</button>
+              <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'auto'} onclick={() => { nowPlayingDisplayPref = 'auto'; setNowPlayingDisplay('auto'); }}>Auto</button>
+              <button class="segmented-btn" class:segmented-active={nowPlayingDisplayPref === 'normal'} onclick={() => { nowPlayingDisplayPref = 'normal'; setNowPlayingDisplay('normal'); }}>Normal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Session</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Session tracking</div>
+            <div class="pref-desc">Show session card in sidebar and highlight session tracks in recent plays and history</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'off'} onclick={() => { sessionTrackingDisplayPref = 'off'; setSessionTrackingDisplay('off'); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'desktop'} onclick={() => { sessionTrackingDisplayPref = 'desktop'; setSessionTrackingDisplay('desktop'); }}>Desktop</button>
+              <button class="segmented-btn" class:segmented-active={sessionTrackingDisplayPref === 'all'} onclick={() => { sessionTrackingDisplayPref = 'all'; setSessionTrackingDisplay('all'); }}>Mobile+Desktop</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off'}>
+          <div class="pref-info">
+            <div class="pref-label">Rankings</div>
+            <div class="pref-desc">Which projected ranking changes to show during a listening session</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'none'} onclick={() => { sessionRankDisplayPref = 'none'; setSessionRankDisplay('none'); }} disabled={sessionTrackingDisplayPref === 'off'}>Off</button>
+              <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all'} onclick={() => { sessionRankDisplayPref = 'all'; setSessionRankDisplay('all'); }} disabled={sessionTrackingDisplayPref === 'off'}>ALL</button>
+              <button class="segmented-btn" class:segmented-active={sessionRankDisplayPref === 'all+ytd'} onclick={() => { sessionRankDisplayPref = 'all+ytd'; setSessionRankDisplay('all+ytd'); }} disabled={sessionTrackingDisplayPref === 'off'}>ALL+YTD</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
+          <div class="pref-info">
+            <div class="pref-label">Rank limit (ALL)</div>
+            <div class="pref-desc">Only show all-time ranking changes for entities within this rank</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              {#each ['25', '50', '100', '200'] as v}
+                <button class="segmented-btn" class:segmented-active={sessionRankLimitAllPref === v} onclick={() => { sessionRankLimitAllPref = v; setSessionRankLimitAll(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
+              {/each}
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
+          <div class="pref-info">
+            <div class="pref-label">Rank limit (YTD)</div>
+            <div class="pref-desc">Only show year-to-date ranking changes for entities within this rank</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              {#each ['25', '50', '100', '200'] as v}
+                <button class="segmented-btn" class:segmented-active={sessionRankLimitYearPref === v} onclick={() => { sessionRankLimitYearPref = v; setSessionRankLimitYear(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Social</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Activity visibility</div>
+            <div class="pref-desc">Show your currently playing track to other users in the sidebar</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={socialVisibilityPref === 'hidden'} onclick={() => { socialVisibilityPref = 'hidden'; setSocialVisibility('hidden'); }}>Hidden</button>
+              <button class="segmented-btn" class:segmented-active={socialVisibilityPref === 'visible'} onclick={() => { socialVisibilityPref = 'visible'; setSocialVisibility('visible'); }}>Visible</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Rankings & Records</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Ranking changes</div>
+            <div class="pref-desc">Compare rankings to a previous snapshot (3M+ ranges only)</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={lookbackPref === 'disabled'} onclick={() => { lookbackPref = 'disabled'; setRankChangeLookback('disabled'); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={lookbackPref === '7d'} onclick={() => { lookbackPref = '7d'; setRankChangeLookback('7d'); }}>7 days</button>
+              <button class="segmented-btn" class:segmented-active={lookbackPref === '30d'} onclick={() => { lookbackPref = '30d'; setRankChangeLookback('30d'); }}>30 days</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Chart week start</div>
+            <div class="pref-desc">Defines how weekly charts are calculated in the Records page</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={weekStartPref === 'monday'} onclick={() => { weekStartPref = 'monday'; setWeekStart('monday'); }}>Mon</button>
+              <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
+              <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Record entries</div>
+            <div class="pref-desc">Unique keeps one entry per song, album or artist; All lets the same one appear several times (e.g. its biggest weeks in Peak week and each run in Longest chart run)</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={recordsUniquePref} onclick={() => { recordsUniquePref = true; setRecordsUnique(true); }}>Unique</button>
+              <button class="segmented-btn" class:segmented-active={!recordsUniquePref} onclick={() => { recordsUniquePref = false; setRecordsUnique(false); }}>All</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Artist details</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Album accolades</div>
+            <div class="pref-desc">Show record badges next to albums</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!artistShowAlbumAccoladesPref} onclick={() => { artistShowAlbumAccoladesPref = false; setArtistShowAlbumAccolades(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={artistShowAlbumAccoladesPref} onclick={() => { artistShowAlbumAccoladesPref = true; setArtistShowAlbumAccolades(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Track accolades</div>
+            <div class="pref-desc">Show record badges next to tracks</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!artistShowTrackAccoladesPref} onclick={() => { artistShowTrackAccoladesPref = false; setArtistShowTrackAccolades(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={artistShowTrackAccoladesPref} onclick={() => { artistShowTrackAccoladesPref = true; setArtistShowTrackAccolades(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">All-time ranks</div>
+            <div class="pref-desc">Show each track's and album's all-time position next to its stats (top 200)</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = false; setArtistShowGlobalRanks(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = true; setArtistShowGlobalRanks(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Album details</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Track share</div>
+            <div class="pref-desc">Show each track's share of total album plays</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'off'} onclick={() => { albumTrackDisplayPref = 'off'; setAlbumTrackDisplay('off'); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'fill'} onclick={() => { albumTrackDisplayPref = 'fill'; setAlbumTrackDisplay('fill'); }}>Fill</button>
+              <button class="segmented-btn" class:segmented-active={albumTrackDisplayPref === 'percent'} onclick={() => { albumTrackDisplayPref = 'percent'; setAlbumTrackDisplay('percent'); }}>%</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Track duration</div>
+            <div class="pref-desc">Show individual track length in the track list</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!albumShowDurationPref} onclick={() => { albumShowDurationPref = false; setAlbumShowDuration(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={albumShowDurationPref} onclick={() => { albumShowDurationPref = true; setAlbumShowDuration(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Track accolades</div>
+            <div class="pref-desc">Show record badges next to tracks</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = false; setAlbumShowAccolades(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = true; setAlbumShowAccolades(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">All-time ranks</div>
+            <div class="pref-desc">Show each track's all-time position in the track and singles lists (top 200)</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = false; setAlbumShowGlobalRanks(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = true; setAlbumShowGlobalRanks(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Layouts</div>
+      <div class="prefs-list">
+        <div class="pref-row pref-row--stack">
+          <div class="pref-info">
+            <div class="pref-label">Sections layout</div>
+            <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to the dashboard and every artist, album or track page.</div>
+          </div>
+          <DetailLayoutEditor />
+        </div>
+      </div>
+    </div>
+  {:else if activeTab === 'notifications'}
+    <div class="card prefs-card">
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Push notifications</div>
+            <div class="pref-desc">Get notified about new records, chart-toppers, weekly recaps and big debuts</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifEnabledPref} onclick={() => toggleNotificationsEnabled(false)} disabled={notifBusy}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifEnabledPref} onclick={() => toggleNotificationsEnabled(true)} disabled={notifBusy}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+          <div class="pref-info">
+            <div class="pref-label">Records</div>
+            <div class="pref-desc">When a track, album or artist enters an all-time record top-10</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifRecordsPref} onclick={() => { notifRecordsPref = false; setNotifyRecords(false); }} disabled={!notifEnabledPref}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifRecordsPref} onclick={() => { notifRecordsPref = true; setNotifyRecords(true); }} disabled={!notifEnabledPref}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+          <div class="pref-info">
+            <div class="pref-label">New #1</div>
+            <div class="pref-desc">When a new track tops your weekly chart</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifNumberOnePref} onclick={() => { notifNumberOnePref = false; setNotifyNumberOne(false); }} disabled={!notifEnabledPref}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifNumberOnePref} onclick={() => { notifNumberOnePref = true; setNotifyNumberOne(true); }} disabled={!notifEnabledPref}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+          <div class="pref-info">
+            <div class="pref-label">Weekly recap</div>
+            <div class="pref-desc">A summary of your top tracks when the week's chart closes</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifChartClosingsPref} onclick={() => { notifChartClosingsPref = false; setNotifyChartClosings(false); }} disabled={!notifEnabledPref}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifChartClosingsPref} onclick={() => { notifChartClosingsPref = true; setNotifyChartClosings(true); }} disabled={!notifEnabledPref}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+          <div class="pref-info">
+            <div class="pref-label">Biggest debut</div>
+            <div class="pref-desc">The highest-charting new entry when the week's chart closes</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = false; setNotifyBiggestDebut(false); }} disabled={!notifEnabledPref}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifBiggestDebutPref} onclick={() => { notifBiggestDebutPref = true; setNotifyBiggestDebut(true); }} disabled={!notifEnabledPref}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+          <div class="pref-info">
+            <div class="pref-label">Anniversaries</div>
+            <div class="pref-desc">Release anniversaries of albums you love and first-listen anniversaries of your artists</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifAnniversariesPref} onclick={() => { notifAnniversariesPref = false; setNotifyAnniversaries(false); }} disabled={!notifEnabledPref}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifAnniversariesPref} onclick={() => { notifAnniversariesPref = true; setNotifyAnniversaries(true); }} disabled={!notifEnabledPref}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
+          <div class="pref-info">
+            <div class="pref-label">Milestones</div>
+            <div class="pref-desc">When an artist, album or track crosses a play-count milestone (100, 500, 1,000…)</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!notifMilestonesPref} onclick={() => { notifMilestonesPref = false; setNotifyMilestones(false); }} disabled={!notifEnabledPref}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifMilestonesPref} onclick={() => { notifMilestonesPref = true; setNotifyMilestones(true); }} disabled={!notifEnabledPref}>On</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else if activeTab === 'connections'}
+    <div class="card prefs-card">
+      <div class="prefs-subtitle">Connections</div>
+      <div class="section-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label lastfm-label"><IconSpotify size={16} /> Spotify</div>
+            <div class="pref-desc">
+              {#if me?.displayName || me?.spotifyId}
+                Connected as <strong>{me.displayName ?? me.spotifyId}</strong> — your primary listening source, polled continuously
+              {:else}
+                Your primary listening source, polled continuously
+              {/if}
+            </div>
+          </div>
+          <div class="pref-control lastfm-control">
+            {#if health && !health.authenticated}
+              <a href="/auth/login?returnTo=%2Fsettings" class="action-btn">Reconnect</a>
             {/if}
           </div>
         </div>
-        <div class="pref-control lastfm-control">
-          {#if health && !health.authenticated}
-            <a href="/auth/login?returnTo=%2Fsettings" class="action-btn">Reconnect</a>
-          {/if}
-        </div>
-      </div>
-      {#if lastfmStatus && (lastfmStatus.configured || lastfmStatus.account)}
-        <div class="pref-row row-border">
-          <div class="pref-info">
-            <div class="pref-label lastfm-label"><IconLastfm size={16} /> Last.fm</div>
-            <div class="pref-desc">
+        {#if lastfmStatus && (lastfmStatus.configured || lastfmStatus.account)}
+          <div class="pref-row row-border">
+            <div class="pref-info">
+              <div class="pref-label lastfm-label"><IconLastfm size={16} /> Last.fm</div>
+              <div class="pref-desc">
+                {#if lastfmStatus.account}
+                  Connected as <strong>{lastfmStatus.account.username}</strong> — scrobbles sync every few minutes and fill gaps Spotify polling misses
+                {:else}
+                  Sync your scrobbles as a second source — fills gaps Spotify polling misses
+                {/if}
+              </div>
+            </div>
+            <div class="pref-control lastfm-control">
               {#if lastfmStatus.account}
-                Connected as <strong>{lastfmStatus.account.username}</strong> — scrobbles sync every few minutes and fill gaps Spotify polling misses
+                {@const backfill = lastfmStatus.account.backfill}
+                {#if backfill?.running}
+                  <span class="lastfm-progress">
+                    {backfill.phase === 'fetching'
+                      ? `Fetching scrobbles… page ${backfill.page}/${backfill.totalPages || '?'}`
+                      : 'Importing…'}
+                  </span>
+                {:else}
+                  <button class="action-btn action-btn--secondary" disabled={lastfmBusy} onclick={startLastfmBackfill}>
+                    {lastfmStatus.account.backfillDone ? 'Re-import history' : 'Import full history'}
+                  </button>
+                {/if}
+                <button class="action-btn action-btn--danger" disabled={lastfmBusy || backfill?.running} onclick={disconnectLastfm}>Disconnect</button>
               {:else}
-                Sync your scrobbles as a second source — fills gaps Spotify polling misses
+                <a href="/auth/lastfm/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
               {/if}
             </div>
           </div>
-          <div class="pref-control lastfm-control">
-            {#if lastfmStatus.account}
-              {@const backfill = lastfmStatus.account.backfill}
-              {#if backfill?.running}
-                <span class="lastfm-progress">
-                  {backfill.phase === 'fetching'
-                    ? `Fetching scrobbles… page ${backfill.page}/${backfill.totalPages || '?'}`
-                    : 'Importing…'}
-                </span>
+          {#if lastfmStatus.account?.backfill?.phase === 'done'}
+            <div class="lastfm-note">Backfill complete: {formatNumber(lastfmStatus.account.backfill.imported)} plays imported.</div>
+          {/if}
+          {#if lastfmStatus.account?.backfill?.error}
+            <div class="import-error">Backfill failed: {lastfmStatus.account.backfill.error}</div>
+          {/if}
+          {#if lastfmError}
+            <div class="import-error">{lastfmError}</div>
+          {/if}
+        {/if}
+        {#if mieridStatus && (mieridStatus.configured || mieridStatus.account)}
+          <div class="pref-row row-border">
+            <div class="pref-info">
+              <div class="pref-label lastfm-label"><IconMier size={16} /> mier.info</div>
+              <div class="pref-desc">
+                {#if mieridStatus.account}
+                  Connected as <strong>{mieridStatus.account.username ?? mieridStatus.account.sub}</strong> — sign in to SIS with your mier.info account
+                {:else}
+                  Link your mier.info account to sign in without Spotify or Last.fm
+                {/if}
+              </div>
+            </div>
+            <div class="pref-control lastfm-control">
+              {#if mieridStatus.account}
+                <button class="action-btn action-btn--danger" disabled={mieridBusy} onclick={disconnectMierid}>Disconnect</button>
               {:else}
-                <button class="action-btn action-btn--secondary" disabled={lastfmBusy} onclick={startLastfmBackfill}>
-                  {lastfmStatus.account.backfillDone ? 'Re-import history' : 'Import full history'}
-                </button>
+                <a href="/auth/mierid/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
               {/if}
-              <button class="action-btn action-btn--danger" disabled={lastfmBusy || backfill?.running} onclick={disconnectLastfm}>Disconnect</button>
-            {:else}
-              <a href="/auth/lastfm/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
-            {/if}
+            </div>
           </div>
-        </div>
-        {#if lastfmStatus.account?.backfill?.phase === 'done'}
-          <div class="lastfm-note">Backfill complete: {formatNumber(lastfmStatus.account.backfill.imported)} plays imported.</div>
+          {#if mieridLinked}
+            <div class="lastfm-note">mier.info account linked — you can now sign in with it.</div>
+          {/if}
+          {#if mieridError}
+            <div class="import-error">{mieridError}</div>
+          {/if}
         {/if}
-        {#if lastfmStatus.account?.backfill?.error}
-          <div class="import-error">Backfill failed: {lastfmStatus.account.backfill.error}</div>
-        {/if}
-        {#if lastfmError}
-          <div class="import-error">{lastfmError}</div>
-        {/if}
-      {/if}
-      {#if mieridStatus && (mieridStatus.configured || mieridStatus.account)}
         <div class="pref-row row-border">
           <div class="pref-info">
-            <div class="pref-label lastfm-label"><IconMier size={16} /> mier.info</div>
+            <div class="pref-label lastfm-label"><IconWifi size={16} /> Scrobblers</div>
             <div class="pref-desc">
-              {#if mieridStatus.account}
-                Connected as <strong>{mieridStatus.account.username ?? mieridStatus.account.sub}</strong> — sign in to SIS with your mier.info account
-              {:else}
-                Link your mier.info account to sign in without Spotify or Last.fm
-              {/if}
+              Push plays from any ListenBrainz-compatible client (Pano Scrobbler, Web Scrobbler, Navidrome…) — set the API URL to <strong>{page.url.origin}</strong> and authenticate with your token
             </div>
           </div>
           <div class="pref-control lastfm-control">
-            {#if mieridStatus.account}
-              <button class="action-btn action-btn--danger" disabled={mieridBusy} onclick={disconnectMierid}>Disconnect</button>
-            {:else}
-              <a href="/auth/mierid/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
+            {#if listenToken?.token}
+              <button class="action-btn action-btn--secondary" onclick={() => { listenTokenVisible = !listenTokenVisible; }}>
+                {listenTokenVisible ? 'Hide token' : 'Show token'}
+              </button>
+              <button class="action-btn action-btn--danger" disabled={listenTokenBusy} onclick={revokeListenToken}>Revoke</button>
+            {:else if listenToken}
+              <button class="action-btn" disabled={listenTokenBusy} onclick={regenerateListenToken}>Generate token</button>
             {/if}
           </div>
         </div>
-        {#if mieridLinked}
-          <div class="lastfm-note">mier.info account linked — you can now sign in with it.</div>
-        {/if}
-        {#if mieridError}
-          <div class="import-error">{mieridError}</div>
-        {/if}
-      {/if}
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label lastfm-label"><IconWifi size={16} /> Scrobblers</div>
-          <div class="pref-desc">
-            Push plays from any ListenBrainz-compatible client (Pano Scrobbler, Web Scrobbler, Navidrome…) — set the API URL to <strong>{page.url.origin}</strong> and authenticate with your token
+        {#if listenToken?.token && listenTokenVisible}
+          <div class="token-reveal">
+            <code class="token-value">{listenToken.token}</code>
+            <button class="action-btn action-btn--secondary" onclick={copyListenToken}>{listenTokenCopied ? 'Copied!' : 'Copy'}</button>
+            <button class="action-btn action-btn--secondary" disabled={listenTokenBusy} onclick={regenerateListenToken}>Regenerate</button>
           </div>
-        </div>
-        <div class="pref-control lastfm-control">
-          {#if listenToken?.token}
-            <button class="action-btn action-btn--secondary" onclick={() => { listenTokenVisible = !listenTokenVisible; }}>
-              {listenTokenVisible ? 'Hide token' : 'Show token'}
+        {/if}
+        {#if listenToken?.token && listenToken.lastUsedAt}
+          <div class="lastfm-note">Last scrobble received {new Date(listenToken.lastUsedAt).toLocaleString()}</div>
+        {/if}
+        {#if listenTokenError}
+          <div class="import-error">{listenTokenError}</div>
+        {/if}
+      </div>
+      <div class="prefs-subtitle">Data</div>
+      <div class="section-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Import listening history</div>
+            <div class="pref-desc">Upload Spotify data export — Extended Streaming History or Account Data formats</div>
+          </div>
+          <div class="pref-control import-control">
+            <label class="file-input-btn">
+              <IconUpload />
+              {importFiles?.length ? `${importFiles.length} file${importFiles.length > 1 ? 's' : ''}` : 'Choose files'}
+              <input
+                type="file"
+                accept=".json"
+                multiple
+                onchange={(e) => {
+                  importFiles = (e.target as HTMLInputElement).files;
+                  importResult = null;
+                  importError = null;
+                }}
+              />
+            </label>
+            <button
+              class="action-btn"
+              onclick={handleImport}
+              disabled={importing || !importFiles?.length}
+            >
+              {importing ? 'Importing...' : 'Upload'}
             </button>
-            <button class="action-btn action-btn--danger" disabled={listenTokenBusy} onclick={revokeListenToken}>Revoke</button>
-          {:else if listenToken}
-            <button class="action-btn" disabled={listenTokenBusy} onclick={regenerateListenToken}>Generate token</button>
-          {/if}
-        </div>
-      </div>
-      {#if listenToken?.token && listenTokenVisible}
-        <div class="token-reveal">
-          <code class="token-value">{listenToken.token}</code>
-          <button class="action-btn action-btn--secondary" onclick={copyListenToken}>{listenTokenCopied ? 'Copied!' : 'Copy'}</button>
-          <button class="action-btn action-btn--secondary" disabled={listenTokenBusy} onclick={regenerateListenToken}>Regenerate</button>
-        </div>
-      {/if}
-      {#if listenToken?.token && listenToken.lastUsedAt}
-        <div class="lastfm-note">Last scrobble received {new Date(listenToken.lastUsedAt).toLocaleString()}</div>
-      {/if}
-      {#if listenTokenError}
-        <div class="import-error">{listenTokenError}</div>
-      {/if}
-    </div>
-  </div>
-
-  <div class="card section-card">
-    <h3 class="section-card-title">Data</h3>
-    <div class="section-list">
-      <div class="pref-row">
-        <div class="pref-info">
-          <div class="pref-label">Import listening history</div>
-          <div class="pref-desc">Upload Spotify data export — Extended Streaming History or Account Data formats</div>
-        </div>
-        <div class="pref-control import-control">
-          <label class="file-input-btn">
-            <IconUpload />
-            {importFiles?.length ? `${importFiles.length} file${importFiles.length > 1 ? 's' : ''}` : 'Choose files'}
-            <input
-              type="file"
-              accept=".json"
-              multiple
-              onchange={(e) => {
-                importFiles = (e.target as HTMLInputElement).files;
-                importResult = null;
-                importError = null;
-              }}
-            />
-          </label>
-          <button
-            class="action-btn"
-            onclick={handleImport}
-            disabled={importing || !importFiles?.length}
-          >
-            {importing ? 'Importing...' : 'Upload'}
-          </button>
-        </div>
-      </div>
-      {#if importResult}
-        <div class="import-results">
-          <div class="import-results-header">
-            <IconCheck color="var(--accent)" />
-            Import complete
-          </div>
-          <div class="import-stats">
-            <div class="import-stat">
-              <span class="import-stat-value">{formatNumber(importResult.total)}</span>
-              <span class="import-stat-label">Total</span>
-            </div>
-            <div class="import-stat">
-              <span class="import-stat-value">{formatNumber(importResult.imported)}</span>
-              <span class="import-stat-label">Imported</span>
-            </div>
-            <div class="import-stat">
-              <span class="import-stat-value">{formatNumber(importResult.duplicates)}</span>
-              <span class="import-stat-label">Duplicates</span>
-            </div>
-            <div class="import-stat">
-              <span class="import-stat-value">{formatNumber(importResult.skipped)}</span>
-              <span class="import-stat-label">Skipped</span>
-            </div>
           </div>
         </div>
-      {/if}
-      {#if importError}
-        <div class="import-error">{importError}</div>
-      {/if}
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Export listening history</div>
-          <div class="pref-desc">Download your complete data ({formatNumber(health?.totalPlays ?? 0)} plays)</div>
+        {#if importResult}
+          <div class="import-results">
+            <div class="import-results-header">
+              <IconCheck color="var(--accent)" />
+              Import complete
+            </div>
+            <div class="import-stats">
+              <div class="import-stat">
+                <span class="import-stat-value">{formatNumber(importResult.total)}</span>
+                <span class="import-stat-label">Total</span>
+              </div>
+              <div class="import-stat">
+                <span class="import-stat-value">{formatNumber(importResult.imported)}</span>
+                <span class="import-stat-label">Imported</span>
+              </div>
+              <div class="import-stat">
+                <span class="import-stat-value">{formatNumber(importResult.duplicates)}</span>
+                <span class="import-stat-label">Duplicates</span>
+              </div>
+              <div class="import-stat">
+                <span class="import-stat-value">{formatNumber(importResult.skipped)}</span>
+                <span class="import-stat-label">Skipped</span>
+              </div>
+            </div>
+          </div>
+        {/if}
+        {#if importError}
+          <div class="import-error">{importError}</div>
+        {/if}
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Export listening history</div>
+            <div class="pref-desc">Download your complete data ({formatNumber(health?.totalPlays ?? 0)} plays)</div>
+          </div>
+          <div class="pref-control export-control">
+            <a href="/api/export?format=json" class="action-btn action-btn--secondary" download>
+              <IconDownload />
+              JSON
+            </a>
+            <a href="/api/export?format=csv" class="action-btn action-btn--secondary" download>
+              <IconDownload />
+              CSV
+            </a>
+          </div>
         </div>
-        <div class="pref-control export-control">
-          <a href="/api/export?format=json" class="action-btn action-btn--secondary" download>
-            <IconDownload />
-            JSON
-          </a>
-          <a href="/api/export?format=csv" class="action-btn action-btn--secondary" download>
-            <IconDownload />
-            CSV
-          </a>
-        </div>
-      </div>
-      <div class="pref-row row-border">
-        <div class="pref-info">
-          <div class="pref-label">Merges &amp; relations</div>
-          <div class="pref-desc">{mergeCount > 0 ? `${mergeCount} active rule${mergeCount !== 1 ? 's' : ''} combining duplicate entities` : 'Combine duplicate artists, albums, or tracks'} · link related artists without merging them</div>
-        </div>
-        <div class="pref-control">
-          <a href="/settings/merges" class="action-btn action-btn--secondary">Manage</a>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Merges &amp; relations</div>
+            <div class="pref-desc">{mergeCount > 0 ? `${mergeCount} active rule${mergeCount !== 1 ? 's' : ''} combining duplicate entities` : 'Combine duplicate artists, albums, or tracks'} · link related artists without merging them</div>
+          </div>
+          <div class="pref-control">
+            <a href="/settings/merges" class="action-btn action-btn--secondary">Manage</a>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="card section-card">
-    <div class="pref-row" style="padding: 0;">
-      <div class="pref-info">
-        <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Active sessions</h3>
-        <div class="pref-desc">Devices signed in to your account</div>
-      </div>
-      <div class="pref-control">
-        <a href="/settings/sessions" class="action-btn action-btn--secondary">Manage</a>
-      </div>
-    </div>
-  </div>
-
-  {#if me?.isAdmin}
+  {:else if activeTab === 'account'}
     <div class="card section-card">
       <div class="pref-row" style="padding: 0;">
         <div class="pref-info">
-          <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Admin</h3>
-          <div class="pref-desc">User management and system status</div>
+          <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Active sessions</h3>
+          <div class="pref-desc">Devices signed in to your account</div>
         </div>
         <div class="pref-control">
-          <a href="/settings/admin" class="action-btn action-btn--secondary">Open</a>
+          <a href="/settings/sessions" class="action-btn action-btn--secondary">Manage</a>
         </div>
       </div>
     </div>
+
+    {#if me?.isAdmin}
+      <div class="card section-card">
+        <div class="pref-row" style="padding: 0;">
+          <div class="pref-info">
+            <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Admin</h3>
+            <div class="pref-desc">User management and system status</div>
+          </div>
+          <div class="pref-control">
+            <a href="/settings/admin" class="action-btn action-btn--secondary">Open</a>
+          </div>
+        </div>
+      </div>
+    {/if}
   {/if}
 {/if}
 
@@ -928,7 +963,35 @@
     margin-bottom: 1.5rem;
   }
 
-  .section-card-title, .prefs-title {
+  /* controlador de secciones: se ancla al top del viewport (la página scrollea en
+     el documento, no en un contenedor propio) para que cambiar de panel siga a
+     mano en los paneles largos. fondo opaco porque el contenido pasa por debajo. */
+  .settings-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bg);
+    padding-top: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* override del .tabs global: el margen inferior lo pone el wrapper sticky */
+  .settings-tabs .tabs {
+    margin-bottom: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-tabs .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-tabs .tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .section-card-title {
     margin-bottom: 0.75rem;
   }
 
