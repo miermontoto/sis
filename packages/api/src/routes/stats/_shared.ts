@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { AppVariables } from '../../app.js';
 import type { WeekStartOption, EntityType, RankingMetric } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
-import { DEFAULT_PAGE_LIMIT } from '../../constants.js';
+import { DEFAULT_PAGE_LIMIT, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import { getRangeStart, getPreviousPeriodRange } from '../../db/queries/index.js';
 import type { Sort } from '../../db/queries/index.js';
 
@@ -55,7 +55,11 @@ export function parseParams(c: any) {
     return { range: 'custom' as const, limit, rangeStart, rangeEnd, sort, customDays };
   }
 
-  const range = (c.req.query('range') || 'month') as TimeRange;
+  // sin startDate/endDate, un `range=custom` (o cualquier valor no reconocido)
+  // no describe ninguna ventana: se cae al rango por defecto en vez de devolver
+  // en la respuesta un `range` que no corresponde a los datos servidos.
+  const rangeRaw = c.req.query('range') || DEFAULT_TIME_RANGE;
+  const range: TimeRange = isTimeRange(rangeRaw) ? rangeRaw : DEFAULT_TIME_RANGE;
   const rangeStart = getRangeStart(range);
   return { range, limit, rangeStart, rangeEnd: null as string | null, sort, customDays: undefined as number | undefined };
 }

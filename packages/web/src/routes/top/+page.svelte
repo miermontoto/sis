@@ -281,16 +281,18 @@
   async function loadVelocity(tab: typeof activeTab, entries: { id: string; name: string }[], r: string) {
     if (entries.length === 0) { velSeries = []; return; }
     velLoading = true;
+    // con rango personalizado la ventana va en las fechas, no en el nombre
+    const dates = getCustomDates();
     try {
       const results = await Promise.all(entries.map(async ({ id, name }) => {
         try {
           let series: { period: string; play_count: number; total_ms: number }[];
           if (tab === 'tracks') {
-            series = (await api.trackDetail(id, r)).series;
+            series = (await api.trackDetail(id, r, undefined, dates)).series;
           } else if (tab === 'artists') {
-            series = (await api.artistDetail(id, r)).series;
+            series = (await api.artistDetail(id, r, { dates })).series;
           } else {
-            series = (await api.albumDetail(id, r)).series;
+            series = (await api.albumDetail(id, r, undefined, undefined, dates)).series;
           }
           return seriesToCumulative(series, id, name);
         } catch { return null; }

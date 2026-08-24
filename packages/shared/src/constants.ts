@@ -17,6 +17,17 @@ export const TIME_RANGES = {
 
 export type TimeRange = keyof typeof TIME_RANGES;
 
+// rango asumido cuando la query no trae `range` (o trae uno no reconocido)
+export const DEFAULT_TIME_RANGE: TimeRange = 'month';
+
+// `custom` no está en TIME_RANGES: no es un rango relativo sino la señal de que
+// la ventana viene en startDate/endDate. Un `range` que no sea una clave de
+// TIME_RANGES no puede pasar a getRangeStart(), que haría aritmética con
+// undefined y devolvería una fecha inválida.
+export function isTimeRange(range: string): range is TimeRange {
+  return Object.prototype.hasOwnProperty.call(TIME_RANGES, range);
+}
+
 // tamaño del chart (cuántas posiciones tiene el billboard)
 export const CHART_SIZE = 25;
 

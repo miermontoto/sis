@@ -71,19 +71,23 @@ export const api = {
   recentRankChanges: (days = 7, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<RecentRankChangesResponse>('/stats/recent-rank-changes', { days: String(days), sort }, signal),
 
-  artistDetail: (id: string, range = 'all', opts?: { sort?: string; trackLimit?: number; albumLimit?: number; signal?: AbortSignal }) =>
+  // los tres detalles aceptan `dates` por el mismo motivo que los top-*: con
+  // range='custom' la ventana viaja en startDate/endDate. Mandar 'custom' a
+  // secas no describe ningún rango y el backend lo trataría como el rango por
+  // defecto, devolviendo datos de otra ventana.
+  artistDetail: (id: string, range = 'all', opts?: { sort?: string; trackLimit?: number; albumLimit?: number; dates?: DateRangeParams; signal?: AbortSignal }) =>
     apiFetch<ArtistDetail>(`/stats/artist/${encodeURIComponent(id)}`, {
-      range,
+      ...rangeParams(range, opts?.dates),
       ...(opts?.sort && { sort: opts.sort }),
       ...(opts?.trackLimit && { trackLimit: String(opts.trackLimit) }),
       ...(opts?.albumLimit && { albumLimit: String(opts.albumLimit) }),
     }, opts?.signal),
 
-  albumDetail: (id: string, range = 'all', sort?: string, signal?: AbortSignal) =>
-    apiFetch<AlbumDetail>(`/stats/album/${encodeURIComponent(id)}`, { range, ...(sort && { sort }) }, signal),
+  albumDetail: (id: string, range = 'all', sort?: string, signal?: AbortSignal, dates?: DateRangeParams) =>
+    apiFetch<AlbumDetail>(`/stats/album/${encodeURIComponent(id)}`, { ...rangeParams(range, dates), ...(sort && { sort }) }, signal),
 
-  trackDetail: (id: string, range = 'all', signal?: AbortSignal) =>
-    apiFetch<TrackDetail>(`/stats/track/${encodeURIComponent(id)}`, { range }, signal),
+  trackDetail: (id: string, range = 'all', signal?: AbortSignal, dates?: DateRangeParams) =>
+    apiFetch<TrackDetail>(`/stats/track/${encodeURIComponent(id)}`, rangeParams(range, dates), signal),
 
   search: (q: string, limit = 5) =>
     apiFetch<SearchResults>('/stats/search', { q, limit: String(limit) }),

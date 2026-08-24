@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { getDb } from '../connection.js';
-import { TIME_RANGES } from '../../constants.js';
+import { TIME_RANGES, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import type { TimeRange } from '../../constants.js';
 import type { EntityType, RankingMetric } from '@sis/shared';
 
@@ -41,10 +41,13 @@ export interface RecentPlayRow {
 // 'all' es el único rango que mapea al centinela 0 (= sin filtro, devuelve null).
 // La sobrecarga deja que los call sites con un rango literal —getRangeStart('month')—
 // obtengan `string` en vez de `string | null` y se ahorren un null que no puede darse.
+// Ambos helpers indexan TIME_RANGES, así que un `range` no reconocido daría
+// `undefined` y, tras la aritmética, un Invalid Date cuyo toISOString() lanza
+// RangeError (un 500 por un query param inválido). Se normaliza a la entrada.
 export function getRangeStart(range: Exclude<TimeRange, 'all'>): string;
-export function getRangeStart(range: TimeRange): string | null;
-export function getRangeStart(range: TimeRange): string | null {
-  const days = TIME_RANGES[range];
+export function getRangeStart(range: TimeRange | string): string | null;
+export function getRangeStart(range: TimeRange | string): string | null {
+  const days = TIME_RANGES[isTimeRange(range) ? range : DEFAULT_TIME_RANGE];
   if (days === 0) return null;
   if (days === -1) return new Date(Date.UTC(new Date().getFullYear(), 0, 1)).toISOString();
   const d = new Date();
@@ -52,8 +55,8 @@ export function getRangeStart(range: TimeRange): string | null {
   return d.toISOString();
 }
 
-export function getPreviousPeriodRange(range: TimeRange): { prevStart: string; prevEnd: string } | null {
-  const days = TIME_RANGES[range];
+export function getPreviousPeriodRange(range: TimeRange | string): { prevStart: string; prevEnd: string } | null {
+  const days = TIME_RANGES[isTimeRange(range) ? range : DEFAULT_TIME_RANGE];
   if (days === 0) return null;
 
   if (days === -1) {
