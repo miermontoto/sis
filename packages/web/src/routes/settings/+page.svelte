@@ -330,7 +330,6 @@
 {:else if error}
   <div class="card" style="border-color: var(--danger);">
     <p style="color: var(--danger);">Error: {error}</p>
-    <p style="color: var(--text-muted); margin-top: 0.5rem;">Make sure the API server is running on port 3000.</p>
   </div>
 {:else}
   <div class="settings-tabs">
