@@ -8,14 +8,13 @@
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
   import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
-  import { formatNumber } from '$lib/utils/format';
+  import { formatNumber, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
   import IconCheck from '$lib/icons/IconCheck.svelte';
   import IconUpload from '$lib/icons/IconUpload.svelte';
   import IconDownload from '$lib/icons/IconDownload.svelte';
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
-  import SessionsPanel from '@platform/ui/SessionsPanel.svelte';
   import { listLoginSessions, logoutOtherSessions, type SessionInfo } from '$lib/api';
 
   let health = $state<HealthData | null>(null);
@@ -55,6 +54,19 @@
   let sessionsLoaded = $state(false);
   let sessionsBusy = $state(false);
   let sessionsError = $state<string | null>(null);
+
+  // createdAt/expiresAt llegan en epoch ms; los formatters de la app parten de ISO
+  const sessionStarted = (ms: number) => formatHistoryStamp(new Date(ms).toISOString());
+  const sessionExpires = (ms: number) => formatShortDate(new Date(ms).toISOString());
+
+  // user-agent abreviado a navegador/os, sin librerías (mismo criterio que el
+  // SessionsPanel de @platform/ui, que aquí no usamos por no traer su maquetación)
+  function agentLabel(ua: string | null): string {
+    if (!ua) return 'Unknown device';
+    const browser = /firefox/i.test(ua) ? 'Firefox' : /edg/i.test(ua) ? 'Edge' : /chrome|crios/i.test(ua) ? 'Chrome' : /safari/i.test(ua) ? 'Safari' : ua.slice(0, 40);
+    const os = /android/i.test(ua) ? 'Android' : /iphone|ipad|ios/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : '';
+    return os ? `${browser} · ${os}` : browser;
+  }
 
   async function loadSessions() {
     sessionsLoaded = true;
@@ -950,43 +962,65 @@
   {:else if activeTab === 'account'}
     <div class="card prefs-card">
       <div class="prefs-subtitle">Active sessions</div>
-      <div class="pref-desc sessions-desc">Devices signed in to your account</div>
-      {#if sessionsError}
-        <div class="import-error">{sessionsError}</div>
-      {/if}
-      <SessionsPanel
-        {sessions}
-        busy={sessionsBusy}
-        onlogoutothers={logoutOthers}
-        labels={{
-          current: 'this session',
-          unknownAgent: 'unknown device',
-          created: 'started',
-          expires: 'expires',
-          logoutOthers: 'Log out other sessions',
-          empty: 'No active sessions',
-        }}
-      />
-    </div>
-
-    {#if me?.isAdmin}
-      <div class="card section-card">
-        <div class="pref-row" style="padding: 0;">
-          <div class="pref-info">
-            <h3 class="section-card-title" style="margin-bottom: 0.15rem;">Admin</h3>
-            <div class="pref-desc">User management and system status</div>
-          </div>
-          <div class="pref-control">
-            <a href="/settings/admin" class="action-btn action-btn--secondary">Open</a>
+      <div class="section-list">
+        {#if !sessionsLoaded}
+          <div class="section-note">Loading sessions…</div>
+        {:else if sessions.length === 0}
+          {#if !sessionsError}
+            <div class="section-note">No active sessions</div>
+          {/if}
+        {:else}
+          {#each sessions as session, i (session.hash)}
+            <div class="pref-row" class:row-border={i > 0}>
+              <div class="pref-info">
+                <div class="pref-label">{agentLabel(session.userAgent)}</div>
+                <div class="pref-desc">Started {sessionStarted(session.createdAt)} · expires {sessionExpires(session.expiresAt)}</div>
+              </div>
+              <div class="pref-control">
+                {#if session.current}
+                  <span class="value-badge" style="color: var(--accent);">This session</span>
+                {/if}
+              </div>
+            </div>
+          {/each}
+          {#if sessions.length > 1}
+            <div class="pref-row row-border">
+              <div class="pref-info">
+                <div class="pref-label">Log out other sessions</div>
+                <div class="pref-desc">Signs out every other device; this one stays signed in</div>
+              </div>
+              <div class="pref-control">
+                <button class="action-btn action-btn--danger" disabled={sessionsBusy} onclick={logoutOthers}>
+                  {sessionsBusy ? 'Logging out…' : 'Log out others'}
+                </button>
+              </div>
+            </div>
+          {/if}
+        {/if}
+        {#if sessionsError}
+          <div class="import-error">{sessionsError}</div>
+        {/if}
+      </div>
+      {#if me?.isAdmin}
+        <div class="prefs-subtitle">Admin</div>
+        <div class="section-list">
+          <div class="pref-row">
+            <div class="pref-info">
+              <div class="pref-label">Admin panel</div>
+              <div class="pref-desc">User management and system status</div>
+            </div>
+            <div class="pref-control">
+              <a href="/settings/admin" class="action-btn action-btn--secondary">Open</a>
+            </div>
           </div>
         </div>
-      </div>
-    {/if}
+      {/if}
+    </div>
   {/if}
 {/if}
 
 <style>
-  .section-card, .prefs-card {
+  .prefs-card {
     margin-bottom: 1.5rem;
   }
 
@@ -1018,10 +1052,6 @@
     white-space: nowrap;
   }
 
-  .section-card-title {
-    margin-bottom: 0.75rem;
-  }
-
   .prefs-subtitle {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1036,10 +1066,24 @@
     margin-top: 0;
   }
 
-  /* descripción bajo el subtítulo de sesiones: el panel no trae texto propio */
-  .sessions-desc {
-    margin-top: 0;
-    margin-bottom: 0.6rem;
+  /* nota neutra dentro de una sección (cargando, lista vacía): ocupa lo mismo
+     que una pref-row para que la sección no dé un salto al llegar los datos */
+  .section-note {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0.75rem 0;
+  }
+
+  /* mismo badge de valor que usa la página de admin en su columna de control */
+  .value-badge {
+    display: inline-block;
+    padding: 0.3rem 0.7rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    color: var(--text);
+    font-family: var(--font-mono);
   }
 
   .section-list, .prefs-list {
