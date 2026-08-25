@@ -104,6 +104,10 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
 
   const albumRows = db.all(sql`
     SELECT al.spotify_id as id, al.name, al.image_url as imageUrl,
+           (SELECT ar.spotify_id FROM tracks t2
+            JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
+            JOIN artists ar ON ar.spotify_id = ta2.artist_id
+            WHERE t2.album_id = al.spotify_id LIMIT 1) as artistId,
            (SELECT ar.name FROM tracks t2
             JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
             JOIN artists ar ON ar.spotify_id = ta2.artist_id
@@ -141,6 +145,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
   const trackRows = db.all(sql`
     SELECT t.spotify_id as id, t.name,
            al.image_url as albumImageUrl,
+           pa.artist_id as artistId,
            ar.name as artistName,
            COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM tracks t

@@ -2,8 +2,10 @@
   import { goto } from '$app/navigation';
   import { api, type SearchResults } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import { isSpotifyId } from '$lib/utils/entity-context';
+  import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
+  import { isSpotifyId, openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
   import IconPlay from '$lib/icons/IconPlay.svelte';
+  import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
@@ -42,6 +44,42 @@
     } else {
       goto(`/${type}/${encodeURIComponent(id)}`);
     }
+  }
+
+  // las filas navegan en mousedown (se adelanta al blur del input), así que hay que filtrar
+  // el botón derecho: dispara mousedown antes que contextmenu y se llevaría la navegación.
+  function onRowMouseDown(e: MouseEvent, type: string, id: string) {
+    if (e.button !== 0) return;
+    navigate(type, id);
+  }
+
+  // el menú contextual global reemplaza al nativo; cerramos el modal antes de cada acción
+  function entityMenu(entity: EntityContext) {
+    return openEntityContextMenu(entity, close);
+  }
+
+  // las playlists no son una entidad del modelo de merges: menú mínimo propio
+  function playlistMenu(playlist: SearchResults['playlists'][number]) {
+    return (e: MouseEvent) => {
+      const actions: ContextMenuAction[] = [];
+      if (playlist.spotifyId) {
+        const contextUri = `spotify:playlist:${playlist.spotifyId}`;
+        actions.push({
+          label: 'Play',
+          icon: IconPlay,
+          onClick: () => {
+            close();
+            nowPlayingStore.playContext({ context_uri: contextUri });
+          },
+        });
+      }
+      actions.push({
+        label: 'Open',
+        icon: IconChevronRight,
+        onClick: () => navigate('playlist', String(playlist.id)),
+      });
+      contextMenu.open(e, actions);
+    };
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -136,6 +174,8 @@
   let playError = $state('');
 
   async function playItem(e: MouseEvent | KeyboardEvent, type: 'artist' | 'album' | 'track' | 'playlist', id: string, spotifyId?: string) {
+    // el botón derecho sobre el play deja pasar el contextmenu a la fila
+    if (e instanceof MouseEvent && e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
     if (playingId) return;
@@ -156,7 +196,7 @@
 
 {#if show}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="search-overlay" onmousedown={(e) => { if (e.target === e.currentTarget) close(); }} onkeydown={onKeydown}>
+  <div class="search-overlay" onmousedown={(e) => { if (e.button === 0 && e.target === e.currentTarget) close(); }} onkeydown={onKeydown}>
     <div class="search-modal">
       <input
         bind:this={inputEl}
@@ -182,7 +222,8 @@
                 <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('playlists', i)}
-                  onmousedown={() => navigate('playlist', String(playlist.id))}
+                  onmousedown={(e) => onRowMouseDown(e, 'playlist', String(playlist.id))}
+                  oncontextmenu={playlistMenu(playlist)}
                   onmouseenter={() => selectedIndex = flatIndex('playlists', i)}
                 >
                   {#if playlist.imageUrl}
@@ -213,7 +254,8 @@
                 <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('artists', i)}
-                  onmousedown={() => navigate('artist', artist.id)}
+                  onmousedown={(e) => onRowMouseDown(e, 'artist', artist.id)}
+                  oncontextmenu={entityMenu({ type: 'artist', id: artist.id, name: artist.name, imageUrl: artist.imageUrl })}
                   onmouseenter={() => selectedIndex = flatIndex('artists', i)}
                 >
                   {#if artist.imageUrl}
@@ -246,7 +288,8 @@
                 <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('albums', i)}
-                  onmousedown={() => navigate('album', album.id)}
+                  onmousedown={(e) => onRowMouseDown(e, 'album', album.id)}
+                  oncontextmenu={entityMenu({ type: 'album', id: album.id, name: album.name, imageUrl: album.imageUrl, parentArtistId: album.artistId ?? undefined })}
                   onmouseenter={() => selectedIndex = flatIndex('albums', i)}
                 >
                   {#if album.imageUrl}
@@ -279,7 +322,8 @@
                 <div
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('tracks', i)}
-                  onmousedown={() => navigate('track', track.id)}
+                  onmousedown={(e) => onRowMouseDown(e, 'track', track.id)}
+                  oncontextmenu={entityMenu({ type: 'track', id: track.id, name: track.name, imageUrl: track.albumImageUrl, parentArtistId: track.artistId ?? undefined })}
                   onmouseenter={() => selectedIndex = flatIndex('tracks', i)}
                 >
                   {#if track.albumImageUrl}

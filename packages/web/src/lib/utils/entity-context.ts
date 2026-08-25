@@ -76,9 +76,16 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
   return actions;
 }
 
-/** Para usar inline: `oncontextmenu={openEntityContextMenu(entity)}`. */
-export function openEntityContextMenu(entity: EntityContext) {
+/**
+ * Para usar inline: `oncontextmenu={openEntityContextMenu(entity)}`.
+ * `onAction` se ejecuta antes de cualquier acción: sirve para que un anfitrión efímero
+ * (el modal de búsqueda) se cierre y no quede apilado bajo el modal de merge/relate.
+ */
+export function openEntityContextMenu(entity: EntityContext, onAction?: () => void) {
   return (e: MouseEvent) => {
-    contextMenu.open(e, buildActions(entity));
+    const actions = buildActions(entity);
+    contextMenu.open(e, onAction
+      ? actions.map(a => ({ ...a, onClick: () => { onAction(); return a.onClick(); } }))
+      : actions);
   };
 }
