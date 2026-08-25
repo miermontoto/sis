@@ -1,7 +1,7 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -33,6 +33,11 @@
   import IconLink from '$lib/icons/IconLink.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
+  // tamaños de las listas top: colapsadas por defecto, expandidas con "show all"
+  const TOP_TRACKS_LIMIT = 10;
+  const TOP_ALBUMS_LIMIT = 5;
+  const SHOW_ALL_LIMIT = 200;
+
   // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
   const artistId = $derived($page.params.id ?? '');
 
@@ -54,6 +59,8 @@
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let layout = $state<DetailLayout>(defaultLayout('artist'));
   const fetchCtrl = createFetchController();
+  // un controller por lista: expandir álbumes no debe abortar el fetch de tracks
+  const listCtrl = { tracks: createFetchController(), albums: createFetchController() };
 
   // lanzamientos del artista como eventos de las gráficas (singles más tenues que álbumes)
   let releaseEvents = $derived<ChartEvent[]>((data?.releases ?? []).map(r => ({
@@ -71,25 +78,14 @@
       const sort = metric === 'plays' ? 'plays' : 'time';
       const result = await api.artistDetail(id, 'all', {
         sort,
-        trackLimit: showAllTracks ? 200 : 10,
-        albumLimit: showAllAlbums ? 200 : 5,
+        trackLimit: showAllTracks ? SHOW_ALL_LIMIT : TOP_TRACKS_LIMIT,
+        albumLimit: showAllAlbums ? SHOW_ALL_LIMIT : TOP_ALBUMS_LIMIT,
         signal,
       });
       if (signal.aborted) return;
       data = result;
-      // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
-      if (artistShowGlobalRanks) {
-        if (result.topTracks.length > 0) {
-          api.rankingsBatch('track', result.topTracks.map(t => t.trackId), sort, signal)
-            .then(r => { if (!signal.aborted) trackGlobalRanks = r; })
-            .catch(() => {});
-        }
-        if (result.topAlbums.length > 0) {
-          api.rankingsBatch('album', result.topAlbums.map(a => a.albumId), sort, signal)
-            .then(r => { if (!signal.aborted) albumGlobalRanks = r; })
-            .catch(() => {});
-        }
-      }
+      loadGlobalRanks('track', result.topTracks.map(t => t.trackId), signal);
+      loadGlobalRanks('album', result.topAlbums.map(a => a.albumId), signal);
       if (result.artist.imageUrl) {
         extractColor(result.artist.imageUrl).then(([r, g, b]) => {
           if (!signal.aborted) heroColor = `${r},${g},${b}`;
@@ -105,6 +101,45 @@
     }
   }
 
+  // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
+  function loadGlobalRanks(type: 'track' | 'album', ids: string[], signal: AbortSignal) {
+    if (!artistShowGlobalRanks || ids.length === 0) return;
+    api.rankingsBatch(type, ids, metric, signal)
+      .then(r => {
+        if (signal.aborted) return;
+        if (type === 'track') trackGlobalRanks = r; else albumGlobalRanks = r;
+      })
+      .catch(() => {});
+  }
+
+  // el toggle "show all" refresca solo su lista y la parchea sobre `data`: reasignar el
+  // detalle entero devolvía una `series` nueva y las gráficas se repintaban desde cero
+  async function toggleList(kind: 'tracks' | 'albums') {
+    const isTracks = kind === 'tracks';
+    if (isTracks) showAllTracks = !showAllTracks;
+    else showAllAlbums = !showAllAlbums;
+
+    const showAll = isTracks ? showAllTracks : showAllAlbums;
+    const collapsed = isTracks ? TOP_TRACKS_LIMIT : TOP_ALBUMS_LIMIT;
+    const opts = { sort: metric, limit: showAll ? SHOW_ALL_LIMIT : collapsed, signal: listCtrl[kind].reset() };
+    try {
+      if (isTracks) {
+        const rows = await api.artistTopTracks(artistId, opts);
+        if (opts.signal.aborted || !data) return;
+        data.topTracks = rows;
+        loadGlobalRanks('track', rows.map(t => t.trackId), opts.signal);
+      } else {
+        const rows = await api.artistTopAlbums(artistId, opts);
+        if (opts.signal.aborted || !data) return;
+        data.topAlbums = rows;
+        loadGlobalRanks('album', rows.map(a => a.albumId), opts.signal);
+      }
+    } catch (e) {
+      if (isAbortError(e)) return;
+      throw e;
+    }
+  }
+
   let initialized = false;
   let prevId = '';
 
@@ -117,21 +152,25 @@
     initialized = true;
   });
 
+  // deps explícitas: loadData va en untrack porque sus lecturas (showAll*, flags de
+  // settings) son síncronas y si no se convertirían en deps del efecto, recargando el
+  // detalle entero al pulsar "show all"
   $effect(() => {
     const id = artistId;
     void metric;
-    void showAllTracks;
-    void showAllAlbums;
     void mergeModal.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
+      // abortar toggles en vuelo: su respuesta parchearía las listas del artista anterior
+      listCtrl.tracks.abort();
+      listCtrl.albums.abort();
       data = null;
       chartHistoryData = null;
       trackGlobalRanks = null;
       albumGlobalRanks = null;
       prevId = id;
     }
-    loadData(id);
+    untrack(() => loadData(id));
   });
 
 </script>
@@ -205,7 +244,7 @@
       {#if d.topTracks.length > 0}
         <div class="section-header">
           <h2 class="section-title">Top tracks</h2>
-          <button class="show-all-btn" onclick={() => showAllTracks = !showAllTracks}>
+          <button class="show-all-btn" onclick={() => toggleList('tracks')}>
             {showAllTracks ? 'Show less' : 'Show all'}
           </button>
         </div>
@@ -215,7 +254,7 @@
       {#if d.topAlbums.length > 0}
         <div class="section-header">
           <h2 class="section-title">Top albums</h2>
-          <button class="show-all-btn" onclick={() => showAllAlbums = !showAllAlbums}>
+          <button class="show-all-btn" onclick={() => toggleList('albums')}>
             {showAllAlbums ? 'Show less' : 'Show all'}
           </button>
         </div>

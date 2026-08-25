@@ -16,6 +16,14 @@ import type {
 } from '@sis/shared';
 import { apiFetch, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, API_BASE } from './client.js';
 
+// params comunes de las listas top del detalle de artista (mismo contrato que artistDetail:
+// con range='custom' la ventana viaja en startDate/endDate)
+const artistTopParams = (opts?: { sort?: string; limit?: number; range?: string; dates?: DateRangeParams }) => ({
+  ...rangeParams(opts?.range ?? 'all', opts?.dates),
+  ...(opts?.sort && { sort: opts.sort }),
+  ...(opts?.limit && { limit: String(opts.limit) }),
+});
+
 export const api = {
   nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
   nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
@@ -82,6 +90,14 @@ export const api = {
       ...(opts?.trackLimit && { trackLimit: String(opts.trackLimit) }),
       ...(opts?.albumLimit && { albumLimit: String(opts.albumLimit) }),
     }, opts?.signal),
+
+  // listas top del detalle de artista por separado: el toggle "show all" refresca solo su
+  // sección, sin rehacer el detalle entero (y sin repintar las gráficas al reasignarlo)
+  artistTopTracks: (id: string, opts?: { sort?: string; limit?: number; range?: string; dates?: DateRangeParams; signal?: AbortSignal }) =>
+    apiFetch<TopTrackItem[]>(`/stats/artist/${encodeURIComponent(id)}/top/tracks`, artistTopParams(opts), opts?.signal),
+
+  artistTopAlbums: (id: string, opts?: { sort?: string; limit?: number; range?: string; dates?: DateRangeParams; signal?: AbortSignal }) =>
+    apiFetch<TopAlbumItem[]>(`/stats/artist/${encodeURIComponent(id)}/top/albums`, artistTopParams(opts), opts?.signal),
 
   albumDetail: (id: string, range = 'all', sort?: string, signal?: AbortSignal, dates?: DateRangeParams) =>
     apiFetch<AlbumDetail>(`/stats/album/${encodeURIComponent(id)}`, { ...rangeParams(range, dates), ...(sort && { sort }) }, signal),

@@ -69,6 +69,26 @@ detail.get('/artist/:id', async (c) => {
   });
 });
 
+// listas top de la página de artista servidas aparte: el botón "show all" solo cambia
+// su propia sección, y refrescar el detalle entero rehacía stats/series/relaciones y
+// devolvía una `series` nueva que repintaba las gráficas desde cero.
+detail.get('/artist/:id/top/:kind', async (c) => {
+  const id = c.req.param('id');
+  const kind = c.req.param('kind');
+  if (kind !== 'tracks' && kind !== 'albums') return c.json({ error: 'Invalid kind' }, 400);
+
+  const { limit, rangeStart, rangeEnd, sort } = parseParams(c);
+  const userId = c.get('userId');
+  const artistIds = await dbRead('resolveEntityIds', 'artist', id, userId);
+
+  if (kind === 'tracks') {
+    const rows = await dbRead('getArtistTopTracks', id, rangeStart, sort, limit, rangeEnd, userId, artistIds);
+    return c.json(await dbRead('formatArtistTrackRows', rows));
+  }
+  const rows = await dbRead('getArtistTopAlbums', id, rangeStart, sort, limit, rangeEnd, userId, artistIds);
+  return c.json(await Promise.all(rows.map((row) => dbRead('formatArtistAlbumRow', row))));
+});
+
 detail.get('/album/:id', async (c) => {
   const id = c.req.param('id');
   const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
