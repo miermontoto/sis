@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fitSeries, aggregateSeries, periodToMonth, periodToQuarter, periodToYear, niceAxisMax, MIN_BAR_SLOT_PX, type SeriesPoint } from './chart';
+import { fitSeries, aggregateSeries, periodToMonth, periodToQuarter, periodToYear, niceAxisMax, measureTextWidth, truncateToWidth, MIN_BAR_SLOT_PX, type SeriesPoint } from './chart';
 
 // bug: en las vistas de detalle el ancho de barra del activity chart era
 // plotWidth/N sin suelo mínimo, así que en viewports estrechos con series
@@ -117,5 +117,35 @@ describe('niceAxisMax', () => {
     expect(niceAxisMax(0)).toBe(1);
     expect(niceAxisMax(-5)).toBe(1);
     expect(niceAxisMax(NaN)).toBe(1);
+  });
+});
+
+// el nombre de la entidad se recorta contra el hueco real que tiene en el chart,
+// no contra un tope de caracteres: con el tope, un nombre que cabía de sobra
+// dentro de su barra perdía caracteres igualmente
+describe('truncateToWidth', () => {
+  const FONT = '12px sans';
+  const NAME = 'The Foundations of Decay';
+
+  it('no toca el nombre que cabe', () => {
+    const room = measureTextWidth(NAME, FONT);
+    expect(truncateToWidth(NAME, FONT, room)).toBe(NAME);
+    expect(truncateToWidth(NAME, FONT, room * 2)).toBe(NAME);
+  });
+
+  it('recorta al prefijo más largo que cabe, no a uno conservador', () => {
+    const room = measureTextWidth(NAME, FONT) / 2;
+    const cut = truncateToWidth(NAME, FONT, room);
+
+    expect(cut.endsWith('…')).toBe(true);
+    expect(measureTextWidth(cut, FONT)).toBeLessThanOrEqual(room);
+    // el siguiente carácter ya no cabría: el recorte es máximo
+    expect(measureTextWidth(NAME.slice(0, cut.length) + '…', FONT)).toBeGreaterThan(room);
+  });
+
+  it('devuelve vacío cuando no cabe ni un carácter con su elipsis', () => {
+    expect(truncateToWidth(NAME, FONT, 1)).toBe('');
+    expect(truncateToWidth(NAME, FONT, 0)).toBe('');
+    expect(truncateToWidth(NAME, FONT, -10)).toBe('');
   });
 });

@@ -11,7 +11,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor, readableTextOn } from '$lib/utils/color';
-  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, measureTextWidth, niceAxisMax, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, measureTextWidth, truncateToWidth, niceAxisMax, MONO_STACK, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { fitZipf } from '$lib/utils/zipf';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
@@ -124,7 +124,10 @@
   const NAME_TAIL = 6;
   // separación entre el nombre que ha salido fuera y la cifra que lo sigue
   const NAME_STAT_GAP = 8;
-  const MAX_BAR_NAME = 18;
+  const STAT_FONT_SIZE = 11;
+  // el nombre que sale fuera puede pintarse sobre el margen que el grid reserva
+  // a la derecha: su límite real es el borde del canvas, no el del grid
+  const CANVAS_RIGHT_MARGIN = 4;
   // extremos de opacidad del degradado de cada barra, de su izquierda a su derecha
   const FILL_HEAD_ALPHA = 0.9;
   const FILL_TAIL_ALPHA = 0.3;
@@ -141,13 +144,27 @@
   // desplazamiento de la cifra tienen que compartir para no pisarse
   let barRows = $derived.by(() => {
     const plotWidth = Math.max(0, chartHostWidth - GRID_LEFT - GRID_RIGHT);
-    const font = `${NAME_FONT_SIZE}px ${SANS_STACK}`;
+    const nameFont = `${NAME_FONT_SIZE}px ${SANS_STACK}`;
+    const statFont = `${STAT_FONT_SIZE}px ${MONO_STACK}`;
+    const rightLimit = chartHostWidth - CANVAS_RIGHT_MARGIN;
 
     return chartRows.map((row, i) => {
-      const name = row.name.length > MAX_BAR_NAME ? row.name.slice(0, MAX_BAR_NAME - 1) + '…' : row.name;
-      const nameWidth = measureTextWidth(name, font);
       const barWidth = (row.value / barAxisMax) * plotWidth;
-      const fits = barWidth >= LABEL_DISTANCE + nameWidth + NAME_TAIL;
+      const statWidth = measureTextWidth(formatChartValue(row.value), statFont);
+      const fullWidth = measureTextWidth(row.name, nameFont);
+
+      // hueco a cada lado: dentro es lo que queda de barra descontando el aire de
+      // sus dos bordes; fuera, lo que va del final de la barra hasta su cifra
+      const insideRoom = barWidth - LABEL_DISTANCE - NAME_TAIL;
+      const outsideRoom = rightLimit - (GRID_LEFT + barWidth + LABEL_DISTANCE) - NAME_STAT_GAP - statWidth;
+
+      // dentro si cabe entero; si no, fuera si cabe entero ahí. Recortar es el
+      // último recurso y se hace contra el mayor de los dos huecos, no contra un
+      // tope de caracteres: un nombre que cabe no debe perder ni un carácter
+      const inside = fullWidth <= insideRoom || (fullWidth > outsideRoom && insideRoom >= outsideRoom);
+      const room = inside ? insideRoom : outsideRoom;
+      const name = fullWidth <= room ? row.name : truncateToWidth(row.name, nameFont, room);
+      const nameWidth = measureTextWidth(name, nameFont);
       const rgb = barColors[i] ?? DEFAULT_RGB;
 
       // el degradado se apaga hacia la derecha, así que un nombre que ocupa casi
@@ -159,10 +176,11 @@
       return {
         ...row,
         name,
+        fullName: row.name,
         nameWidth,
-        fits,
+        inside,
         rgb,
-        nameColor: fits ? readableTextOn(rgb, alpha) : NAME_OUTSIDE_COLOR,
+        nameColor: inside ? readableTextOn(rgb, alpha) : NAME_OUTSIDE_COLOR,
       };
     }).reverse();
   });
@@ -186,8 +204,10 @@
         axisPointer: { type: 'shadow' },
         formatter: (params: TooltipParams) => {
           const p = tooltipPoint(params);
-          // el nombre en sans (es texto, no cifra); el valor se queda en el mono del tooltip
-          return `<span style="font-family: var(--font-sans)">${p.name}</span><br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
+          // el nombre en sans (es texto, no cifra); el valor se queda en el mono del
+          // tooltip. Se enseña entero aunque su etiqueta haya tenido que recortarse
+          const name = barRows[p.dataIndex]?.fullName ?? p.name;
+          return `<span style="font-family: var(--font-sans)">${name}</span><br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
         },
       },
       xAxis: {
@@ -232,7 +252,7 @@
             // cuando el nombre no cabe dentro sale delante de la cifra, así que la
             // cifra se aparta justo lo que ocupa. El offset se escribe SIEMPRE: al
             // remerger la opción, una clave ausente no borra la del render anterior
-            label: { offset: row.fits ? [0, 0] : [row.nameWidth + NAME_STAT_GAP, 0] },
+            label: { offset: row.inside ? [0, 0] : [row.nameWidth + NAME_STAT_GAP, 0] },
           };
         }),
         cursor: 'pointer',
@@ -241,8 +261,8 @@
           position: 'right',
           distance: LABEL_DISTANCE,
           color: STAT_COLOR,
-          fontSize: 11,
-          formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return metric === 'plays' ? `${p.value}` : formatChartValue(p.value); },
+          fontSize: STAT_FONT_SIZE,
+          formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return formatChartValue(p.value); },
         },
       }, {
         // una serie de barras solo admite UNA etiqueta por dato, y aquí hacen falta
@@ -259,7 +279,7 @@
         emphasis: { disabled: true },
         data: barRows.map(row => ({
           value: row.value,
-          label: { position: row.fits ? 'insideLeft' : 'right', color: row.nameColor },
+          label: { position: row.inside ? 'insideLeft' : 'right', color: row.nameColor },
         })),
         label: {
           show: true,

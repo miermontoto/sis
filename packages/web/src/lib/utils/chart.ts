@@ -58,7 +58,7 @@ type SingleYAxis = Exclude<NonNullable<EChartsOption['yAxis']>, readonly any[]>;
 
 // --- Shared defaults ---
 
-const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
+export const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
 
 // stack sans (espejo de --font-sans en app.css) para las etiquetas que son texto
 // de verdad (nombres de entidad); las cifras se quedan en mono por alineación
@@ -116,6 +116,28 @@ export function measureTextWidth(text: string, font: string): number {
 
   textWidths.set(key, width);
   return width;
+}
+
+const ELLIPSIS = '…';
+
+/**
+ * `text` recortado con elipsis al mayor prefijo que quepa en `maxWidth`. Devuelve
+ * el texto intacto si ya cabe, y vacío si no cabe ni un carácter con la elipsis.
+ */
+export function truncateToWidth(text: string, font: string, maxWidth: number): string {
+  if (measureTextWidth(text, font) <= maxWidth) return text;
+
+  // busca el prefijo más largo que cabe con la elipsis pegada. Binaria y no
+  // carácter a carácter porque cada paso mide, y medir texto no es gratis
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (measureTextWidth(text.slice(0, mid) + ELLIPSIS, font) <= maxWidth) low = mid;
+    else high = mid - 1;
+  }
+
+  return low > 0 ? text.slice(0, low) + ELLIPSIS : '';
 }
 
 // divisiones a las que se apunta al redondear el techo del eje, igual que el
