@@ -10,8 +10,8 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import { extractColor } from '$lib/utils/color';
-  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
+  import { extractColor, readableTextOn } from '$lib/utils/color';
+  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, measureTextWidth, niceAxisMax, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { fitZipf } from '$lib/utils/zipf';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
@@ -105,34 +105,82 @@
   // de pestaña, de rango, de métrica o de Top N
   let zipf = $derived(fitZipf(chartRows.map(r => r.value)));
 
+  // --- geometría de las etiquetas del bar chart ---
+  // el nombre va DENTRO de la barra cuando cabe y fuera, delante de su cifra,
+  // cuando no. "Caber" es una pregunta en píxeles, así que el eje se fija a un
+  // techo propio (niceAxisMax) en vez de dejar que echarts elija el suyo, que no
+  // es consultable hasta después de pintar: con el techo fijado, cada barra mide
+  // exactamente valor/techo del ancho útil del grid
+  const COVER_SIZE = 26;
+  const COVER_GAP = 8;
+  const GRID_LEFT = COVER_SIZE + COVER_GAP * 2;
+  const GRID_RIGHT = 55;
+  const BAR_WIDTH = 28;
+  const NAME_FONT_SIZE = 12;
+  // aire entre el borde de la barra y el texto, dentro y fuera
+  const LABEL_DISTANCE = 6;
+  // aire que debe sobrar dentro de la barra detrás del nombre para que se
+  // considere que cabe: pegado al borde derecho se lee como desbordado
+  const NAME_TAIL = 6;
+  // separación entre el nombre que ha salido fuera y la cifra que lo sigue
+  const NAME_STAT_GAP = 8;
+  const MAX_BAR_NAME = 18;
+  // extremos de opacidad del degradado de cada barra, de su izquierda a su derecha
+  const FILL_HEAD_ALPHA = 0.9;
+  const FILL_TAIL_ALPHA = 0.3;
+  const DEFAULT_RGB: [number, number, number] = [29, 185, 84];
+  const NAME_OUTSIDE_COLOR = '#e0e8e8';
+  const STAT_COLOR = '#6a7a7a';
+
+  let chartHostWidth = $state(0);
+
+  let barAxisMax = $derived(niceAxisMax(Math.max(0, ...chartRows.map(r => r.value))));
+
+  // filas tal y como se pintan: invertidas (echarts numera las categorías de
+  // abajo arriba) y con la decisión de colocación ya tomada, que el nombre y el
+  // desplazamiento de la cifra tienen que compartir para no pisarse
+  let barRows = $derived.by(() => {
+    const plotWidth = Math.max(0, chartHostWidth - GRID_LEFT - GRID_RIGHT);
+    const font = `${NAME_FONT_SIZE}px ${SANS_STACK}`;
+
+    return chartRows.map((row, i) => {
+      const name = row.name.length > MAX_BAR_NAME ? row.name.slice(0, MAX_BAR_NAME - 1) + '…' : row.name;
+      const nameWidth = measureTextWidth(name, font);
+      const barWidth = (row.value / barAxisMax) * plotWidth;
+      const fits = barWidth >= LABEL_DISTANCE + nameWidth + NAME_TAIL;
+      const rgb = barColors[i] ?? DEFAULT_RGB;
+
+      // el degradado se apaga hacia la derecha, así que un nombre que ocupa casi
+      // toda una barra corta se lee sobre un relleno mucho más flojo que el de
+      // una larga: el contraste se decide en el punto medio del propio texto
+      const midpoint = barWidth > 0 ? Math.min(1, (LABEL_DISTANCE + nameWidth / 2) / barWidth) : 0;
+      const alpha = FILL_HEAD_ALPHA + (FILL_TAIL_ALPHA - FILL_HEAD_ALPHA) * midpoint;
+
+      return {
+        ...row,
+        name,
+        nameWidth,
+        fits,
+        rgb,
+        nameColor: fits ? readableTextOn(rgb, alpha) : NAME_OUTSIDE_COLOR,
+      };
+    }).reverse();
+  });
+
   let barChartOption = $derived.by<EChartsOption>(() => {
-    let names = chartRows.map(r => r.name);
-    let values = chartRows.map(r => r.value);
-    let images = chartRows.map(r => r.image);
-
-    const MAX_NAME = 18;
-    names = names.map(n => n.length > MAX_NAME ? n.slice(0, MAX_NAME - 1) + '…' : n);
-    names = names.slice().reverse();
-    values = values.slice().reverse();
-    images = images.slice().reverse();
-    const defaultRgb: [number, number, number] = [29, 185, 84];
-    const colors = barColors.length >= names.length
-      ? barColors.slice(0, names.length).slice().reverse()
-      : names.map(() => defaultRgb);
-
-    const rich: Record<string, any> = {
-      name: { fontSize: 12, color: '#e0e8e8', width: 100, overflow: 'truncate', align: 'left', fontFamily: SANS_STACK },
-    };
-    images.forEach((url, i) => {
-      if (url) {
-        rich[`img${i}`] = { backgroundColor: { image: url }, width: 26, height: 26, borderRadius: activeTab === 'artists' ? 13 : 2, align: 'left' };
-      } else {
-        rich[`img${i}`] = { backgroundColor: '#1e2a2a', width: 26, height: 26, borderRadius: activeTab === 'artists' ? 13 : 2, align: 'left' };
-      }
+    const rich: Record<string, any> = {};
+    barRows.forEach((row, i) => {
+      rich[`img${i}`] = {
+        backgroundColor: row.image ? { image: row.image } : '#1e2a2a',
+        width: COVER_SIZE,
+        height: COVER_SIZE,
+        borderRadius: activeTab === 'artists' ? COVER_SIZE / 2 : 2,
+        align: 'left',
+      };
     });
 
     return {
-      grid: { top: 10, bottom: 5, right: 55, containLabel: false, left: 160 },
+      grid: { top: 10, bottom: 5, right: GRID_RIGHT, containLabel: false, left: GRID_LEFT },
       tooltip: {
         ...TOOLTIP_BASE,
         axisPointer: { type: 'shadow' },
@@ -144,52 +192,81 @@
       },
       xAxis: {
         type: 'value',
+        min: 0,
+        max: barAxisMax,
         splitLine: { ...SPLIT_LINE },
         axisLabel: { ...AXIS_LABEL, formatter: (v: number) => metric === 'plays' ? String(v) : formatChartValue(v) },
       },
       yAxis: {
         type: 'category',
-        data: names,
+        data: barRows.map(r => r.name),
         axisLine: { ...AXIS_LINE },
         axisTick: { show: false },
+        // el eje ya solo lleva la portada: el nombre vive ahora sobre la barra
         axisLabel: {
           rich,
           align: 'left',
-          margin: 155,
-          formatter: (name: string) => {
-            const idx = names.indexOf(name);
-            return `{img${idx}|}  {name|${name}}`;
-          },
+          margin: COVER_SIZE + COVER_GAP,
+          formatter: (_name: string, index: number) => `{img${index}|}`,
         },
         triggerEvent: true,
       },
       series: [{
         type: 'bar',
-        data: values.map((v, i) => {
-          const [r, g, b] = colors[i] ?? defaultRgb;
+        barWidth: BAR_WIDTH,
+        data: barRows.map((row) => {
+          const [r, g, b] = row.rgb;
           return {
-            value: v,
+            value: row.value,
             itemStyle: {
               color: {
                 type: 'linear' as const,
                 x: 0, y: 0, x2: 1, y2: 0,
                 colorStops: [
-                  { offset: 0, color: `rgba(${r},${g},${b},0.9)` },
-                  { offset: 1, color: `rgba(${r},${g},${b},0.3)` },
+                  { offset: 0, color: `rgba(${r},${g},${b},${FILL_HEAD_ALPHA})` },
+                  { offset: 1, color: `rgba(${r},${g},${b},${FILL_TAIL_ALPHA})` },
                 ],
               },
               borderRadius: [0, 2, 2, 0],
             },
+            // cuando el nombre no cabe dentro sale delante de la cifra, así que la
+            // cifra se aparta justo lo que ocupa. El offset se escribe SIEMPRE: al
+            // remerger la opción, una clave ausente no borra la del render anterior
+            label: { offset: row.fits ? [0, 0] : [row.nameWidth + NAME_STAT_GAP, 0] },
           };
         }),
-        barMaxWidth: 28,
         cursor: 'pointer',
         label: {
           show: true,
           position: 'right',
-          color: '#6a7a7a',
+          distance: LABEL_DISTANCE,
+          color: STAT_COLOR,
           fontSize: 11,
           formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return metric === 'plays' ? `${p.value}` : formatChartValue(p.value); },
+        },
+      }, {
+        // una serie de barras solo admite UNA etiqueta por dato, y aquí hacen falta
+        // dos anclajes distintos (nombre y cifra): esta serie calca la geometría de
+        // la anterior (barGap -100% la superpone), no pinta nada y solo existe para
+        // colgar de ella la etiqueta del nombre, que al dibujarse después queda
+        // por encima de las barras
+        type: 'bar',
+        barWidth: BAR_WIDTH,
+        barGap: '-100%',
+        silent: true,
+        tooltip: { show: false },
+        itemStyle: { color: 'transparent' },
+        emphasis: { disabled: true },
+        data: barRows.map(row => ({
+          value: row.value,
+          label: { position: row.fits ? 'insideLeft' : 'right', color: row.nameColor },
+        })),
+        label: {
+          show: true,
+          distance: LABEL_DISTANCE,
+          fontSize: NAME_FONT_SIZE,
+          fontFamily: SANS_STACK,
+          formatter: '{b}',
         },
       }],
     };
@@ -755,7 +832,14 @@
       </div>
     </div>
     {#if chartMode === 'bar'}
-      <BaseChart option={barChartOption} height="{Math.max(chartCount * 44 + 30, 360)}px" onclick={handleBarChartClick} />
+      <!-- el ancho del host es lo que decide si cada nombre cabe dentro de su barra:
+           hasta medirlo no se monta el chart, para no pintar un primer frame con
+           todos los nombres fuera y corregirlo después -->
+      <div bind:clientWidth={chartHostWidth}>
+        {#if chartHostWidth > 0}
+          <BaseChart option={barChartOption} height="{Math.max(chartCount * 44 + 30, 360)}px" onclick={handleBarChartClick} />
+        {/if}
+      </div>
       {#if zipf}
         <div class="zipf-row">
           <span

@@ -81,6 +81,66 @@ export const TOOLTIP_BASE = {
 
 export const GREEN = '#1db954';
 
+// --- Geometría de etiquetas ---
+// las etiquetas que se colocan "si caben" necesitan dos medidas en píxeles: el
+// ancho del texto y el de la barra. La primera se mide con el mismo canvas 2d que
+// usa echarts para pintar, así que coincide con lo que acaba dibujando; la segunda
+// sale de fijar el techo del eje (echarts no lo expone hasta después de pintar).
+
+const textWidths = new Map<string, number>();
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+// ancho medio de glifo respecto al tamaño de fuente, solo para el render de
+// servidor, donde no hay canvas con el que medir de verdad
+const FALLBACK_GLYPH_RATIO = 0.55;
+const FALLBACK_FONT_SIZE = 12;
+
+/** Ancho en px de `text` con la fuente `font` (shorthand css: `12px stack`). */
+export function measureTextWidth(text: string, font: string): number {
+  const key = `${font}|${text}`;
+  const cached = textWidths.get(key);
+  if (cached !== undefined) return cached;
+
+  if (measureCtx === undefined) {
+    measureCtx = typeof document === 'undefined'
+      ? null
+      : document.createElement('canvas').getContext('2d');
+  }
+
+  let width: number;
+  if (measureCtx) {
+    measureCtx.font = font;
+    width = measureCtx.measureText(text).width;
+  } else {
+    width = text.length * (parseFloat(font) || FALLBACK_FONT_SIZE) * FALLBACK_GLYPH_RATIO;
+  }
+
+  textWidths.set(key, width);
+  return width;
+}
+
+// divisiones a las que se apunta al redondear el techo del eje, igual que el
+// splitNumber por defecto de echarts
+const AXIS_SPLITS = 5;
+// pasos "redondos" admitidos dentro de cada orden de magnitud
+const NICE_STEPS = [1, 2, 5, 10];
+// margen para que un máximo que ya cae justo en un paso (750 con paso 150) no
+// suba un escalón entero por el error de coma flotante de la división
+const CEIL_EPSILON = 1e-9;
+
+/**
+ * Techo redondo del eje para `max`, el mismo que elegiría echarts pero calculable
+ * antes de pintar: fijarlo en la opción es lo que permite saber cuántos píxeles
+ * mide cada barra sin preguntárselo al chart.
+ */
+export function niceAxisMax(max: number, splits = AXIS_SPLITS): number {
+  if (!Number.isFinite(max) || max <= 0) return 1;
+  const rough = max / splits;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalized = rough / magnitude;
+  const step = (NICE_STEPS.find((s) => normalized <= s) ?? 10) * magnitude;
+  return Math.ceil(max / step - CEIL_EPSILON) * step;
+}
+
 // --- Axis helpers ---
 
 export function categoryAxis(data: string[], overrides?: Record<string, any>): SingleXAxis {

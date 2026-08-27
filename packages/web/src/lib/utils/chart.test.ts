@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fitSeries, aggregateSeries, periodToMonth, periodToQuarter, periodToYear, MIN_BAR_SLOT_PX, type SeriesPoint } from './chart';
+import { fitSeries, aggregateSeries, periodToMonth, periodToQuarter, periodToYear, niceAxisMax, MIN_BAR_SLOT_PX, type SeriesPoint } from './chart';
 
 // bug: en las vistas de detalle el ancho de barra del activity chart era
 // plotWidth/N sin suelo mínimo, así que en viewports estrechos con series
@@ -87,5 +87,35 @@ describe('claves de periodo', () => {
     expect(periodToMonth('2024-W01')).toBe('2024-01');
     expect(periodToQuarter('2023-05')).toBe('2023-Q2');
     expect(periodToYear('2023-11')).toBe('2023');
+  });
+});
+
+// el techo del eje se fija en la opción (en vez de dejárselo a echarts) porque es
+// el divisor con el que el bar chart de rankings calcula cuántos píxeles mide cada
+// barra, y de ahí si el nombre de la entidad cabe dentro o tiene que salir fuera
+describe('niceAxisMax', () => {
+  it('redondea hacia arriba a un paso 1/2/5 de su orden de magnitud', () => {
+    expect(niceAxisMax(743)).toBe(800);
+    expect(niceAxisMax(12)).toBe(15);
+    expect(niceAxisMax(37)).toBe(40);
+  });
+
+  it('nunca deja la barra más larga fuera del eje', () => {
+    [1, 7, 99, 100, 101, 1234, 98_765].forEach((max) => {
+      expect(niceAxisMax(max)).toBeGreaterThanOrEqual(max);
+    });
+  });
+
+  it('no sube un escalón entero cuando el máximo ya cae justo en un paso', () => {
+    // 0.1 + 0.2 no es exactamente 0.3: sin margen, la división da 3.0000000000000004
+    // y el techo saltaba de 0.3 a 0.4, un eje un tercio más largo que sus datos
+    expect(niceAxisMax(0.1 + 0.2)).toBeCloseTo(0.3, 10);
+    expect(niceAxisMax(1000)).toBe(1000);
+  });
+
+  it('devuelve un techo positivo sin datos con los que escalar', () => {
+    expect(niceAxisMax(0)).toBe(1);
+    expect(niceAxisMax(-5)).toBe(1);
+    expect(niceAxisMax(NaN)).toBe(1);
   });
 });
