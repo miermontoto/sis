@@ -60,6 +60,10 @@ type SingleYAxis = Exclude<NonNullable<EChartsOption['yAxis']>, readonly any[]>;
 
 const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
 
+// stack sans (espejo de --font-sans en app.css) para las etiquetas que son texto
+// de verdad (nombres de entidad); las cifras se quedan en mono por alineación
+export const SANS_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif';
+
 export const GRID = { top: 10, bottom: 5, left: 5, right: 0, containLabel: true };
 
 export const AXIS_LINE = { lineStyle: { color: '#1e2a2a' } } as const;

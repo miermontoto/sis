@@ -11,7 +11,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
-  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, zoomX, tooltipPoint, tooltipTuplePoints, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import RankChange from '$lib/components/RankChange.svelte';
@@ -119,7 +119,7 @@
       : names.map(() => defaultRgb);
 
     const rich: Record<string, any> = {
-      name: { fontSize: 12, color: '#e0e8e8', width: 100, overflow: 'truncate', align: 'left' },
+      name: { fontSize: 12, color: '#e0e8e8', width: 100, overflow: 'truncate', align: 'left', fontFamily: SANS_STACK },
     };
     images.forEach((url, i) => {
       if (url) {
@@ -136,7 +136,8 @@
         axisPointer: { type: 'shadow' },
         formatter: (params: TooltipParams) => {
           const p = tooltipPoint(params);
-          return `${p.name}<br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
+          // el nombre en sans (es texto, no cifra); el valor se queda en el mono del tooltip
+          return `<span style="font-family: var(--font-sans)">${p.name}</span><br/>${metric === 'plays' ? `${p.value} plays` : formatChartValue(p.value)}`;
         },
       },
       xAxis: {
