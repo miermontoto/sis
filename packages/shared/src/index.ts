@@ -26,6 +26,9 @@ export type { Rankings, ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, Rele
 
 export type { TrackVersion } from './versions.js';
 
+// tarjeta de hover de entidad
+export type { EntityCard, EntityCardPoint } from './card.js';
+
 // notificaciones push
 export type { NotificationType, DevicePlatform, PushPayload, DeviceTokenRecord, NotificationPreferences } from './notifications.js';
 

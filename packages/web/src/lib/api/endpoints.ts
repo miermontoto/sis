@@ -5,7 +5,7 @@ import type {
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
-  AccoladesResponse, Rankings, RankingHistoryPointWithCrossovers, HealthData, EntityType,
+  AccoladesResponse, Rankings, EntityCard, RankingHistoryPointWithCrossovers, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
@@ -151,6 +151,10 @@ export const api = {
 
   accolades: (type: 'artist' | 'track' | 'album', id: string, signal?: AbortSignal) =>
     apiFetch<AccoladesResponse>(`/stats/accolades/${type}/${encodeURIComponent(id)}`, undefined, signal),
+
+  // tarjeta de hover: metadata + stats + serie de una entidad, sin el detalle entero
+  entityCard: (type: EntityType, id: string, signal?: AbortSignal) =>
+    apiFetch<EntityCard>(`/stats/card/${type}/${encodeURIComponent(id)}`, undefined, signal),
 
   rankings: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<Rankings>(`/stats/rankings/${type}/${encodeURIComponent(id)}`, { sort }, signal),

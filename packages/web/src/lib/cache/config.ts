@@ -63,6 +63,7 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/stats/rankings-batch',         { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/rankings/',              { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/ranking-history/',       { ttl: 30 * MIN, maxStale: 24 * HOUR }],
+  ['/stats/card/',                  { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/artist/',                { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/album/',                 { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/track/',                 { ttl: 1 * HOUR, maxStale: 7 * DAY }],

@@ -1,8 +1,11 @@
 import { dbRead } from '../../db/read-pool.js';
 import { ensureFullAlbumTracks } from '../../services/ingestion.js';
 import { isSyntheticId } from '../../services/ids.js';
+import { getRangeStart } from '../../db/queries/index.js';
 import type { MergeInfo } from '../../db/queries/index.js';
+import type { EntityCard } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
+import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS } from '../../constants.js';
 import { statsRouter, parseParams } from './_shared.js';
 
 const detail = statsRouter();
@@ -223,6 +226,86 @@ detail.get('/track/:id', async (c) => {
     playlists,
     versions,
   });
+});
+
+// Campos propios de cada tipo de la tarjeta de hover. `entityIds` viene resuelto
+// para que los créditos de un álbum mergeado salgan del grupo entero, igual que
+// en su página de detalle.
+async function cardMeta(type: EntityCard['type'], id: string, entityIds: string[]) {
+  if (type === 'artist') {
+    // lookupArtist va por el query builder de drizzle, que sí parsea la columna
+    // json de géneros (el lookup por sql crudo la devolvería como texto)
+    const artist = await dbRead('lookupArtist', id);
+    return artist && { name: artist.name, imageUrl: artist.imageUrl, genres: artist.genres };
+  }
+
+  if (type === 'album') {
+    const album = await dbRead('lookupAlbumById', id);
+    if (!album) return null;
+    const artists = await dbRead('getAlbumArtists', id, entityIds);
+    return {
+      name: album.name,
+      imageUrl: album.image_url,
+      artists: artists.map((a) => a.name),
+      releaseDate: album.release_date,
+      totalTracks: album.total_tracks,
+    };
+  }
+
+  const track = await dbRead('lookupTrackById', id);
+  if (!track) return null;
+  const [artists, album] = await Promise.all([
+    dbRead('getTrackArtists', id),
+    track.album_id ? dbRead('lookupAlbumById', track.album_id) : Promise.resolve(undefined),
+  ]);
+  return {
+    name: track.name,
+    imageUrl: album?.image_url ?? null,
+    artists: artists.map((a) => a.name),
+    albumName: album?.name ?? null,
+    durationMs: track.duration_ms,
+  };
+}
+
+// Tarjeta compacta que se abre al pasar el ratón por cualquier enlace de entidad.
+// Deliberadamente barata: metadata + stats + serie, todo indexado por entidad. El
+// rank NO va aquí — es un scan del historial y vive en /stats/rankings/:type/:id,
+// que la tarjeta pide aparte para no bloquear lo demás detrás de él.
+detail.get('/card/:type/:id', async (c) => {
+  const type = c.req.param('type') as EntityCard['type'];
+  if (type !== 'track' && type !== 'album' && type !== 'artist') return c.json({ error: 'Invalid type' }, 400);
+  const id = c.req.param('id');
+  const userId = c.get('userId');
+
+  const entityIds = await dbRead('resolveEntityIds', type, id, userId);
+  const seriesStart = getRangeStart(HOVER_CARD_SERIES_RANGE);
+  const [meta, stats, series] = await Promise.all([
+    cardMeta(type, id, entityIds),
+    dbRead('getEntityStats', type, id, null, null, entityIds, userId),
+    dbRead('getEntitySeries', type, id, seriesStart, HOVER_CARD_SERIES_RANGE, entityIds, null, HOVER_CARD_SERIES_BUCKET_DAYS, userId),
+  ]);
+  if (!meta) return c.json({ error: 'Not found' }, 404);
+
+  const card: EntityCard = {
+    type,
+    id,
+    // los campos que no aplican al tipo quedan en su valor neutro: cardMeta sólo
+    // pisa los suyos al desparramarse encima
+    artists: [],
+    genres: [],
+    albumName: null,
+    durationMs: null,
+    releaseDate: null,
+    totalTracks: null,
+    ...meta,
+    playCount: stats.play_count,
+    totalMs: stats.total_ms,
+    firstPlayed: stats.first_played,
+    lastPlayed: stats.last_played,
+    series: series.map((s) => ({ day: s.period, playCount: s.play_count, totalMs: s.total_ms })),
+    seriesDays: TIME_RANGES[HOVER_CARD_SERIES_RANGE],
+  };
+  return c.json(card);
 });
 
 detail.get('/search', async (c) => {

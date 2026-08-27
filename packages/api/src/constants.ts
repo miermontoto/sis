@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w35o';
+export const VERSION = '26w35p';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -107,6 +107,13 @@ export const DEFAULT_PAGE_LIMIT = 50;
 
 // rankings-batch: tope de ids por petición (mismo tope que trackLimit/albumLimit de detail)
 export const RANKINGS_BATCH_LIMIT = 200;
+
+// tarjeta de hover de entidad (/stats/card/:type/:id): ventana que cubre la
+// sparkline y granularidad con la que se pide. getEntitySeries deriva el truncado
+// del nº de días (<=30 → un bucket por día), así que BUCKET_DAYS es lo que fuerza
+// buckets diarios sobre la ventana entera; no es una ventana más corta
+export const HOVER_CARD_SERIES_RANGE = '3months' as const;
+export const HOVER_CARD_SERIES_BUCKET_DAYS = 30;
 
 // nº máximo de scrobbles manuales aceptados en una sola petición (POST /stats/history)
 export const MANUAL_SCROBBLE_MAX = 500;

@@ -6,6 +6,7 @@
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import EntityHoverCard from '$lib/components/EntityHoverCard.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
@@ -630,6 +631,7 @@
   <SearchModal bind:show={showSearch} />
   <KeyboardShortcutsHelp />
   <ContextMenu />
+  <EntityHoverCard />
   <Toast />
   {#if mergeModal.target}
     <MergeEntityModal
