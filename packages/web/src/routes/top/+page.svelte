@@ -12,6 +12,7 @@
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { extractColor } from '$lib/utils/color';
   import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
+  import { fitZipf } from '$lib/utils/zipf';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import RankChange from '$lib/components/RankChange.svelte';
@@ -86,27 +87,28 @@
     return topAlbums.slice(0, chartCount).map(a => a.albumId).reverse();
   });
 
-  let barChartOption = $derived.by<EChartsOption>(() => {
-    let names: string[] = [];
-    let values: number[] = [];
-    let images: (string | null)[] = [];
+  // filas del bar chart en orden de ranking (posición 0 = nº1). El chart las
+  // invierte para pintar de arriba abajo; el ajuste de zipf las lee tal cual
+  interface ChartRow { name: string; value: number; image: string | null }
 
+  let chartRows = $derived.by<ChartRow[]>(() => {
     if (activeTab === 'tracks') {
-      const top = topTracks.slice(0, chartCount);
-      names = top.map(t => t.track?.name ?? 'Unknown');
-      values = top.map(t => metricValue(t));
-      images = top.map(t => t.track?.album?.imageUrl ?? null);
-    } else if (activeTab === 'artists') {
-      const top = topArtists.slice(0, chartCount);
-      names = top.map(a => a.artist?.name ?? 'Unknown');
-      values = top.map(a => metricValue(a));
-      images = top.map(a => a.artist?.imageUrl ?? null);
-    } else {
-      const top = topAlbums.slice(0, chartCount);
-      names = top.map(a => a.album?.name ?? 'Unknown');
-      values = top.map(a => metricValue(a));
-      images = top.map(a => a.album?.imageUrl ?? null);
+      return topTracks.slice(0, chartCount).map(t => ({ name: t.track?.name ?? 'Unknown', value: metricValue(t), image: t.track?.album?.imageUrl ?? null }));
     }
+    if (activeTab === 'artists') {
+      return topArtists.slice(0, chartCount).map(a => ({ name: a.artist?.name ?? 'Unknown', value: metricValue(a), image: a.artist?.imageUrl ?? null }));
+    }
+    return topAlbums.slice(0, chartCount).map(a => ({ name: a.album?.name ?? 'Unknown', value: metricValue(a), image: a.album?.imageUrl ?? null }));
+  });
+
+  // el exponente describe las barras dibujadas, así que se recalcula al cambiar
+  // de pestaña, de rango, de métrica o de Top N
+  let zipf = $derived(fitZipf(chartRows.map(r => r.value)));
+
+  let barChartOption = $derived.by<EChartsOption>(() => {
+    let names = chartRows.map(r => r.name);
+    let values = chartRows.map(r => r.value);
+    let images = chartRows.map(r => r.image);
 
     const MAX_NAME = 18;
     names = names.map(n => n.length > MAX_NAME ? n.slice(0, MAX_NAME - 1) + '…' : n);
@@ -754,6 +756,14 @@
     </div>
     {#if chartMode === 'bar'}
       <BaseChart option={barChartOption} height="{Math.max(chartCount * 44 + 30, 360)}px" onclick={handleBarChartClick} />
+      {#if zipf}
+        <div class="zipf-row">
+          <span
+            class="zipf-pill"
+            title="Least-squares fit of log({metric === 'plays' ? 'plays' : 'listening time'}) against log(rank) over the {zipf.n} bars shown. α=1 is classic Zipf (each rank keeps half of the one above it), α&lt;1 a flatter spread, α&gt;1 a head that dominates. R² is how closely the ranking follows a power law at all: a low R² means the α is not describing much."
+          >ZIPF α {zipf.alpha.toFixed(2)} · R² {zipf.r2.toFixed(2)}</span>
+        </div>
+      {/if}
     {:else if velLoading}
       <div class="vel-loading" style:height="{Math.max(chartCount * 22 + 180, 380)}px"><div class="spinner"></div></div>
     {:else if velSeries.length > 0}
@@ -899,6 +909,25 @@
     display: flex;
     gap: 0.35rem;
     align-items: center;
+  }
+
+  .zipf-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 0.75rem 0.25rem;
+  }
+
+  .zipf-pill {
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    /* cifras en mono: es el mismo criterio que las etiquetas de valor del chart */
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    cursor: help;
   }
 
   .chart-count-select {
