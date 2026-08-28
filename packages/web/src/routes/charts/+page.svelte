@@ -627,6 +627,18 @@
   .chart-item--live:hover {
     background: var(--live-bg-hover);
   }
+  /* filas live contiguas: sin borde compartido ni separador gris entre ellas.
+     aqui no hace falta cerrar hueco, las filas del chart ya van pegadas */
+  .chart-item--live:has(+ .chart-item--live) {
+    box-shadow: var(--live-ring-x), var(--live-ring-top);
+    border-bottom-color: transparent;
+  }
+  .chart-item--live + .chart-item--live {
+    box-shadow: var(--live-ring-x), var(--live-ring-bottom);
+  }
+  .chart-item--live + .chart-item--live:has(+ .chart-item--live) {
+    box-shadow: var(--live-ring-x);
+  }
   .chart-art-wrap {
     position: relative;
     display: flex;

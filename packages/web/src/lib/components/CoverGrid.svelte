@@ -40,8 +40,9 @@
   /* el gap compensa el padding de las tarjetas: el hueco visible entre
      carátulas sigue siendo ~0.9rem */
   .cover-row {
+    --cover-row-gap: 0.3rem;
     display: flex;
-    gap: 0.3rem;
+    gap: var(--cover-row-gap);
     overflow-x: auto;
     padding-bottom: 0.25rem;
   }
@@ -63,6 +64,23 @@
   .cover-item--live {
     background: var(--live-bg);
     box-shadow: var(--live-ring);
+  }
+  /* tarjetas live contiguas: se funden en un contenedor único. el raíl es
+     horizontal, así que el borde compartido es el lateral */
+  .cover-item--live:has(+ .cover-item--live) {
+    box-shadow: var(--live-ring-y), var(--live-ring-left);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .cover-item--live + .cover-item--live {
+    margin-left: calc(-1 * var(--cover-row-gap));
+    box-shadow: var(--live-ring-y), var(--live-ring-right);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  .cover-item--live + .cover-item--live:has(+ .cover-item--live) {
+    box-shadow: var(--live-ring-y);
+    border-radius: 0;
   }
   .cover-img-wrap {
     position: relative;

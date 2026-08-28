@@ -10,12 +10,23 @@
   /* contenedor de "sonando ahora": mismo lenguaje que la card de now playing */
   --live-bg: linear-gradient(135deg, rgba(29, 185, 84, 0.12), rgba(29, 185, 84, 0.03));
   --live-bg-hover: linear-gradient(135deg, rgba(29, 185, 84, 0.2), rgba(29, 185, 84, 0.06));
-  --live-ring: inset 0 0 0 1px rgba(29, 185, 84, 0.28);
+  --live-ring-color: rgba(29, 185, 84, 0.28);
+  --live-ring: inset 0 0 0 1px var(--live-ring-color);
+  /* lados sueltos del anillo: los elementos live contiguos se funden en un solo
+     contenedor quitando el borde que comparten (como el bloque de sesión) */
+  --live-ring-x: inset 1px 0 var(--live-ring-color), inset -1px 0 var(--live-ring-color);
+  --live-ring-y: inset 0 1px var(--live-ring-color), inset 0 -1px var(--live-ring-color);
+  --live-ring-top: inset 0 1px var(--live-ring-color);
+  --live-ring-bottom: inset 0 -1px var(--live-ring-color);
+  --live-ring-left: inset 1px 0 var(--live-ring-color);
+  --live-ring-right: inset -1px 0 var(--live-ring-color);
   --danger: #e74c3c;
   --gold: #f0c040;
   --silver: #c0c0c0;
   --bronze: #cd7f32;
   --radius: 2px;
+  /* separación entre filas de .track-list: las filas live la cancelan para pegarse */
+  --track-list-gap: 0.5rem;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
@@ -526,7 +537,7 @@ a.stat-card--link:hover {
 .track-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--track-list-gap);
 }
 
 .track-item {
@@ -1423,6 +1434,31 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
 
 .track-item--live:hover {
   background: var(--live-bg-hover);
+}
+
+/* filas live contiguas: se funden en un contenedor único quitando el borde
+   compartido, igual que hace el bloque de sesión con sus filas */
+.track-item--live:has(+ .track-item--live) {
+  box-shadow: var(--live-ring-x), var(--live-ring-top);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.track-item--live + .track-item--live {
+  box-shadow: var(--live-ring-x), var(--live-ring-bottom);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.track-item--live + .track-item--live:has(+ .track-item--live) {
+  box-shadow: var(--live-ring-x);
+  border-radius: 0;
+}
+
+/* el margen negativo solo aplica donde hay gap que cerrar: dentro de
+   .session-group las filas ya van pegadas y lo solaparían */
+.track-list > .track-item--live + .track-item--live {
+  margin-top: calc(-1 * var(--track-list-gap));
 }
 
 /* ecualizador animado superpuesto a la carátula. los estilos viven aquí (y no
