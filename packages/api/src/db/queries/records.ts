@@ -377,6 +377,23 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
   }
   mostWeeksAtNo1.sort((a, b) => b.value - a.value);
 
+  // 3b. Bubbling under: lo más escuchado de entre lo que nunca llegó a #1 en una
+  // semana. El total all-time sale de sumar las semanas — cada play cae en una sola
+  // (y en artists el DISTINCT de plays_dedup ya evita contar dos veces un play con
+  // varios artistas). Se guarda la mejor posición alcanzada: es lo que da sentido al
+  // nombre, cómo de cerca se quedó.
+  const bubblingUnder: RecordEntry[] = [];
+  for (const [eid, data] of byEntity) {
+    if (data.rows.some((r: any) => r.rank === 1)) continue;
+    const total = data.rows.reduce((sum: number, r: any) => sum + Number(r.val), 0);
+    const best = data.rows.reduce((a: any, b: any) => a.rank <= b.rank ? a : b);
+    bubblingUnder.push({
+      entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName,
+      value: total, week: best.w, peakRank: best.rank,
+    });
+  }
+  bubblingUnder.sort((a, b) => b.value - a.value);
+
   // 4. Most weeks in the charts (top 25)
   const mostWeeksInTop5: RecordEntry[] = [];
   for (const [eid, data] of byEntity) {
@@ -444,6 +461,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
     dominance: dominance.slice(0, limit),
     biggestDebuts: biggestDebuts.slice(0, limit),
     mostWeeksAtNo1: mostWeeksAtNo1.slice(0, limit),
+    bubblingUnder: bubblingUnder.slice(0, limit),
     mostWeeksInTop5: mostWeeksInTop5.slice(0, limit),
     longestChartRun: longestChartRun.slice(0, limit),
     inMostPlaylists: [],

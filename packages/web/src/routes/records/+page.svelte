@@ -371,6 +371,46 @@
     {/if}
   {/snippet}
 
+  {#snippet bubblingList(title: string, items: RecordEntry[], recordKey: string)}
+    {#if items.length > 0}
+      <div class="record-section">
+        {@render sectionHeader(title, recordKey)}
+        <div class="record-list">
+          {#each items as item, i}
+            <TrackItem
+              rank={i + 1}
+              imageUrl={item.imageUrl}
+              imageHref={entityLink(tab.value, item.entityId)}
+              imageRound={tab.value === 'artists'}
+              name={item.name}
+              nameHref={entityLink(tab.value, item.entityId)}
+              entity={{ type: singularTab(tab.value), id: item.entityId, name: item.name, imageUrl: item.imageUrl, parentArtistId: item.artistId } as EntityContext}
+              compact
+            >
+              {#snippet subtitle()}
+                {#if item.artistName}
+                  {#if item.artistId}
+                    <a href="/artist/{item.artistId}" class="artist-link">{item.artistName}</a>
+                  {:else}
+                    {item.artistName}
+                  {/if}
+                {/if}
+              {/snippet}
+              {#snippet meta()}
+                <div class="record-value">
+                  <span class="record-val">{formatValue(item.value, 'total')}</span>
+                  {#if item.peakRank && item.week}
+                    <span class="record-week">peaked #{item.peakRank} · <a href="/charts?type={tab.value}&granularity=week&period={item.week}">{item.week}</a></span>
+                  {/if}
+                </div>
+              {/snippet}
+            </TrackItem>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
   {#snippet oneHitList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
       <div class="record-section">
@@ -482,6 +522,7 @@
     currentData.peakWeekPlays.length > 0 ||
     currentData.dominance.length > 0 ||
     currentData.mostWeeksAtNo1.length > 0 ||
+    currentData.bubblingUnder.length > 0 ||
     (currentData.inMostPlaylists?.length ?? 0) > 0 ||
     currentData.mostAccolades.length > 0 ||
     (artistData ? (artistData.mostNo1Tracks.length + artistData.mostNo1Albums.length) > 0 : false)}
@@ -502,6 +543,7 @@
     {@render recordList('Peak week', currentData.peakWeekPlays, 'peak', 'peakWeekPlays')}
     {@render recordList('Dominance', currentData.dominance, 'percent', 'dominance')}
     {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks', 'mostWeeksAtNo1')}
+    {@render bubblingList('Bubbling under', currentData.bubblingUnder, 'bubblingUnder')}
     {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists', 'inMostPlaylists')}
     {@render recordList('Most records', currentData.mostAccolades, 'count', 'mostAccolades')}
     {#if artistData}

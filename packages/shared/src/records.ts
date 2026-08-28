@@ -12,6 +12,7 @@ export interface RecordEntry {
   ongoing?: boolean | null;         // gap/streak en curso
   month?: string | null;            // YYYY-MM para records mensuales
   secondaryLabel?: string | null;   // etiqueta secundaria (ej. nombre del track dominante)
+  peakRank?: number | null;         // mejor posición semanal alcanzada
 }
 
 export interface ArtistRecordEntry {
@@ -43,6 +44,8 @@ export interface EntityRecords {
   dominance: RecordEntry[];
   biggestDebuts: RecordEntry[];
   mostWeeksAtNo1: RecordEntry[];
+  // lo más escuchado de entre lo que nunca fue #1 en una semana. value = total all-time
+  bubblingUnder: RecordEntry[];
   mostWeeksInTop5: RecordEntry[];
   longestChartRun: RecordEntry[];
   inMostPlaylists: RecordEntry[];

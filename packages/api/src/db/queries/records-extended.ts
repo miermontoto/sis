@@ -461,6 +461,7 @@ export function computeMostAccolades(
   tally(data.dominance);
   tally(data.biggestDebuts);
   tally(data.mostWeeksAtNo1);
+  tally(data.bubblingUnder);
   tally(data.mostWeeksInTop5);
   tally(data.longestChartRun);
   tally(data.inMostPlaylists);

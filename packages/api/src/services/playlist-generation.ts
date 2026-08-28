@@ -46,6 +46,7 @@ const RECORD_KEY_TITLES: Record<string, string> = {
   dominance: 'Dominance',
   biggestDebuts: 'Biggest Debuts',
   mostWeeksAtNo1: 'Most Weeks at #1',
+  bubblingUnder: 'Bubbling Under',
   mostWeeksInTop5: 'Most Charted',
   longestChartRun: 'Longest Chart Run',
   inMostPlaylists: 'In Most Playlists',

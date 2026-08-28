@@ -30,6 +30,7 @@
     dominance: 'Dominance',
     biggestDebut: 'Biggest debut',
     weeksAtNo1: 'Weeks at #1',
+    bubblingUnder: 'Bubbling under',
     weeksInChart: 'Weeks in charts',
     longestRun: 'Longest chart run',
     mostNo1Tracks: '#1 tracks',
