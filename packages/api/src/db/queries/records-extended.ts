@@ -458,6 +458,7 @@ export function computeMostAccolades(
   }
 
   tally(data.peakWeekPlays);
+  tally(data.dominance);
   tally(data.biggestDebuts);
   tally(data.mostWeeksAtNo1);
   tally(data.mostWeeksInTop5);

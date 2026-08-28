@@ -39,6 +39,8 @@ export interface YearEndFinish {
 
 export interface EntityRecords {
   peakWeekPlays: RecordEntry[];
+  // % del tiempo (o plays) de una semana que se llevó la entidad. value = 0..100
+  dominance: RecordEntry[];
   biggestDebuts: RecordEntry[];
   mostWeeksAtNo1: RecordEntry[];
   mostWeeksInTop5: RecordEntry[];

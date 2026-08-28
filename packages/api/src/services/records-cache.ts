@@ -156,6 +156,7 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
 
   const sliceBase = (e: EntityRecords) => ({
     peakWeekPlays: e.peakWeekPlays.slice(0, limit),
+    dominance: e.dominance.slice(0, limit),
     biggestDebuts: e.biggestDebuts.slice(0, limit),
     mostWeeksAtNo1: e.mostWeeksAtNo1.slice(0, limit),
     mostWeeksInTop5: e.mostWeeksInTop5.slice(0, limit),
@@ -218,6 +219,7 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
 
   const checks: [string, { entityId?: string; artistId?: string; value: number; week: string | null }[]][] = [
     ['peakWeek', data.peakWeekPlays as any[]],
+    ['dominance', data.dominance as any[]],
     ['biggestDebut', data.biggestDebuts as any[]],
     ['weeksAtNo1', data.mostWeeksAtNo1 as any[]],
     ['weeksInChart', data.mostWeeksInTop5 as any[]],

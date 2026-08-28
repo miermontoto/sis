@@ -27,6 +27,7 @@
 
   const labels: Record<string, string> = {
     peakWeek: 'Peak week',
+    dominance: 'Dominance',
     biggestDebut: 'Biggest debut',
     weeksAtNo1: 'Weeks at #1',
     weeksInChart: 'Weeks in charts',
@@ -60,6 +61,7 @@
     if (a.type === 'weeksAtNo1' || a.type === 'weeksInChart' || a.type === 'longestRun') return `${a.value} wk${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'mostNo1Tracks' || a.type === 'mostNo1Albums' || a.type === 'mostAccolades') return String(a.value);
     if (a.type === 'longestGap') return `${formatNumber(a.value)} day${a.value !== 1 ? 's' : ''}`;
+    if (a.type === 'dominance') return `${a.value.toFixed(1)}%`;
     if (a.type === 'mostDistinctTracks') return `${a.value} track${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'goldenOldies' ||
         a.type === 'latestDiscoveries' ||

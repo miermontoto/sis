@@ -43,6 +43,7 @@ export const STRATEGY_LABELS: Record<Strategy, string> = {
 
 const RECORD_KEY_TITLES: Record<string, string> = {
   peakWeekPlays: 'Peak Week',
+  dominance: 'Dominance',
   biggestDebuts: 'Biggest Debuts',
   mostWeeksAtNo1: 'Most Weeks at #1',
   mostWeeksInTop5: 'Most Charted',

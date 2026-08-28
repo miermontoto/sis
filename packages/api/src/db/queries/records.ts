@@ -9,7 +9,7 @@ import type {
   RecordsResponse, RankingMetric, WeekStartOption, EntityType,
 } from '@sis/shared';
 import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
-import { CHART_SIZE } from '../../constants.js';
+import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
   computeMostUniquePerMonth, computeMostDistinctTracks, computeOneHitWonders,
@@ -37,6 +37,25 @@ function timed<T>(label: string, fn: () => T): T {
 }
 
 const weekExpr = (ws: WeekStart) => periodExpr('week', ws);
+
+// Escucha total de cada semana, sin filtrar por entidad: es el denominador de
+// `dominance`. Se calcula aparte porque no se puede derivar de las filas del
+// ranking semanal — para artists un play con varios artistas suma en cada uno,
+// así que la suma por semana pasaría del 100%.
+type WeekTotal = { val: number; plays: number };
+function getWeekTotals(db: Db, ws: WeekStart, sort: Sort, userId: number): Map<string, WeekTotal> {
+  const rows = db.all(sql`
+    SELECT ${weekExpr(ws)} as w,
+           ${sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`} as val,
+           count(*) as plays
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE lh.user_id = ${userId}
+    GROUP BY w
+  `) as { w: string; val: number; plays: number }[];
+
+  return new Map(rows.map(r => [r.w, { val: Number(r.val), plays: Number(r.plays) }]));
+}
 
 // --- queries de records semanales (peak/debuts/weeks-at-#1/etc.) ---
 
@@ -70,7 +89,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     LEFT JOIN albums al ON al.spotify_id = t.album_id
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique);
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
   // resuelve track merges: un track fusionado se cuenta bajo su id canónico
   // (nombre/artista/álbum del track target), no bajo su id de origen.
   base.inMostPlaylists = db.all(sql`
@@ -132,7 +151,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     JOIN albums al ON al.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique);
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
   // resuelve merges (track y album) igual que el ranking semanal: agrupa por el
   // álbum canónico para no listar un álbum ya fusionado bajo su id de origen.
   // nombre/artista se toman del target (join por el eid resuelto).
@@ -208,7 +227,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     JOIN artists a ON a.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique);
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
 
   // artistas con más tracks en #1 (por semana)
   const trackWeek = weekExpr(ws);
@@ -292,8 +311,8 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 // --- helper: derivar records desde filas de ranking semanal ---
 
 // unique=true: un registro por entidad (comportamiento por defecto). unique=false:
-// peak week y longest run permiten que la misma entidad aparezca varias veces.
-function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecords {
+// peak week, dominance y longest run permiten que la misma entidad aparezca varias veces.
+function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: Map<string, WeekTotal>): EntityRecords {
   // agrupar por entidad
   const byEntity = new Map<string, { rows: any[]; debutWeek: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null }>();
   for (const r of rows) {
@@ -314,6 +333,29 @@ function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecor
     }
   }
   peakWeekPlays.sort((a, b) => b.value - a.value);
+
+  // 1b. Dominance: qué porcentaje del total de la semana se llevó la entidad.
+  // Solo cuentan semanas con suficientes plays — si no, cualquier semana muerta
+  // regala un 100%. Respeta `unique` igual que peak week: la mejor semana por
+  // entidad, o todas las (entidad, semana) compitiendo por separado.
+  const dominance: RecordEntry[] = [];
+  for (const [eid, data] of byEntity) {
+    const shares = data.rows
+      .map((r: any) => ({ week: r.w as string, val: Number(r.val), total: weekTotals.get(r.w) }))
+      .filter(x => !!x.total && x.total.val > 0 && x.total.plays >= DOMINANCE_MIN_WEEK_PLAYS)
+      // el cap se aplica porque numerador y denominador no capan siempre por la misma
+      // duración: la query de álbumes resuelve track merges antes de leer duration_ms y
+      // el total de la semana no (el tiempo escuchado no depende de las fusiones). El
+      // desvío medido es <2%, pero basta para que un 99% real se pinte por encima de 100.
+      .map(x => ({ week: x.week, share: Math.min((x.val * 100) / x.total!.val, 100) }));
+    if (shares.length === 0) continue;
+
+    const picked = unique ? [shares.reduce((a, b) => a.share > b.share ? a : b)] : shares;
+    for (const p of picked) {
+      dominance.push({ entityId: eid, name: data.name, imageUrl: data.imageUrl, artistId: data.artistId, artistName: data.artistName, value: p.share, week: p.week });
+    }
+  }
+  dominance.sort((a, b) => b.value - a.value);
 
   // 2. Biggest debuts
   const biggestDebuts: RecordEntry[] = [];
@@ -399,6 +441,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean): EntityRecor
 
   return {
     peakWeekPlays: peakWeekPlays.slice(0, limit),
+    dominance: dominance.slice(0, limit),
     biggestDebuts: biggestDebuts.slice(0, limit),
     mostWeeksAtNo1: mostWeeksAtNo1.slice(0, limit),
     mostWeeksInTop5: mostWeeksInTop5.slice(0, limit),

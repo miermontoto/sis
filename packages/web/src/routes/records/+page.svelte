@@ -100,6 +100,7 @@
     if (label === 'tracks') return `${val} track${val !== 1 ? 's' : ''}`;
     if (label === 'days') return `${formatNumber(val)} day${val !== 1 ? 's' : ''}`;
     if (label === 'count') return `${val} record${val !== 1 ? 's' : ''}`;
+    if (label === 'percent') return `${val.toFixed(1)}%`;
     if (label === 'plays' || metric === 'plays') return `${formatNumber(val)} plays`;
     return formatDuration(val);
   }
@@ -479,6 +480,7 @@
 
   {@const hasAllTime =
     currentData.peakWeekPlays.length > 0 ||
+    currentData.dominance.length > 0 ||
     currentData.mostWeeksAtNo1.length > 0 ||
     (currentData.inMostPlaylists?.length ?? 0) > 0 ||
     currentData.mostAccolades.length > 0 ||
@@ -498,6 +500,7 @@
   {#if hasAllTime}
     <h2 class="record-group">All-time bests</h2>
     {@render recordList('Peak week', currentData.peakWeekPlays, 'peak', 'peakWeekPlays')}
+    {@render recordList('Dominance', currentData.dominance, 'percent', 'dominance')}
     {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks', 'mostWeeksAtNo1')}
     {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists', 'inMostPlaylists')}
     {@render recordList('Most records', currentData.mostAccolades, 'count', 'mostAccolades')}
