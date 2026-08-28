@@ -73,6 +73,10 @@
   });
 
   let displayTracks = $derived((trackSort === 'natural' && naturalTracks ? naturalTracks : data?.tracks ?? []).filter(t => t.playCount > 0));
+
+  // duración total del álbum: suma del tracklist completo (ensureFullAlbumTracks
+  // lo completa server-side, así que incluye también los tracks nunca escuchados)
+  let albumLengthMs = $derived((data?.tracks ?? []).reduce((sum, t) => sum + (t.track?.durationMs ?? 0), 0));
   let trackSharePercents = $derived.by(() => {
     if (albumTrackDisplay === 'off') return undefined;
     const value = (t: TopTrackItem) => metric === 'plays' ? t.playCount : t.totalMs;
@@ -342,11 +346,13 @@
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
           {/each}
         </p>
-        {#if data.album.releaseDate || data.album.totalTracks}
+        {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0}
           <p class="detail-meta-line">
             {#if data.album.releaseDate}{data.album.releaseDate}{/if}
             {#if data.album.releaseDate && data.album.totalTracks} &middot; {/if}
             {#if data.album.totalTracks}{data.album.totalTracks} tracks{/if}
+            {#if (data.album.releaseDate || data.album.totalTracks) && albumLengthMs > 0} &middot; {/if}
+            {#if albumLengthMs > 0}{formatDuration(albumLengthMs)}{/if}
           </p>
         {/if}
         <AlbumRating {albumId} initial={data.rating ?? null} />
