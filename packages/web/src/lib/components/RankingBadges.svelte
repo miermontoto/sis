@@ -157,7 +157,7 @@
         onmouseleave={() => { if (peak) highlightedMonth = ''; }}
       >
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value" style:color={color}>#{rank}{#if peak}<span class="ranking-peak" style:color={medalColor(peak.rank)}>▲#{peak.rank}</span>{/if}</span>
+        <span class="ranking-value" style:color={color}>#{rank}{#if peak}<span class="ranking-peak" style:color={medalColor(peak.rank)}><span class="ranking-peak-tag">MAX</span>#{peak.rank}</span>{/if}</span>
       </a>
     {:else}
       <div class="ranking-badge" class:ranking-badge--loading={rankingsLoading}>
@@ -256,6 +256,13 @@
     font-weight: 600;
     color: var(--text-muted);
     margin-left: 0.25em;
+  }
+  /* etiqueta "MAX" delante del pico histórico, en lugar del antiguo triángulo */
+  .ranking-peak-tag {
+    font-size: 0.85em;
+    letter-spacing: 0.05em;
+    opacity: 0.75;
+    margin-right: 0.2em;
   }
   .chart-wrap {
     background: var(--bg-card);
