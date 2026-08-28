@@ -522,7 +522,6 @@
     currentData.peakWeekPlays.length > 0 ||
     currentData.dominance.length > 0 ||
     currentData.mostWeeksAtNo1.length > 0 ||
-    currentData.bubblingUnder.length > 0 ||
     (currentData.inMostPlaylists?.length ?? 0) > 0 ||
     currentData.mostAccolades.length > 0 ||
     (artistData ? (artistData.mostNo1Tracks.length + artistData.mostNo1Albums.length) > 0 : false)}
@@ -533,6 +532,7 @@
     currentData.biggestDebuts.length > 0 ||
     currentData.latestDiscoveries.length > 0}
   {@const hasOther =
+    currentData.bubblingUnder.length > 0 ||
     currentData.longestGap.length > 0 ||
     currentData.goldenOldies.length > 0 ||
     currentData.mostUniquePerMonth.length > 0 ||
@@ -543,7 +543,6 @@
     {@render recordList('Peak week', currentData.peakWeekPlays, 'peak', 'peakWeekPlays')}
     {@render recordList('Dominance', currentData.dominance, 'percent', 'dominance')}
     {@render recordList('Most weeks at #1', currentData.mostWeeksAtNo1, 'weeks', 'mostWeeksAtNo1')}
-    {@render bubblingList('Bubbling under', currentData.bubblingUnder, 'bubblingUnder')}
     {@render recordList('In most playlists', currentData.inMostPlaylists, 'playlists', 'inMostPlaylists')}
     {@render recordList('Most records', currentData.mostAccolades, 'count', 'mostAccolades')}
     {#if artistData}
@@ -566,6 +565,7 @@
 
   {#if hasOther}
     <h2 class="record-group">Other records</h2>
+    {@render bubblingList('Bubbling under', currentData.bubblingUnder, 'bubblingUnder')}
     {@render gapList('Longest gap between plays', currentData.longestGap, 'longestGap')}
     {@render datedList('Golden oldies', currentData.goldenOldies, 'last heard', 'plays', 'goldenOldies')}
     {@render monthList(`Months with most ${tab.value}`, currentData.mostUniquePerMonth, tab.value)}
