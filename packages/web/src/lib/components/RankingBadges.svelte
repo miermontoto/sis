@@ -203,10 +203,13 @@
     /* el badge "All" lleva una línea extra (el pico), así que la fila estira al resto:
        centrar en vertical para que todos queden alineados por el centro */
     justify-content: center;
+    /* reparto del blanco: con line-height 1 el hueco lo ponen gap y padding a mano.
+       el pico va pegado a su número (gap base) y la etiqueta respira con margin-top
+       en el valor. total: 62.4px, por debajo de los 63.2px que medía antes del pico */
     gap: 0.15rem;
     flex: 1;
     min-width: 60px;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.75rem;
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -253,6 +256,7 @@
     font-variant-numeric: tabular-nums;
     font-size: 1.1rem;
     line-height: 1;
+    margin-top: 0.35rem;
     font-weight: 700;
     color: var(--accent);
   }
