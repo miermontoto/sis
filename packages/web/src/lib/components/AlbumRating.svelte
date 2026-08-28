@@ -135,14 +135,19 @@
 </div>
 
 <style>
+  /* ritmo del hero: las líneas de texto van a 0.15-0.25rem, pero los botones de
+     estrella suman ~3px propios (2px de padding + aire interno del icono) en alto
+     y en el borde izquierdo; el margen reducido y el negativo los compensan para
+     que el gap visual y la alineación queden como en el resto de líneas */
   .album-rating {
     position: relative;
-    margin-top: 0.4rem;
+    margin-top: 0.1rem;
   }
   .rating-stars {
     display: flex;
     align-items: center;
     gap: 1px;
+    margin-left: -3px;
   }
   .star {
     background: none;
@@ -271,6 +276,7 @@
   @media (max-width: 768px) {
     .rating-stars {
       justify-content: center;
+      margin-left: 0;
     }
     .review-popover {
       left: 50%;
