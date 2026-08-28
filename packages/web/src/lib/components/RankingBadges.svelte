@@ -188,6 +188,14 @@
 
 <style>
   .rankings-row {
+    /* medidas de las tres líneas del badge en un solo sitio: el min-height se calcula
+       a partir de ellas, así la fila mide igual con y sin línea de pico */
+    --rb-label: 0.65rem;
+    --rb-value: 1.1rem;
+    --rb-peak: 0.7rem;
+    --rb-gap: 0.15rem;
+    --rb-value-gap: 0.35rem;
+    --rb-pad-y: 0.4rem;
     display: flex;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
@@ -205,11 +213,17 @@
     justify-content: center;
     /* reparto del blanco: con line-height 1 el hueco lo ponen gap y padding a mano.
        el pico va pegado a su número (gap base) y la etiqueta respira con margin-top
-       en el valor. total: 62.4px, por debajo de los 63.2px que medía antes del pico */
-    gap: 0.15rem;
+       en el valor */
+    gap: var(--rb-gap);
     flex: 1;
     min-width: 60px;
-    padding: 0.4rem 0.75rem;
+    padding: var(--rb-pad-y) 0.75rem;
+    /* alto de las tres líneas + huecos + padding + bordes: los badges sin pico
+       (o las páginas donde nadie lo tiene) conservan el alto de siempre */
+    min-height: calc(
+      var(--rb-label) + var(--rb-value) + var(--rb-peak)
+      + var(--rb-gap) * 2 + var(--rb-value-gap) + var(--rb-pad-y) * 2 + 2px
+    );
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -234,7 +248,7 @@
   }
   .ranking-badge--loading .ranking-value {
     width: 28px;
-    height: 1.1rem;
+    height: var(--rb-value);
     border-radius: var(--radius);
     background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
     background-size: 200% 100%;
@@ -245,7 +259,7 @@
      largo para meter la línea del pico sin que la fila crezca de alto */
   .ranking-label {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--rb-label);
     line-height: 1;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -254,9 +268,9 @@
   .ranking-value {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: 1.1rem;
+    font-size: var(--rb-value);
     line-height: 1;
-    margin-top: 0.35rem;
+    margin-top: var(--rb-value-gap);
     font-weight: 700;
     color: var(--accent);
   }
@@ -266,7 +280,7 @@
   .ranking-peak {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: 0.7rem;
+    font-size: var(--rb-peak);
     font-weight: 600;
     line-height: 1;
     color: var(--text-muted);
