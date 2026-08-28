@@ -238,9 +238,12 @@
     animation: shimmer 1.5s infinite;
     display: inline-block;
   }
+  /* line-height 1 en las tres líneas: el interlineado heredado del body (1.6) sobra de
+     largo para meter la línea del pico sin que la fila crezca de alto */
   .ranking-label {
     font-family: var(--font-mono);
     font-size: 0.65rem;
+    line-height: 1;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -249,6 +252,7 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-size: 1.1rem;
+    line-height: 1;
     font-weight: 700;
     color: var(--accent);
   }
