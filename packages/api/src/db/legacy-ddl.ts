@@ -2,6 +2,7 @@
 // multi-user/social, fts5 y la tabla canónica de sesiones de la plataforma.
 // se ejecuta en cada boot (idempotente) tras las migraciones de drizzle.
 import type Database from 'better-sqlite3';
+import { ALBUM_RATING_MIN, ALBUM_RATING_MAX } from '@sis/shared';
 import { createLogger } from '../services/logger.js';
 
 const log = createLogger('db');
@@ -364,6 +365,20 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       token TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_used_at TEXT
+    )`);
+  } catch {}
+
+  // valoraciones de álbum (estrellas enteras + texto opcional). el CHECK duplica el
+  // rango validado en la ruta como red de seguridad ante escrituras fuera de la api
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS album_ratings (
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      album_id TEXT NOT NULL REFERENCES albums(spotify_id),
+      rating INTEGER NOT NULL CHECK (rating BETWEEN ${ALBUM_RATING_MIN} AND ${ALBUM_RATING_MAX}),
+      review TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, album_id)
     )`);
   } catch {}
 

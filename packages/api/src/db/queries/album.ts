@@ -150,3 +150,17 @@ export function getAlbumRelatedSingles(db: Db, albumId: string, ids: string[] | 
     ORDER BY c.date
   `) as { id: string; name: string; date: string; image_url: string | null; play_count: number; total_ms: number }[];
 }
+
+/** Valoración del usuario para un álbum, resuelta sobre el grupo de merge entero
+ *  (albumIds = [target, ...sources]): si hay filas en varios miembros del grupo,
+ *  gana la más reciente. */
+export function getAlbumRating(db: Db, albumIds: string[], userId: number) {
+  const idList = sql.join(albumIds.map(id => sql`${id}`), sql`, `);
+  return db.all(sql`
+    SELECT rating, review, updated_at
+    FROM album_ratings
+    WHERE user_id = ${userId} AND album_id IN (${idList})
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `)[0] as { rating: number; review: string | null; updated_at: string } | undefined;
+}

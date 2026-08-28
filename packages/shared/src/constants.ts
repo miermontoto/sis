@@ -41,6 +41,15 @@ export const INSIGHTS_GENRES_LIMIT = 10;
 // también es el tope para otorgar accolades en vistas de detalle
 export const RECORDS_LIMIT = 10;
 
+// --- valoraciones ---
+
+// escala de las valoraciones de álbum: estrellas enteras, sin medias
+export const ALBUM_RATING_MIN = 0;
+export const ALBUM_RATING_MAX = 5;
+
+// tope de caracteres del texto opcional de una valoración
+export const ALBUM_REVIEW_MAX_CHARS = 2000;
+
 // --- social ---
 
 // bytes aleatorios del token de share link (48 chars hex)

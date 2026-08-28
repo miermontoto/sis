@@ -109,7 +109,7 @@ detail.get('/album/:id', async (c) => {
   const albumIds = await dbRead('resolveEntityIds', 'album', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo, coversRaw, singlesRaw] = await Promise.all([
+  const [albumArtistRows, statsRow, series, albumTracks, recentRaw, playlists, mergeInfo, coversRaw, ratingRow, singlesRaw] = await Promise.all([
     dbRead('getAlbumArtists', id, albumIds),
     dbRead('getEntityStats', 'album', id, rangeStart, rangeEnd, albumIds, userId),
     dbRead('getEntitySeries', 'album', id, rangeStart, rangeKey, albumIds, rangeEnd, customDays, userId),
@@ -118,6 +118,7 @@ detail.get('/album/:id', async (c) => {
     dbRead('getAlbumPlaylistPresence', id, userId),
     dbRead('getEntityMergeInfo', 'album', id),
     dbRead('getAlbumCovers', id),
+    dbRead('getAlbumRating', albumIds, userId),
     // los "singles de adelanto" son un concepto de álbum: un single no los tiene.
     // sin este guard, dos singles que comparten un track (p.ej. un single de 2 temas
     // que incluye el A-side de otro) se listan mutuamente como single de adelanto.
@@ -174,6 +175,7 @@ detail.get('/album/:id', async (c) => {
     ...formatMerge(mergeInfo),
     playlists,
     covers: coversRaw.map((r) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
+    rating: ratingRow ? { rating: ratingRow.rating, review: ratingRow.review, updatedAt: ratingRow.updated_at } : null,
   });
 });
 

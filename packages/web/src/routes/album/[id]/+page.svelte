@@ -20,6 +20,7 @@
   import Accolades from '$lib/components/Accolades.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
+  import AlbumRating from '$lib/components/AlbumRating.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
@@ -348,6 +349,7 @@
             {#if data.album.totalTracks}{data.album.totalTracks} tracks{/if}
           </p>
         {/if}
+        <AlbumRating {albumId} initial={data.rating ?? null} />
       </div>
     </div>
     <div class="hero-actions">

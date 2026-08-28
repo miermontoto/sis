@@ -114,6 +114,20 @@ export const artistRelations = sqliteTable('artist_relations', {
   index('idx_artist_relations_b').on(table.userId, table.artistB),
 ]);
 
+// valoraciones de álbum por usuario: estrellas enteras (0-5, sin medias) + texto
+// opcional. una fila por (user, album); el texto vive en la misma fila porque no
+// existe review sin valoración. la lectura resuelve el grupo de merge entero.
+export const albumRatings = sqliteTable('album_ratings', {
+  userId: integer('user_id').notNull().references(() => users.id),
+  albumId: text('album_id').notNull().references(() => albums.spotifyId),
+  rating: integer('rating').notNull(),
+  review: text('review'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.albumId] }),
+]);
+
 export const userSettings = sqliteTable('user_settings', {
   userId: text('user_id').notNull(),
   key: text('key').notNull(),

@@ -178,6 +178,9 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'POST',   prefix: '/admin/users',               clear: ['/admin/users'] },
   { method: 'PUT',    prefix: '/admin/users/',              clear: ['/admin/users'] },
   { method: 'DELETE', prefix: '/admin/users/',              clear: ['/admin/users'] },
+  // las valoraciones solo se pintan en el detalle del álbum: nada más que invalidar
+  { method: 'PUT',    prefix: '/ratings/album/',            clear: ['/stats/album/'] },
+  { method: 'DELETE', prefix: '/ratings/album/',            clear: ['/stats/album/'] },
   { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
   { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
   { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },

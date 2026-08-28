@@ -48,6 +48,13 @@ export interface AlbumCover {
   observedAt: string;
 }
 
+// valoración del usuario para un álbum: estrellas enteras + texto opcional
+export interface AlbumRating {
+  rating: number;
+  review: string | null;
+  updatedAt: string;
+}
+
 export interface AlbumDetail {
   album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
   artists: { id: string; name: string; imageUrl: string | null }[];
@@ -60,6 +67,8 @@ export interface AlbumDetail {
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
   covers?: AlbumCover[];
+  // valoración del usuario (null = sin valorar); se resuelve sobre el grupo de merge entero
+  rating?: AlbumRating | null;
 }
 
 export interface TrackDetail {

@@ -19,7 +19,7 @@ export type {
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
-  ArtistDetail, AlbumDetail, AlbumCover, TrackDetail, Rankings, EntityCard, EntityCardPoint,
+  ArtistDetail, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, Rankings, EntityCard, EntityCardPoint,
   ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
@@ -32,7 +32,7 @@ export type {
   DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
 } from '@sis/shared';
-export { LOCALE_OPTIONS } from '@sis/shared';
+export { LOCALE_OPTIONS, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS } from '@sis/shared';
 
 // --- client / settings / endpoints ---
 export { API_BASE, apiFetch, apiMutate, publicFetch, PublicShareError, rangeParams, createFetchController, invalidateCache } from './client.js';

@@ -3,7 +3,7 @@ import type {
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
-  ArtistDetail, AlbumDetail, TrackDetail,
+  ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
   AccoladesResponse, Rankings, EntityCard, RankingHistoryPointWithCrossovers, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
@@ -337,6 +337,12 @@ export const api = {
 
   setAlbumCover: (albumId: string, imageUrl: string) =>
     apiMutate<{ ok: boolean }>('PUT', `/covers/album/${encodeURIComponent(albumId)}`, { imageUrl }),
+
+  setAlbumRating: (albumId: string, rating: number, review: string | null) =>
+    apiMutate<AlbumRating>('PUT', `/ratings/album/${encodeURIComponent(albumId)}`, { rating, review }),
+
+  deleteAlbumRating: (albumId: string) =>
+    apiMutate<{ success: boolean }>('DELETE', `/ratings/album/${encodeURIComponent(albumId)}`),
 
   uploadAlbumCover: async (albumId: string, file: File): Promise<{ imageUrl: string }> => {
     const formData = new FormData();
