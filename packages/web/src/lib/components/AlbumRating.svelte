@@ -1,7 +1,9 @@
 <script lang="ts">
   // widget de valoración de álbum: estrellas enteras (sin medias) + review opcional.
-  // guarda al hacer click (optimista vía respuesta del server); el × elimina la
-  // valoración entera, review incluida.
+  // toda la UI vive en una única fila de alto constante y el editor de review se
+  // abre como popover anclado (mismo patrón que el cover-picker): el hero centra
+  // verticalmente la columna de info contra la portada, así que cualquier cambio
+  // de alto aquí desplazaría el título y la portada enteros.
   import { api, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS, type AlbumRating } from '$lib/api';
   import IconStar from '$lib/icons/IconStar.svelte';
 
@@ -12,6 +14,7 @@
   let editing = $state(false);
   let draft = $state('');
   let saving = $state(false);
+  let containerEl: HTMLDivElement | undefined = $state();
 
   const stars = Array.from({ length: ALBUM_RATING_MAX }, (_, i) => i + 1);
 
@@ -21,6 +24,23 @@
     current = initial;
     editing = false;
     hover = null;
+  });
+
+  // cerrar el popover con click fuera o Escape (patrón del cover-picker)
+  function handleOutside(e: PointerEvent) {
+    if (containerEl && !containerEl.contains(e.target as Node)) editing = false;
+  }
+  function handleKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') editing = false;
+  }
+  $effect(() => {
+    if (!editing) return;
+    document.addEventListener('pointerdown', handleOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
   });
 
   let shown = $derived(hover ?? current?.rating ?? 0);
@@ -47,7 +67,11 @@
     }
   }
 
-  function startEdit() {
+  function toggleEditor() {
+    if (editing) {
+      editing = false;
+      return;
+    }
     draft = current?.review ?? '';
     editing = true;
   }
@@ -64,7 +88,7 @@
   }
 </script>
 
-<div class="album-rating">
+<div class="album-rating" bind:this={containerEl}>
   <!-- el mouseleave solo resetea el preview de hover, una mejora mouse-only:
        cada estrella ya es un botón accesible que limpia el preview en blur -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -86,32 +110,34 @@
     {/each}
     {#if current}
       <button class="rating-clear" disabled={saving} onclick={clearRating} aria-label="Remove rating" title="Remove rating">&times;</button>
+      <button
+        class="review-toggle"
+        class:review-toggle--filled={!!current.review}
+        onclick={toggleEditor}
+        title={current.review ?? 'Add review'}
+      >
+        {current.review ? 'Review' : '+ Add review'}
+      </button>
     {/if}
   </div>
 
-  {#if current}
-    {#if editing}
-      <div class="review-editor">
-        <!-- el editor solo se abre por acción explícita del usuario: el autofocus no roba foco -->
-        <!-- svelte-ignore a11y_autofocus -->
-        <textarea bind:value={draft} rows="3" maxlength={ALBUM_REVIEW_MAX_CHARS} placeholder="Write a review…" autofocus></textarea>
-        <div class="review-actions">
-          <button class="review-save" disabled={saving} onclick={saveReview}>Save</button>
-          <button class="review-cancel" disabled={saving} onclick={() => (editing = false)}>Cancel</button>
-        </div>
+  {#if editing && current}
+    <div class="review-popover">
+      <!-- el editor solo se abre por acción explícita del usuario: el autofocus no roba foco -->
+      <!-- svelte-ignore a11y_autofocus -->
+      <textarea bind:value={draft} rows="4" maxlength={ALBUM_REVIEW_MAX_CHARS} placeholder="Write a review…" autofocus></textarea>
+      <div class="review-actions">
+        <button class="review-save" disabled={saving} onclick={saveReview}>Save</button>
+        <button class="review-cancel" disabled={saving} onclick={() => (editing = false)}>Cancel</button>
       </div>
-    {:else if current.review}
-      <button class="review-text" onclick={startEdit} title="Edit review">{current.review}</button>
-    {:else}
-      <button class="review-add" onclick={startEdit}>+ Add review</button>
-    {/if}
+    </div>
   {/if}
 </div>
 
 <style>
   .album-rating {
+    position: relative;
     margin-top: 0.4rem;
-    max-width: 480px;
   }
   .rating-stars {
     display: flex;
@@ -157,51 +183,46 @@
   .rating-clear:hover {
     color: var(--text);
   }
-  .review-text {
-    display: block;
+  .review-toggle {
     background: none;
     border: none;
-    padding: 0;
-    margin-top: 0.3rem;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 0.82rem;
-    font-style: italic;
-    line-height: 1.4;
-    text-align: left;
-    cursor: pointer;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .review-text:hover {
-    color: var(--text);
-  }
-  .review-add {
-    background: none;
-    border: none;
-    padding: 0;
-    margin-top: 0.2rem;
+    padding: 2px 4px;
     color: var(--text-muted);
     font: inherit;
     font-size: 0.78rem;
+    line-height: 1;
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.05s, color 0.05s;
   }
-  .album-rating:hover .review-add,
-  .review-add:focus-visible {
+  .album-rating:hover .review-toggle,
+  .review-toggle:focus-visible,
+  .review-toggle--filled {
     opacity: 1;
   }
-  .review-add:hover {
+  .review-toggle:hover {
     color: var(--accent);
   }
-  .review-editor {
-    margin-top: 0.35rem;
+  .review-toggle--filled {
+    color: var(--accent);
+    font-style: italic;
   }
-  .review-editor textarea {
+  .review-popover {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    width: min(320px, 78vw);
+    padding: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    z-index: 20;
+  }
+  .review-popover textarea {
     width: 100%;
     resize: vertical;
-    background: var(--bg-card);
+    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
@@ -209,14 +230,14 @@
     font-size: 0.82rem;
     padding: 0.45rem 0.55rem;
   }
-  .review-editor textarea:focus {
+  .review-popover textarea:focus {
     outline: none;
     border-color: var(--accent);
   }
   .review-actions {
     display: flex;
     gap: 0.4rem;
-    margin-top: 0.3rem;
+    margin-top: 0.35rem;
   }
   .review-actions button {
     border: 1px solid var(--border);
@@ -244,5 +265,16 @@
   .review-actions button:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+
+  /* hero en columna centrada en móvil: centrar la fila y el popover con ella */
+  @media (max-width: 768px) {
+    .rating-stars {
+      justify-content: center;
+    }
+    .review-popover {
+      left: 50%;
+      transform: translateX(-50%);
+    }
   }
 </style>
