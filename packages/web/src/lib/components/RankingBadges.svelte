@@ -157,7 +157,8 @@
         onmouseleave={() => { if (peak) highlightedMonth = ''; }}
       >
         <span class="ranking-label">{label}</span>
-        <span class="ranking-value" style:color={color}>#{rank}{#if peak}<span class="ranking-peak" style:color={medalColor(peak.rank)}><span class="ranking-peak-tag">MAX</span>#{peak.rank}</span>{/if}</span>
+        <span class="ranking-value" style:color={color}>#{rank}</span>
+        {#if peak}<span class="ranking-peak" style:color={medalColor(peak.rank)}><span class="ranking-peak-tag">MAX</span>#{peak.rank}</span>{/if}
       </a>
     {:else}
       <div class="ranking-badge" class:ranking-badge--loading={rankingsLoading}>
@@ -199,6 +200,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    /* el badge "All" lleva una línea extra (el pico), así que la fila estira al resto:
+       centrar en vertical para que todos queden alineados por el centro */
+    justify-content: center;
     gap: 0.15rem;
     flex: 1;
     min-width: 60px;
@@ -252,10 +256,12 @@
     color: #1db954;
   }
   .ranking-peak {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 0.7rem;
     font-weight: 600;
+    line-height: 1;
     color: var(--text-muted);
-    margin-left: 0.25em;
   }
   /* etiqueta "MAX" delante del pico histórico, en lugar del antiguo triángulo */
   .ranking-peak-tag {
