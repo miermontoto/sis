@@ -1,5 +1,6 @@
 <script lang="ts">
   import { medalColor } from '$lib/utils/medals';
+  import LiveEq from './LiveEq.svelte';
 
   interface CoverItem {
     href: string;
@@ -17,25 +18,30 @@
 
 <div class="cover-row">
   {#each items as item, i}
-    <a href={item.href} class="cover-item" title="{item.name} — {item.stat}" oncontextmenu={item.oncontextmenu}>
-      {#if item.rank != null}
-        <span class="cover-rank" style:color={medalColor(item.rank)}>{item.rank}</span>
-      {/if}
-      {#if item.imageUrl}
-        <img class="cover-img" class:cover-img--round={item.round} src={item.imageUrl} alt={item.name} />
-      {:else}
-        <div class="cover-img cover-img--empty" class:cover-img--round={item.round}></div>
-      {/if}
-      <div class="cover-name">{item.name}{#if item.isLive} <span class="live-dot"></span>{/if}</div>
+    <a href={item.href} class="cover-item" class:cover-item--live={item.isLive} title="{item.name} — {item.stat}" oncontextmenu={item.oncontextmenu}>
+      <div class="cover-img-wrap">
+        {#if item.rank != null}
+          <span class="cover-rank" style:color={medalColor(item.rank)}>{item.rank}</span>
+        {/if}
+        {#if item.imageUrl}
+          <img class="cover-img" class:cover-img--round={item.round} src={item.imageUrl} alt={item.name} />
+        {:else}
+          <div class="cover-img cover-img--empty" class:cover-img--round={item.round}></div>
+        {/if}
+        {#if item.isLive}<LiveEq round={item.round} />{/if}
+      </div>
+      <div class="cover-name">{item.name}</div>
       <div class="cover-stat">{item.stat}</div>
     </a>
   {/each}
 </div>
 
 <style>
+  /* el gap compensa el padding de las tarjetas: el hueco visible entre
+     carátulas sigue siendo ~0.9rem */
   .cover-row {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.3rem;
     overflow-x: auto;
     padding-bottom: 0.25rem;
   }
@@ -45,12 +51,37 @@
     align-items: center;
     flex: 1 1 0;
     min-width: 0;
+    padding: 0.3rem;
+    border-radius: var(--radius);
     text-decoration: none;
     color: inherit;
-    position: relative;
   }
   .cover-item:hover .cover-name {
     color: var(--accent);
+  }
+  /* tarjeta sonando ahora: mismo contenedor verde que en las listas */
+  .cover-item--live {
+    background: var(--live-bg);
+    box-shadow: var(--live-ring);
+  }
+  .cover-img-wrap {
+    position: relative;
+    width: 100%;
+    line-height: 0;
+  }
+  /* la carátula es mucho mayor que la de una fila, el ecualizador crece con ella */
+  .cover-img-wrap :global(.live-eq) {
+    height: 16px;
+    bottom: 5px;
+    left: 5px;
+    gap: 3px;
+  }
+  .cover-img-wrap :global(.live-eq--round) {
+    left: 50%;
+    bottom: 8%;
+  }
+  .cover-img-wrap :global(.live-eq span) {
+    width: 3px;
   }
   .cover-rank {
     font-family: var(--font-mono);
@@ -86,10 +117,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     width: 100%;
-  }
-  .cover-name .live-dot {
-    margin-left: 0.2rem;
-    vertical-align: middle;
   }
   .cover-stat {
     font-family: var(--font-mono);

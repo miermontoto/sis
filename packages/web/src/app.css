@@ -7,6 +7,10 @@
   --text-muted: #6a7a7a;
   --accent: #1db954;
   --accent-hover: #1ed760;
+  /* contenedor de "sonando ahora": mismo lenguaje que la card de now playing */
+  --live-bg: linear-gradient(135deg, rgba(29, 185, 84, 0.12), rgba(29, 185, 84, 0.03));
+  --live-bg-hover: linear-gradient(135deg, rgba(29, 185, 84, 0.2), rgba(29, 185, 84, 0.06));
+  --live-ring: inset 0 0 0 1px rgba(29, 185, 84, 0.28);
   --danger: #e74c3c;
   --gold: #f0c040;
   --silver: #c0c0c0;
@@ -633,7 +637,7 @@ a.track-item {
 }
 
 .track-name > a,
-.track-name > span:not(.live-dot) {
+.track-name > span {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -710,6 +714,7 @@ a.track-item {
   color: var(--accent);
 }
 .track-art-link {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   line-height: 0;
@@ -742,6 +747,12 @@ a.track-item {
 .track-item.compact .track-rank {
   font-size: 0.75rem;
   min-width: 1.2rem;
+}
+/* la carátula compacta es de 36px: el ecualizador encoge con ella */
+.track-item.compact .live-eq {
+  height: 10px;
+  bottom: 2px;
+  left: 2px;
 }
 
 /* tabs */
@@ -1401,6 +1412,69 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
 }
 
 /* live / now playing indicators */
+
+/* fila sonando ahora: contenedor verde con el mismo lenguaje que la card de
+   now playing (el bloque de sesión es idéntico pero en azul). el anillo va
+   como box-shadow inset para no crecer la fila 2px y descuadrar la lista */
+.track-item--live {
+  background: var(--live-bg);
+  box-shadow: var(--live-ring);
+}
+
+.track-item--live:hover {
+  background: var(--live-bg-hover);
+}
+
+/* ecualizador animado superpuesto a la carátula. los estilos viven aquí (y no
+   en el componente) para poder reutilizarlo dentro de estilos scopeados */
+.live-eq {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  pointer-events: none;
+}
+
+.live-eq span {
+  width: 2.5px;
+  background: var(--accent);
+  border-radius: 1px;
+  transform-origin: bottom;
+}
+
+.live-eq--round {
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+}
+
+.live-eq span:nth-child(1) { animation: live-eq1 1.2s ease-in-out infinite; }
+.live-eq span:nth-child(2) { animation: live-eq2 1.0s ease-in-out infinite; }
+.live-eq span:nth-child(3) { animation: live-eq3 1.4s ease-in-out infinite; }
+
+@keyframes live-eq1 {
+  0%, 100% { height: 25%; }
+  30% { height: 90%; }
+  60% { height: 40%; }
+}
+
+@keyframes live-eq2 {
+  0%, 100% { height: 50%; }
+  20% { height: 35%; }
+  50% { height: 100%; }
+  80% { height: 45%; }
+}
+
+@keyframes live-eq3 {
+  0%, 100% { height: 35%; }
+  25% { height: 75%; }
+  55% { height: 25%; }
+  75% { height: 85%; }
+}
+
 .live-dot {
   display: inline-block;
   width: 6px;

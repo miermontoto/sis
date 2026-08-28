@@ -14,6 +14,7 @@
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import IconVolume from '$lib/icons/IconVolume.svelte';
   import PlaylistPopover from './PlaylistPopover.svelte';
+  import LiveEq from './LiveEq.svelte';
 
   let { compact = false, inline = false, rail = false }: { compact?: boolean; inline?: boolean; rail?: boolean } = $props();
 
@@ -176,7 +177,7 @@
         <a href="/album/{data.track.album.id}" class="np-art-link" title={data.track.name}>
           <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
           {#if data.isPlaying}
-            <div class="np-eq"><span></span><span></span><span></span></div>
+            <LiveEq />
           {/if}
         </a>
       {:else}
@@ -200,9 +201,7 @@
         <a href="/album/{data.track.album.id}" class="np-art-link">
           <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
           {#if data.isPlaying}
-            <div class="np-eq">
-              <span></span><span></span><span></span>
-            </div>
+            <LiveEq />
           {/if}
         </a>
       {:else}
@@ -415,13 +414,13 @@
     height: 32px;
   }
 
-  .np--inline .np-eq {
+  .np--inline :global(.live-eq) {
     height: 8px;
     bottom: 2px;
     left: 2px;
   }
 
-  .np--inline .np-eq span {
+  .np--inline :global(.live-eq span) {
     width: 2px;
   }
 
@@ -472,47 +471,6 @@
     object-fit: cover;
     background: var(--border);
     display: block;
-  }
-
-  .np-eq {
-    position: absolute;
-    bottom: 3px;
-    left: 3px;
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 12px;
-  }
-
-  .np-eq span {
-    width: 2.5px;
-    background: var(--accent);
-    border-radius: 1px;
-    transform-origin: bottom;
-  }
-
-  .np-eq span:nth-child(1) { animation: eq1 1.2s ease-in-out infinite; }
-  .np-eq span:nth-child(2) { animation: eq2 1.0s ease-in-out infinite; }
-  .np-eq span:nth-child(3) { animation: eq3 1.4s ease-in-out infinite; }
-
-  @keyframes eq1 {
-    0%, 100% { height: 25%; }
-    30% { height: 90%; }
-    60% { height: 40%; }
-  }
-
-  @keyframes eq2 {
-    0%, 100% { height: 50%; }
-    20% { height: 35%; }
-    50% { height: 100%; }
-    80% { height: 45%; }
-  }
-
-  @keyframes eq3 {
-    0%, 100% { height: 35%; }
-    25% { height: 75%; }
-    55% { height: 25%; }
-    75% { height: 85%; }
   }
 
   .np-info {

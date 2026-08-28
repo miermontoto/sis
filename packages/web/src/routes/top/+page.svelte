@@ -16,6 +16,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import RankChange from '$lib/components/RankChange.svelte';
+  import LiveEq from '$lib/components/LiveEq.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconTrack from '$lib/icons/IconTrack.svelte';
@@ -912,9 +913,11 @@
     <div class="track-list">
       {#each topArtists.slice(0, visibleCount) as item, i}
         {#if item.artist}
+          {@const live = nowPlayingStore.artistIds.includes(item.artistId)}
           <a
             href="/artist/{item.artistId}"
             class="track-item"
+            class:track-item--live={live}
             class:track-item--focused={focusedId === item.artistId}
             data-focus-id={item.artistId}
             oncontextmenu={openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist.name, imageUrl: item.artist.imageUrl })}
@@ -928,12 +931,15 @@
               <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {/if}
             {#if item.artist.imageUrl}
-              <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
+              <span class="track-art-link">
+                <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
+                {#if live}<LiveEq round />{/if}
+              </span>
             {:else}
               <div class="track-art" style="border-radius: 50%;"></div>
             {/if}
             <div class="track-info">
-              <div class="track-name">{item.artist.name}{#if nowPlayingStore.artistIds.includes(item.artistId)} <span class="live-dot"></span>{/if}</div>
+              <div class="track-name">{item.artist.name}</div>
             </div>
             <div class="track-meta">
               <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
@@ -947,9 +953,11 @@
     <div class="track-list">
       {#each topAlbums.slice(0, visibleCount) as item, i}
         {#if item.album}
+          {@const live = item.albumId === nowPlayingStore.albumId}
           <a
             href="/album/{item.albumId}"
             class="track-item"
+            class:track-item--live={live}
             class:track-item--focused={focusedId === item.albumId}
             data-focus-id={item.albumId}
             oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl })}
@@ -963,12 +971,15 @@
               <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
             {/if}
             {#if item.album.imageUrl}
-              <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+              <span class="track-art-link">
+                <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+                {#if live}<LiveEq />{/if}
+              </span>
             {:else}
               <div class="track-art"></div>
             {/if}
             <div class="track-info">
-              <div class="track-name">{item.album.name}{#if item.albumId === nowPlayingStore.albumId} <span class="live-dot"></span>{/if}</div>
+              <div class="track-name">{item.album.name}</div>
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
             <div class="track-meta">

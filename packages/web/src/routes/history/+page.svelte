@@ -8,6 +8,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
+  import LiveEq from '$lib/components/LiveEq.svelte';
   import AddScrobbleModal from '$lib/components/AddScrobbleModal.svelte';
 
   let items = $state<HistoryItem[]>([]);
@@ -370,9 +371,11 @@
   <div class="track-list">
     {#each items as item, idx}
       {#if item.track}
+        {@const live = item.track.id === nowPlayingStore.trackId}
         <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
         <div
           class="track-item"
+          class:track-item--live={live}
           class:track-item--selected={selected.has(item.id)}
           onclick={(e) => handleItemClick(idx, item.id, e)}
         >
@@ -384,15 +387,15 @@
             onchange={() => { toggleSelect(item.id); lastSelectedIndex = idx; }}
           />
           {#if item.track.album?.imageUrl}
-            <img class="track-art" src={item.track.album.imageUrl} alt={item.track.album?.name ?? ''} />
+            <span class="track-art-link">
+              <img class="track-art" src={item.track.album.imageUrl} alt={item.track.album?.name ?? ''} />
+              {#if live}<LiveEq />{/if}
+            </span>
           {:else}
             <div class="track-art"></div>
           {/if}
           <div class="track-info">
-            <div class="track-name">
-              {item.track.name}
-              {#if item.track.id === nowPlayingStore.trackId}<span class="live-dot"></span>{/if}
-            </div>
+            <div class="track-name">{item.track.name}</div>
             <div class="track-artist">
               {item.track.artists.map(a => a.name).join(', ')}
             </div>

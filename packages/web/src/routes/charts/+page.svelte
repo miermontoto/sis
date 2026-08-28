@@ -11,6 +11,7 @@
   import { setQueryParams } from '$lib/utils/query-state';
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
+  import LiveEq from '$lib/components/LiveEq.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import IconChart from '$lib/icons/IconChart.svelte';
@@ -401,18 +402,22 @@
 {:else if currentData && currentData.entries.length > 0}
   <div class="chart-list">
     {#each currentData.entries as entry}
-      <a href={entityLink(entry.entityId)} class="chart-item" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId ?? undefined })}>
+      {@const live = isEntityLive(entry.entityId)}
+      <a href={entityLink(entry.entityId)} class="chart-item" class:chart-item--live={live} oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId ?? undefined })}>
         <div class="chart-rank-col">
           <span class="chart-rank" style:color={medalColor(entry.rank)}>{entry.rank}</span>
           <RankChange rankChange={entry.rankChange} isNew={entry.isNew} isReentry={entry.isReentry} />
         </div>
         {#if entry.imageUrl}
-          <img class="chart-art" class:chart-art--round={activeType === 'artists'} src={entry.imageUrl} alt="" />
+          <span class="chart-art-wrap">
+            <img class="chart-art" class:chart-art--round={activeType === 'artists'} src={entry.imageUrl} alt="" />
+            {#if live}<LiveEq round={activeType === 'artists'} />{/if}
+          </span>
         {:else}
           <div class="chart-art" class:chart-art--round={activeType === 'artists'}></div>
         {/if}
         <div class="chart-info">
-          <div class="chart-name">{entry.name}{#if isEntityLive(entry.entityId)} <span class="live-dot"></span>{/if}</div>
+          <div class="chart-name">{entry.name}</div>
           {#if entry.artists?.length}
             <!-- svelte-ignore node_invalid_placement_ssr -->
             <div class="chart-artists">
@@ -613,6 +618,20 @@
   }
   .chart-item:hover {
     background: var(--bg-hover);
+  }
+  /* fila sonando ahora: mismo contenedor verde que en el resto de listas */
+  .chart-item--live {
+    background: var(--live-bg);
+    box-shadow: var(--live-ring);
+  }
+  .chart-item--live:hover {
+    background: var(--live-bg-hover);
+  }
+  .chart-art-wrap {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+    line-height: 0;
   }
   .chart-rank-col {
     display: flex;
