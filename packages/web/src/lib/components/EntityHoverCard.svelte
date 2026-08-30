@@ -10,6 +10,9 @@
   // sola vez en el layout y el disparo es delegado: cualquier <a> que apunte a
   // /track|/album|/artist la abre, sin que el call site tenga que enterarse. Para
   // excluir una zona basta un [data-no-hover-card] por encima de sus enlaces.
+  // En un enlace-fila (el <a> ocupa la fila entera) sólo disparan portada y
+  // nombre: encender la tarjeta desde cualquier punto de la fila estorba al
+  // bajar por una lista.
 
   // retardo antes de abrir: bajar el ratón por una lista no debe encender una
   // tarjeta por fila. Con una ya abierta la intención de hover está demostrada,
@@ -24,6 +27,9 @@
   // sólo con ratón: en táctil no hay hover y el gesto chocaría con el scroll
   const HOVER_QUERY = '(hover: hover) and (pointer: fine)';
   const ENTITY_LINK = 'a[href^="/track/"], a[href^="/album/"], a[href^="/artist/"]';
+  // zonas que disparan dentro de un enlace-fila. Un enlace sin ninguna de estas
+  // por debajo (nombre suelto, chip, portada enlazada) sigue disparando entero
+  const HOT_ZONES = '.track-art-link, .track-art, .track-name, .chart-art-wrap, .chart-art, .chart-name';
 
   interface Pending {
     type: EntityType;
@@ -60,6 +66,15 @@
     hoverCard.close();
   }
 
+  // ¿el hover demuestra intención? si el enlace contiene portada o nombre como
+  // descendientes es un enlace-fila y sólo cuentan esas zonas; contains() ata la
+  // zona al propio enlace para no casar con un ancestro fuera de él
+  function inHotZone(anchor: HTMLAnchorElement, target: Element): boolean {
+    if (!anchor.querySelector(HOT_ZONES)) return true;
+    const zone = target.closest(HOT_ZONES);
+    return zone !== null && anchor.contains(zone);
+  }
+
   // entidad a la que apunta un enlace: descartando lo que no es una ruta de
   // detalle, lo que sale de la app y la página que ya se está mirando
   function entityFromAnchor(a: HTMLAnchorElement): { type: EntityType; id: string } | null {
@@ -91,7 +106,10 @@
     if (cardEl?.contains(target)) { cancelOpen(); cancelClose(); return; }
 
     const anchor = target.closest(ENTITY_LINK) as HTMLAnchorElement | null;
-    const entity = anchor && !anchor.closest('[data-no-hover-card]') ? entityFromAnchor(anchor) : null;
+    const entity =
+      anchor && !anchor.closest('[data-no-hover-card]') && inHotZone(anchor, target)
+        ? entityFromAnchor(anchor)
+        : null;
     if (!entity || !anchor) { cancelOpen(); scheduleClose(); return; }
 
     const open = hoverCard.state;
