@@ -4,16 +4,37 @@
 # la lista de secrets (keystore, etc.) está documentada en su cabecera; hay que
 # configurarlos en este repo antes del primer run (falla rápido si faltan).
 #
-# la subida automática a Play está apagada por defecto: falta crear la app en la Play
-# Console y configurar el service account (secret ANDROID_PLAY_SERVICE_ACCOUNT_JSON).
+# AUTOMÁTICO: cada push a main que toque packages/web, el submódulo platform o los
+# workflows construye el .aab. el filtrado por paths lo hace el job `guard` del
+# workflow reutilizable (input path_filter), no un `paths:` nativo, que rompería el
+# release por tag.
+#
+# la SUBIDA a Play sigue apagada, y no por pereza: Play bloquea su api hasta que la
+# app tiene una primera release subida A MANO por la consola, así que con upload=true
+# el workflow fallaría igual aunque estuviera el service account. el .aab que deja
+# este workflow como artifact es justo el fichero para esa primera subida manual.
+# para encenderla, una vez hechos los 4 pasos de la cabecera del reutilizable
+# (crear la app → primera subida manual → service account invitado → secret
+# ANDROID_PLAY_SERVICE_ACCOUNT_JSON), cambia la línea `upload:` de abajo por:
+#     upload: ${{ github.event_name == 'push' || inputs.upload }}
 #
 # iOS: sin workflow todavía — el login de sis es oauth de spotify, que en el webview
 # requiere browser del sistema + deep link de vuelta (pendiente en el roadmap de la
-# plataforma); tampoco hay script mobile:build:ios ni app record en App Store Connect.
+# plataforma); tampoco hay dependencia @capacitor/ios, script mobile:build:ios, app
+# record en App Store Connect ni los 7 secrets de firma. hasta que el oauth móvil
+# funcione, un build de TestFlight sería una app en la que no se puede entrar.
 
 name: Android release
 
 on:
+  push:
+    # branches y tags conviven en el mismo bloque: github los evalúa como un OR de
+    # filtros de ref. sin `paths:` a propósito (rompería el push de tag, que no trae
+    # commits); el filtrado por rutas vive en el job `guard` del reutilizable.
+    branches:
+      - main         # build automático (subida aún apagada, ver cabecera)
+    tags:
+      - 'android-v*'
   workflow_dispatch:
     inputs:
       upload:
@@ -23,15 +44,12 @@ on:
       track:
         description: 'Track de Play donde publicar el aab.'
         type: choice
-        default: internal
+        default: alpha
         options:
           - internal
           - alpha
           - beta
           - production
-  push:
-    tags:
-      - 'android-v*'
 
 concurrency:
   group: android-release-${{ github.ref }}
@@ -43,7 +61,9 @@ jobs:
     with:
       app: sis
       package_name: info.mier.sis
-      # sin service account de Play todavía: en push de tag también queda en false.
+      # sin la primera release manual en la consola ni service account: en push queda
+      # en false (solo build + artifact). ver cabecera para encenderlo.
       upload: ${{ inputs.upload || false }}
-      track: ${{ inputs.track || 'internal' }}
+      # alpha = closed testing, el destino real cuando se encienda la subida.
+      track: ${{ inputs.track || 'alpha' }}
     secrets: inherit
