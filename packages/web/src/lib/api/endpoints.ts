@@ -304,7 +304,7 @@ export const api = {
       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(err.error || `API error: ${res.status}`);
     }
-    applyMutationInvalidation('POST', '/import');
+    await applyMutationInvalidation('POST', '/import');
     return res.json();
   },
 
@@ -367,7 +367,7 @@ async function uploadImage(path: string, file: File): Promise<{ imageUrl: string
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `API error: ${res.status}`);
   }
-  applyMutationInvalidation('POST', path);
+  await applyMutationInvalidation('POST', path);
   return res.json();
 }
 

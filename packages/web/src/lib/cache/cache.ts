@@ -25,6 +25,15 @@ export interface CacheDeps {
   inflight: Map<string, Promise<unknown>>;
 }
 
+// epoch de invalidación. Una respuesta que arrancó ANTES de una invalidación
+// lleva datos pre-mutación, así que no puede repoblar el cache: writeBoth la
+// descarta comparando el epoch capturado al lanzar el fetch con el actual.
+let epoch = 0;
+
+export function currentEpoch(): number {
+  return epoch;
+}
+
 // resuelve la lookup en cache para una llamada GET.
 // devuelve { data, fresh } si hay algo servible; null si hay miss total.
 // dispara revalidación en background si está stale.
@@ -81,11 +90,12 @@ export function revalidate(
   deps: CacheDeps,
 ): void {
   if (deps.inflight.has(cacheKey)) return;
+  const gen = epoch;
   refreshing.add(path);
   const p = (async () => {
     try {
       const data = await fetcher();
-      await writeBoth(cacheKey, data, deps);
+      await writeBoth(cacheKey, data, deps, gen);
       return data;
     } finally {
       deps.inflight.delete(cacheKey);
@@ -108,9 +118,10 @@ export async function fetchAndStore<T>(
   const existing = deps.inflight.get(cacheKey);
   if (existing) return await existing as T;
 
+  const gen = epoch;
   const p = (async () => {
     const data = await fetcher();
-    await writeBoth(cacheKey, data, deps);
+    await writeBoth(cacheKey, data, deps, gen);
     return data;
   })();
   deps.inflight.set(cacheKey, p);
@@ -121,7 +132,10 @@ export async function fetchAndStore<T>(
   }
 }
 
-async function writeBoth(cacheKey: string, data: unknown, deps: CacheDeps): Promise<void> {
+async function writeBoth(cacheKey: string, data: unknown, deps: CacheDeps, gen: number): Promise<void> {
+  // la respuesta salió antes de la última invalidación: escribirla resucitaría
+  // el estado pre-mutación que se acaba de purgar
+  if (gen !== epoch) return;
   const ts = Date.now();
   deps.l1.set(cacheKey, { data, ts });
   const size = store.estimateSize(data);
@@ -130,18 +144,31 @@ async function writeBoth(cacheKey: string, data: unknown, deps: CacheDeps): Prom
 
 // expuesto para callers que hacen fetch fuera del SWR (p.ej. requests con
 // signal propio) y quieren poblar el cache para hits futuros.
-export function writeCache(cacheKey: string, data: unknown, deps: CacheDeps): void {
+// `gen` es el epoch capturado por el caller ANTES de lanzar su fetch.
+export function writeCache(cacheKey: string, data: unknown, deps: CacheDeps, gen: number): void {
   // fire-and-forget: el caller ya tiene su data, no esperamos a IDB.
-  writeBoth(cacheKey, data, deps).catch(() => {});
+  writeBoth(cacheKey, data, deps, gen).catch(() => {});
 }
 
-// invalida por prefijo de path (no por URL completa).
-// limpia tanto L1 como L2.
-export async function invalidateByPath(pathPrefix: string, deps: CacheDeps): Promise<void> {
+// invalida por prefijos de path (no por URL completa). Limpia L1 y L2 en una
+// sola pasada de claves.
+//
+// EL AWAIT DEL CALLER ES PARTE DEL CONTRATO: el purgado de L2 es asíncrono y
+// empieza por enumerar claves, así que un refetch lanzado sin esperarlo abría su
+// transacción de lectura antes de que existiera la de borrado y volvía a leer la
+// entrada pre-mutación (que además, dentro de su ttl, cuenta como fresca y ni
+// siquiera revalida). Era el "unmerge que no cambia nada hasta recargar".
+export async function invalidateByPaths(pathPrefixes: string[], deps: CacheDeps): Promise<void> {
+  if (pathPrefixes.length === 0) return;
+  epoch++;
   for (const key of deps.l1.keys()) {
-    if (matches(key, pathPrefix)) deps.l1.delete(key);
+    if (pathPrefixes.some(p => matches(key, p))) deps.l1.delete(key);
   }
-  await store.delByPathPrefix(pathPrefix);
+  await store.delByPathPrefixes(pathPrefixes);
+}
+
+export function invalidateByPath(pathPrefix: string, deps: CacheDeps): Promise<void> {
+  return invalidateByPaths([pathPrefix], deps);
 }
 
 export function clearL1(deps: CacheDeps): void {

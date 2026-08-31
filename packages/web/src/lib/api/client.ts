@@ -129,8 +129,9 @@ export async function apiFetchStream<T>(
     return hit.data;
   }
 
+  const gen = cache.currentEpoch();
   const items = await readNdjson<T>(url, onItem, signal);
-  cache.writeCache(cacheKey, items, cacheDeps);
+  cache.writeCache(cacheKey, items, cacheDeps, gen);
   return items;
 }
 
@@ -158,8 +159,9 @@ export async function apiFetch<T>(path: string, params?: Record<string, string>,
   if (signal) {
     // miss con signal: bypass del dedup (la dedup compartiría signal entre
     // callers), pero la respuesta sí pobla el cache para hits futuros.
+    const gen = cache.currentEpoch();
     const data = await rawFetch<T>(url, signal);
-    cache.writeCache(cacheKey, data, cacheDeps);
+    cache.writeCache(cacheKey, data, cacheDeps, gen);
     return data;
   }
 
@@ -209,13 +211,12 @@ export function createFetchController() {
 // invalidar cache (tras mutaciones o cuando se necesite data fresca).
 // limpia L1 + L2 por prefijo de path; sin prefijo → limpia todo L1 y dispara
 // purga de L2 a un prefijo amplio.
-export function invalidateCache(pathPrefix?: string): void {
+export function invalidateCache(pathPrefix?: string): Promise<void> {
   if (!pathPrefix) {
     cache.clearL1(cacheDeps);
-    cache.invalidateByPath('/', cacheDeps);
-    return;
+    return cache.invalidateByPath('/', cacheDeps);
   }
-  cache.invalidateByPath(pathPrefix, cacheDeps);
+  return cache.invalidateByPath(pathPrefix, cacheDeps);
 }
 
 // mapeo de mutaciones → prefijos a invalidar. Match por método+prefijo de path.
@@ -285,17 +286,21 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'DELETE', prefix: '/listen-token',              clear: [] },
 ];
 
-export function applyMutationInvalidation(method: string, path: string): void {
+// se ESPERA, no es fire-and-forget: el caller que refresca su vista justo
+// después de mutar (el "unmerge" de los detalles, por ejemplo) tiene que
+// encontrarse L2 ya purgado o volverá a leer el estado viejo. Ver el contrato
+// en cache.invalidateByPaths.
+export async function applyMutationInvalidation(method: string, path: string): Promise<void> {
   for (const rule of MUTATION_INVALIDATIONS) {
     if (rule.method !== method) continue;
     if (path === rule.prefix || path.startsWith(rule.prefix)) {
-      for (const p of rule.clear) cache.invalidateByPath(p, cacheDeps);
+      await cache.invalidateByPaths(rule.clear, cacheDeps);
       return;
     }
   }
   // fallback: si no hay regla, conservador → limpia todo el cache.
   cache.clearL1(cacheDeps);
-  cache.invalidateByPath('/', cacheDeps);
+  await cache.invalidateByPath('/', cacheDeps);
 }
 
 // POST/PUT/DELETE/PATCH helper para mutaciones.
@@ -315,7 +320,7 @@ export async function apiMutate<T>(method: string, path: string, body?: unknown,
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `API error: ${res.status}`);
   }
-  if (opts?.invalidate !== false) applyMutationInvalidation(method, path);
+  if (opts?.invalidate !== false) await applyMutationInvalidation(method, path);
   // 204 No Content: sin cuerpo que parsear
   if (res.status === 204) return undefined as T;
   return res.json();

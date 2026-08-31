@@ -75,12 +75,20 @@ export async function del(key: string): Promise<void> {
   }
 }
 
-// borra todas las entradas cuya clave (sin prefijo) empieza por pathPrefix.
-export async function delByPathPrefix(pathPrefix: string): Promise<void> {
+// borra todas las entradas cuya clave (sin prefijo) empieza por alguno de los
+// pathPrefixes. Una sola enumeración de claves para todos ellos: la lista de
+// invalidación de una mutación trae hasta cinco prefijos y escanear por cada uno
+// multiplicaba las transacciones de IDB por nada.
+export async function delByPathPrefixes(pathPrefixes: string[]): Promise<void> {
+  if (pathPrefixes.length === 0) return;
   try {
     const p = prefix();
     const all = (await idbKeys(ensureStore())) as string[];
-    const toDel = all.filter(k => typeof k === 'string' && k.startsWith(p) && k.slice(p.length).startsWith(pathPrefix));
+    const toDel = all.filter(k => {
+      if (typeof k !== 'string' || !k.startsWith(p)) return false;
+      const rest = k.slice(p.length);
+      return pathPrefixes.some(pp => rest.startsWith(pp));
+    });
     await Promise.all(toDel.map(k => idbDel(k, ensureStore())));
   } catch {
     // noop

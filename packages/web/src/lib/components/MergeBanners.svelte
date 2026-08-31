@@ -18,7 +18,23 @@
 
   let round = $derived(entityType === 'artist');
   let swapping = $state(false);
+  let unmerging = $state(false);
   let error = $state('');
+
+  // deshace la regla: onUnmerge recarga el detalle (el cache ya está purgado
+  // cuando deleteMerge resuelve, así que el refetch trae el estado nuevo)
+  async function unmerge(ruleId: number) {
+    unmerging = true;
+    error = '';
+    try {
+      await api.deleteMerge(ruleId);
+      onUnmerge();
+    } catch (e) {
+      error = errorMessage(e, 'Error removing merge');
+    } finally {
+      unmerging = false;
+    }
+  }
 
   // promueve esta entidad a canónica: el grupo entero se repunta hacia ella
   async function makeCanonical() {
@@ -40,10 +56,12 @@
     <span>Merged into <a href="/{entityType}/{mergedInto.id}">{mergedInto.name}</a></span>
     <span class="merge-banner-actions">
       {#if error}<span class="merge-banner-error">{error}</span>{/if}
-      <button class="merge-banner-btn" disabled={swapping} onclick={makeCanonical} title="Make this the canonical {entityType} — the rest of the group will point here">
+      <button class="merge-banner-btn" disabled={swapping || unmerging} onclick={makeCanonical} title="Make this the canonical {entityType} — the rest of the group will point here">
         {swapping ? 'Swapping...' : 'Make canonical'}
       </button>
-      <button class="merge-banner-unmerge" onclick={async () => { await api.deleteMerge(mergedInto!.ruleId); onUnmerge(); }}>Unmerge</button>
+      <button class="merge-banner-unmerge" disabled={swapping || unmerging} onclick={() => unmerge(mergedInto!.ruleId)}>
+        {unmerging ? 'Unmerging...' : 'Unmerge'}
+      </button>
     </span>
   </div>
 {/if}
