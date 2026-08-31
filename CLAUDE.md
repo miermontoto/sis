@@ -75,6 +75,11 @@ All top-* endpoints accept `?range=` (from `TIME_RANGES` in constants.ts), `?lim
 
 `TIME_RANGES` uses sentinel values: `0` = all time (no filter), `-1` = thisYear (Jan 1 UTC of current year).
 
+### Chart peaks (streaming)
+`/stats/charts/peaks` (batch JSON) and `/stats/charts/peaks/stream` (NDJSON, one line per entity) return the same stats. Both drive `services/chart-peaks.ts`: the per-period `ROW_NUMBER()` scan is split into one-calendar-year `played_at` windows (work-preserving, since the ranking is partitioned by period, and index-friendly via `(user_id, played_at)`), walked newest → oldest, closing each entity once the scan passes its own first play. Year cut points are `Jan 1 + weekStart shift`, which never splits a period label. The batch endpoint stays as the client's fallback (shipped APKs, proxies that eat chunked responses).
+
+Writing any streaming route: `dbRead` runs **synchronously on the main thread in dev** (worker pool only in prod), so the handler must `await setImmediate` between chunks or nothing flushes until it returns. Set `X-Accel-Buffering: no` so nginx doesn't buffer it in production.
+
 ### Frontend state
 - `packages/web/src/lib/api.ts` — typed API client, all types for API responses, ranking metric preference via localStorage (`sis:rankingMetric`)
 - Pages read localStorage preferences on mount (no global store)

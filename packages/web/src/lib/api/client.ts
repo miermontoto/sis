@@ -70,6 +70,70 @@ async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
   return resolveAssets(await res.json());
 }
 
+// lee una respuesta NDJSON (un objeto JSON por línea) entregando cada item
+// conforme llega. Fallback sin `res.body`: CapacitorHttp (apk) resuelve el fetch
+// con la respuesta ya completa, así que ahí no hay progresivo pero sí resultado.
+async function readNdjson<T>(url: string, onItem?: (item: T) => void, signal?: AbortSignal): Promise<T[]> {
+  const res = await fetch(url, signal ? { signal } : undefined);
+  if (res.status === 401) {
+    window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
+    throw new Error('No autorizado');
+  }
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+  const items: T[] = [];
+  const emit = (line: string) => {
+    if (!line) return;
+    const item = resolveAssets(JSON.parse(line) as T);
+    items.push(item);
+    onItem?.(item);
+  };
+
+  if (!res.body) {
+    (await res.text()).split('\n').forEach(l => emit(l.trim()));
+    return items;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // el último trozo puede quedar a medias: se deja en el buffer
+    let nl = buffer.indexOf('\n');
+    while (nl >= 0) {
+      emit(buffer.slice(0, nl).trim());
+      buffer = buffer.slice(nl + 1);
+      nl = buffer.indexOf('\n');
+    }
+  }
+  emit(buffer.trim());
+  return items;
+}
+
+// GET que responde NDJSON. Entrega cada item por `onItem` según llega y cachea
+// la lista ensamblada: los hits posteriores se replayean de golpe, sin red.
+export async function apiFetchStream<T>(
+  path: string,
+  params: Record<string, string>,
+  onItem: (item: T) => void,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const url = buildUrl(path, params);
+  const cacheKey = buildKey(path, params);
+  const hit = await cache.lookup<T[]>(path, cacheKey, () => readNdjson<T>(url), cacheDeps);
+  if (hit) {
+    hit.data.forEach(onItem);
+    return hit.data;
+  }
+
+  const items = await readNdjson<T>(url, onItem, signal);
+  cache.writeCache(cacheKey, items, cacheDeps);
+  return items;
+}
+
 // wrapper genérico para llamadas GET. SWR por defecto.
 //
 // el signal (AbortController) protege la espera de red (aborto al navegar),

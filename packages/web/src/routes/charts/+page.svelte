@@ -2,7 +2,7 @@
   import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
-  import { api, createFetchController, getRankingMetric, getWeekStart, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption, type Granularity } from '$lib/api';
+  import { api, createFetchController, getRankingMetric, getWeekStart, type ChartPeak, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption, type Granularity } from '$lib/api';
 
   type ChartEntityType = 'tracks' | 'albums' | 'artists';
   import { formatDuration, formatNumber, formatMonthYear, formatShortDateUTC } from '$lib/utils/format';
@@ -39,15 +39,19 @@
   let cache = $state<Map<string, ChartResponse>>(new Map());
   const periodsFetchCtrl = createFetchController();
   const chartFetchCtrl = createFetchController();
+  const peaksFetchCtrl = createFetchController();
 
   function cacheKey() {
     return `${activeType}:${granularity}:${selectedPeriod}:${metric}`;
   }
 
   let currentData = $derived(cache.get(cacheKey()) ?? null);
-  // cache de peaks ya cargados
-  let peaksLoaded = $state<Set<string>>(new Set());
-  let peaksReady = $derived(peaksLoaded.has(cacheKey()));
+  // los peaks llegan en streaming (NDJSON, una línea por entidad conforme el
+  // backend cierra su historial), así que se guardan como overlay aparte del
+  // ChartResponse cacheado: cada fila se pinta en cuanto llega la suya
+  let peaks = $state<Record<string, Record<string, ChartPeak>>>({});
+  let peaksComplete = $state<Record<string, boolean>>({});
+  let currentPeaks = $derived(peaks[cacheKey()] ?? {});
   let closedChart = $derived(closedChartsStore.charts.find(c => c.granularity === granularity) ?? null);
 
   // ancho mínimo para la columna "wks" basado en el texto más largo
@@ -58,10 +62,12 @@
     if (!currentData) return '2.5rem';
     let maxLen = 0;
     for (const e of currentData.entries) {
-      maxLen = Math.max(maxLen, wksText(e.weeksOnChart, e.consecutiveWeeks).length);
+      const peak = currentPeaks[e.entityId];
+      if (peak) maxLen = Math.max(maxLen, wksText(peak.weeksOnChart, peak.consecutiveWeeks).length);
     }
     for (const d of currentData.dropouts) {
-      maxLen = Math.max(maxLen, String(d.weeksOnChart).length);
+      const peak = currentPeaks[d.entityId];
+      if (peak) maxLen = Math.max(maxLen, String(peak.weeksOnChart).length);
     }
     // 0.55em por carácter (números son más estrechos que ch) + padding
     return maxLen <= 3 ? '2.5rem' : `${maxLen * 0.55 + 0.5}em`;
@@ -93,10 +99,44 @@
 
 
 
+  // peaks en background (no bloquea el render): el endpoint devuelve NDJSON y
+  // cada línea se aplica al overlay en cuanto llega, así que las filas van
+  // rellenándose de arriba a abajo en vez de saltar todas de golpe al final
+  function loadPeaks(key: string, chart: ChartResponse) {
+    if (peaksComplete[key]) return;
+    const ids = [...chart.entries.map(e => e.entityId), ...chart.dropouts.map(d => d.entityId)];
+    if (ids.length === 0) return;
+
+    const signal = peaksFetchCtrl.reset();
+    const apply = (peak: ChartPeak) => {
+      if (!peaks[key]) peaks[key] = {};
+      peaks[key][peak.entityId] = peak;
+    };
+
+    api.chartPeaksStream(activeType, granularity, selectedPeriod, weekStart, metric, ids, apply, signal)
+      .then(() => { peaksComplete[key] = true; })
+      .catch((e) => {
+        if (isAbortError(e)) return;
+        // stream cortado (proxy que no deja pasar chunked, error a medias):
+        // recuperar el set completo por el endpoint batch
+        api.chartPeaks(activeType, granularity, selectedPeriod, weekStart, metric, ids)
+          .then((all) => {
+            for (const [entityId, stats] of Object.entries(all)) apply({ entityId, ...stats });
+            peaksComplete[key] = true;
+          })
+          .catch(() => {});
+      });
+  }
+
   async function loadChart() {
     if (!selectedPeriod || !periodMatchesGranularity(selectedPeriod, granularity)) return;
     const key = cacheKey();
-    if (cache.has(key)) return;
+    const cached = cache.get(key);
+    if (cached) {
+      // el chart ya está, pero los peaks pueden haber quedado a medias
+      loadPeaks(key, cached);
+      return;
+    }
     const signal = chartFetchCtrl.reset();
     loading = true;
     try {
@@ -105,30 +145,7 @@
       const next = new Map(cache);
       next.set(key, result);
       cache = next;
-
-      // cargar peaks en background (no bloquea el render)
-      if (!peaksLoaded.has(key)) {
-        const allIds = [...result.entries.map(e => e.entityId), ...result.dropouts.map(d => d.entityId)];
-        api.chartPeaks(activeType, granularity, selectedPeriod, weekStart, metric, allIds).then(peaks => {
-          const cached = cache.get(key);
-          if (!cached) return;
-          const updated = { ...cached };
-          updated.entries = cached.entries.map(e => {
-            const p = peaks[e.entityId];
-            if (!p) return e;
-            return { ...e, peakRank: p.peakRank, peakPeriod: p.peakPeriod, peakPeriods: p.peakPeriods, timesAtPeak: p.timesAtPeak, weeksOnChart: p.weeksOnChart, consecutiveWeeks: p.consecutiveWeeks, isReentry: p.isReentry, isNew: e.isNew && !p.isReentry };
-          });
-          updated.dropouts = cached.dropouts.map(d => {
-            const p = peaks[d.entityId];
-            if (!p) return d;
-            return { ...d, peakRank: p.peakRank, peakPeriod: p.peakPeriod, weeksOnChart: p.weeksOnChart };
-          });
-          const m = new Map(cache);
-          m.set(key, updated);
-          cache = m;
-          peaksLoaded = new Set([...peaksLoaded, key]);
-        }).catch(() => {});
-      }
+      loadPeaks(key, result);
     } catch (e) {
       if (isAbortError(e)) return;
       throw e;
@@ -403,10 +420,11 @@
   <div class="chart-list">
     {#each currentData.entries as entry}
       {@const live = isEntityLive(entry.entityId)}
+      {@const peak = currentPeaks[entry.entityId]}
       <a href={entityLink(entry.entityId)} class="chart-item" class:chart-item--live={live} oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId ?? undefined })}>
         <div class="chart-rank-col">
           <span class="chart-rank" style:color={medalColor(entry.rank)}>{entry.rank}</span>
-          <RankChange rankChange={entry.rankChange} isNew={entry.isNew} isReentry={entry.isReentry} />
+          <RankChange rankChange={entry.rankChange} isNew={entry.isNew && !peak?.isReentry} isReentry={peak?.isReentry ?? false} />
         </div>
         {#if entry.imageUrl}
           <span class="chart-art-wrap">
@@ -429,28 +447,30 @@
           {/if}
         </div>
         <div class="chart-stats">
-          {#if !peaksReady}
+          {#if !peak}
             <div class="chart-stat"><span class="ghost-text"></span><span class="chart-stat-label">peak</span></div>
             {#if granularity === 'week'}
               <div class="chart-stat" style:min-width={wksMinWidth}><span class="ghost-text"></span><span class="chart-stat-label">wks</span></div>
             {/if}
-          {:else if entry.rank <= entry.peakRank && entry.peakPeriods?.includes(selectedPeriod) && entry.timesAtPeak === 1}
-            <div class="chart-peak-badge">PEAK</div>
-          {:else if entry.timesAtPeak > 1 && entry.peakPeriods?.length > 1}
-            <div class="chart-stat">
-              <PeakSelector peakRank={entry.peakRank} peakPeriods={entry.peakPeriods} onselect={(p) => selectedPeriod = p} />
-            </div>
           {:else}
-            <button class="chart-stat chart-stat--peak" title="Go to peak chart ({entry.peakPeriod})" onclick={(e) => { e.preventDefault(); e.stopPropagation(); selectedPeriod = entry.peakPeriod; }}>
-              <span class="chart-stat-val" style:color={medalColor(entry.peakRank)}>#{entry.peakRank}</span>
-              <span class="chart-stat-label">peak</span>
-            </button>
-          {/if}
-          {#if peaksReady && granularity === 'week'}
-            <div class="chart-stat" style:min-width={wksMinWidth} title="{entry.weeksOnChart} total, {entry.consecutiveWeeks} consecutive">
-              <span class="chart-stat-val">{entry.weeksOnChart}{#if entry.consecutiveWeeks > 0} <span class="chart-stat-total">({entry.consecutiveWeeks})</span>{/if}</span>
-              <span class="chart-stat-label">wks</span>
-            </div>
+            {#if entry.rank <= peak.peakRank && peak.peakPeriods.includes(selectedPeriod) && peak.timesAtPeak === 1}
+              <div class="chart-peak-badge">PEAK</div>
+            {:else if peak.timesAtPeak > 1 && peak.peakPeriods.length > 1}
+              <div class="chart-stat">
+                <PeakSelector peakRank={peak.peakRank} peakPeriods={peak.peakPeriods} onselect={(p) => selectedPeriod = p} />
+              </div>
+            {:else}
+              <button class="chart-stat chart-stat--peak" title="Go to peak chart ({peak.peakPeriod})" onclick={(e) => { e.preventDefault(); e.stopPropagation(); selectedPeriod = peak.peakPeriod; }}>
+                <span class="chart-stat-val" style:color={medalColor(peak.peakRank)}>#{peak.peakRank}</span>
+                <span class="chart-stat-label">peak</span>
+              </button>
+            {/if}
+            {#if granularity === 'week'}
+              <div class="chart-stat" style:min-width={wksMinWidth} title="{peak.weeksOnChart} total, {peak.consecutiveWeeks} consecutive">
+                <span class="chart-stat-val">{peak.weeksOnChart}{#if peak.consecutiveWeeks > 0} <span class="chart-stat-total">({peak.consecutiveWeeks})</span>{/if}</span>
+                <span class="chart-stat-label">wks</span>
+              </div>
+            {/if}
           {/if}
         </div>
         <div class="chart-meta">
@@ -469,6 +489,7 @@
     <div class="dropouts-header">Dropped off</div>
     <div class="chart-list">
       {#each currentData.dropouts as d}
+        {@const peak = currentPeaks[d.entityId]}
         <a href={entityLink(d.entityId)} class="chart-item chart-item--dropout" oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: d.entityId, name: d.name, imageUrl: d.imageUrl, parentArtistId: d.artistId ?? undefined })}>
           <div class="chart-rank-col">
             <span class="chart-rank" style:color={medalColor(d.previousRank)}>{d.previousRank}</span>
@@ -492,19 +513,19 @@
             {/if}
           </div>
           <div class="chart-stats">
-            {#if !peaksReady}
+            {#if !peak}
               <div class="chart-stat"><span class="ghost-text"></span><span class="chart-stat-label">peak</span></div>
               {#if granularity === 'week'}
                 <div class="chart-stat" style:min-width={wksMinWidth}><span class="ghost-text"></span><span class="chart-stat-label">wks</span></div>
               {/if}
             {:else}
               <div class="chart-stat" title="Peak rank">
-                <span class="chart-stat-val" style:color={medalColor(d.peakRank)}>#{d.peakRank}</span>
+                <span class="chart-stat-val" style:color={medalColor(peak.peakRank)}>#{peak.peakRank}</span>
                 <span class="chart-stat-label">peak</span>
               </div>
               {#if granularity === 'week'}
                 <div class="chart-stat" style:min-width={wksMinWidth} title="Weeks on chart">
-                  <span class="chart-stat-val">{d.weeksOnChart}</span>
+                  <span class="chart-stat-val">{peak.weeksOnChart}</span>
                   <span class="chart-stat-label">wks</span>
                 </div>
               {/if}

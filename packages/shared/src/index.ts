@@ -33,7 +33,7 @@ export type { EntityCard, EntityCardPoint } from './card.js';
 export type { NotificationType, DevicePlatform, PushPayload, DeviceTokenRecord, NotificationPreferences } from './notifications.js';
 
 // charts
-export type { ChartEntry, DropoutEntry, ChartResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';
+export type { ChartEntry, DropoutEntry, ChartResponse, ChartPeak, ChartPeakStats, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';
 
 // records
 export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish } from './records.js';

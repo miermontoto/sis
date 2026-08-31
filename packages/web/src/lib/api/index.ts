@@ -20,7 +20,7 @@ export type {
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
   ArtistDetail, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, Rankings, EntityCard, EntityCardPoint,
-  ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity,
+  ChartEntry, DropoutEntry, ChartResponse, ChartPeak, ChartPeakStats, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,

@@ -73,3 +73,19 @@ export interface ChartHistoryResponse {
   weeksOnChart: number;
   history: { period: string; rank: number | null }[];
 }
+
+/** Stats de trayectoria en chart de una entidad (carga diferida sobre ChartEntry). */
+export interface ChartPeakStats {
+  peakRank: number;
+  peakPeriod: string;
+  peakPeriods: string[];
+  timesAtPeak: number;
+  weeksOnChart: number;
+  consecutiveWeeks: number;
+  isReentry: boolean;
+}
+
+/** Una línea del stream NDJSON de /stats/charts/peaks/stream. */
+export interface ChartPeak extends ChartPeakStats {
+  entityId: string;
+}

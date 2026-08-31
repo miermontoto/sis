@@ -4,7 +4,7 @@ import type {
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
-  SearchResults, ChartHistoryResponse, ChartResponse, RecordsResponse,
+  SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
   AccoladesResponse, Rankings, EntityCard, RankingHistoryPointWithCrossovers, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
@@ -14,7 +14,7 @@ import type {
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
 } from '@sis/shared';
-import { apiFetch, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, API_BASE } from './client.js';
+import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, API_BASE } from './client.js';
 
 // params comunes de las listas top del detalle de artista (mismo contrato que artistDetail:
 // con range='custom' la ventana viaja en startDate/endDate)
@@ -118,7 +118,11 @@ export const api = {
     apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }, signal),
 
   chartPeaks: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', ids: string[], signal?: AbortSignal) =>
-    apiFetch<Record<string, { peakRank: number; peakPeriod: string; peakPeriods: string[]; timesAtPeak: number; weeksOnChart: number; consecutiveWeeks: number; isReentry: boolean }>>('/stats/charts/peaks', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, signal),
+    apiFetch<Record<string, ChartPeakStats>>('/stats/charts/peaks', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, signal),
+
+  // NDJSON: `onPeak` se llama por entidad conforme el backend cierra su historial
+  chartPeaksStream: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', ids: string[], onPeak: (peak: ChartPeak) => void, signal?: AbortSignal) =>
+    apiFetchStream<ChartPeak>('/stats/charts/peaks/stream', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, onPeak, signal),
 
   records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists', unique = true, signal?: AbortSignal) =>
     apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, unique: String(unique), ...(type && { type }) }, signal),

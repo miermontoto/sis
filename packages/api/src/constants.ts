@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w35af';
+export const VERSION = '26w36a';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -107,6 +107,11 @@ export const DEFAULT_PAGE_LIMIT = 50;
 
 // rankings-batch: tope de ids por petición (mismo tope que trackLimit/albumLimit de detail)
 export const RANKINGS_BATCH_LIMIT = 200;
+
+// /stats/charts/peaks/stream: trozos de ranking en vuelo a la vez. El escaneo va
+// del año más reciente al más antiguo y cada trozo cierra parte de las entidades,
+// así que solapar un par adelanta el trabajo sin ocupar el pool de lectura entero
+export const PEAKS_SLICE_LOOKAHEAD = 2;
 
 // tarjeta de hover de entidad (/stats/card/:type/:id): ventana que cubre la
 // sparkline y granularidad con la que se pide. getEntitySeries deriva el truncado

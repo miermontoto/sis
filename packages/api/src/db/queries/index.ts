@@ -14,7 +14,7 @@ export { getAlbumArtists, getAlbumTracks, getAlbumRelatedSingles, getAlbumRating
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';
-export { getChart, getChartPeaks, getAvailablePeriods, getEntityChartHistory } from './charts.js';
+export { getChart, getChartPeaks, getChartRankSlice, chartPeakSlices, prevPeriod, getAvailablePeriods, getEntityChartHistory } from './charts.js';
 
 // merge (genérico para albums / artists / tracks)
 export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './merge.js';
