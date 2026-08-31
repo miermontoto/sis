@@ -305,6 +305,17 @@ export function insertAlbumCover(db: Db, albumId: string, imageUrl: string, sour
   db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${albumId}, ${imageUrl}, ${source})`);
 }
 
+// --- artist images ---
+
+export function getArtistImages(db: Db, artistId: string) {
+  return db.all(sql`
+    SELECT id, artist_id, image_url, source, observed_at
+    FROM artist_images
+    WHERE artist_id = ${artistId}
+    ORDER BY observed_at DESC
+  `) as { id: number; artist_id: string; image_url: string; source: string; observed_at: string }[];
+}
+
 export function rebuildPlaylistSearchIndex(db: Db, userId: number) {
   db.run(sql`DELETE FROM search_index WHERE entity_type = 'playlist_library' AND entity_id IN (
     SELECT CAST(id AS TEXT) FROM spotify_playlists WHERE user_id = ${userId}

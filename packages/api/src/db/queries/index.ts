@@ -35,7 +35,7 @@ export { getProfileSummary, composeComparison, getFeedActivity, getUserStreaks, 
 export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRow, StreaksRow, FeedPlayRow } from './social.js';
 
 // inline queries extraídas de stats.ts
-export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, rebuildPlaylistSearchIndex } from './inline.js';
+export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, getArtistImages, rebuildPlaylistSearchIndex } from './inline.js';
 
 // playlist strategies
 export { strategyTopRange, strategyTopArtist, strategyTopGenre, strategyDeepCuts, strategyTimeVibes, strategyRediscovery, strategyTop, strategyChart, resolveEntitiesToTracks } from './playlists.js';

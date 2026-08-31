@@ -33,7 +33,7 @@ detail.get('/artist/:id', async (c) => {
   const artistIds = await dbRead('resolveEntityIds', 'artist', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw, relatedRaw] = await Promise.all([
+  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw, relatedRaw, imagesRaw] = await Promise.all([
     dbRead('getEntityStats', 'artist', id, rangeStart, rangeEnd, artistIds, userId),
     dbRead('getEntitySeries', 'artist', id, rangeStart, rangeKey, artistIds, rangeEnd, customDays, userId),
     dbRead('getArtistTopTracks', id, rangeStart, sort, trackLimit, rangeEnd, userId, artistIds),
@@ -43,6 +43,7 @@ detail.get('/artist/:id', async (c) => {
     dbRead('getEntityMergeInfo', 'artist', id),
     dbRead('getArtistReleases', id, artistIds),
     dbRead('getArtistRelations', id, userId),
+    dbRead('getArtistImages', id),
   ]);
 
   const [topTracks, topAlbums, recentPlays] = await Promise.all([
@@ -53,6 +54,7 @@ detail.get('/artist/:id', async (c) => {
 
   return c.json({
     artist: { id: artist.spotify_id, name: artist.name, imageUrl: artist.image_url, genres: artist.genres },
+    images: imagesRaw.map((r) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
     stats: statsRow,
     series,
     releases: releasesRaw.map((r) => ({ id: r.id, name: r.name, date: r.date, albumType: r.album_type, imageUrl: r.image_url })),

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w36b';
+export const VERSION = '26w36c';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -125,6 +125,16 @@ export const MANUAL_SCROBBLE_MAX = 500;
 
 // intervalo de refresco de metadata de entidades (24h)
 export const METADATA_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
+
+// tope de artistas cuya foto se recomprueba por ciclo de metadata. el barrido va por
+// image_checked_at ASC (NULL primero), así que el catálogo entero rota: con ~15k
+// artistas se recorre en ~10 días en vez de gastar 300 peticiones de golpe cada 24h
+export const ARTIST_IMAGE_MAX_PER_CYCLE = 1500;
+// lotes de /v1/artists (límite del endpoint)
+export const ARTIST_BATCH_SIZE = 50;
+
+// tope de una imagen subida a mano (portada de álbum o foto de artista)
+export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 // --- identidad multi-fuente (isrc/mbid) ---
 

@@ -89,6 +89,37 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_album_covers_album_id ON album_covers(album_id)'); } catch {}
 
+  // artist images: historial de fotos observadas + uploads (espejo de album_covers).
+  // a diferencia de las portadas —reobservadas en cada play ingerido— las fotos de
+  // artista solo llegan por /v1/artists, así que quien alimenta el historial es el
+  // barrido periódico de enrichArtistMetadata (ver image_checked_at abajo)
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS artist_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      artist_id TEXT NOT NULL,
+      image_url TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'spotify',
+      observed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(artist_id, image_url)
+    )`);
+    // sembrar el historial con la foto actual de cada artista: el catálogo ya enriquecido
+    // nunca se repide entero, así que sin esto el picker saldría vacío para siempre.
+    // solo la primera vez (tabla vacía): en cada boot sería un scan de artists inútil
+    if (!sqlite.prepare('SELECT 1 FROM artist_images LIMIT 1').get()) {
+      sqlite.exec(`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source)
+        SELECT spotify_id, image_url, 'spotify' FROM artists
+        WHERE image_url IS NOT NULL AND image_url != ''`);
+    }
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_artist_images_artist_id ON artist_images(artist_id)'); } catch {}
+
+  // barrido round-robin de fotos de artista: NULL = nunca comprobado (va primero).
+  // columna propia y no artists.updated_at porque cada play ingerido refresca esa,
+  // con lo que los artistas más escuchados jamás llegarían a la cabeza de la cola
+  try { sqlite.exec('ALTER TABLE artists ADD COLUMN image_checked_at TEXT'); } catch {}
+  // foto elegida a mano (upload o pick en el picker): el barrido no la pisa
+  try { sqlite.exec('ALTER TABLE artists ADD COLUMN image_pinned INTEGER NOT NULL DEFAULT 0'); } catch {}
+
   // multi-user: unique en user_id para auth_tokens y polling_state
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_polling_state_user_id ON polling_state(user_id)'); } catch {}

@@ -342,24 +342,34 @@ export const api = {
   setAlbumCover: (albumId: string, imageUrl: string) =>
     apiMutate<{ ok: boolean }>('PUT', `/covers/album/${encodeURIComponent(albumId)}`, { imageUrl }),
 
+  setArtistImage: (artistId: string, imageUrl: string) =>
+    apiMutate<{ ok: boolean }>('PUT', `/covers/artist/${encodeURIComponent(artistId)}`, { imageUrl }),
+
   setAlbumRating: (albumId: string, rating: number, review: string | null) =>
     apiMutate<AlbumRating>('PUT', `/ratings/album/${encodeURIComponent(albumId)}`, { rating, review }),
 
   deleteAlbumRating: (albumId: string) =>
     apiMutate<{ success: boolean }>('DELETE', `/ratings/album/${encodeURIComponent(albumId)}`),
 
-  uploadAlbumCover: async (albumId: string, file: File): Promise<{ imageUrl: string }> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch(`${API_BASE}/covers/${encodeURIComponent(albumId)}`, { method: 'POST', body: formData });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      throw new Error(err.error || `API error: ${res.status}`);
-    }
-    applyMutationInvalidation('POST', `/covers/${albumId}`);
-    return res.json();
-  },
+  // las subidas van por fetch directo (FormData, no JSON), así que invalidan a mano
+  uploadAlbumCover: (albumId: string, file: File) =>
+    uploadImage(`/covers/${encodeURIComponent(albumId)}`, file),
+
+  uploadArtistImage: (artistId: string, file: File) =>
+    uploadImage(`/covers/artist/${encodeURIComponent(artistId)}`, file),
 };
+
+async function uploadImage(path: string, file: File): Promise<{ imageUrl: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `API error: ${res.status}`);
+  }
+  applyMutationInvalidation('POST', path);
+  return res.json();
+}
 
 // sesiones de login activas (shape SessionInfo de @platform/auth)
 export interface SessionInfo {

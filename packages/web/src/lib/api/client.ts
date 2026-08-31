@@ -246,6 +246,10 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'PUT',    prefix: '/ratings/album/',            clear: ['/stats/album/'] },
   { method: 'DELETE', prefix: '/ratings/album/',            clear: ['/stats/album/'] },
   { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
+  { method: 'PUT',    prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
+  // el genérico /covers/ es el de álbum (la ruta es /covers/:albumId): las de artista
+  // van antes porque applyMutationInvalidation para en la primera regla que casa
+  { method: 'POST',   prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
   { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
   { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
   { method: 'DELETE', prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },

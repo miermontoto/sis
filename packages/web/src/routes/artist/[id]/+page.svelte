@@ -18,6 +18,7 @@
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
+  import ImagePicker from '$lib/components/ImagePicker.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import ChartStats from '$lib/components/ChartStats.svelte';
@@ -31,6 +32,7 @@
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import IconLink from '$lib/icons/IconLink.svelte';
+  import IconImage from '$lib/icons/IconImage.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
   // tamaños de las listas top: colapsadas por defecto, expandidas con "show all"
@@ -50,6 +52,7 @@
   let showAllAlbums = $state(false);
   let showArtistMergeModal = $state(false);
   let showRelateModal = $state(false);
+  let showImagePicker = $state(false);
   let playActing = $state(false);
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
@@ -99,6 +102,28 @@
     } finally {
       if (!signal.aborted) loading = false;
     }
+  }
+
+  // historial de fotos: elegir una la fija (image_pinned) para que el barrido periódico
+  // de spotify no la revierta; el hero recalcula su color con la nueva
+  let hasMultipleImages = $derived((data?.images?.length ?? 0) > 1 || data?.artist.imageUrl === null);
+
+  async function selectImage(imageUrl: string) {
+    if (!data) return;
+    await api.setArtistImage(artistId, imageUrl);
+    data = { ...data, artist: { ...data.artist, imageUrl } };
+    extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
+  }
+
+  async function handleImageUpload(file: File) {
+    if (!data) return;
+    const { imageUrl } = await api.uploadArtistImage(artistId, file);
+    data = {
+      ...data,
+      artist: { ...data.artist, imageUrl },
+      images: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.images ?? [])],
+    };
+    extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
   }
 
   // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
@@ -186,11 +211,16 @@
   {#snippet heroRow()}
     <div class="detail-hero-row">
       <div class="detail-hero">
-        {#if d.artist.imageUrl}
-          <img class="detail-image detail-image--round" src={d.artist.imageUrl} alt={d.artist.name} />
-        {:else}
-          <div class="detail-image detail-image--round detail-image--placeholder"></div>
-        {/if}
+        <ImagePicker
+          imageUrl={d.artist.imageUrl}
+          images={d.images ?? []}
+          alt={d.artist.name}
+          noun="picture"
+          round
+          bind:open={showImagePicker}
+          onSelect={selectImage}
+          onUpload={handleImageUpload}
+        />
         <div class="detail-header-info">
           <h1>{d.artist.name}{#if nowPlayingStore.artistIds.includes(artistId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
         </div>
@@ -218,6 +248,7 @@
           actions={[
             ...(isSpotifyId(artistId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${artistId}`, '_blank') }] : []),
             ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.artist?.name ?? 'Artist', publicHref()) }] : []),
+            { label: hasMultipleImages ? 'Change picture' : 'Upload picture', icon: IconImage, onClick: () => { showImagePicker = true; } },
             { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
             { label: 'Related artists', icon: IconLink, onClick: () => { showRelateModal = true; } },
           ]}

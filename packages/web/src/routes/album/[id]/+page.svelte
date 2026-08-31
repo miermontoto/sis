@@ -5,7 +5,7 @@
   import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getAlbumShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
-  import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
@@ -21,6 +21,7 @@
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import AlbumRating from '$lib/components/AlbumRating.svelte';
+  import ImagePicker from '$lib/components/ImagePicker.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
@@ -42,7 +43,6 @@
   let metric = $state<RankingMetric>('time');
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let showCoverPicker = $state(false);
-  let uploadingCover = $state(false);
   let showMergeModal = $state(false);
   let mergeInitialStep = $state<'select' | 'remerge' | undefined>(undefined);
   let playActing = $state(false);
@@ -55,7 +55,6 @@
   let singleGlobalRanks = $state<Record<string, number> | null>(null);
   let naturalTracks = $state<TopTrackItem[] | null>(null);
   let loadingNatural = $state(false);
-  let coverContainerEl: HTMLDivElement | undefined = $state();
   let layout = $state<DetailLayout>(defaultLayout('album'));
   const fetchCtrl = createFetchController();
 
@@ -85,26 +84,6 @@
     return displayTracks.map(t => (value(t) / total) * 100);
   });
 
-  function handleCoverOutside(e: PointerEvent) {
-    if (coverContainerEl && !coverContainerEl.contains(e.target as Node)) {
-      showCoverPicker = false;
-    }
-  }
-
-  function handleCoverKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') showCoverPicker = false;
-  }
-
-  $effect(() => {
-    if (!showCoverPicker) return;
-    document.addEventListener('pointerdown', handleCoverOutside);
-    document.addEventListener('keydown', handleCoverKey);
-    return () => {
-      document.removeEventListener('pointerdown', handleCoverOutside);
-      document.removeEventListener('keydown', handleCoverKey);
-    };
-  });
-
   let hasMultipleCovers = $derived((data?.covers?.length ?? 0) > 1 || data?.album.imageUrl === null);
 
   async function selectCover(imageUrl: string) {
@@ -116,23 +95,15 @@
     }
   }
 
-  async function handleCoverUpload(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file || !data) return;
-    uploadingCover = true;
-    try {
-      const { imageUrl } = await api.uploadAlbumCover(albumId, file);
-      data = {
-        ...data,
-        album: { ...data.album, imageUrl },
-        covers: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.covers ?? [])],
-      };
-      extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
-    } finally {
-      uploadingCover = false;
-      input.value = '';
-    }
+  async function handleCoverUpload(file: File) {
+    if (!data) return;
+    const { imageUrl } = await api.uploadAlbumCover(albumId, file);
+    data = {
+      ...data,
+      album: { ...data.album, imageUrl },
+      covers: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.covers ?? [])],
+    };
+    extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
   }
 
   async function loadNaturalTracks(id: string) {
@@ -303,42 +274,15 @@
     <div class="detail-main">
   <div class="detail-hero-row">
     <div class="detail-hero">
-      <div class="cover-container" bind:this={coverContainerEl}>
-        <button
-          class="cover-wrapper"
-          onclick={() => { showCoverPicker = !showCoverPicker; }}
-          aria-label={hasMultipleCovers ? 'Change cover' : 'Upload cover'}
-        >
-          {#if data.album.imageUrl}
-            <img class="detail-image" src={data.album.imageUrl} alt={data.album.name} />
-          {:else}
-            <div class="detail-image detail-image--placeholder"></div>
-          {/if}
-          <span class="cover-edit-hint"><IconImage /></span>
-        </button>
-        {#if showCoverPicker}
-          <div class="cover-picker">
-            {#each data.covers ?? [] as cover}
-              <button
-                class="cover-thumb"
-                class:cover-thumb--active={data.album.imageUrl === cover.imageUrl}
-                onclick={() => selectCover(cover.imageUrl)}
-                title="{cover.source} - {formatShortDate(cover.observedAt)}"
-              >
-                <img src={cover.imageUrl} alt="" />
-              </button>
-            {/each}
-            <label class="cover-thumb cover-thumb--upload" title="Upload cover">
-              {#if uploadingCover}
-                <div class="spinner" style="width:16px;height:16px;"></div>
-              {:else}
-                +
-              {/if}
-              <input type="file" accept="image/*" onchange={handleCoverUpload} hidden />
-            </label>
-          </div>
-        {/if}
-      </div>
+      <ImagePicker
+        imageUrl={data.album.imageUrl}
+        images={data.covers ?? []}
+        alt={data.album.name}
+        noun="cover"
+        bind:open={showCoverPicker}
+        onSelect={selectCover}
+        onUpload={handleCoverUpload}
+      />
       <div class="detail-header-info">
         <h1>{data.album.name}{#if albumId === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
         <p class="detail-subtitle">
@@ -417,91 +361,6 @@
 {/if}
 
 <style>
-  .cover-container {
-    position: relative;
-    flex-shrink: 0;
-  }
-  .cover-wrapper {
-    cursor: pointer;
-    position: relative;
-    display: block;
-    padding: 0;
-    border: none;
-    background: none;
-    font: inherit;
-    color: inherit;
-  }
-  .cover-edit-hint {
-    position: absolute;
-    bottom: 4px;
-    right: 4px;
-    background: rgba(0, 0, 0, 0.7);
-    color: #fff;
-    font-size: 0.7rem;
-    font-weight: 700;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.05s;
-    pointer-events: none;
-  }
-  .cover-wrapper:hover .cover-edit-hint {
-    opacity: 1;
-  }
-  .cover-picker {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    left: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    max-width: 200px;
-    padding: 0.5rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    z-index: 20;
-  }
-  .cover-thumb {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius);
-    border: 2px solid transparent;
-    padding: 0;
-    cursor: pointer;
-    overflow: hidden;
-    background: var(--bg-card);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.05s;
-  }
-  .cover-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .cover-thumb--active {
-    border-color: var(--accent);
-  }
-  .cover-thumb:hover:not(.cover-thumb--active) {
-    border-color: var(--text-muted);
-  }
-  .cover-thumb--upload {
-    border: 2px dashed var(--border);
-    color: var(--text-muted);
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-  .cover-thumb--upload:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
   .track-sort-toggle {
     display: flex;
     gap: 2px;

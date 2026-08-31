@@ -28,7 +28,7 @@ import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
-import { VERSION } from './constants.js';
+import { VERSION, UPLOAD_MAX_BYTES } from './constants.js';
 
 export type AppVariables = {
   userId: number;
@@ -108,6 +108,26 @@ app.route('/1', listenbrainzApi);
 // exentas del auth gate; nunca devuelven 401
 app.route('/public', publicRoutes);
 
+// guarda una imagen subida en data/covers/ y devuelve su ruta pública. la comparten
+// portadas de álbum y fotos de artista: mismo asset, mismos límites, mismo directorio.
+// devuelve el error en vez de lanzarlo para que cada ruta responda su propio 400
+async function storeUploadedImage(file: string | File | undefined, entityId: string): Promise<{ imageUrl: string } | { error: string }> {
+  if (!file || typeof file === 'string') return { error: 'file required' };
+
+  const arrayBuf = await file.arrayBuffer();
+  if (arrayBuf.byteLength > UPLOAD_MAX_BYTES) return { error: 'max 10MB' };
+
+  const contentType = file.type || 'image/jpeg';
+  if (!contentType.startsWith('image/')) return { error: 'must be an image' };
+  const ext = contentType.includes('png') ? 'png' : 'jpg';
+
+  const safeId = entityId.replace(/[^a-zA-Z0-9_:-]/g, '_');
+  const filename = `${safeId}_custom_${Date.now()}.${ext}`;
+  fs.writeFileSync(path.join(coversDir, filename), Buffer.from(arrayBuf));
+
+  return { imageUrl: `/api/covers/${filename}` };
+}
+
 // seleccionar portada activa
 app.put('/api/covers/album/:albumId', async (c) => {
   const albumId = c.req.param('albumId');
@@ -118,31 +138,43 @@ app.put('/api/covers/album/:albumId', async (c) => {
   return c.json({ ok: true });
 });
 
+// seleccionar foto de artista activa. image_pinned marca la elección como manual: sin
+// esa marca el barrido periódico de /v1/artists la revertiría al tocarle turno
+app.put('/api/covers/artist/:artistId', async (c) => {
+  const artistId = c.req.param('artistId');
+  const { imageUrl } = await c.req.json<{ imageUrl: string }>();
+  if (!imageUrl) return c.json({ error: 'imageUrl required' }, 400);
+  const db = getDb();
+  db.run(sql`UPDATE artists SET image_url = ${imageUrl}, image_pinned = 1, updated_at = datetime('now') WHERE spotify_id = ${artistId}`);
+  return c.json({ ok: true });
+});
+
 // subir portada personalizada
 app.post('/api/covers/:albumId', async (c) => {
   const albumId = c.req.param('albumId');
   const body = await c.req.parseBody();
-  const file = body['file'];
-  if (!file || typeof file === 'string') return c.json({ error: 'file required' }, 400);
+  const stored = await storeUploadedImage(body['file'], albumId);
+  if ('error' in stored) return c.json(stored, 400);
 
-  const arrayBuf = await file.arrayBuffer();
-  if (arrayBuf.byteLength > 10 * 1024 * 1024) return c.json({ error: 'max 10MB' }, 400);
-
-  const contentType = file.type || 'image/jpeg';
-  if (!contentType.startsWith('image/')) return c.json({ error: 'must be an image' }, 400);
-  const ext = contentType.includes('png') ? 'png' : 'jpg';
-
-  const safeId = albumId.replace(/[^a-zA-Z0-9_:-]/g, '_');
-  const filename = `${safeId}_custom_${Date.now()}.${ext}`;
-  const buffer = Buffer.from(arrayBuf);
-  fs.writeFileSync(path.join(coversDir, filename), buffer);
-
-  const imageUrl = `/api/covers/${filename}`;
   const db = getDb();
-  db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${albumId}, ${imageUrl}, 'upload')`);
-  db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
+  db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${albumId}, ${stored.imageUrl}, 'upload')`);
+  db.run(sql`UPDATE albums SET image_url = ${stored.imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
 
-  return c.json({ imageUrl });
+  return c.json(stored);
+});
+
+// subir foto de artista personalizada
+app.post('/api/covers/artist/:artistId', async (c) => {
+  const artistId = c.req.param('artistId');
+  const body = await c.req.parseBody();
+  const stored = await storeUploadedImage(body['file'], artistId);
+  if ('error' in stored) return c.json(stored, 400);
+
+  const db = getDb();
+  db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${artistId}, ${stored.imageUrl}, 'upload')`);
+  db.run(sql`UPDATE artists SET image_url = ${stored.imageUrl}, image_pinned = 1, updated_at = datetime('now') WHERE spotify_id = ${artistId}`);
+
+  return c.json(stored);
 });
 
 // versión — público

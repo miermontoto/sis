@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, inArray } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../../db/connection.js';
@@ -6,7 +6,7 @@ import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
-import { MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE } from '../../constants.js';
+import { MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('metadata');
@@ -95,48 +95,66 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
   }
 }
 
-// enriquecer artistas sin imagen consultando la API de spotify en lotes de 50
+// refrescar fotos y metadata de artistas consultando /artists en lotes de 50.
 // userId: cualquier usuario activo cuyo token se usa para la API
-// image_url NULL = no consultado aún, '' = consultado y spotify no tiene imagen
-// (misma convención que enrichLocalAlbumCovers/recoverSingleCovers). sin el centinela
-// los artistas sin foto —típicamente páginas duplicadas o sin reclamar— se repedían
-// enteros cada ciclo de 24h sin actualizar nada. los que spotify no devuelve
-// (delistados) conservan NULL y se reintentan en el siguiente ciclo.
+//
+// barrido rotatorio, no "solo los que faltan": la foto de un artista cambia con el
+// tiempo y la única fuente es este endpoint (recently-played no trae imágenes de
+// artista), así que un filtro `image_url IS NULL` pedía cada artista UNA vez en su
+// vida y el historial de artist_images se quedaba congelado. se ordena por
+// image_checked_at ASC (NULL = nunca comprobado, primero) y se capa por ciclo: el
+// catálogo entero rota en unos días sin gastar la cuota de golpe.
+//
+// image_url sigue con la convención de centinela ('' = consultado y spotify no tiene
+// foto), pero ya no decide a quién se pide: los delistados —que spotify devuelve como
+// null dentro del lote— también sellan image_checked_at para no atascar la cabeza de
+// la cola ciclo tras ciclo.
 export async function enrichArtistMetadata(userId: number) {
   const db = getDb();
-  const missing = db.all(
-    sql`SELECT spotify_id FROM artists WHERE image_url IS NULL AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'`
-  ) as { spotify_id: string }[];
+  const pending = db.all(sql`
+    SELECT spotify_id FROM artists
+    WHERE spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'
+    ORDER BY image_checked_at ASC
+    LIMIT ${ARTIST_IMAGE_MAX_PER_CYCLE}
+  `) as { spotify_id: string }[];
 
-  if (missing.length === 0) return;
-  log.info(`${missing.length} artistas sin imagen, enriqueciendo...`);
+  if (pending.length === 0) return;
+  log.info(`refrescando fotos de ${pending.length} artistas...`);
 
-  const BATCH_SIZE = 50;
-  let updated = 0;
+  let changed = 0;
 
-  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
-    const batch = missing.slice(i, i + BATCH_SIZE);
-    const ids = batch.map(a => a.spotify_id).join(',');
-    const data = await spotifyFetch<SpotifyArtistsBatchResponse>('/artists', { userId, params: { ids } });
+  for (let i = 0; i < pending.length; i += ARTIST_BATCH_SIZE) {
+    const batch = pending.slice(i, i + ARTIST_BATCH_SIZE).map(a => a.spotify_id);
+    const data = await spotifyFetch<SpotifyArtistsBatchResponse>('/artists', { userId, params: { ids: batch.join(',') } });
 
+    // sin respuesta no se sella nada: el lote entero vuelve a la cola del siguiente ciclo
     if (!data?.artists) continue;
+    db.update(artists).set({ imageCheckedAt: now() }).where(inArray(artists.spotifyId, batch)).run();
 
     for (const artist of data.artists) {
       if (!artist) continue;
+      const image = artist.images[0]?.url ?? '';
+      // historial: el UNIQUE(artist_id, image_url) hace la deduplicación, así que solo
+      // deja fila cuando spotify sirve una foto que no habíamos visto nunca
+      if (image) {
+        const inserted = db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${artist.id}, ${image}, 'spotify')`);
+        if (inserted.changes) changed++;
+      }
       db.update(artists)
         .set({
-          imageUrl: artist.images[0]?.url ?? '',
+          // una foto elegida a mano manda sobre la de spotify: sin esto el barrido
+          // revertiría el pick del usuario en cuanto le tocara turno
+          imageUrl: sql`CASE WHEN image_pinned = 1 THEN image_url ELSE ${image} END`,
           genres: artist.genres,
           popularity: artist.popularity,
           updatedAt: now(),
         })
         .where(sql`spotify_id = ${artist.id}`)
         .run();
-      if (artist.images[0]?.url) updated++;
     }
   }
 
-  log.info(`${updated} artistas actualizados con imagen`);
+  log.info(`${changed} fotos de artista nuevas`);
 }
 
 // enriquecer álbumes sin artist_ids consultando /albums en lotes de 20 (límite del

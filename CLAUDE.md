@@ -67,6 +67,13 @@ id.mier.info SSO (optional — credential-gated, no-ops if unset; enables "Sign 
 - `services/token-manager.ts` — stores tokens in DB, auto-refreshes before expiry
 - `services/logger.ts` — `createLogger(scope)` for all API logging; no raw `console.*` in `packages/api` (the linter would let one through, so keep it by convention). Output is `[scope] message`, and `log.child(userId)` gives `[scope:12]` for per-user cycles. Chatty per-cycle lines belong at `debug`.
 
+### Artwork history (`album_covers` / `artist_images`)
+Both tables are `(entity_id, image_url, source, observed_at)` with `UNIQUE(entity_id, image_url)` doing the dedup; `albums.image_url` / `artists.image_url` hold the *active* pick. Served on the detail endpoints (`covers` / `images`), edited through `PUT|POST /api/covers/album/:id` and `/api/covers/artist/:id`, rendered by the shared `ImagePicker.svelte`.
+
+The two accrue differently. Album covers ride along for free: `upsertTrack()` inserts one per ingested play. Artist photos have no such source (recently-played carries no artist images), so `enrichArtistMetadata()` is a **rotating sweep** — `ORDER BY image_checked_at ASC LIMIT ARTIST_IMAGE_MAX_PER_CYCLE`, NULL first, whole catalog every ~10 days. Don't put an `image_url IS NULL` filter back on it: that asks for each artist once in its lifetime and freezes the history. Delisted artists (returned `null` inside the batch) still get `image_checked_at` stamped so they rotate out instead of clogging the queue head.
+
+`artists.image_pinned` marks a manual pick so the sweep can't revert it. Albums have no equivalent — a manual cover *is* overwritten by the next ingested play of that album.
+
 ### Multi-source identity
 Entity PKs stay in the spotify_id space (real IDs + `import:`/`local:` synthetics). `tracks.isrc/mbid`, `artists.mbid`, `albums.mbid` are resolution *evidence*, never keys (NULL = unqueried, `''` = queried without result). Resolution ladder in `history-import.ts`: isrc → mbid → name+primary artist (position 0 only) → mint synthetic; events accrete missing ids onto entities they resolve to. `ingestion/identity.ts` harvests ISRCs (Spotify `/tracks`, capped/cycle), MBIDs+ISRCs for synthetics (MusicBrainz, capped/cycle) and merges synthetics into real tracks sharing an id (`mergeTracksByIdentity`, via `reassignTrackRefs`). `listening_history.source` records play provenance (`spotify`|`lastfm`|`import`; NULL = pre-column rows).
 
@@ -123,5 +130,5 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 ## Notes
 
 - Spotify deprecated audio_features endpoint (Nov 2024) — no audio features data available
-- Artist images require separate `/v1/artists` API call (not included in track/recently-played responses); handled by `enrichArtistMetadata()` on startup + 24h interval
+- Artist images require separate `/v1/artists` API call (not included in track/recently-played responses); handled by `enrichArtistMetadata()` on startup + 24h interval (see Artwork history)
 - better-sqlite3 requires node-gyp on Node 24 (no prebuilt binaries)

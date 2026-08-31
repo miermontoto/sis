@@ -21,6 +21,10 @@ export const artists = sqliteTable('artists', {
   imageUrl: text('image_url'),
   popularity: integer('popularity'),
   mbid: text('mbid'),
+  // barrido de fotos: NULL = nunca comprobado. imagePinned marca la elección manual
+  // del usuario para que el barrido periódico no la sobrescriba (ver artist_images)
+  imageCheckedAt: text('image_checked_at'),
+  imagePinned: integer('image_pinned', { mode: 'boolean' }).notNull().default(false),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 

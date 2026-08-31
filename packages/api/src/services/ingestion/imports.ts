@@ -24,6 +24,11 @@ const SEARCH_DELAY_MS = 500;
 // eliminar entidades import: huérfanas (tracks/track_artists ya re-apuntados)
 export function cleanOrphanImports() {
   const db = getDb();
+  db.run(
+    sql`DELETE FROM artist_images WHERE artist_id IN (
+      SELECT spotify_id FROM artists WHERE spotify_id LIKE 'import:%'
+        AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists))`
+  );
   const orphanArtists = db.run(
     sql`DELETE FROM artists WHERE spotify_id LIKE 'import:%'
       AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)`
@@ -143,9 +148,12 @@ export async function resolveImportArtists(userId: number) {
           AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
         db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
         rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
+        db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
         db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
-        // actualizar imagen si el real no la tiene
+        // actualizar imagen si el real no la tiene (el historial la registra igual:
+        // es una foto observada aunque no acabe siendo la que se muestra)
         if (found.images[0]?.url) {
+          db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${found.id}, ${found.images[0].url}, 'spotify')`);
           db.run(sql`UPDATE artists SET image_url = ${found.images[0].url}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
         }
       } else {
@@ -161,10 +169,14 @@ export async function resolveImportArtists(userId: number) {
           })
           .onConflictDoNothing()
           .run();
+        if (found.images[0]?.url) {
+          db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${found.id}, ${found.images[0].url}, 'spotify')`);
+        }
         db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
           AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
         db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
         rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
+        db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
         db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
       }
     } catch (err) {

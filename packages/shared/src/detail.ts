@@ -20,8 +20,18 @@ export interface ReleaseEvent {
   imageUrl: string | null;
 }
 
+// foto de artista observada (o subida a mano): mismo modelo que AlbumCover, pero el
+// historial lo alimenta el barrido periódico de /v1/artists, no la ingesta de plays
+export interface ArtistImage {
+  id: number;
+  imageUrl: string;
+  source: 'spotify' | 'upload';
+  observedAt: string;
+}
+
 export interface ArtistDetail {
   artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
+  images?: ArtistImage[];
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
   series: { period: string; play_count: number; total_ms: number }[];
   releases: ReleaseEvent[];
