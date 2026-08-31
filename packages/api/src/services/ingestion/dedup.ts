@@ -1,11 +1,29 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, reassignTrackRefs } from './upsert.js';
+import { rewriteMergeRules } from './merge-rules.js';
 import { MIN_PLAY_MS } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
 const logDedup = createLogger('dedup');
 const logCleanup = createLogger('cleanup');
+
+interface TrackCandidate {
+  spotify_id: string;
+  is_merge_target: number;
+  type_score: number;
+  play_count: number;
+}
+
+// orden de preferencia del canónico entre duplicados de un mismo tema, igual que el
+// canonicalFirst de la UI de admin. is_merge_target va primero porque las merge rules
+// son un merge *lógico* y no mueven plays al canónico que eligió el usuario: desempatar
+// por play_count elegía justo el otro lado y borraba ese canónico, dejando la regla
+// apuntando a un id inexistente (invisible en la UI y bloqueando volver a mergear)
+const beatsCanonical = (a: TrackCandidate, b: TrackCandidate) =>
+  a.is_merge_target !== b.is_merge_target ? a.is_merge_target > b.is_merge_target
+    : a.type_score !== b.type_score ? a.type_score < b.type_score
+      : a.play_count > b.play_count;
 // deduplicar tracks: unificar versiones del mismo tema (single, álbum, remaster)
 // en un solo track canónico, re-apuntando listening_history y track_artists
 export function deduplicateTracks() {
@@ -31,26 +49,27 @@ export function deduplicateTracks() {
     if (!group.artist_id) continue;
     const ids = group.ids.split(',');
 
-    // elegir canónico: preferir album > single, luego más plays
-    let best: { id: string; score: number; plays: number } | null = null;
+    // elegir canónico: preferir el que el usuario ya marcó como target, luego album >
+    // single, luego más plays (ver beatsCanonical)
+    let best: TrackCandidate | null = null;
     for (const id of ids) {
       const row = db.get(sql`
         SELECT t.spotify_id,
+               EXISTS(SELECT 1 FROM merge_rules
+                 WHERE entity_type = 'track' AND target_id = t.spotify_id) as is_merge_target,
                CASE WHEN a.album_type = 'album' THEN 0 WHEN a.album_type IS NULL THEN 1
                     WHEN a.album_type = 'compilation' THEN 2 ELSE 3 END as type_score,
                COALESCE((SELECT count(*) FROM listening_history WHERE track_id = t.spotify_id), 0) as play_count
         FROM tracks t
         LEFT JOIN albums a ON a.spotify_id = t.album_id
         WHERE t.spotify_id = ${id}
-      `) as { spotify_id: string; type_score: number; play_count: number } | undefined;
+      `) as TrackCandidate | undefined;
       if (!row) continue;
-      if (!best || row.type_score < best.score || (row.type_score === best.score && row.play_count > best.plays)) {
-        best = { id: row.spotify_id, score: row.type_score, plays: row.play_count };
-      }
+      if (!best || beatsCanonical(row, best)) best = row;
     }
 
     if (!best) continue;
-    const canonical = best.id;
+    const canonical = best.spotify_id;
     const dupes = ids.filter(id => id !== canonical);
     if (dupes.length === 0) continue;
 
@@ -123,6 +142,7 @@ export function deduplicateAlbums() {
     try {
       for (const dupe of dupes) {
         db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE album_id = ${dupe}`);
+        rewriteMergeRules(db, 'album', dupe, canonical);
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
       }
       merged++;
@@ -201,6 +221,7 @@ export function deduplicateAlbumShells() {
         // repuntar cualquier track del dupe al canónico y limpiar sus portadas antes de borrarlo
         db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE album_id = ${dupe}`);
         db.run(sql`DELETE FROM album_covers WHERE album_id = ${dupe}`);
+        rewriteMergeRules(db, 'album', dupe, canonical);
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
       }
       merged++;
@@ -271,6 +292,7 @@ export function deduplicateLocalAlbums() {
             db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE spotify_id = ${dt.spotify_id}`);
           }
         }
+        rewriteMergeRules(db, 'album', dupe, canonical);
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
       }
       merged++;

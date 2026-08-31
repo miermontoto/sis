@@ -3,6 +3,7 @@ import { getDb } from '../../db/connection.js';
 import { artists, albums, trackArtists } from '../../db/schema.js';
 import { spotifyFetch, isRateLimited } from '../spotify-client.js';
 import { reassignTrackRefs } from './upsert.js';
+import { rewriteMergeRules, dropOrphanMergeRules } from './merge-rules.js';
 import type { SpotifyTrack, SpotifySearchArtistResult, SpotifySearchAlbumResult } from '../../types/spotify.js';
 import { createLogger } from '../logger.js';
 
@@ -31,8 +32,12 @@ export function cleanOrphanImports() {
     sql`DELETE FROM albums WHERE spotify_id LIKE 'import:%'
       AND spotify_id NOT IN (SELECT DISTINCT album_id FROM tracks WHERE album_id IS NOT NULL)`
   );
+  // borrado en bloque sin superviviente al que traspasar las reglas: barrer las que
+  // referencien lo que acaba de desaparecer
+  const rules = dropOrphanMergeRules(db, 'artist') + dropOrphanMergeRules(db, 'album');
   if (orphanArtists.changes || orphanAlbums.changes) {
-    logCleanup.info(`eliminados ${orphanArtists.changes} artistas y ${orphanAlbums.changes} álbumes import: huérfanos`);
+    logCleanup.info(`eliminados ${orphanArtists.changes} artistas y ${orphanAlbums.changes} álbumes import: huérfanos`
+      + (rules ? ` (${rules} merge rules colgadas)` : ''));
   }
 }
 
@@ -77,7 +82,9 @@ export function cleanNonMusicImports() {
     db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${spotify_id}`);
     db.run(sql`DELETE FROM tracks WHERE spotify_id = ${spotify_id}`);
   }
-  logCleanup.info(`eliminados ${trash.length} tracks no-música (${deletedPlays} plays)`);
+  const staleRules = dropOrphanMergeRules(db, 'track');
+  logCleanup.info(`eliminados ${trash.length} tracks no-música (${deletedPlays} plays)`
+    + (staleRules ? `, ${staleRules} merge rules colgadas` : ''));
 }
 
 export async function resolveImportArtists(userId: number) {
@@ -135,6 +142,7 @@ export async function resolveImportArtists(userId: number) {
         db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
           AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
         db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+        rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
         db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
         // actualizar imagen si el real no la tiene
         if (found.images[0]?.url) {
@@ -156,6 +164,7 @@ export async function resolveImportArtists(userId: number) {
         db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
           AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
         db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+        rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
         db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
       }
     } catch (err) {
@@ -244,6 +253,7 @@ export async function resolveImportAlbums(userId: number) {
       if (existing) {
         // re-apuntar tracks al álbum real y eliminar import:
         db.run(sql`UPDATE tracks SET album_id = ${found.id} WHERE album_id = ${row.spotify_id}`);
+        rewriteMergeRules(db, 'album', row.spotify_id, found.id);
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${row.spotify_id}`);
         // actualizar imagen y artist_ids si el real no los tiene
         if (imageUrl) {
@@ -269,6 +279,7 @@ export async function resolveImportAlbums(userId: number) {
           .onConflictDoNothing()
           .run();
         db.run(sql`UPDATE tracks SET album_id = ${found.id} WHERE album_id = ${row.spotify_id}`);
+        rewriteMergeRules(db, 'album', row.spotify_id, found.id);
         db.run(sql`DELETE FROM albums WHERE spotify_id = ${row.spotify_id}`);
       }
     } catch (err) {

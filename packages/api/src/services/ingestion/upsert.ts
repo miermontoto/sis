@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../../db/schema.js';
 import { syntheticId } from '../ids.js';
+import { rewriteMergeRules } from './merge-rules.js';
 import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyImage } from '../../types/spotify.js';
 
 const now = () => new Date().toISOString();
@@ -248,8 +249,8 @@ export function mergeTrackArtists(db: ReturnType<typeof getDb>, sourceTrackId: s
 
 // re-apunta TODAS las referencias de un track origen al destino y borra el origen:
 // historial (ignorando colisiones del UNIQUE por played_at), créditos de artistas
-// (via mergeTrackArtists) y playlists. antes de borrar, hereda al destino la
-// evidencia de identidad (isrc/mbid) que el origen tenga y al destino le falte
+// (via mergeTrackArtists), playlists y merge_rules. antes de borrar, hereda al destino
+// la evidencia de identidad (isrc/mbid) que el origen tenga y al destino le falte
 // (NULLIF trata el centinela '' como hueco rellenable). cuerpo común de todos los
 // merges de tracks (dedup, import→real, identidad); reutiliza la conexión del llamante.
 export function reassignTrackRefs(db: ReturnType<typeof getDb>, sourceTrackId: string, targetTrackId: string) {
@@ -266,6 +267,7 @@ export function reassignTrackRefs(db: ReturnType<typeof getDb>, sourceTrackId: s
   db.run(sql`DELETE FROM generated_playlist_tracks WHERE track_id = ${sourceTrackId}`);
   db.run(sql`UPDATE OR IGNORE spotify_playlist_tracks SET track_id = ${targetTrackId} WHERE track_id = ${sourceTrackId}`);
   db.run(sql`DELETE FROM spotify_playlist_tracks WHERE track_id = ${sourceTrackId}`);
+  rewriteMergeRules(db, 'track', sourceTrackId, targetTrackId);
   db.run(sql`DELETE FROM tracks WHERE spotify_id = ${sourceTrackId}`);
 }
 
