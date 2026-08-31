@@ -260,8 +260,8 @@ export function getDiscoverySeries(db: Db, entityType: string, granularity: stri
 // lookups ligeros para entidades (reemplazan drizzle select en routes)
 export function lookupArtistById(db: Db, id: string) {
   return db.all(sql`
-    SELECT spotify_id, name, image_url, genres FROM artists WHERE spotify_id = ${id}
-  `)[0] as { spotify_id: string; name: string; image_url: string | null; genres: any } | undefined;
+    SELECT spotify_id, name, image_url, background_url, genres FROM artists WHERE spotify_id = ${id}
+  `)[0] as { spotify_id: string; name: string; image_url: string | null; background_url: string | null; genres: any } | undefined;
 }
 
 export function lookupAlbumById(db: Db, id: string) {

@@ -1,7 +1,7 @@
 import type {
   RankingMetric, RankChangeLookback, WeekStartOption, LocaleSetting,
   AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay,
-  NowPlayingDisplay, SocialVisibility,
+  NowPlayingDisplay, SocialVisibility, ArtistBackdrop,
 } from '@sis/shared';
 import { type LayoutKind, type DetailLayout, resolveLayout, parseLayout } from '../detail-layout.js';
 import { apiFetch, API_BASE } from './client.js';
@@ -19,6 +19,7 @@ interface SettingsData {
   artistShowTrackAccolades: boolean;
   artistShowGlobalRanks: boolean;
   albumShowGlobalRanks: boolean;
+  artistBackdrop: ArtistBackdrop;
   sessionRankDisplay: SessionRankDisplay;
   sessionRankLimitYear: string;
   sessionRankLimitAll: string;
@@ -58,6 +59,9 @@ const SETTINGS_DEFAULTS: SettingsData = {
   // chip de posición all-time en los listados de las vistas de detalle
   artistShowGlobalRanks: true,
   albumShowGlobalRanks: true,
+  // fondo del detalle de artista: difuminado por defecto (la foto de spotify es
+  // cuadrada, estirarla nítida a lo ancho recorta demasiado)
+  artistBackdrop: 'blur',
   sessionRankDisplay: 'all+ytd',
   sessionRankLimitYear: '50',
   sessionRankLimitAll: '200',
@@ -195,6 +199,7 @@ export const [getArtistShowAlbumAccolades, setArtistShowAlbumAccolades] = boolSe
 export const [getArtistShowTrackAccolades, setArtistShowTrackAccolades] = boolSetting('artistShowTrackAccolades');
 export const [getArtistShowGlobalRanks, setArtistShowGlobalRanks] = boolSetting('artistShowGlobalRanks');
 export const [getAlbumShowGlobalRanks, setAlbumShowGlobalRanks] = boolSetting('albumShowGlobalRanks');
+export const [getArtistBackdrop, setArtistBackdrop] = stringSetting<ArtistBackdrop>('artistBackdrop', 'blur');
 export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');
 
 // notificaciones push: master switch (off por defecto) + toggles por tipo

@@ -11,6 +11,8 @@ export type SessionTrackingDisplay = 'off' | 'desktop' | 'all';
 export type SessionRankDisplay = 'none' | 'all' | 'all+ytd';
 export type NowPlayingDisplay = 'off' | 'compact' | 'auto' | 'normal';
 export type SocialVisibility = 'visible' | 'hidden';
+// fondo del detalle de artista: 'blur' difumina la imagen, 'photo' la deja nítida
+export type ArtistBackdrop = 'off' | 'blur' | 'photo';
 
 export const LOCALE_OPTIONS: { value: string; label: string }[] = [
   { value: 'auto', label: 'Browser default' },

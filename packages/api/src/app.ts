@@ -149,6 +149,32 @@ app.put('/api/covers/artist/:artistId', async (c) => {
   return c.json({ ok: true });
 });
 
+// elegir imagen de fondo del detalle de artista. no toca image_url ni image_pinned: el
+// fondo es un pick aparte sobre el mismo pool de fotos. imageUrl null la desactiva y el
+// fondo vuelve a caer en la foto activa
+app.put('/api/covers/artist/:artistId/background', async (c) => {
+  const artistId = c.req.param('artistId');
+  const { imageUrl } = await c.req.json<{ imageUrl: string | null }>();
+  const db = getDb();
+  db.run(sql`UPDATE artists SET background_url = ${imageUrl || null}, updated_at = datetime('now') WHERE spotify_id = ${artistId}`);
+  return c.json({ ok: true });
+});
+
+// subir imagen de fondo personalizada. entra al historial como cualquier otra foto
+// (queda disponible también para el picker de la foto redonda)
+app.post('/api/covers/artist/:artistId/background', async (c) => {
+  const artistId = c.req.param('artistId');
+  const body = await c.req.parseBody();
+  const stored = await storeUploadedImage(body['file'], artistId);
+  if ('error' in stored) return c.json(stored, 400);
+
+  const db = getDb();
+  db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${artistId}, ${stored.imageUrl}, 'upload')`);
+  db.run(sql`UPDATE artists SET background_url = ${stored.imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${artistId}`);
+
+  return c.json(stored);
+});
+
 // subir portada personalizada
 app.post('/api/covers/:albumId', async (c) => {
   const albumId = c.req.param('albumId');

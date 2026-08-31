@@ -25,6 +25,9 @@ export const artists = sqliteTable('artists', {
   // del usuario para que el barrido periódico no la sobrescriba (ver artist_images)
   imageCheckedAt: text('image_checked_at'),
   imagePinned: integer('image_pinned', { mode: 'boolean' }).notNull().default(false),
+  // imagen de fondo del detalle, elegida a mano del pool de artist_images.
+  // NULL = sin elección: el fondo cae a imageUrl
+  backgroundUrl: text('background_url'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 

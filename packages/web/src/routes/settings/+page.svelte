@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -169,6 +169,7 @@
   let artistShowAlbumAccoladesPref = $state(true);
   let artistShowTrackAccoladesPref = $state(true);
   let artistShowGlobalRanksPref = $state(true);
+  let artistBackdropPref = $state<ArtistBackdrop>('blur');
   let albumShowGlobalRanksPref = $state(true);
   let sessionRankDisplayPref = $state<SessionRankDisplay>('all+ytd');
   let sessionRankLimitYearPref = $state('50');
@@ -396,6 +397,7 @@
     artistShowAlbumAccoladesPref = getArtistShowAlbumAccolades();
     artistShowTrackAccoladesPref = getArtistShowTrackAccolades();
     artistShowGlobalRanksPref = getArtistShowGlobalRanks();
+    artistBackdropPref = getArtistBackdrop();
     albumShowGlobalRanksPref = getAlbumShowGlobalRanks();
     sessionRankDisplayPref = getSessionRankDisplay();
     sessionRankLimitYearPref = getSessionRankLimitYear();
@@ -666,6 +668,19 @@
             <div class="segmented">
               <button class="segmented-btn" class:segmented-active={!artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = false; setArtistShowGlobalRanks(false); }}>Off</button>
               <button class="segmented-btn" class:segmented-active={artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = true; setArtistShowGlobalRanks(true); }}>On</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Background picture</div>
+            <div class="pref-desc">Show the artist's picture behind the header. Blur softens it; Photo keeps it sharp. Pick a different image per artist from the picture menu</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={artistBackdropPref === 'off'} onclick={() => { artistBackdropPref = 'off'; setArtistBackdrop('off'); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={artistBackdropPref === 'blur'} onclick={() => { artistBackdropPref = 'blur'; setArtistBackdrop('blur'); }}>Blur</button>
+              <button class="segmented-btn" class:segmented-active={artistBackdropPref === 'photo'} onclick={() => { artistBackdropPref = 'photo'; setArtistBackdrop('photo'); }}>Photo</button>
             </div>
           </div>
         </div>

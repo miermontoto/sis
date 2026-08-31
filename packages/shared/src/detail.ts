@@ -30,7 +30,7 @@ export interface ArtistImage {
 }
 
 export interface ArtistDetail {
-  artist: { id: string; name: string; imageUrl: string | null; genres: string[] };
+  artist: { id: string; name: string; imageUrl: string | null; backgroundUrl: string | null; genres: string[] };
   images?: ArtistImage[];
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
   series: { period: string; play_count: number; total_ms: number }[];

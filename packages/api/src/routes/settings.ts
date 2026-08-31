@@ -10,7 +10,7 @@ import type { AppVariables } from '../app.js';
 
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'nowPlayingDisplay', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
@@ -26,6 +26,8 @@ const DEFAULTS: Record<string, string> = {
   // chip de posición all-time en los listados de las vistas de detalle
   artistShowGlobalRanks: 'true',
   albumShowGlobalRanks: 'true',
+  // fondo del detalle de artista: off | blur | photo
+  artistBackdrop: 'blur',
   sessionRankDisplay: 'all+ytd',
   sessionRankLimitYear: '50',
   sessionRankLimitAll: '200',

@@ -119,6 +119,10 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   try { sqlite.exec('ALTER TABLE artists ADD COLUMN image_checked_at TEXT'); } catch {}
   // foto elegida a mano (upload o pick en el picker): el barrido no la pisa
   try { sqlite.exec('ALTER TABLE artists ADD COLUMN image_pinned INTEGER NOT NULL DEFAULT 0'); } catch {}
+  // imagen de fondo del detalle: pick independiente de la foto redonda. NULL = sin
+  // elección, el fondo cae a image_url (barrido de spotify). sale del mismo pool de
+  // artist_images, así que no necesita historial propio
+  try { sqlite.exec('ALTER TABLE artists ADD COLUMN background_url TEXT'); } catch {}
 
   // multi-user: unique en user_id para auth_tokens y polling_state
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}

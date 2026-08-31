@@ -74,6 +74,8 @@ The two accrue differently. Album covers ride along for free: `upsertTrack()` in
 
 `artists.image_pinned` marks a manual pick so the sweep can't revert it. Albums have no equivalent — a manual cover *is* overwritten by the next ingested play of that album.
 
+`artists.background_url` is a **second, independent pick** over the same `artist_images` pool: the backdrop behind the artist hero (`DetailBackdrop.svelte`). NULL = fall back to `image_url`, so every artist gets a backdrop with no configuration. Setting it does *not* touch `image_url`/`image_pinned` (`PUT|POST /api/covers/artist/:id/background`); the shared `ImagePicker` grows a second tab when given `onSetBackground`. The treatment is a per-user setting, `artistBackdrop` (`off|blur|photo`, default `blur`) — Spotify serves no artist banner, only the square profile photo, which is why `blur` is the default.
+
 ### Multi-source identity
 Entity PKs stay in the spotify_id space (real IDs + `import:`/`local:` synthetics). `tracks.isrc/mbid`, `artists.mbid`, `albums.mbid` are resolution *evidence*, never keys (NULL = unqueried, `''` = queried without result). Resolution ladder in `history-import.ts`: isrc → mbid → name+primary artist (position 0 only) → mint synthetic; events accrete missing ids onto entities they resolve to. `ingestion/identity.ts` harvests ISRCs (Spotify `/tracks`, capped/cycle), MBIDs+ISRCs for synthetics (MusicBrainz, capped/cycle) and merges synthetics into real tracks sharing an id (`mergeTracksByIdentity`, via `reassignTrackRefs`). `listening_history.source` records play provenance (`spotify`|`lastfm`|`import`; NULL = pre-column rows).
 

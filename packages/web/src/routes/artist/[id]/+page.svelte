@@ -2,7 +2,8 @@
   import { isAbortError } from '$lib/utils/errors';
   import { page } from '$app/stores';
   import { onMount, untrack } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getArtistBackdrop } from '$lib/api';
+  import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
@@ -19,6 +20,7 @@
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import ImagePicker from '$lib/components/ImagePicker.svelte';
+  import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import ChartStats from '$lib/components/ChartStats.svelte';
@@ -53,6 +55,8 @@
   let showArtistMergeModal = $state(false);
   let showRelateModal = $state(false);
   let showImagePicker = $state(false);
+  let pickerMode = $state<'image' | 'background'>('image');
+  let backdropMode = $state<ArtistBackdrop>('blur');
   let playActing = $state(false);
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
@@ -89,13 +93,7 @@
       data = result;
       loadGlobalRanks('track', result.topTracks.map(t => t.trackId), signal);
       loadGlobalRanks('album', result.topAlbums.map(a => a.albumId), signal);
-      if (result.artist.imageUrl) {
-        extractColor(result.artist.imageUrl).then(([r, g, b]) => {
-          if (!signal.aborted) heroColor = `${r},${g},${b}`;
-        });
-      } else {
-        heroColor = '';
-      }
+      refreshHeroColor(signal);
     } catch (e) {
       if (isAbortError(e)) return;
       throw e;
@@ -108,11 +106,28 @@
   // de spotify no la revierta; el hero recalcula su color con la nueva
   let hasMultipleImages = $derived((data?.images?.length ?? 0) > 1 || data?.artist.imageUrl === null);
 
+  // el fondo cae en la foto activa mientras no haya pick propio, así que el artista
+  // luce banda sin necesidad de configurar nada
+  let backdropUrl = $derived(data?.artist.backgroundUrl ?? data?.artist.imageUrl ?? null);
+
+  // el tinte del hero sale de la imagen que se ve al fondo, no siempre de la foto:
+  // con un fondo propio el color dominante de la foto redonda desentonaría
+  function refreshHeroColor(signal?: AbortSignal) {
+    const url = data?.artist.backgroundUrl ?? data?.artist.imageUrl ?? null;
+    if (!url) {
+      heroColor = '';
+      return;
+    }
+    extractColor(url).then(([r, g, b]) => {
+      if (!signal?.aborted) heroColor = `${r},${g},${b}`;
+    });
+  }
+
   async function selectImage(imageUrl: string) {
     if (!data) return;
     await api.setArtistImage(artistId, imageUrl);
     data = { ...data, artist: { ...data.artist, imageUrl } };
-    extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
+    refreshHeroColor();
   }
 
   async function handleImageUpload(file: File) {
@@ -123,7 +138,26 @@
       artist: { ...data.artist, imageUrl },
       images: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.images ?? [])],
     };
-    extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
+    refreshHeroColor();
+  }
+
+  // fondo: pick independiente sobre el mismo pool. null lo devuelve a la foto activa
+  async function selectBackground(backgroundUrl: string | null) {
+    if (!data) return;
+    await api.setArtistBackground(artistId, backgroundUrl);
+    data = { ...data, artist: { ...data.artist, backgroundUrl } };
+    refreshHeroColor();
+  }
+
+  async function handleBackgroundUpload(file: File) {
+    if (!data) return;
+    const { imageUrl } = await api.uploadArtistBackground(artistId, file);
+    data = {
+      ...data,
+      artist: { ...data.artist, backgroundUrl: imageUrl },
+      images: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.images ?? [])],
+    };
+    refreshHeroColor();
   }
 
   // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
@@ -173,6 +207,7 @@
     artistShowAlbumAccolades = getArtistShowAlbumAccolades();
     artistShowTrackAccolades = getArtistShowTrackAccolades();
     artistShowGlobalRanks = getArtistShowGlobalRanks();
+    backdropMode = getArtistBackdrop();
     layout = getDetailLayout('artist');
     initialized = true;
   });
@@ -204,9 +239,7 @@
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
   {@const d = data}
-  {#if heroColor}
-    <div class="detail-color-bg" style="background: linear-gradient(180deg, rgba({heroColor},0.18) 0%, transparent 100%);"></div>
-  {/if}
+  <DetailBackdrop imageUrl={backdropUrl} color={heroColor} mode={backdropMode} />
 
   {#snippet heroRow()}
     <div class="detail-hero-row">
@@ -218,8 +251,12 @@
           noun="picture"
           round
           bind:open={showImagePicker}
+          bind:mode={pickerMode}
+          backgroundUrl={d.artist.backgroundUrl}
           onSelect={selectImage}
           onUpload={handleImageUpload}
+          onSetBackground={selectBackground}
+          onUploadBackground={handleBackgroundUpload}
         />
         <div class="detail-header-info">
           <h1>{d.artist.name}{#if nowPlayingStore.artistIds.includes(artistId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
@@ -248,7 +285,8 @@
           actions={[
             ...(isSpotifyId(artistId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${artistId}`, '_blank') }] : []),
             ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.artist?.name ?? 'Artist', publicHref()) }] : []),
-            { label: hasMultipleImages ? 'Change picture' : 'Upload picture', icon: IconImage, onClick: () => { showImagePicker = true; } },
+            { label: hasMultipleImages ? 'Change picture' : 'Upload picture', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
+            { label: 'Change background', icon: IconImage, onClick: () => { pickerMode = 'background'; showImagePicker = true; } },
             { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
             { label: 'Related artists', icon: IconLink, onClick: () => { showRelateModal = true; } },
           ]}

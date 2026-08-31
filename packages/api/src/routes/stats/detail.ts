@@ -53,7 +53,7 @@ detail.get('/artist/:id', async (c) => {
   ]);
 
   return c.json({
-    artist: { id: artist.spotify_id, name: artist.name, imageUrl: artist.image_url, genres: artist.genres },
+    artist: { id: artist.spotify_id, name: artist.name, imageUrl: artist.image_url, backgroundUrl: artist.background_url, genres: artist.genres },
     images: imagesRaw.map((r) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
     stats: statsRow,
     series,

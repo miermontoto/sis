@@ -345,6 +345,10 @@ export const api = {
   setArtistImage: (artistId: string, imageUrl: string) =>
     apiMutate<{ ok: boolean }>('PUT', `/covers/artist/${encodeURIComponent(artistId)}`, { imageUrl }),
 
+  // fondo del detalle: pick aparte sobre el mismo pool de fotos. null lo desactiva
+  setArtistBackground: (artistId: string, imageUrl: string | null) =>
+    apiMutate<{ ok: boolean }>('PUT', `/covers/artist/${encodeURIComponent(artistId)}/background`, { imageUrl }),
+
   setAlbumRating: (albumId: string, rating: number, review: string | null) =>
     apiMutate<AlbumRating>('PUT', `/ratings/album/${encodeURIComponent(albumId)}`, { rating, review }),
 
@@ -357,6 +361,9 @@ export const api = {
 
   uploadArtistImage: (artistId: string, file: File) =>
     uploadImage(`/covers/artist/${encodeURIComponent(artistId)}`, file),
+
+  uploadArtistBackground: (artistId: string, file: File) =>
+    uploadImage(`/covers/artist/${encodeURIComponent(artistId)}/background`, file),
 };
 
 async function uploadImage(path: string, file: File): Promise<{ imageUrl: string }> {
