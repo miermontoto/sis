@@ -4,8 +4,10 @@
   // La búsqueda es la pestaña por defecto sólo si el servidor tiene credenciales;
   // si no las tiene, el modal abre directamente en manual — un buscador vacío sin
   // explicación sería el peor sitio donde dejar al usuario.
+  import { untrack } from 'svelte';
   import { errorMessage } from '$lib/utils/errors';
   import { api, CONCERT_YEAR_OPTIONS, SETLISTFM_AUTO_PAGES, type Concert, type SetlistfmShow } from '$lib/api';
+  import { searchSetlists, billedAs } from '$lib/utils/setlist-search';
   import { formatCalendarDate } from '$lib/utils/format';
   import IconTicket from '$lib/icons/IconTicket.svelte';
 
@@ -56,6 +58,10 @@
   let autoYear = false;
   let importingId = $state('');
   let loadedKey = '';
+  // token de carga: cada llamada se queda con el suyo y aborta si otra la ha
+  // adelantado. Sin esto, dos cargas solapadas se intercalaban appends sobre la
+  // misma lista y salían bolos repetidos
+  let loadSeq = 0;
 
   // formulario manual
   let date = $state('');
@@ -83,11 +89,11 @@
     if (e.key === 'Escape' && show) close();
   }
 
-  // carga encadenando páginas en UNA lista continua. Paginar a mano hacía que el
-  // listado pareciera acabarse en el último bolo de la página 1 —de ahí el
-  // "faltan los conciertos posteriores al 11 de junio"—, así que se traen varias
-  // de golpe y el resto queda tras un "load more" explícito.
+  // carga encadenando páginas en UNA lista continua. La lógica vive (y se
+  // prueba) en utils/setlist-search: aquí sólo queda el estado y el token que
+  // invalida las cargas adelantadas.
   async function loadShows(reset: boolean) {
+    const seq = ++loadSeq;
     if (reset) {
       shows = [];
       page = 0;
@@ -96,52 +102,46 @@
     searching = reset;
     loadingMore = !reset;
     error = '';
-    const requestYear = year || null;
     try {
-      const limit = reset ? SETLISTFM_AUTO_PAGES : page + 1;
-      while (page < limit) {
-        const next = page + 1;
-        if (totalPages > 0 && next > totalPages) break;
-        const res = await api.setlistfmShows(artist.id, next, requestYear);
-        // el usuario cambió de filtro mientras esperábamos: esta respuesta ya no vale
-        if ((year || null) !== requestYear) return;
-        configured = res.configured;
-        if (!res.configured) {
-          tab = 'manual';
-          shows = [];
-          return;
-        }
-        importedIds = res.importedIds;
-        searchedName = res.artistName;
-        totalPages = res.totalPages;
-        shows = next === 1 ? res.shows : [...shows, ...res.shows];
-        page = next;
-        if (res.shows.length === 0 || next >= res.totalPages) break;
-      }
+      const res = await searchSetlists(
+        (p, y) => api.setlistfmShows(artist.id, p, y),
+        {
+          year,
+          autoYear,
+          maxPages: SETLISTFM_AUTO_PAGES,
+          from: reset ? undefined : { shows, page, totalPages },
+          isStale: () => seq !== loadSeq,
+        },
+      );
+      // null = otra carga nos adelantó; escribir aquí duplicaría la lista
+      if (res === null || seq !== loadSeq) return;
 
-      // el año por defecto no puede dejar al usuario ante un "no hay setlists"
-      // que parece un error: si ese año no tiene bolos, se reintenta sin filtro.
-      // Sólo cuando el año lo puso el default — si lo eligió el usuario, el
-      // vacío es la respuesta correcta
-      if (reset && configured && shows.length === 0 && autoYear && year) {
-        autoYear = false;
-        year = '';
-        // AWAIT, no void: con void el finally de esta invocación apagaba el
-        // spinner mientras la recarga seguía en vuelo, y se enseñaba "No
-        // setlists found" durante los segundos que tardaba — que es justo el
-        // caso de un artista sin bolos en el año en curso
-        await loadShows(true);
+      configured = res.configured;
+      if (!res.configured) {
+        tab = 'manual';
+        shows = [];
         return;
       }
+      shows = res.shows;
+      page = res.page;
+      totalPages = res.totalPages;
+      importedIds = res.importedIds;
+      searchedName = res.artistName;
+      if (res.fellBackToAllYears) year = '';
       autoYear = false;
-      loadedKey = configured ? artist.id : '';
+      loadedKey = artist.id;
     } catch (e) {
+      if (seq !== loadSeq) return;
       error = errorMessage(e, 'Error searching setlist.fm');
       if (reset) shows = [];
       loadedKey = '';
     } finally {
-      searching = false;
-      loadingMore = false;
+      // sólo la carga vigente apaga los indicadores: si nos adelantaron, apagarlos
+      // dejaría el "No setlists found" a la vista mientras la nueva sigue en vuelo
+      if (seq === loadSeq) {
+        searching = false;
+        loadingMore = false;
+      }
     }
   }
 
@@ -190,17 +190,27 @@
   // la búsqueda y la carga una sola vez por artista (loadedKey)
   $effect(() => {
     if (!show) return;
-    resetForm();
-    if (editing) {
-      tab = 'manual';
-      return;
-    }
-    tab = 'setlistfm';
-    if (loadedKey !== artist.id) {
-      year = String(CURRENT_YEAR);
-      autoYear = true;
-      loadShows(true);
-    }
+    // deps explícitas: el cuerpo va en untrack porque loadShows lee estado
+    // ($state: year, page…) que él mismo escribe, y esas lecturas se volverían
+    // dependencias del efecto. Se re-disparaba en mitad de la carga, con
+    // loadedKey aún sin fijar (se fija al final, que es async), y arrancaba una
+    // segunda carga en paralelo: dos cadenas apilando sobre la misma lista =
+    // bolos duplicados. Mismo patrón que loadData en la página de artista.
+    const isEditing = editing;
+    const artistId = artist.id;
+    untrack(() => {
+      resetForm();
+      if (isEditing) {
+        tab = 'manual';
+        return;
+      }
+      tab = 'setlistfm';
+      if (loadedKey !== artistId) {
+        year = String(CURRENT_YEAR);
+        autoYear = true;
+        loadShows(true);
+      }
+    });
   });
 
   let location = $derived((s: SetlistfmShow) => [s.venue, s.city, s.country].filter(Boolean).join(' · '));
@@ -284,7 +294,7 @@
                          ("Kendrick Lamar & SZA"): sin pintarlo, esos bolos se
                          veían idénticos a los del artista solo y parecía que
                          faltaban -->
-                    {#if s.artistName && searchedName && s.artistName !== searchedName}
+                    {#if billedAs(s.artistName, searchedName)}
                       <span class="concert-item-billing">{s.artistName}</span>
                     {/if}
                     {s.songs.length} song{s.songs.length === 1 ? '' : 's'}{s.tour ? ` · ${s.tour}` : ''}
