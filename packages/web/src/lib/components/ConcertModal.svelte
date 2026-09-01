@@ -269,6 +269,14 @@
           <span class="concert-filter-hint">
             {#if shows.length > 0}{shows.length} show{shows.length === 1 ? '' : 's'}{/if}
           </span>
+          <!-- con un año puesto, el resto del historial queda fuera de la lista.
+               "faltan conciertos" se ha reportado cuatro veces y casi siempre era
+               esto: hay que poder verlo y quitarlo desde la propia lista -->
+          {#if year}
+            <button class="concert-show-all" onclick={() => { year = ''; autoYear = false; loadShows(true); }}>
+              Show all years
+            </button>
+          {/if}
         </div>
       {/if}
 
@@ -469,6 +477,16 @@
     font-size: 0.72rem;
     color: var(--text-muted);
   }
+  .concert-show-all {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .concert-show-all:hover { text-decoration: underline; }
 
   .concert-error {
     margin: 0.75rem 1.25rem 0;
