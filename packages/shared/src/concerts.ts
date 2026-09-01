@@ -1,3 +1,5 @@
+import type { TrackInfo } from './entities.js';
+
 // registro de conciertos a los que el usuario ha asistido: una anotación por
 // usuario sobre un artista (misma familia que album_ratings) con setlist opcional
 // importado de setlist.fm y sus canciones resueltas contra la librería.
@@ -17,6 +19,9 @@ export interface ConcertSong {
   coverArtist: string | null;
   // escuchas del usuario ANTES de la fecha del concierto; sólo si trackId resolvió
   playsBefore?: number;
+  // metadatos del track resuelto, para pintar la fila igual que en el resto de
+  // listas (carátula, artistas). null = la canción no está en la librería
+  track?: TrackInfo | null;
 }
 
 export interface Concert {

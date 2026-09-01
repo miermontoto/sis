@@ -354,6 +354,12 @@ export const api = {
 
   concerts: (signal?: AbortSignal) => apiFetch<ConcertListResponse>('/concerts', undefined, signal),
 
+  concert: (id: number, signal?: AbortSignal) => apiFetch<Concert>(`/concerts/${id}`, undefined, signal),
+
+  // reasignar el track de una canción del setlist (null la desvincula)
+  setConcertSongTrack: (id: number, position: number, trackId: string | null) =>
+    apiMutate<Concert>('PUT', `/concerts/${id}/songs/${position}`, { trackId }),
+
   // los conciertos del artista ya viajan dentro de artistDetail; esto es el
   // refresco puntual tras mutar, sin rehacer el detalle entero
   artistConcerts: (artistId: string) =>

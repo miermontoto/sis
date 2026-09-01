@@ -8,7 +8,6 @@
   import { errorMessage } from '$lib/utils/errors';
   import { formatCalendarDate } from '$lib/utils/format';
   import IconTicket from '$lib/icons/IconTicket.svelte';
-  import Setlist from '$lib/components/Setlist.svelte';
 
   let {
     concerts,
@@ -22,7 +21,6 @@
     onChanged: () => void;
   } = $props();
 
-  let expanded = $state<number | null>(null);
   let busyId = $state<number | null>(null);
   let error = $state('');
 
@@ -60,17 +58,16 @@
       <div class="concert">
         <div class="concert-row">
           <span class="concert-icon"><IconTicket size={14} /></span>
-          <div class="concert-main">
+          <!-- la fila entera lleva al detalle, como cualquier otra entidad -->
+          <a class="concert-main" href="/concert/{c.id}">
             <div class="concert-date">{formatCalendarDate(c.date)}</div>
             <div class="concert-place">{place(c) || 'Venue unknown'}</div>
             {#if c.tour}<div class="concert-tour">{c.tour}</div>{/if}
             {#if c.songsTotal > 0}
-              <button class="concert-setlist-toggle" onclick={() => (expanded = expanded === c.id ? null : c.id)}>
-                {c.songsTotal} songs · {c.songsMatched} in your library
-              </button>
+              <div class="concert-setlist-count">{c.songsTotal} songs · {c.songsMatched} in your library</div>
             {/if}
             {#if c.notes}<p class="concert-notes">{c.notes}</p>{/if}
-          </div>
+          </a>
           <div class="concert-actions">
             {#if c.setlistfmUrl}
               <a class="concert-action" href={c.setlistfmUrl} target="_blank" rel="noopener" title="View on setlist.fm">↗</a>
@@ -79,10 +76,6 @@
             <button class="concert-action" disabled={busyId === c.id} onclick={() => remove(c)} title="Remove">&times;</button>
           </div>
         </div>
-
-        {#if expanded === c.id}
-          <Setlist songs={c.songs} />
-        {/if}
       </div>
     {/each}
   </div>
@@ -124,7 +117,13 @@
     padding-top: 0.1rem;
     flex-shrink: 0;
   }
-  .concert-main { flex: 1; min-width: 0; }
+  .concert-main {
+    flex: 1;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+  }
+  .concert-main:hover .concert-place { color: var(--accent); }
   .concert-date {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -146,16 +145,11 @@
     margin: 0.3rem 0 0;
     white-space: pre-wrap;
   }
-  .concert-setlist-toggle {
-    background: none;
-    border: none;
-    padding: 0.2rem 0 0;
+  .concert-setlist-count {
+    padding-top: 0.2rem;
     color: var(--accent);
-    font: inherit;
     font-size: 0.75rem;
-    cursor: pointer;
   }
-  .concert-setlist-toggle:hover { text-decoration: underline; }
 
   /* los controles sólo aparecen al pasar por encima de la tarjeta: la lista se
      lee mucho más limpia sin tres glifos por fila compitiendo con el recinto */

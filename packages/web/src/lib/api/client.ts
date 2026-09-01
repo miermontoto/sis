@@ -250,10 +250,10 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   // en la página global y en el contador de la tarjeta de perfil. El import de
   // setlist.fm va antes que la regla genérica: applyMutationInvalidation para en
   // la primera que casa, y ambas limpian lo mismo de todas formas
-  { method: 'POST',   prefix: '/concerts/setlistfm/',       clear: ['/concerts', '/stats/artist/', '/social/profile/'] },
-  { method: 'POST',   prefix: '/concerts',                  clear: ['/concerts', '/stats/artist/', '/social/profile/'] },
-  { method: 'PUT',    prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/social/profile/'] },
-  { method: 'DELETE', prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/social/profile/'] },
+  { method: 'POST',   prefix: '/concerts/setlistfm/',       clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
+  { method: 'POST',   prefix: '/concerts',                  clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
+  { method: 'PUT',    prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
+  { method: 'DELETE', prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
   { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
   { method: 'PUT',    prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
   // el genérico /covers/ es el de álbum (la ruta es /covers/:albumId): las de artista

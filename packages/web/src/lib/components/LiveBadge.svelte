@@ -70,7 +70,7 @@
         <ul class="live-list">
           {#each concerts as c (c.id)}
             <li>
-              <a class="live-row" href="/concerts">
+              <a class="live-row" href="/concert/{c.id}">
                 <span class="live-date">{formatCalendarDate(c.date)}</span>
                 <span class="live-place">
                   {#if kind === 'track'}{c.artistName}{#if place(c)} · {/if}{/if}{place(c)}

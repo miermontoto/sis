@@ -10,14 +10,12 @@
   import { formatCalendarDate, formatNumber } from '$lib/utils/format';
   import ConcertModal from '$lib/components/ConcertModal.svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
-  import Setlist from '$lib/components/Setlist.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
 
   let concerts = $state<Concert[]>([]);
   let stats = $state<ConcertStats | null>(null);
   let loading = $state(true);
   let error = $state('');
-  let expanded = $state<number | null>(null);
   let busyId = $state<number | null>(null);
   let showModal = $state(false);
   let editing = $state<Concert | null>(null);
@@ -173,13 +171,13 @@
                 {/if}
               </a>
               <div class="concert-main">
-                <a class="concert-name" href="/artist/{c.artistId}">{c.artistName}</a>
+                <a class="concert-name" href="/concert/{c.id}">{c.artistName}</a>
                 <div class="concert-place">{formatCalendarDate(c.date)}{place(c) ? ` · ${place(c)}` : ''}</div>
                 {#if c.tour}<div class="concert-tour">{c.tour}</div>{/if}
                 {#if c.songsTotal > 0}
-                  <button class="concert-setlist-toggle" onclick={() => (expanded = expanded === c.id ? null : c.id)}>
+                  <a class="concert-setlist-count" href="/concert/{c.id}">
                     {c.songsTotal} songs · {c.songsMatched} in your library
-                  </button>
+                  </a>
                 {/if}
                 {#if c.notes}<p class="concert-notes">{c.notes}</p>{/if}
               </div>
@@ -191,9 +189,6 @@
                 <button class="concert-action" disabled={busyId === c.id} onclick={() => remove(c)} title="Remove">&times;</button>
               </div>
             </div>
-            {#if expanded === c.id}
-              <Setlist songs={c.songs} />
-            {/if}
           </div>
         {/each}
       </div>
@@ -378,16 +373,14 @@
     margin: 0.3rem 0 0;
     white-space: pre-wrap;
   }
-  .concert-setlist-toggle {
-    background: none;
-    border: none;
-    padding: 0.2rem 0 0;
+  .concert-setlist-count {
+    display: inline-block;
+    padding-top: 0.2rem;
     color: var(--accent);
-    font: inherit;
     font-size: 0.75rem;
-    cursor: pointer;
+    text-decoration: none;
   }
-  .concert-setlist-toggle:hover { text-decoration: underline; }
+  .concert-setlist-count:hover { text-decoration: underline; }
 
   .concert-actions {
     display: flex;

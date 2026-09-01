@@ -83,6 +83,11 @@ export async function hydrateConcerts(userId: number, rows: ConcertRow[]): Promi
     dbRead('getConcertSongPlays', userId, ids),
   ]);
 
+  // metadatos de los tracks resueltos en un solo batch: la vista de detalle
+  // pinta cada canción como una fila de lista normal (carátula + artistas)
+  const resolvedIds = (songRows as ConcertSongRow[]).map(r => r.track_id).filter((id): id is string => id !== null);
+  const tracks = resolvedIds.length > 0 ? await dbRead('enrichTracksBatch', resolvedIds) : new Map();
+
   const playsByKey = new Map(playRows.map(p => [`${p.concert_id}:${p.position}`, p.plays]));
   const songsByConcert = new Map<number, ConcertSong[]>();
   for (const row of songRows as ConcertSongRow[]) {
@@ -96,6 +101,7 @@ export async function hydrateConcerts(userId: number, rows: ConcertRow[]): Promi
       // sin track resuelto no hay escuchas que contar: undefined (no 0) para que
       // la UI distinga "no la tienes" de "la tienes y no la habías puesto"
       ...(row.track_id ? { playsBefore: playsByKey.get(`${row.concert_id}:${row.position}`) ?? 0 } : {}),
+      track: row.track_id ? tracks.get(row.track_id) ?? null : null,
     };
     songsByConcert.set(row.concert_id, [...(songsByConcert.get(row.concert_id) ?? []), song]);
   }

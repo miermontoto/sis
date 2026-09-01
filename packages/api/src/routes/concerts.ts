@@ -76,6 +76,17 @@ concerts.get('/', async (c) => {
   return c.json({ concerts: await hydrateConcerts(userId, rows), stats: payload });
 });
 
+// un concierto concreto, para su vista de detalle. Va ANTES de las rutas con
+// prefijo fijo ya declaradas arriba, pero DESPUÉS de '/' para que hono no case
+// '/artist/x' ni '/setlistfm/x' contra este :id
+concerts.get('/:id{[0-9]+}', async (c) => {
+  const userId = c.get('userId');
+  const id = Number(c.req.param('id'));
+  const rows = (await dbRead('getConcerts', userId, null)).filter(r => r.id === id);
+  if (rows.length === 0) return c.json({ error: 'concert not found' }, 404);
+  return c.json((await hydrateConcerts(userId, rows))[0]);
+});
+
 // conciertos de un artista (grupo de merge resuelto): lo pide la página de
 // artista tras cada mutación, sin reventar el detail entero
 concerts.get('/artist/:artistId', async (c) => {
@@ -164,6 +175,43 @@ concerts.delete('/:id', async (c) => {
   if (result.changes === 0) return c.json({ error: 'concert not found' }, 404);
   await refreshConcertCounts(userId);
   return c.json({ success: true });
+});
+
+// reasignar a qué track de la librería corresponde una canción del setlist.
+// El matching automático es una heurística por nombre: falla con títulos
+// repetidos entre discos, con directos y con las canciones que no encontró.
+// trackId null la desvincula ("no la tengo"), que también es una corrección
+// válida cuando el matcher se inventó un parecido.
+concerts.put('/:id{[0-9]+}/songs/:position{[0-9]+}', async (c) => {
+  const userId = c.get('userId');
+  const id = Number(c.req.param('id'));
+  const position = Number(c.req.param('position'));
+  const body = await c.req.json<{ trackId?: unknown }>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid body' }, 400);
+  if (body.trackId !== null && typeof body.trackId !== 'string') {
+    return c.json({ error: 'trackId must be a string or null' }, 400);
+  }
+  const trackId = body.trackId as string | null;
+
+  const db = getDb();
+  const owned = db.all(sql`SELECT id FROM concerts WHERE id = ${id} AND user_id = ${userId}`)[0];
+  if (!owned) return c.json({ error: 'concert not found' }, 404);
+
+  // el track tiene que existir: la atribución es evidencia sobre el catálogo,
+  // no una vía para inventar entidades
+  if (trackId) {
+    const track = db.all(sql`SELECT spotify_id FROM tracks WHERE spotify_id = ${trackId}`)[0];
+    if (!track) return c.json({ error: 'track not found' }, 404);
+  }
+
+  const result = db.run(sql`
+    UPDATE concert_songs SET track_id = ${trackId}
+    WHERE concert_id = ${id} AND position = ${position}
+  `);
+  if (result.changes === 0) return c.json({ error: 'song not found' }, 404);
+
+  const rows = (await dbRead('getConcerts', userId, null)).filter(r => r.id === id);
+  return c.json((await hydrateConcerts(userId, rows))[0]);
 });
 
 // --- setlist.fm ---
