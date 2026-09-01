@@ -116,12 +116,18 @@ function normalizeShow(raw: RawSetlist): SetlistfmShow | null {
 }
 
 /** Bolos de un artista, por MBID cuando lo hay (exacto) o por nombre (aproximado).
- *  Devuelve la página pedida ya normalizada + el total de páginas. */
+ *  Devuelve la página pedida ya normalizada + el total de páginas.
+ *
+ *  `year` acota la búsqueda a un año: un artista de gira larga acumula cientos
+ *  de bolos (Bad Bunny pasa de 500, 27 páginas de 20) y paginar hasta el tuyo no
+ *  es viable. La API devuelve 404 cuando ese año no tiene setlists, que el
+ *  wrapper ya traduce a búsqueda vacía. */
 export async function searchArtistShows(
-  opts: { mbid?: string | null; artistName?: string | null; page?: number },
+  opts: { mbid?: string | null; artistName?: string | null; page?: number; year?: string | null },
 ): Promise<{ shows: SetlistfmShow[]; page: number; totalPages: number }> {
   const page = Math.max(1, opts.page ?? 1);
   const params: Record<string, string> = { p: String(page) };
+  if (opts.year) params.year = opts.year;
   if (opts.mbid) params.artistMbid = opts.mbid;
   else if (opts.artistName) params.artistName = opts.artistName;
   else return { shows: [], page, totalPages: 0 };
@@ -132,7 +138,7 @@ export async function searchArtistShows(
   const shows = (data.setlist ?? []).map(normalizeShow).filter((s): s is SetlistfmShow => s !== null);
   const perPage = data.itemsPerPage || SETLISTFM_PAGE_SIZE;
   const totalPages = Math.ceil((data.total ?? shows.length) / perPage);
-  log.debug(`búsqueda ${opts.mbid ? `mbid=${opts.mbid}` : `name=${opts.artistName}`} p${page}: ${shows.length} bolos`);
+  log.debug(`búsqueda ${opts.mbid ? `mbid=${opts.mbid}` : `name=${opts.artistName}`}${opts.year ? ` year=${opts.year}` : ''} p${page}: ${shows.length} bolos`);
   return { shows, page, totalPages };
 }
 

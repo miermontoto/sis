@@ -190,8 +190,12 @@ concerts.get('/setlistfm/:artistId', async (c) => {
   if (!artist) return c.json({ error: 'artist not found' }, 404);
 
   const page = Math.max(1, Number(c.req.query('page') ?? 1) || 1);
+  // filtro por año: se ignora si no son cuatro dígitos. Es un filtro, no un
+  // identificador — devolver 400 por un valor raro sería más ruidoso que útil
+  const yearParam = c.req.query('year');
+  const year = yearParam && /^\d{4}$/.test(yearParam) ? yearParam : null;
   try {
-    const found = await searchArtistShows({ mbid: artist.mbid || null, artistName: artist.name, page });
+    const found = await searchArtistShows({ mbid: artist.mbid || null, artistName: artist.name, page, year });
     const importedIds = await dbRead('getImportedSetlistIds', userId, group);
     return c.json({ configured: true, ...found, importedIds });
   } catch (err) {

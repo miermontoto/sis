@@ -368,8 +368,12 @@ export const api = {
 
   // candidatos de setlist.fm. `configured: false` en la respuesta significa que
   // el servidor no tiene SETLISTFM_API_KEY, no que el artista no tenga bolos
-  setlistfmShows: (artistId: string, page = 1, signal?: AbortSignal) =>
-    apiFetch<SetlistfmSearchResponse>(`/concerts/setlistfm/${encodeURIComponent(artistId)}`, { page: String(page) }, signal),
+  setlistfmShows: (artistId: string, page = 1, year?: string | null, signal?: AbortSignal) =>
+    apiFetch<SetlistfmSearchResponse>(
+      `/concerts/setlistfm/${encodeURIComponent(artistId)}`,
+      { page: String(page), ...(year ? { year } : {}) },
+      signal,
+    ),
 
   importSetlist: (artistId: string, setlistId: string) =>
     apiMutate<Concert>('POST', `/concerts/setlistfm/${encodeURIComponent(artistId)}`, { setlistId }),

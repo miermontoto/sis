@@ -40,6 +40,9 @@
   let page = $state(1);
   let totalPages = $state(0);
   let searching = $state(false);
+  // filtro de año: un artista de gira larga acumula decenas de páginas y
+  // paginar hasta el bolo al que fuiste no es viable
+  let year = $state('');
   let importingId = $state('');
   let loadedKey = '';
 
@@ -73,7 +76,7 @@
     searching = true;
     error = '';
     try {
-      const res = await api.setlistfmShows(artist.id, targetPage);
+      const res = await api.setlistfmShows(artist.id, targetPage, year || null);
       configured = res.configured;
       shows = res.shows;
       importedIds = res.importedIds;
@@ -93,6 +96,15 @@
     } finally {
       searching = false;
     }
+  }
+
+  // se re-busca al CONFIRMAR el año (change = blur/Enter), no en cada tecla:
+  // cada búsqueda es una llamada a setlist.fm, que además va throttleada
+  function applyYear() {
+    const trimmed = year.trim();
+    if (trimmed && !/^\d{4}$/.test(trimmed)) return;
+    year = trimmed;
+    loadShows(1);
   }
 
   async function importShow(showId: string) {
@@ -146,7 +158,10 @@
       return;
     }
     tab = 'setlistfm';
-    if (loadedKey !== artist.id) loadShows(1);
+    if (loadedKey !== artist.id) {
+      year = '';
+      loadShows(1);
+    }
   });
 
   let location = $derived((s: SetlistfmShow) => [s.venue, s.city, s.country].filter(Boolean).join(' · '));
@@ -184,6 +199,26 @@
 
       {#if error}
         <div class="concert-error">{error}</div>
+      {/if}
+
+      {#if tab === 'setlistfm' && !editing && configured}
+        <div class="concert-filter">
+          <input
+            type="text"
+            inputmode="numeric"
+            maxlength="4"
+            class="concert-year"
+            placeholder="Year"
+            bind:value={year}
+            onchange={applyYear}
+          />
+          {#if year}
+            <button class="concert-year-clear" onclick={() => { year = ''; loadShows(1); }}>Clear</button>
+          {/if}
+          <span class="concert-filter-hint">
+            {#if totalPages > 1}{totalPages} pages{:else if shows.length > 0}{shows.length} show{shows.length === 1 ? '' : 's'}{/if}
+          </span>
+        </div>
       {/if}
 
       {#if tab === 'setlistfm' && !editing}
@@ -352,6 +387,39 @@
     border-color: var(--accent);
   }
   .concert-tab:disabled { opacity: 0.4; cursor: default; }
+
+  .concert-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.25rem 0;
+  }
+  .concert-year {
+    width: 4.5rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.45rem;
+  }
+  .concert-year:focus { outline: none; border-color: var(--accent); }
+  .concert-year-clear {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+  }
+  .concert-year-clear:hover { color: var(--accent); }
+  .concert-filter-hint {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
 
   .concert-error {
     margin: 0.75rem 1.25rem 0;
