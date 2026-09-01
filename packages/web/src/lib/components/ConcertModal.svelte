@@ -5,7 +5,7 @@
   // si no las tiene, el modal abre directamente en manual — un buscador vacío sin
   // explicación sería el peor sitio donde dejar al usuario.
   import { errorMessage } from '$lib/utils/errors';
-  import { api, type Concert, type SetlistfmShow } from '$lib/api';
+  import { api, CONCERT_YEAR_OPTIONS, type Concert, type SetlistfmShow } from '$lib/api';
   import { formatCalendarDate } from '$lib/utils/format';
   import IconTicket from '$lib/icons/IconTicket.svelte';
 
@@ -41,8 +41,14 @@
   let totalPages = $state(0);
   let searching = $state(false);
   // filtro de año: un artista de gira larga acumula decenas de páginas y
-  // paginar hasta el bolo al que fuiste no es viable
+  // paginar hasta el bolo al que fuiste no es viable. Arranca en el año actual,
+  // que es el caso común ("acabo de ir a un concierto")
+  const CURRENT_YEAR = new Date().getFullYear();
+  const YEAR_CHOICES = Array.from({ length: CONCERT_YEAR_OPTIONS }, (_, i) => String(CURRENT_YEAR - i));
   let year = $state('');
+  // marca que el año lo puso el default, no el usuario: si ese año no tiene
+  // bolos se cae a "todos" en vez de dejar un vacío que parece un fallo
+  let autoYear = false;
   let importingId = $state('');
   let loadedKey = '';
 
@@ -84,6 +90,19 @@
       totalPages = res.totalPages;
       // sin credenciales no hay nada que buscar: el alta manual es la única vía
       if (!res.configured) tab = 'manual';
+
+      // el año por defecto no puede dejar al usuario ante un "no hay setlists"
+      // que parece un error: si este año no hay bolos, se reintenta sin filtro.
+      // Sólo cuando el año lo puso el default — si lo eligió el usuario, su
+      // elección manda y el vacío es la respuesta correcta
+      if (res.configured && res.shows.length === 0 && autoYear && year) {
+        autoYear = false;
+        year = '';
+        searching = false;
+        void loadShows(1);
+        return;
+      }
+      autoYear = false;
       // memoizar SÓLO el resultado útil: si el servidor no tenía credenciales
       // (o la llamada falló), reabrir el modal debe reintentar en vez de
       // quedarse con el "no configurado" de la vez anterior — que es lo que
@@ -96,15 +115,6 @@
     } finally {
       searching = false;
     }
-  }
-
-  // se re-busca al CONFIRMAR el año (change = blur/Enter), no en cada tecla:
-  // cada búsqueda es una llamada a setlist.fm, que además va throttleada
-  function applyYear() {
-    const trimmed = year.trim();
-    if (trimmed && !/^\d{4}$/.test(trimmed)) return;
-    year = trimmed;
-    loadShows(1);
   }
 
   async function importShow(showId: string) {
@@ -159,7 +169,8 @@
     }
     tab = 'setlistfm';
     if (loadedKey !== artist.id) {
-      year = '';
+      year = String(CURRENT_YEAR);
+      autoYear = true;
       loadShows(1);
     }
   });
@@ -203,18 +214,20 @@
 
       {#if tab === 'setlistfm' && !editing && configured}
         <div class="concert-filter">
-          <input
-            type="text"
-            inputmode="numeric"
-            maxlength="4"
+          <!-- desplegable en vez de caja de texto: aplica al seleccionar, sin
+               depender de que el usuario pulse Enter o saque el foco -->
+          <select
             class="concert-year"
-            placeholder="Year"
+            aria-label="Filter by year"
+            disabled={searching}
             bind:value={year}
-            onchange={applyYear}
-          />
-          {#if year}
-            <button class="concert-year-clear" onclick={() => { year = ''; loadShows(1); }}>Clear</button>
-          {/if}
+            onchange={() => { autoYear = false; loadShows(1); }}
+          >
+            <option value="">All years</option>
+            {#each YEAR_CHOICES as y (y)}
+              <option value={y}>{y}</option>
+            {/each}
+          </select>
           <span class="concert-filter-hint">
             {#if totalPages > 1}{totalPages} pages{:else if shows.length > 0}{shows.length} show{shows.length === 1 ? '' : 's'}{/if}
           </span>
@@ -395,7 +408,6 @@
     padding: 0.6rem 1.25rem 0;
   }
   .concert-year {
-    width: 4.5rem;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -405,16 +417,7 @@
     padding: 0.2rem 0.45rem;
   }
   .concert-year:focus { outline: none; border-color: var(--accent); }
-  .concert-year-clear {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 0.75rem;
-    cursor: pointer;
-    padding: 0;
-  }
-  .concert-year-clear:hover { color: var(--accent); }
+  .concert-year:disabled { opacity: 0.6; }
   .concert-filter-hint {
     margin-left: auto;
     font-size: 0.72rem;

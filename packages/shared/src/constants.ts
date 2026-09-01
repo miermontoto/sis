@@ -56,6 +56,12 @@ export const ALBUM_REVIEW_MAX_CHARS = 2000;
 export const CONCERT_TEXT_MAX_CHARS = 200;
 export const CONCERT_NOTES_MAX_CHARS = 2000;
 
+// años que ofrece el desplegable de la búsqueda de setlist.fm, hacia atrás desde
+// el actual. No se derivan de los datos a propósito: sacar el año del bolo más
+// antiguo obligaría a pedir la última página de la búsqueda sin filtrar, otra
+// llamada a una API que ya va throttleada, para afinar un desplegable
+export const CONCERT_YEAR_OPTIONS = 60;
+
 // --- social ---
 
 // bytes aleatorios del token de share link (48 chars hex)

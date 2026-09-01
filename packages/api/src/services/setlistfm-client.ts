@@ -5,7 +5,7 @@
 // setlist.fm indexa los artistas por MBID de MusicBrainz, que es exactamente lo
 // que el ladder de identidad ya guarda en artists.mbid: cuando lo hay, la
 // búsqueda es exacta; si no, cae al nombre y acepta el ruido de los homónimos.
-import { SETLISTFM_API_BASE, SETLISTFM_REQUEST_SPACING_MS, SETLISTFM_PAGE_SIZE, SETLISTFM_TIMEOUT_MS } from '../constants.js';
+import { SETLISTFM_API_BASE, SETLISTFM_REQUEST_SPACING_MS, SETLISTFM_PAGE_SIZE, SETLISTFM_TIMEOUT_MS, SETLISTFM_MAX_ATTEMPTS, SETLISTFM_RETRY_BACKOFF_MS, SETLISTFM_MAX_RETRY_WAIT_MS } from '../constants.js';
 import { createLogger } from './logger.js';
 import type { SetlistfmShow } from '@sis/shared';
 
@@ -48,28 +48,52 @@ interface RawSearchResponse {
   itemsPerPage?: number;
 }
 
+// espera entre reintentos: respeta Retry-After si viene, con backoff lineal de
+// respaldo, y siempre acotada para no dejar el modal colgado
+function retryWaitMs(res: Response, attempt: number): number {
+  const header = Number(res.headers.get('Retry-After'));
+  const wait = Number.isFinite(header) && header > 0 ? header * 1000 : SETLISTFM_RETRY_BACKOFF_MS * attempt;
+  return Math.min(wait, SETLISTFM_MAX_RETRY_WAIT_MS);
+}
+
 async function setlistfmRequest<T>(path: string, params: Record<string, string> = {}): Promise<T | null> {
   if (!isSetlistfmConfigured()) throw new Error('setlist.fm no configurado (SETLISTFM_API_KEY)');
-  await throttle();
 
   const url = new URL(`${SETLISTFM_API_BASE}${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'x-api-key': process.env.SETLISTFM_API_KEY!,
-      // sin Accept explícito la api responde XML
-      Accept: 'application/json',
-      'User-Agent': 'sis (https://sis.mier.info)',
-    },
-    signal: AbortSignal.timeout(SETLISTFM_TIMEOUT_MS),
-  });
+  for (let attempt = 1; attempt <= SETLISTFM_MAX_ATTEMPTS; attempt++) {
+    await throttle();
 
-  // 404 es la respuesta normal a "este artista no tiene setlists": no es un
-  // error que deba propagarse al usuario, sólo una búsqueda vacía
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`setlist.fm ${path}: http ${res.status}`);
-  return await res.json() as T;
+    const res = await fetch(url.toString(), {
+      headers: {
+        'x-api-key': process.env.SETLISTFM_API_KEY!,
+        // sin Accept explícito la api responde XML
+        Accept: 'application/json',
+        'User-Agent': 'sis (https://sis.mier.info)',
+      },
+      signal: AbortSignal.timeout(SETLISTFM_TIMEOUT_MS),
+    });
+
+    // 404 es la respuesta normal a "este artista no tiene setlists" (o a pedir
+    // una página más allá del final): no es un error, sólo una búsqueda vacía
+    if (res.status === 404) return null;
+    if (res.ok) return await res.json() as T;
+
+    // 429 y 5xx son transitorios: la API falla a ratos bajo ráfagas y sin
+    // reintento ese fallo suelto se ve como "faltan conciertos" — la página que
+    // tocaba vuelve vacía mientras las de al lado responden bien
+    const transient = res.status === 429 || res.status >= 500;
+    if (!transient || attempt === SETLISTFM_MAX_ATTEMPTS) {
+      throw new Error(`setlist.fm ${path}: http ${res.status}`);
+    }
+    const wait = retryWaitMs(res, attempt);
+    log.warn(`${path} http ${res.status}, reintento ${attempt}/${SETLISTFM_MAX_ATTEMPTS - 1} en ${wait}ms`);
+    await new Promise(r => setTimeout(r, wait));
+  }
+
+  // inalcanzable: el bucle sale por return o por throw
+  return null;
 }
 
 // eventDate viene en dd-MM-yyyy; el resto del proyecto trabaja en ISO

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w36l';
+export const VERSION = '26w36m';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -72,6 +72,16 @@ export const SETLISTFM_PAGE_SIZE = 20;
 
 // timeout de red: setlist.fm es lento a ratos y la búsqueda va en un modal
 export const SETLISTFM_TIMEOUT_MS = 12_000;
+
+// reintentos ante fallos transitorios (429 y 5xx). La API falla de forma
+// intermitente bajo ráfagas, y sin reintento un 429 suelto se veía como
+// "faltan conciertos": la página que tocaba volvía vacía y con error.
+export const SETLISTFM_MAX_ATTEMPTS = 3;
+export const SETLISTFM_RETRY_BACKOFF_MS = 600;
+
+// tope de espera entre reintentos: un Retry-After largo no puede dejar el modal
+// colgado, mejor fallar rápido y que el usuario reintente
+export const SETLISTFM_MAX_RETRY_WAIT_MS = 3_000;
 
 // --- last.fm ---
 
