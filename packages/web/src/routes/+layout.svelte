@@ -15,6 +15,8 @@
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
+  import { playUpdatesStore } from '$lib/stores/play-updates.svelte';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
   import IconTrack from '$lib/icons/IconTrack.svelte';
@@ -141,6 +143,19 @@
     projectionsStore.onTrackChange();
   });
 
+  // El parpadeo se dispara una sola vez, aquí, y no en cada vista que parchea:
+  // el play toca al track, a su álbum y a sus artistas, y cualquiera de esos
+  // ids puede estar pintado en varios sitios a la vez. Las vistas sólo
+  // preguntan por id (statFlashStore.isFlashing)
+  let lastFlashSeq = 0;
+
+  $effect(() => {
+    const update = playUpdatesStore.optimistic;
+    if (!update || update.seq <= lastFlashSeq) return;
+    lastFlashSeq = update.seq;
+    statFlashStore.flash([update.trackId, update.albumId, ...update.artistIds]);
+  });
+
   $effect(() => {
     const el = sidebarEl;
     if (!el) return;
@@ -257,13 +272,13 @@
       items: [
         { href: '/insights', label: 'Insights', icon: '!' },
         { href: '/records', label: 'Records', icon: '^' },
-        { href: '/concerts', label: 'Concerts', icon: '@' },
       ],
     },
     {
       label: 'Library',
       items: [
         { href: '/playlists', label: 'Playlists', icon: '+' },
+        { href: '/concerts', label: 'Concerts', icon: '@' },
         { href: '/generators', label: 'Generators', icon: '&' },
       ],
     },

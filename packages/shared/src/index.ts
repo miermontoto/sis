@@ -25,7 +25,7 @@ export type { TimeRange } from './constants.js';
 export type { Rankings, ArtistDetail, ArtistImage, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, ReleaseEvent, AlbumSingle } from './detail.js';
 
 // conciertos asistidos (+ setlist.fm)
-export type { Concert, ConcertSong, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse } from './concerts.js';
+export type { Concert, ConcertSong, ConcertRef, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse } from './concerts.js';
 
 export type { TrackVersion } from './versions.js';
 

@@ -3,7 +3,7 @@ import type { HistoryItem } from './history.js';
 import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
 import type { RelatedArtist } from './relations.js';
-import type { Concert } from './concerts.js';
+import type { Concert, ConcertRef } from './concerts.js';
 
 export interface Rankings {
   week: number | null;
@@ -99,6 +99,10 @@ export interface TrackDetail {
   mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
   playlists: PlaylistPresenceItem[];
+  // conciertos asistidos en cuyo setlist figura este tema: "lo escuchaste en
+  // directo". Vacío no es lo mismo que no haber ido — puede que el setlist no
+  // esté importado
+  liveConcerts?: ConcertRef[];
   // otras versiones del mismo tema (live, remix, remaster...) que el usuario ha escuchado
   versions: TrackVersion[];
 }

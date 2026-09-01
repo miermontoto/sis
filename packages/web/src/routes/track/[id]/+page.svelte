@@ -1,7 +1,10 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
+  import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
+  import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -19,6 +22,7 @@
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
+  import LiveBadge from '$lib/components/LiveBadge.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
@@ -94,6 +98,32 @@
       if (!signal.aborted) loading = false;
     }
   }
+
+
+  // --- play confirmado: relectura de la ficha ---
+  //
+  // El cliente ve el corte al instante, pero el play tarda unos segundos en
+  // aterrizar en listening_history (volcado en escalera de 8/25/75s). Releer
+  // antes recachearía las cifras VIEJAS durante el TTL entero de la ficha (1h),
+  // así que se espera a que avance la marca de agua del historial.
+  let lastConfirmedSeq = 0;
+
+  $effect(() => {
+    const batch = playUpdatesStore.confirmed;
+    if (!batch || batch.seq <= lastConfirmedSeq) return;
+    lastConfirmedSeq = batch.seq;
+    // untrack: loadData lee flags de settings que no deben volverse deps
+    untrack(() => {
+      const id = trackId;
+      if (!id || !batchTouches(batch.updates, 'tracks', id)) return;
+      invalidateEntityDetail('track', id)
+        .then(() => loadData(id))
+        // el parpadeo va después de la recarga: las cifras cambian ahí, no al
+        // detectarse el corte (que fue hace unos segundos)
+        .then(() => statFlashStore.flash([id]))
+        .catch(() => {});
+    });
+  });
 
   let initialized = false;
   let prevId = '';
@@ -210,7 +240,7 @@
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
   {#snippet sec(key: string)}
     {#if key === 'stats'}
-      <StatsGrid stats={d.stats} />
+      <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(trackId)} />
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
         <RankingBadges entityType="track" entityId={trackId} bind:highlightedMonth />
@@ -400,6 +430,7 @@
           {/snippet}
         </PlaylistPopover>
       {/if}
+      <LiveBadge kind="track" concerts={data.liveConcerts ?? []} />
       {#if !data.mergedInto}
         <Accolades entityType="track" entityId={trackId} />
       {/if}

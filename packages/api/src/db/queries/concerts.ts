@@ -181,6 +181,26 @@ export function getImportedSetlistIds(db: Db, userId: number, artistIds: string[
   return rows.map(r => r.setlistfm_id);
 }
 
+/** Conciertos asistidos en cuyo setlist figura alguno de estos tracks (el grupo
+ *  de merge del tema visitado). Es la otra dirección del matching del setlist:
+ *  desde el track, "¿lo llegué a escuchar en directo?".
+ *
+ *  DISTINCT porque un bolo puede tener el mismo tema dos veces (bis, medley) y
+ *  aquí interesa el concierto, no cada interpretación. */
+export function getTrackLiveConcerts(db: Db, userId: number, trackIds: string[]): (ConcertRow & { concert_date: string })[] {
+  if (trackIds.length === 0) return [];
+  return db.all(sql`
+    SELECT DISTINCT c.id, c.artist_id, a.name as artist_name, a.image_url as artist_image_url,
+           c.concert_date, c.venue, c.city, c.country, c.tour, c.notes,
+           c.setlistfm_id, c.setlistfm_url
+    FROM concert_songs cs
+    JOIN concerts c ON c.id = cs.concert_id
+    JOIN artists a ON a.spotify_id = c.artist_id
+    WHERE c.user_id = ${userId} AND cs.track_id IN (${idList(trackIds)})
+    ORDER BY c.concert_date DESC
+  `) as (ConcertRow & { concert_date: string })[];
+}
+
 /** Conteos de conciertos para la tarjeta de identidad del perfil. */
 export function getConcertCounts(db: Db, userId: number): { concerts_attended: number; artists_seen_live: number } {
   return db.all(sql`

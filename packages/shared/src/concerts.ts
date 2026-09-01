@@ -40,6 +40,18 @@ export interface Concert {
   songsTotal: number;
 }
 
+// referencia mínima a un concierto asistido, para las superficies que sólo
+// necesitan decir "estuviste aquí" (el badge de directo en artista y track) sin
+// arrastrar el setlist entero
+export interface ConcertRef {
+  id: number;
+  artistId: string;
+  artistName: string;
+  date: string;
+  venue: string | null;
+  city: string | null;
+}
+
 // totales de la página global. byYear va completo (sin huecos) para la barra.
 export interface ConcertStats {
   total: number;

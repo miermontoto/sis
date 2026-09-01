@@ -2,6 +2,7 @@
   import { isAbortError } from '$lib/utils/errors';
   import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, untrack } from 'svelte';
   import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getArtistBackdrop } from '$lib/api';
@@ -30,6 +31,7 @@
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
+  import LiveBadge from '$lib/components/LiveBadge.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
@@ -247,7 +249,12 @@
     untrack(() => {
       const id = artistId;
       if (!id || !batchTouches(batch.updates, 'artists', id)) return;
-      invalidateEntityDetail('artist', id).then(() => loadData(id)).catch(() => {});
+      invalidateEntityDetail('artist', id)
+        .then(() => loadData(id))
+        // el parpadeo va después de la recarga: las cifras cambian ahí, no al
+        // detectarse el corte (que fue hace unos segundos)
+        .then(() => statFlashStore.flash([id]))
+        .catch(() => {});
     });
   });
 
@@ -329,6 +336,9 @@
             <IconPlay />
           </button>
         {/if}
+        <LiveBadge kind="artist" concerts={(d.concerts ?? []).map(c => ({
+          id: c.id, artistId: c.artistId, artistName: c.artistName, date: c.date, venue: c.venue, city: c.city,
+        }))} />
         {#if !d.mergedInto}
           <Accolades entityType="artist" entityId={artistId} />
         {/if}
@@ -350,7 +360,7 @@
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
   {#snippet sec(key: string)}
     {#if key === 'stats'}
-      <StatsGrid stats={d.stats} />
+      <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(artistId)} />
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
         <RankingBadges entityType="artist" entityId={artistId} bind:highlightedMonth />

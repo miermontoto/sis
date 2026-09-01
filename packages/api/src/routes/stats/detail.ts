@@ -199,7 +199,7 @@ detail.get('/track/:id', async (c) => {
   const trackIds = await dbRead('resolveEntityIds', 'track', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [albumRaw, arts, statsRow, series, recentRaw, albumBreakdownRaw, playlists, mergeInfo, versions] = await Promise.all([
+  const [albumRaw, arts, statsRow, series, recentRaw, albumBreakdownRaw, playlists, mergeInfo, versions, liveConcertRows] = await Promise.all([
     track.album_id ? dbRead('lookupAlbumById', track.album_id) : Promise.resolve(null),
     dbRead('getTrackArtists', id),
     dbRead('getEntityStats', 'track', id, rangeStart, rangeEnd, trackIds, userId),
@@ -209,6 +209,8 @@ detail.get('/track/:id', async (c) => {
     dbRead('getTrackPlaylistPresence', id, userId),
     dbRead('getEntityMergeInfo', 'track', id),
     dbRead('getTrackVersions', id, userId),
+    // conciertos donde este tema sonó: alimenta el badge de "escuchado en directo"
+    dbRead('getTrackLiveConcerts', userId, trackIds),
   ]);
 
   const [recentPlays, albumBreakdowns] = await Promise.all([
@@ -236,6 +238,14 @@ detail.get('/track/:id', async (c) => {
     ...formatMerge(mergeInfo),
     playlists,
     versions,
+    liveConcerts: liveConcertRows.map((r) => ({
+      id: r.id,
+      artistId: r.artist_id,
+      artistName: r.artist_name,
+      date: r.concert_date,
+      venue: r.venue,
+      city: r.city,
+    })),
   });
 });
 
