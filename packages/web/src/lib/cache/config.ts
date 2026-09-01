@@ -84,8 +84,8 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/version',                      { ttl: 1 * HOUR, maxStale: 7 * DAY }],
 
   // el registro de conciertos lo escribe sólo el propio usuario y su mutación
-  // invalida el prefijo: TTL generoso sin riesgo de quedarse viejo
-  ['/concerts/setlistfm/',          { ttl: 30 * MIN, maxStale: 24 * HOUR }],
+  // invalida el prefijo: TTL generoso sin riesgo de quedarse viejo.
+  // (la búsqueda en setlist.fm NO entra aquí: es no-cacheable, ver abajo)
   ['/concerts',                     { ttl: 1 * HOUR, maxStale: 7 * DAY }],
 
   ['/playlists/library/',           { ttl: 10 * MIN, maxStale: 24 * HOUR }],
@@ -109,8 +109,21 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/admin/users',                  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
 ];
 
+// prefijos no cacheables, para rutas con id variable que el Set de arriba no
+// puede enumerar (casa por ruta exacta).
+//
+// La búsqueda de setlist.fm devuelve `configured`, que es una CAPACIDAD DEL
+// SERVIDOR (¿hay SETLISTFM_API_KEY?), no un dato del usuario: cambia al
+// desplegar y ninguna mutación la invalida. Cacheada, un `configured: false`
+// anterior a configurar la key dejaba la pestaña de setlist.fm deshabilitada
+// hasta 24h — SWR revalidaba por detrás, pero el modal ya se había quedado con
+// la respuesta vieja. Mismo motivo por el que /lastfm y /mierid no se cachean.
+// De paso, la respuesta lleva importedIds (estado por usuario) y es un proxy en
+// vivo de una API de terceros: nada de esto se gana cacheándolo.
+const NO_CACHE_PREFIXES = ['/concerts/setlistfm/'];
+
 export function isNoCache(path: string): boolean {
-  return NO_CACHE_PATHS.has(path);
+  return NO_CACHE_PATHS.has(path) || NO_CACHE_PREFIXES.some(prefix => path.startsWith(prefix));
 }
 
 export function getConfig(path: string): EndpointConfig {

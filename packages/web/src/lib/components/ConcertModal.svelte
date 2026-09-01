@@ -81,9 +81,15 @@
       totalPages = res.totalPages;
       // sin credenciales no hay nada que buscar: el alta manual es la única vía
       if (!res.configured) tab = 'manual';
+      // memoizar SÓLO el resultado útil: si el servidor no tenía credenciales
+      // (o la llamada falló), reabrir el modal debe reintentar en vez de
+      // quedarse con el "no configurado" de la vez anterior — que es lo que
+      // mantenía la pestaña deshabilitada tras configurar la key
+      loadedKey = res.configured ? artist.id : '';
     } catch (e) {
       error = errorMessage(e, 'Error searching setlist.fm');
       shows = [];
+      loadedKey = '';
     } finally {
       searching = false;
     }
@@ -140,10 +146,7 @@
       return;
     }
     tab = 'setlistfm';
-    if (loadedKey !== artist.id) {
-      loadedKey = artist.id;
-      loadShows(1);
-    }
+    if (loadedKey !== artist.id) loadShows(1);
   });
 
   let location = $derived((s: SetlistfmShow) => [s.venue, s.city, s.country].filter(Boolean).join(' · '));
