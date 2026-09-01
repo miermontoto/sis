@@ -62,6 +62,12 @@ export const CONCERT_NOTES_MAX_CHARS = 2000;
 // llamada a una API que ya va throttleada, para afinar un desplegable
 export const CONCERT_YEAR_OPTIONS = 60;
 
+// páginas de setlist.fm que se encadenan solas al buscar. La lista se lee de una
+// sola vez en vez de a saltos: paginar a mano hacía que el listado pareciera
+// acabarse en el último bolo de la página 1. 3 páginas = 60 bolos, que cubre un
+// año entero incluso de un artista de gira larga (Bad Bunny 2026: 48)
+export const SETLISTFM_AUTO_PAGES = 3;
+
 // --- social ---
 
 // bytes aleatorios del token de share link (48 chars hex)

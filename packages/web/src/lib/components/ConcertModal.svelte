@@ -5,7 +5,7 @@
   // si no las tiene, el modal abre directamente en manual — un buscador vacío sin
   // explicación sería el peor sitio donde dejar al usuario.
   import { errorMessage } from '$lib/utils/errors';
-  import { api, CONCERT_YEAR_OPTIONS, type Concert, type SetlistfmShow } from '$lib/api';
+  import { api, CONCERT_YEAR_OPTIONS, SETLISTFM_AUTO_PAGES, type Concert, type SetlistfmShow } from '$lib/api';
   import { formatCalendarDate } from '$lib/utils/format';
   import IconTicket from '$lib/icons/IconTicket.svelte';
 
@@ -37,20 +37,20 @@
   let shows = $state<SetlistfmShow[]>([]);
   let importedIds = $state<string[]>([]);
   let configured = $state(true);
-  let page = $state(1);
+  let page = $state(0);
   let totalPages = $state(0);
   let searching = $state(false);
-  // filtro de año para acotar a un artista de gira larga, donde paginar hasta el
-  // bolo al que fuiste no es viable.
-  //
-  // Arranca SIN filtrar a propósito: la lista ya viene ordenada de más nuevo a
-  // más viejo, así que la primera página son los bolos recientes de todas
-  // formas. Defaultear al año actual no aportaba nada para "acabo de ir a un
-  // concierto" y en cambio escondía el resto del historial — Bad Bunny pasaba de
-  // 521 bolos a 48, y Kendrick Lamar (último bolo en diciembre de 2025) a cero.
+  let loadingMore = $state(false);
+  // filtro de año, con el año actual por defecto: es el caso común ("acabo de ir
+  // a un concierto") y acota a un artista de gira larga, donde el historial
+  // entero son decenas de páginas.
   const CURRENT_YEAR = new Date().getFullYear();
   const YEAR_CHOICES = Array.from({ length: CONCERT_YEAR_OPTIONS }, (_, i) => String(CURRENT_YEAR - i));
   let year = $state('');
+  // el año lo puso el default, no el usuario: si ese año no tiene bolos se cae a
+  // "todos" en vez de dejar un vacío que parece un fallo (Kendrick Lamar, con su
+  // último bolo en diciembre de 2025, abriría en blanco)
+  let autoYear = false;
   let importingId = $state('');
   let loadedKey = '';
 
@@ -80,30 +80,61 @@
     if (e.key === 'Escape' && show) close();
   }
 
-  async function loadShows(targetPage: number) {
-    searching = true;
+  // carga encadenando páginas en UNA lista continua. Paginar a mano hacía que el
+  // listado pareciera acabarse en el último bolo de la página 1 —de ahí el
+  // "faltan los conciertos posteriores al 11 de junio"—, así que se traen varias
+  // de golpe y el resto queda tras un "load more" explícito.
+  async function loadShows(reset: boolean) {
+    if (reset) {
+      shows = [];
+      page = 0;
+      totalPages = 0;
+    }
+    searching = reset;
+    loadingMore = !reset;
     error = '';
+    const requestYear = year || null;
     try {
-      const res = await api.setlistfmShows(artist.id, targetPage, year || null);
-      configured = res.configured;
-      shows = res.shows;
-      importedIds = res.importedIds;
-      page = res.page;
-      totalPages = res.totalPages;
-      // sin credenciales no hay nada que buscar: el alta manual es la única vía
-      if (!res.configured) tab = 'manual';
+      const limit = reset ? SETLISTFM_AUTO_PAGES : page + 1;
+      while (page < limit) {
+        const next = page + 1;
+        if (totalPages > 0 && next > totalPages) break;
+        const res = await api.setlistfmShows(artist.id, next, requestYear);
+        // el usuario cambió de filtro mientras esperábamos: esta respuesta ya no vale
+        if ((year || null) !== requestYear) return;
+        configured = res.configured;
+        if (!res.configured) {
+          tab = 'manual';
+          shows = [];
+          return;
+        }
+        importedIds = res.importedIds;
+        totalPages = res.totalPages;
+        shows = next === 1 ? res.shows : [...shows, ...res.shows];
+        page = next;
+        if (res.shows.length === 0 || next >= res.totalPages) break;
+      }
 
-      // memoizar SÓLO el resultado útil: si el servidor no tenía credenciales
-      // (o la llamada falló), reabrir el modal debe reintentar en vez de
-      // quedarse con el "no configurado" de la vez anterior — que es lo que
-      // mantenía la pestaña deshabilitada tras configurar la key
-      loadedKey = res.configured ? artist.id : '';
+      // el año por defecto no puede dejar al usuario ante un "no hay setlists"
+      // que parece un error: si ese año no tiene bolos, se reintenta sin filtro.
+      // Sólo cuando el año lo puso el default — si lo eligió el usuario, el
+      // vacío es la respuesta correcta
+      if (reset && configured && shows.length === 0 && autoYear && year) {
+        autoYear = false;
+        year = '';
+        searching = false;
+        void loadShows(true);
+        return;
+      }
+      autoYear = false;
+      loadedKey = configured ? artist.id : '';
     } catch (e) {
       error = errorMessage(e, 'Error searching setlist.fm');
-      shows = [];
+      if (reset) shows = [];
       loadedKey = '';
     } finally {
       searching = false;
+      loadingMore = false;
     }
   }
 
@@ -159,8 +190,9 @@
     }
     tab = 'setlistfm';
     if (loadedKey !== artist.id) {
-      year = '';
-      loadShows(1);
+      year = String(CURRENT_YEAR);
+      autoYear = true;
+      loadShows(true);
     }
   });
 
@@ -210,7 +242,7 @@
             aria-label="Filter by year"
             disabled={searching}
             bind:value={year}
-            onchange={() => loadShows(1)}
+            onchange={() => { autoYear = false; loadShows(true); }}
           >
             <option value="">All years</option>
             {#each YEAR_CHOICES as y (y)}
@@ -218,7 +250,7 @@
             {/each}
           </select>
           <span class="concert-filter-hint">
-            {#if totalPages > 1}{totalPages} pages{:else if shows.length > 0}{shows.length} show{shows.length === 1 ? '' : 's'}{/if}
+            {#if shows.length > 0}{shows.length} show{shows.length === 1 ? '' : 's'}{/if}
           </span>
         </div>
       {/if}
@@ -241,6 +273,13 @@
                 <div class="concert-item-info">
                   <div class="concert-item-venue">{location(s) || 'Unknown venue'}</div>
                   <div class="concert-item-meta">
+                    <!-- las giras co-cabecera están acreditadas a otra entidad
+                         ("Kendrick Lamar & SZA"): sin pintarlo, esos bolos se
+                         veían idénticos a los del artista solo y parecía que
+                         faltaban -->
+                    {#if s.artistName && s.artistName !== artist.name}
+                      <span class="concert-item-billing">{s.artistName}</span>
+                    {/if}
                     {s.songs.length} song{s.songs.length === 1 ? '' : 's'}{s.tour ? ` · ${s.tour}` : ''}
                   </div>
                 </div>
@@ -250,11 +289,12 @@
               </button>
             {/each}
           </div>
-          {#if totalPages > 1}
+          {#if page < totalPages}
             <div class="concert-pager">
-              <button disabled={page <= 1 || searching} onclick={() => loadShows(page - 1)}>Previous</button>
-              <span>{page} / {totalPages}</span>
-              <button disabled={page >= totalPages || searching} onclick={() => loadShows(page + 1)}>Next</button>
+              <button disabled={loadingMore || searching} onclick={() => loadShows(false)}>
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
+              <span>{page} of {totalPages} pages loaded</span>
             </div>
           {/if}
         {/if}
@@ -478,6 +518,10 @@
     font-size: 0.74rem;
     color: var(--text-muted);
     margin-top: 0.1rem;
+  }
+  .concert-item-billing {
+    color: var(--accent);
+    margin-right: 0.35rem;
   }
   .concert-item-action {
     font-size: 0.75rem;
