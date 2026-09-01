@@ -369,8 +369,16 @@
     text-align: center;
   }
 
+  /* flex:1 + min-height:0 es lo que hace que la lista scrollee DENTRO del modal
+     en vez de estirarlo: sin ellos toma su alto de contenido, el contenedor
+     (max-height 80vh, overflow hidden) recorta lo que sobra y el paginador se
+     queda fuera de la vista — con lo que la lista parece acabarse en el último
+     bolo de la página 1 y no hay forma de llegar a las otras 26. Mismo patrón
+     que .search-results en SearchModal. */
   .concert-list {
     overflow-y: auto;
+    flex: 1;
+    min-height: 0;
     padding: 0.5rem 0.75rem;
   }
   .concert-item {
@@ -418,6 +426,7 @@
   }
 
   .concert-pager {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -443,6 +452,7 @@
   .concert-form {
     padding: 1rem 1.25rem 1.25rem;
     overflow-y: auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 0.7rem;
