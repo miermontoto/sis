@@ -95,6 +95,11 @@ export interface SetlistfmShow {
 // alta manual en el primer caso en vez de un vacío sin explicación
 export interface SetlistfmSearchResponse {
   configured: boolean;
+  // nombre con el que el servidor buscó de verdad. La UI compara contra ESTE,
+  // no contra el nombre que tenga en pantalla: son las giras co-cabecera
+  // (acreditadas a otra entidad) lo que hay que marcar, y sólo el servidor sabe
+  // qué buscó
+  artistName: string;
   shows: SetlistfmShow[];
   page: number;
   totalPages: number;

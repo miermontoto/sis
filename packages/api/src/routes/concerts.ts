@@ -224,18 +224,27 @@ concerts.get('/setlistfm/:artistId', async (c) => {
   const group = artistGroup(artistId, userId);
   if (!group) return c.json({ error: 'artist not found' }, 404);
 
-  const empty = { shows: [], page: 1, totalPages: 0, importedIds: [] };
+  const db = getDb();
+  // el NOMBRE sale siempre del artista visitado: coger uno cualquiera del grupo
+  // de merge hacía buscar bolos de otro (un alias absorbido, o el artista de una
+  // colaboración) y devolver un listado entero que no era el suyo
+  const visited = db.all(sql`SELECT name FROM artists WHERE spotify_id = ${artistId}`)[0] as { name: string } | undefined;
+  if (!visited) return c.json({ error: 'artist not found' }, 404);
+
+  const empty = { artistName: visited.name, shows: [], page: 1, totalPages: 0, importedIds: [] };
   if (!isSetlistfmConfigured()) return c.json({ configured: false, ...empty });
 
-  const db = getDb();
-  // setlist.fm indexa por MBID de MusicBrainz; el ladder de identidad lo guarda
-  // en artists.mbid sólo para los artistas que pasaron por el reconciliador de
-  // sintéticos, así que en la práctica el nombre es el camino habitual
-  const artist = db.all(sql`
-    SELECT name, mbid FROM artists WHERE spotify_id IN (${sql.join(group.map(id => sql`${id}`), sql`, `)})
-    ORDER BY CASE WHEN mbid IS NOT NULL AND mbid != '' THEN 0 ELSE 1 END LIMIT 1
-  `)[0] as { name: string; mbid: string | null } | undefined;
-  if (!artist) return c.json({ error: 'artist not found' }, 404);
+  // el MBID sí puede venir de cualquier miembro del grupo: identifica a la misma
+  // persona y es evidencia más fuerte que el nombre. setlist.fm indexa por él,
+  // pero el ladder de identidad sólo lo rellena para los artistas que pasaron
+  // por el reconciliador de sintéticos, así que el nombre es el camino habitual
+  const withMbid = db.all(sql`
+    SELECT mbid FROM artists
+    WHERE spotify_id IN (${sql.join(group.map(id => sql`${id}`), sql`, `)})
+      AND mbid IS NOT NULL AND mbid != ''
+    LIMIT 1
+  `)[0] as { mbid: string } | undefined;
+  const artist = { name: visited.name, mbid: withMbid?.mbid ?? null };
 
   const page = Math.max(1, Number(c.req.query('page') ?? 1) || 1);
   // filtro por año: se ignora si no son cuatro dígitos. Es un filtro, no un
@@ -245,7 +254,7 @@ concerts.get('/setlistfm/:artistId', async (c) => {
   try {
     const found = await searchArtistShows({ mbid: artist.mbid || null, artistName: artist.name, page, year });
     const importedIds = await dbRead('getImportedSetlistIds', userId, group);
-    return c.json({ configured: true, ...found, importedIds });
+    return c.json({ configured: true, artistName: artist.name, ...found, importedIds });
   } catch (err) {
     log.error(`búsqueda de bolos de "${artist.name}" fallida:`, err);
     return c.json({ error: 'setlist.fm no responde' }, 502);

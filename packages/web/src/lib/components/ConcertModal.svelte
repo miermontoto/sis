@@ -36,6 +36,9 @@
   // setlist.fm
   let shows = $state<SetlistfmShow[]>([]);
   let importedIds = $state<string[]>([]);
+  // nombre con el que el SERVIDOR buscó: es contra este contra el que se decide
+  // si un bolo está acreditado a otra entidad (gira co-cabecera)
+  let searchedName = $state('');
   let configured = $state(true);
   let page = $state(0);
   let totalPages = $state(0);
@@ -109,6 +112,7 @@
           return;
         }
         importedIds = res.importedIds;
+        searchedName = res.artistName;
         totalPages = res.totalPages;
         shows = next === 1 ? res.shows : [...shows, ...res.shows];
         page = next;
@@ -122,8 +126,11 @@
       if (reset && configured && shows.length === 0 && autoYear && year) {
         autoYear = false;
         year = '';
-        searching = false;
-        void loadShows(true);
+        // AWAIT, no void: con void el finally de esta invocación apagaba el
+        // spinner mientras la recarga seguía en vuelo, y se enseñaba "No
+        // setlists found" durante los segundos que tardaba — que es justo el
+        // caso de un artista sin bolos en el año en curso
+        await loadShows(true);
         return;
       }
       autoYear = false;
@@ -277,7 +284,7 @@
                          ("Kendrick Lamar & SZA"): sin pintarlo, esos bolos se
                          veían idénticos a los del artista solo y parecía que
                          faltaban -->
-                    {#if s.artistName && s.artistName !== artist.name}
+                    {#if s.artistName && searchedName && s.artistName !== searchedName}
                       <span class="concert-item-billing">{s.artistName}</span>
                     {/if}
                     {s.songs.length} song{s.songs.length === 1 ? '' : 's'}{s.tour ? ` · ${s.tour}` : ''}
