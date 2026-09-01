@@ -40,15 +40,17 @@
   let page = $state(1);
   let totalPages = $state(0);
   let searching = $state(false);
-  // filtro de año: un artista de gira larga acumula decenas de páginas y
-  // paginar hasta el bolo al que fuiste no es viable. Arranca en el año actual,
-  // que es el caso común ("acabo de ir a un concierto")
+  // filtro de año para acotar a un artista de gira larga, donde paginar hasta el
+  // bolo al que fuiste no es viable.
+  //
+  // Arranca SIN filtrar a propósito: la lista ya viene ordenada de más nuevo a
+  // más viejo, así que la primera página son los bolos recientes de todas
+  // formas. Defaultear al año actual no aportaba nada para "acabo de ir a un
+  // concierto" y en cambio escondía el resto del historial — Bad Bunny pasaba de
+  // 521 bolos a 48, y Kendrick Lamar (último bolo en diciembre de 2025) a cero.
   const CURRENT_YEAR = new Date().getFullYear();
   const YEAR_CHOICES = Array.from({ length: CONCERT_YEAR_OPTIONS }, (_, i) => String(CURRENT_YEAR - i));
   let year = $state('');
-  // marca que el año lo puso el default, no el usuario: si ese año no tiene
-  // bolos se cae a "todos" en vez de dejar un vacío que parece un fallo
-  let autoYear = false;
   let importingId = $state('');
   let loadedKey = '';
 
@@ -91,18 +93,6 @@
       // sin credenciales no hay nada que buscar: el alta manual es la única vía
       if (!res.configured) tab = 'manual';
 
-      // el año por defecto no puede dejar al usuario ante un "no hay setlists"
-      // que parece un error: si este año no hay bolos, se reintenta sin filtro.
-      // Sólo cuando el año lo puso el default — si lo eligió el usuario, su
-      // elección manda y el vacío es la respuesta correcta
-      if (res.configured && res.shows.length === 0 && autoYear && year) {
-        autoYear = false;
-        year = '';
-        searching = false;
-        void loadShows(1);
-        return;
-      }
-      autoYear = false;
       // memoizar SÓLO el resultado útil: si el servidor no tenía credenciales
       // (o la llamada falló), reabrir el modal debe reintentar en vez de
       // quedarse con el "no configurado" de la vez anterior — que es lo que
@@ -169,8 +159,7 @@
     }
     tab = 'setlistfm';
     if (loadedKey !== artist.id) {
-      year = String(CURRENT_YEAR);
-      autoYear = true;
+      year = '';
       loadShows(1);
     }
   });
@@ -221,7 +210,7 @@
             aria-label="Filter by year"
             disabled={searching}
             bind:value={year}
-            onchange={() => { autoYear = false; loadShows(1); }}
+            onchange={() => loadShows(1)}
           >
             <option value="">All years</option>
             {#each YEAR_CHOICES as y (y)}
