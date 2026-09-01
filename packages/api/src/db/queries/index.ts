@@ -16,6 +16,10 @@ export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';
 export { getChart, getChartPeaks, getChartRankSlice, chartPeakSlices, prevPeriod, getAvailablePeriods, getEntityChartHistory } from './charts.js';
 
+// conciertos asistidos + resolución del setlist contra la librería
+export { getConcerts, getConcertSongs, getConcertSongPlays, getConcertStats, getArtistTrackCatalog, getTracksByArtistNames, getImportedSetlistIds, getConcertCounts } from './concerts.js';
+export type { ConcertRow, ConcertSongRow } from './concerts.js';
+
 // merge (genérico para albums / artists / tracks)
 export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './merge.js';
 export type { MergeInfo } from './merge.js';

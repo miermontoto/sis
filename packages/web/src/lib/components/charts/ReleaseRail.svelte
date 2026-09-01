@@ -1,6 +1,7 @@
 <script lang="ts">
   import type * as echarts from 'echarts/core';
   import { groupEventsByBucket, type ChartEvent } from '$lib/utils/chart';
+  import IconTicket from '$lib/icons/IconTicket.svelte';
 
   // carril DOM de carátulas encima de una gráfica de categorías: cada lanzamiento se
   // ancla al pixel central de su bucket (convertToPixel sobre la instancia echarts) y
@@ -20,12 +21,25 @@
   const FAN_OFFSET_PX = 9;
   const ALBUM_PX = 28;
   const SINGLE_PX = 20;
+  const CONCERT_PX = 22;
 
   let railWidth = $state(0);
   let markers = $state<{ x: number; ev: ChartEvent }[]>([]);
 
   function coverSize(e: ChartEvent) {
+    if (e.kind === 'concert') return CONCERT_PX;
     return e.kind === 'album' ? ALBUM_PX : SINGLE_PX;
+  }
+
+  // orden de apilado dentro de un bucket: single < álbum < concierto. El
+  // concierto queda arriba porque es el evento del usuario, el que explica el
+  // pico; los releases son contexto del catálogo
+  const STACK_ORDER: Record<ChartEvent['kind'], number> = { single: 0, album: 1, concert: 2 };
+
+  // los releases enlazan a su álbum; los conciertos traen su propio href
+  function eventHref(e: ChartEvent) {
+    if (e.href) return e.href;
+    return e.kind === 'concert' ? undefined : e.id ? `/album/${e.id}` : undefined;
   }
 
   function recompute() {
@@ -34,8 +48,8 @@
     for (const [idx, evs] of groupEventsByBucket(events, periods)) {
       const x = instance.convertToPixel({ xAxisIndex: 0 }, idx);
       if (!Number.isFinite(x)) continue;
-      // singles primero en el DOM para que los álbumes queden por encima al solaparse
-      const sorted = [...evs].sort((a, b) => Number(a.kind === 'album') - Number(b.kind === 'album'));
+      // el más "bajo" primero en el DOM para que el siguiente quede por encima al solaparse
+      const sorted = [...evs].sort((a, b) => STACK_ORDER[a.kind] - STACK_ORDER[b.kind]);
       sorted.forEach((ev, j) => out.push({ x: x + j * FAN_OFFSET_PX, ev }));
     }
     markers = out.sort((a, b) => a.x - b.x);
@@ -64,11 +78,16 @@
       <a
         class="release-cover"
         class:single={m.ev.kind === 'single'}
+        class:concert={m.ev.kind === 'concert'}
         style:left="{clampedLeft(m)}px"
-        href={m.ev.id ? `/album/${m.ev.id}` : undefined}
-        title="{m.ev.label} · {m.ev.date}"
+        href={eventHref(m.ev)}
+        title="{m.ev.label}{m.ev.sublabel ? ` · ${m.ev.sublabel}` : ''} · {m.ev.date}"
       >
-        {#if m.ev.imageUrl}
+        {#if m.ev.kind === 'concert'}
+          <!-- un concierto no tiene carátula propia: la foto del artista sería
+               redundante en su propia página, así que va la entrada -->
+          <IconTicket size={13} />
+        {:else if m.ev.imageUrl}
           <img src={m.ev.imageUrl} alt={m.ev.label} loading="lazy" />
         {/if}
       </a>
@@ -98,6 +117,17 @@
     width: 20px;
     height: 20px;
     opacity: 0.75;
+  }
+  .release-cover.concert {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .release-cover:hover {
     transform: scale(1.4);

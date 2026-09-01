@@ -354,7 +354,11 @@ export function zoomX(): NonNullable<EChartsOption['dataZoom']> {
 // --- Eventos de lanzamiento (release markers) ---
 
 // evento puntual (fecha de lanzamiento de un álbum/single) a marcar sobre una gráfica
-export interface ChartEvent { id?: string; date: string; label: string; kind: 'album' | 'single'; imageUrl?: string | null }
+// evento anclado a una fecha sobre una gráfica de categorías. Los releases del
+// artista y los conciertos asistidos comparten carril: ambos son "algo que pasó
+// ese día" y se leen mejor juntos que en dos pistas paralelas. `href` deja que
+// cada tipo enlace a donde le corresponde (el álbum, la página de conciertos).
+export interface ChartEvent { id?: string; date: string; label: string; kind: 'album' | 'single' | 'concert'; imageUrl?: string | null; href?: string; sublabel?: string }
 
 // réplica del %W de strftime en SQLite (semana con lunes como primer día, contada
 // desde el primer lunes del año; los días anteriores caen en W00) — debe coincidir
@@ -400,10 +404,14 @@ export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
     symbol: 'none',
     animation: false,
     data: [...byIdx.entries()].map(([idx, evs]) => {
+      // un concierto gana a cualquier release del mismo bucket: es el evento del
+      // usuario, no del catálogo, y es lo que explica el pico de escuchas
+      const hasConcert = evs.some(e => e.kind === 'concert');
       const hasAlbum = evs.some(e => e.kind === 'album');
+      const color = hasConcert ? 'rgba(29,185,84,0.55)' : hasAlbum ? 'rgba(224,232,232,0.5)' : 'rgba(224,232,232,0.18)';
       return {
         xAxis: idx,
-        lineStyle: { color: hasAlbum ? 'rgba(224,232,232,0.5)' : 'rgba(224,232,232,0.18)', type: 'dashed' as const, width: 1 },
+        lineStyle: { color, type: 'dashed' as const, width: 1 },
         label: {
           show: false,
           formatter: () => evs.map(e => e.label).join('\n'),

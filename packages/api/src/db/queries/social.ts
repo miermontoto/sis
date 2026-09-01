@@ -14,6 +14,8 @@ export interface ProfileSummaryRow {
   distinct_tracks: number;
   distinct_albums: number;
   first_played: string | null;
+  concerts_attended: number;
+  artists_seen_live: number;
 }
 
 /** Agregados globales de la librería de un usuario (para perfil / share).
@@ -34,7 +36,12 @@ export function getProfileSummary(db: Db, userId: number, rangeStart: string | n
        FROM (SELECT DISTINCT lh.track_id FROM listening_history lh WHERE 1=1 ${wr} ${uf}) pt) as distinct_artists,
       count(DISTINCT lh.track_id) as distinct_tracks,
       count(DISTINCT t.album_id) as distinct_albums,
-      min(lh.played_at) as first_played
+      min(lh.played_at) as first_played,
+      -- conciertos: escalares sobre una tabla pequeña e indexada por user_id, y
+      -- deliberadamente sin filtro de rango (el resumen se pide siempre all-time
+      -- y "visto en directo" no es una métrica de ventana temporal)
+      (SELECT count(*) FROM concerts WHERE user_id = ${userId}) as concerts_attended,
+      (SELECT count(DISTINCT artist_id) FROM concerts WHERE user_id = ${userId}) as artists_seen_live
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE 1=1 ${wr} ${uf}

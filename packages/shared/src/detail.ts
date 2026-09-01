@@ -3,6 +3,7 @@ import type { HistoryItem } from './history.js';
 import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
 import type { RelatedArtist } from './relations.js';
+import type { Concert } from './concerts.js';
 
 export interface Rankings {
   week: number | null;
@@ -42,6 +43,9 @@ export interface ArtistDetail {
   mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
   // vínculos declarados que no alteran el tracking (ver relations.ts)
   relatedArtists: RelatedArtist[];
+  // conciertos del usuario para este artista (resueltos sobre el grupo de merge);
+  // doblan como marcadores de las gráficas junto a los releases
+  concerts?: Concert[];
 }
 
 // single de adelanto ligado a un álbum: es un ReleaseEvent (sirve de marcador en las gráficas)

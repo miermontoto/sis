@@ -1,8 +1,10 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
+  import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
+  import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { page } from '$app/stores';
   import { onMount, untrack } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getArtistBackdrop } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -16,6 +18,8 @@
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
   import MergeBanners from '$lib/components/MergeBanners.svelte';
   import RelatedArtists from '$lib/components/RelatedArtists.svelte';
+  import ConcertList from '$lib/components/ConcertList.svelte';
+  import ConcertModal from '$lib/components/ConcertModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
@@ -54,6 +58,8 @@
   let showAllAlbums = $state(false);
   let showArtistMergeModal = $state(false);
   let showRelateModal = $state(false);
+  let showConcertModal = $state(false);
+  let editingConcert = $state<Concert | null>(null);
   let showImagePicker = $state(false);
   let pickerMode = $state<'image' | 'background'>('image');
   let backdropMode = $state<ArtistBackdrop>('blur');
@@ -77,6 +83,31 @@
     kind: r.albumType === 'single' ? 'single' as const : 'album' as const,
     imageUrl: r.imageUrl,
   })));
+
+  // los conciertos comparten carril con los releases: ambos son "algo que pasó
+  // ese día", y verlos juntos es justo lo que explica un pico de escuchas
+  let concertEvents = $derived<ChartEvent[]>((data?.concerts ?? []).map(c => ({
+    id: `concert-${c.id}`,
+    date: c.date,
+    label: [c.venue, c.city].filter(Boolean).join(' · ') || 'Concert',
+    sublabel: c.tour ?? undefined,
+    kind: 'concert' as const,
+    href: '/concerts',
+  })));
+
+  let chartEvents = $derived<ChartEvent[]>([...releaseEvents, ...concertEvents]);
+
+  function openConcertModal(concert: Concert | null) {
+    editingConcert = concert;
+    showConcertModal = true;
+  }
+
+  // tras mutar, se recarga sólo la lista de conciertos: rehacer el detalle
+  // entero por dar de alta un bolo tiraría abajo las gráficas y los tops
+  async function refreshConcerts() {
+    if (!data) return;
+    data = { ...data, concerts: await api.artistConcerts(artistId) };
+  }
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -199,6 +230,27 @@
     }
   }
 
+
+  // --- play confirmado: relectura de la ficha ---
+  //
+  // El cliente ve el corte al instante, pero el play tarda unos segundos en
+  // aterrizar en listening_history (volcado en escalera de 8/25/75s). Releer
+  // antes recachearía las cifras VIEJAS durante el TTL entero de la ficha (1h),
+  // así que se espera a que avance la marca de agua del historial.
+  let lastConfirmedSeq = 0;
+
+  $effect(() => {
+    const batch = playUpdatesStore.confirmed;
+    if (!batch || batch.seq <= lastConfirmedSeq) return;
+    lastConfirmedSeq = batch.seq;
+    // untrack: loadData lee flags de settings que no deben volverse deps
+    untrack(() => {
+      const id = artistId;
+      if (!id || !batchTouches(batch.updates, 'artists', id)) return;
+      invalidateEntityDetail('artist', id).then(() => loadData(id)).catch(() => {});
+    });
+  });
+
   let initialized = false;
   let prevId = '';
 
@@ -308,7 +360,7 @@
         <ChartStats entityType="artist" entityId={artistId} bind:chartData={chartHistoryData} bind:highlightedMonth />
       {/if}
     {:else if key === 'activity'}
-      <ActivityChart series={d.series} {metric} events={releaseEvents} />
+      <ActivityChart series={d.series} {metric} events={chartEvents} />
     {:else if key === 'topTracks'}
       {#if d.topTracks.length > 0}
         <div class="section-header">
@@ -363,8 +415,15 @@
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
         <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
+        <EntityHistoryChart series={d.series} {metric} events={chartEvents} />
       {/if}
+    {:else if key === 'concerts'}
+      <ConcertList
+        concerts={d.concerts ?? []}
+        onAdd={() => openConcertModal(null)}
+        onEdit={(concert) => openConcertModal(concert)}
+        onChanged={refreshConcerts}
+      />
     {:else if key === 'relations'}
       {#if d.relatedArtists.length > 0}
         <RelatedArtists artists={d.relatedArtists} onManage={() => { showRelateModal = true; }} />
@@ -406,6 +465,12 @@
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
     existing={data.relatedArtists}
     onChanged={() => loadData(artistId)}
+  />
+  <ConcertModal
+    bind:show={showConcertModal}
+    artist={{ id: data.artist.id, name: data.artist.name }}
+    editing={editingConcert}
+    onSaved={refreshConcerts}
   />
 {/if}
 

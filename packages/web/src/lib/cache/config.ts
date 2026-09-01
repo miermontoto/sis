@@ -83,6 +83,11 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/device-tokens',                { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
   ['/version',                      { ttl: 1 * HOUR, maxStale: 7 * DAY }],
 
+  // el registro de conciertos lo escribe sólo el propio usuario y su mutación
+  // invalida el prefijo: TTL generoso sin riesgo de quedarse viejo
+  ['/concerts/setlistfm/',          { ttl: 30 * MIN, maxStale: 24 * HOUR }],
+  ['/concerts',                     { ttl: 1 * HOUR, maxStale: 7 * DAY }],
+
   ['/playlists/library/',           { ttl: 10 * MIN, maxStale: 24 * HOUR }],
   ['/playlists/library',            { ttl: 10 * MIN, maxStale: 24 * HOUR }],
   ['/playlists/',                   { ttl: 10 * MIN, maxStale: 24 * HOUR }],

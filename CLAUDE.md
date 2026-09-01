@@ -54,6 +54,9 @@ Last.fm integration (optional — credential-gated, no-ops if unset; enables Las
 - `LASTFM_API_KEY`, `LASTFM_API_SECRET` — from https://www.last.fm/api/account/create
 - `LASTFM_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/lastfm/callback`
 
+setlist.fm (optional — credential-gated, no-ops if unset; enables setlist search + import in the concert log — see Concert attendance log):
+- `SETLISTFM_API_KEY` — free key from https://www.setlist.fm/settings/api
+
 id.mier.info SSO (optional — credential-gated, no-ops if unset; enables "Sign in with mier.info" via OIDC authorization code + PKCE; identity-only, no data sync):
 - `MIERID_CLIENT_ID`, `MIERID_CLIENT_SECRET` — OAuth client registered at id.mier.info
 - `MIERID_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/mierid/callback`
@@ -75,6 +78,19 @@ The two accrue differently. Album covers ride along for free: `upsertTrack()` in
 `artists.image_pinned` marks a manual pick so the sweep can't revert it. Albums have no equivalent — a manual cover *is* overwritten by the next ingested play of that album.
 
 `artists.background_url` is a **second, independent pick** over the same `artist_images` pool: the backdrop behind the artist hero (`DetailBackdrop.svelte`). NULL = fall back to `image_url`, so every artist gets a backdrop with no configuration. Setting it does *not* touch `image_url`/`image_pinned` (`PUT|POST /api/covers/artist/:id/background`); the shared `ImagePicker` grows a second tab when given `onSetBackground`. The treatment is a per-user setting, `artistBackdrop` (`off|blur|photo`, default `blur`) — Spotify serves no artist banner, only the square profile photo, which is why `blur` is the default.
+
+### Concert attendance log (`concerts` / `concert_songs`)
+Per-user annotation on an artist, same contract as `album_ratings`: reads resolve the artist **merge group**, writes land on the visited id. `UNIQUE(user_id, artist_id, concert_date)` is what stops a show being logged twice, so the routes must translate it into a 409 — drizzle wraps the better-sqlite3 error, so the `SQLITE_CONSTRAINT_UNIQUE` code only appears down the `cause` chain (`isUniqueViolation` in `routes/concerts.ts`).
+
+Surfaces: a `concerts` section on the artist page (registered in `detail-layout.ts`), markers on the artist charts (`ChartEvent` gained `kind: 'concert'` + `href`), the global `/concerts` page, and `concertsAttended`/`artistsSeenLive` on the profile card.
+
+`services/setlistfm-client.ts` is credential-gated (`SETLISTFM_API_KEY`). setlist.fm indexes by MusicBrainz MBID, but `artists.mbid` is only filled as a side-effect of the synthetic-track reconciler (`ingestion/identity.ts`), so **name search is the usual path** — the MBID branch is the exact-match bonus when it happens to be there. Its `eventDate` is `dd-MM-yyyy`, and `tape: true` songs are recorded intros, not performances (filtered out).
+
+Setlist songs are matched **read-only** against the library (`resolveSetlistSongs`): normalized name against the artist's catalog, then base-name (stripping `- Live` / `(Remastered)` suffixes) as a second pass, then the cover artist's catalog for covers. It must **never mint a synthetic track** — a setlist proves the band played something, not that the user heard it, so `track_id` NULL is the meaningful "not in your library" answer behind "you already knew 14 of 19".
+
+`getConcertSongPlays` counts plays *before* the show date. It expands each song to its track merge group in a CTE **before** touching `listening_history`, so the filter is `lh.track_id = <id>` and hits `idx_lh_user_track_played_at` as a covering index; the direct `COALESCE(mr.target_id, lh.track_id) = cs.track_id` form is not sargable and degenerates into a full history scan per row.
+
+Concert dates are **calendar dates**, not instants: format them with `formatCalendarDate` (UTC), never `formatShortDate`, or they render a day early west of Greenwich.
 
 ### Multi-source identity
 Entity PKs stay in the spotify_id space (real IDs + `import:`/`local:` synthetics). `tracks.isrc/mbid`, `artists.mbid`, `albums.mbid` are resolution *evidence*, never keys (NULL = unqueried, `''` = queried without result). Resolution ladder in `history-import.ts`: isrc → mbid → name+primary artist (position 0 only) → mint synthetic; events accrete missing ids onto entities they resolve to. `ingestion/identity.ts` harvests ISRCs (Spotify `/tracks`, capped/cycle), MBIDs+ISRCs for synthetics (MusicBrainz, capped/cycle) and merges synthetics into real tracks sharing an id (`mergeTracksByIdentity`, via `reassignTrackRefs`). `listening_history.source` records play provenance (`spotify`|`lastfm`|`import`; NULL = pre-column rows).

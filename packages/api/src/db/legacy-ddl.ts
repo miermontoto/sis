@@ -417,6 +417,49 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
 
+  // conciertos asistidos: anotación por usuario sobre un artista, con setlist
+  // opcional importado de setlist.fm. el UNIQUE impide reimportar el mismo bolo
+  // (un usuario no ve dos veces al mismo artista el mismo día)
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS concerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      artist_id TEXT NOT NULL REFERENCES artists(spotify_id),
+      concert_date TEXT NOT NULL,
+      venue TEXT,
+      city TEXT,
+      country TEXT,
+      tour TEXT,
+      notes TEXT,
+      setlistfm_id TEXT,
+      setlistfm_url TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (user_id, artist_id, concert_date)
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_concerts_user_date ON concerts(user_id, concert_date)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_concerts_user_artist ON concerts(user_id, artist_id)'); } catch {}
+
+  // canciones del setlist. track_id es la resolución contra la librería del
+  // usuario: NULL = no la tiene. la FK va sin cascada a propósito — un track
+  // puede desaparecer en un merge/dedup y eso no debe borrar la canción del
+  // setlist, que es un hecho del bolo, no una referencia al catálogo.
+  // el ON DELETE CASCADE de concert_id sí es real: la plataforma abre la
+  // conexión con foreign_keys = ON.
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS concert_songs (
+      concert_id INTEGER NOT NULL REFERENCES concerts(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      track_id TEXT,
+      info TEXT,
+      is_encore INTEGER NOT NULL DEFAULT 0,
+      cover_artist TEXT,
+      PRIMARY KEY (concert_id, position)
+    )`);
+  } catch {}
+
   // id.mier.info: cuentas vinculadas (sso propio, oidc)
   try {
     sqlite.exec(`CREATE TABLE IF NOT EXISTS mierid_accounts (

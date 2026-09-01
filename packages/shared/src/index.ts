@@ -18,11 +18,14 @@ export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRange
 export { LOCALE_OPTIONS } from './settings.js';
 
 // constantes compartidas
-export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, TOP_PAGE_LIMIT, INSIGHTS_GENRES_LIMIT, DEFAULT_TIME_RANGE, isTimeRange, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS } from './constants.js';
+export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, TOP_PAGE_LIMIT, INSIGHTS_GENRES_LIMIT, DEFAULT_TIME_RANGE, isTimeRange, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS, CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS } from './constants.js';
 export type { TimeRange } from './constants.js';
 
 // detalle de entidades
 export type { Rankings, ArtistDetail, ArtistImage, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, ReleaseEvent, AlbumSingle } from './detail.js';
+
+// conciertos asistidos (+ setlist.fm)
+export type { Concert, ConcertSong, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse } from './concerts.js';
 
 export type { TrackVersion } from './versions.js';
 

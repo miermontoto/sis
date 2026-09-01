@@ -12,6 +12,9 @@ export interface ProfileSummary {
   distinctTracks: number;
   distinctAlbums: number;
   firstPlayedAt: string | null;
+  // conciertos asistidos (all-time, como el resto de la tarjeta de identidad)
+  concertsAttended: number;
+  artistsSeenLive: number;
 }
 
 // now-playing reducido para superficies sociales (mismo shape que FriendActivity.track)

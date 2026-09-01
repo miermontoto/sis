@@ -84,6 +84,18 @@ export function formatShortDate(dateStr: string): string {
   return date.toLocaleDateString(getLocale(), opts);
 }
 
+// fecha de CALENDARIO (YYYY-MM-DD sin hora: la de un concierto, por ejemplo).
+// Se formatea en UTC a propósito: 'new Date("2024-07-12")' es medianoche UTC y
+// pintarla en horario local adelantaría el día en cualquier zona al oeste de
+// Greenwich — un bolo del 12 se vería como del 11. El año aparece sólo cuando no
+// es el actual, igual que en formatShortDate.
+export function formatCalendarDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', timeZone: 'UTC' };
+  if (date.getUTCFullYear() !== new Date().getUTCFullYear()) opts.year = 'numeric';
+  return date.toLocaleDateString(getLocale(), opts);
+}
+
 // combina fecha + hora para items del historial: sólo hora si es dentro de las
 // últimas 24h, "Yesterday, 9:12" si ya pasaron >24h pero cae en el día anterior,
 // "Jan 5, 15:45" (mismo año) o "Jan 5, 2024, 15:45" (otro año) para el resto.

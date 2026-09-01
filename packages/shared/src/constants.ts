@@ -50,6 +50,12 @@ export const ALBUM_RATING_MAX = 5;
 // tope de caracteres del texto opcional de una valoración
 export const ALBUM_REVIEW_MAX_CHARS = 2000;
 
+// --- conciertos ---
+
+// topes de los campos de texto libre del registro de un concierto
+export const CONCERT_TEXT_MAX_CHARS = 200;
+export const CONCERT_NOTES_MAX_CHARS = 2000;
+
 // --- social ---
 
 // bytes aleatorios del token de share link (48 chars hex)

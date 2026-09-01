@@ -1,6 +1,7 @@
 import { dbRead } from '../../db/read-pool.js';
 import { ensureFullAlbumTracks } from '../../services/ingestion.js';
 import { isSyntheticId } from '../../services/ids.js';
+import { hydrateConcerts } from '../../services/concerts.js';
 import { getRangeStart } from '../../db/queries/index.js';
 import type { MergeInfo } from '../../db/queries/index.js';
 import type { EntityCard } from '@sis/shared';
@@ -33,7 +34,7 @@ detail.get('/artist/:id', async (c) => {
   const artistIds = await dbRead('resolveEntityIds', 'artist', id, userId);
 
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
-  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw, relatedRaw, imagesRaw] = await Promise.all([
+  const [statsRow, series, topTracksRaw, topAlbumsRaw, recentRaw, playlists, mergeInfo, releasesRaw, relatedRaw, imagesRaw, concertRows] = await Promise.all([
     dbRead('getEntityStats', 'artist', id, rangeStart, rangeEnd, artistIds, userId),
     dbRead('getEntitySeries', 'artist', id, rangeStart, rangeKey, artistIds, rangeEnd, customDays, userId),
     dbRead('getArtistTopTracks', id, rangeStart, sort, trackLimit, rangeEnd, userId, artistIds),
@@ -44,12 +45,17 @@ detail.get('/artist/:id', async (c) => {
     dbRead('getArtistReleases', id, artistIds),
     dbRead('getArtistRelations', id, userId),
     dbRead('getArtistImages', id),
+    // conciertos del grupo de merge: doblan como marcadores de las gráficas,
+    // igual que los releases, así que viajan con el detalle en vez de en una
+    // segunda petición
+    dbRead('getConcerts', userId, artistIds),
   ]);
 
-  const [topTracks, topAlbums, recentPlays] = await Promise.all([
+  const [topTracks, topAlbums, recentPlays, concerts] = await Promise.all([
     dbRead('formatArtistTrackRows', topTracksRaw),
     Promise.all(topAlbumsRaw.map((row) => dbRead('formatArtistAlbumRow', row))),
     dbRead('formatRecentPlays', recentRaw),
+    hydrateConcerts(userId, concertRows),
   ]);
 
   return c.json({
@@ -71,6 +77,7 @@ detail.get('/artist/:id', async (c) => {
       imageUrl: r.image_url,
     })),
     playlists,
+    concerts,
   });
 });
 

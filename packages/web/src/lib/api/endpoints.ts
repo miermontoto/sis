@@ -13,6 +13,7 @@ import type {
   RecentRankChangesResponse,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
+  Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, API_BASE } from './client.js';
 
@@ -348,6 +349,30 @@ export const api = {
   // fondo del detalle: pick aparte sobre el mismo pool de fotos. null lo desactiva
   setArtistBackground: (artistId: string, imageUrl: string | null) =>
     apiMutate<{ ok: boolean }>('PUT', `/covers/artist/${encodeURIComponent(artistId)}/background`, { imageUrl }),
+
+  // --- conciertos asistidos ---
+
+  concerts: (signal?: AbortSignal) => apiFetch<ConcertListResponse>('/concerts', undefined, signal),
+
+  // los conciertos del artista ya viajan dentro de artistDetail; esto es el
+  // refresco puntual tras mutar, sin rehacer el detalle entero
+  artistConcerts: (artistId: string) =>
+    apiFetch<Concert[]>(`/concerts/artist/${encodeURIComponent(artistId)}`),
+
+  createConcert: (input: ConcertInput) => apiMutate<Concert>('POST', '/concerts', input),
+
+  updateConcert: (id: number, input: Omit<ConcertInput, 'artistId'>) =>
+    apiMutate<Concert>('PUT', `/concerts/${id}`, input),
+
+  deleteConcert: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/concerts/${id}`),
+
+  // candidatos de setlist.fm. `configured: false` en la respuesta significa que
+  // el servidor no tiene SETLISTFM_API_KEY, no que el artista no tenga bolos
+  setlistfmShows: (artistId: string, page = 1, signal?: AbortSignal) =>
+    apiFetch<SetlistfmSearchResponse>(`/concerts/setlistfm/${encodeURIComponent(artistId)}`, { page: String(page) }, signal),
+
+  importSetlist: (artistId: string, setlistId: string) =>
+    apiMutate<Concert>('POST', `/concerts/setlistfm/${encodeURIComponent(artistId)}`, { setlistId }),
 
   setAlbumRating: (albumId: string, rating: number, review: string | null) =>
     apiMutate<AlbumRating>('PUT', `/ratings/album/${encodeURIComponent(albumId)}`, { rating, review }),

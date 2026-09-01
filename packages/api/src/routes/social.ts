@@ -146,6 +146,8 @@ social.get('/compare/:spotifyId', async (c) => {
     distinctTracks: s.distinct_tracks,
     distinctAlbums: s.distinct_albums,
     firstPlayedAt: s.first_played,
+    concertsAttended: s.concerts_attended,
+    artistsSeenLive: s.artists_seen_live,
   });
 
   const noRankChange = { rankChange: null, previousRank: null, isNew: false };

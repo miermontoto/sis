@@ -142,6 +142,14 @@
       <div class="stat-value">{formatNumber(profile.summary.distinctTracks)}</div>
       <div class="stat-label">Tracks</div>
     </div>
+    <!-- sólo cuando hay algo que contar: un "0" en la tarjeta de identidad de
+         quien no lleva registro de conciertos sería ruido, no un dato -->
+    {#if profile.summary.concertsAttended > 0}
+      <div class="card stat-card">
+        <div class="stat-value">{formatNumber(profile.summary.concertsAttended)}</div>
+        <div class="stat-label">Shows seen</div>
+      </div>
+    {/if}
     {#if profile.summary.firstPlayedAt}
       <div class="card stat-card">
         <div class="stat-value">{formatSmartDate(profile.summary.firstPlayedAt)}</div>

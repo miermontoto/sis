@@ -147,6 +147,8 @@ export async function buildProfile(target: User, range: TimeRange): Promise<Prof
       distinctTracks: summary.distinct_tracks,
       distinctAlbums: summary.distinct_albums,
       firstPlayedAt: summary.first_played,
+      concertsAttended: summary.concerts_attended,
+      artistsSeenLive: summary.artists_seen_live,
     },
     range,
     topArtists: topArtists.map(a => ({ ...a, ...NO_RANK_CHANGE })),

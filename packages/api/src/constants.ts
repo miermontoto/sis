@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w36e';
+export const VERSION = '26w36f';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -57,6 +57,21 @@ export const PLAYLIST_CUSTOM_MAX_TRACKS = 500;
 export const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 export const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 export const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
+
+// --- setlist.fm ---
+
+// API REST de setlist.fm. autentica por cabecera x-api-key y exige Accept
+// explícito (sin él responde XML)
+export const SETLISTFM_API_BASE = 'https://api.setlist.fm/rest/1.0';
+
+// espaciado mínimo entre requests: el tier gratuito pide no pasar de ~2 req/s
+export const SETLISTFM_REQUEST_SPACING_MS = 550;
+
+// tamaño de página fijo de la API (no es configurable por query param)
+export const SETLISTFM_PAGE_SIZE = 20;
+
+// timeout de red: setlist.fm es lento a ratos y la búsqueda va en un modal
+export const SETLISTFM_TIMEOUT_MS = 12_000;
 
 // --- last.fm ---
 

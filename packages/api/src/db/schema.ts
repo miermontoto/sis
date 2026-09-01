@@ -135,6 +135,44 @@ export const albumRatings = sqliteTable('album_ratings', {
   primaryKey({ columns: [table.userId, table.albumId] }),
 ]);
 
+// conciertos asistidos por usuario. una fila por (user, artista, fecha); el
+// setlist vive en concert_songs. la lectura resuelve el grupo de merge del
+// artista, igual que las valoraciones de álbum.
+export const concerts = sqliteTable('concerts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  artistId: text('artist_id').notNull().references(() => artists.spotifyId),
+  concertDate: text('concert_date').notNull(),
+  venue: text('venue'),
+  city: text('city'),
+  country: text('country'),
+  tour: text('tour'),
+  notes: text('notes'),
+  setlistfmId: text('setlistfm_id'),
+  setlistfmUrl: text('setlistfm_url'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  uniqueIndex('idx_concerts_unique').on(table.userId, table.artistId, table.concertDate),
+  index('idx_concerts_user_date').on(table.userId, table.concertDate),
+  index('idx_concerts_user_artist').on(table.userId, table.artistId),
+]);
+
+// canciones del setlist en orden de interpretación. trackId es la resolución
+// contra la librería (NULL = el usuario no tiene esa canción): evidencia del
+// matching, nunca una clave — de ahí que no lleve FK con cascada.
+export const concertSongs = sqliteTable('concert_songs', {
+  concertId: integer('concert_id').notNull().references(() => concerts.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  name: text('name').notNull(),
+  trackId: text('track_id'),
+  info: text('info'),
+  isEncore: integer('is_encore').notNull().default(0),
+  coverArtist: text('cover_artist'),
+}, (table) => [
+  primaryKey({ columns: [table.concertId, table.position] }),
+]);
+
 export const userSettings = sqliteTable('user_settings', {
   userId: text('user_id').notNull(),
   key: text('key').notNull(),

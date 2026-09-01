@@ -257,6 +257,7 @@
       items: [
         { href: '/insights', label: 'Insights', icon: '!' },
         { href: '/records', label: 'Records', icon: '^' },
+        { href: '/concerts', label: 'Concerts', icon: '@' },
       ],
     },
     {
