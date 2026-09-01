@@ -11,6 +11,7 @@ import { dbRead } from '../db/read-pool.js';
 import { hydrateConcerts, resolveSetlistSongs } from '../services/concerts.js';
 import { isSetlistfmConfigured, searchArtistShows, getShow } from '../services/setlistfm-client.js';
 import { createLogger } from '../services/logger.js';
+import { refreshConcertCounts } from '../services/social.js';
 import { CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS } from '@sis/shared';
 import type { ConcertStats, SetlistfmShow } from '@sis/shared';
 
@@ -106,6 +107,7 @@ concerts.post('/', async (c) => {
       VALUES (${userId}, ${artistId}, ${date}, ${text(body.venue)}, ${text(body.city)},
               ${text(body.country)}, ${text(body.tour)}, ${text(body.notes, CONCERT_NOTES_MAX_CHARS)})
     `);
+    await refreshConcertCounts(userId);
     const rows = await dbRead('getConcerts', userId, null);
     const created = rows.find(r => r.id === Number(result.lastInsertRowid));
     return c.json((await hydrateConcerts(userId, created ? [created] : []))[0] ?? null, 201);
@@ -154,12 +156,13 @@ concerts.put('/:id', async (c) => {
 
 // baja. Las canciones caen por ON DELETE CASCADE (la conexión abre con
 // foreign_keys = ON), así que no hace falta borrarlas a mano
-concerts.delete('/:id', (c) => {
+concerts.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const id = Number(c.req.param('id'));
   const db = getDb();
   const result = db.run(sql`DELETE FROM concerts WHERE id = ${id} AND user_id = ${userId}`);
   if (result.changes === 0) return c.json({ error: 'concert not found' }, 404);
+  await refreshConcertCounts(userId);
   return c.json({ success: true });
 });
 
@@ -245,6 +248,7 @@ concerts.post('/setlistfm/:artistId', async (c) => {
     throw err;
   }
 
+  await refreshConcertCounts(userId);
   log.info(`concierto importado de setlist.fm: ${show.artistName} ${show.date} (${show.songs.length} canciones)`);
   const rows = (await dbRead('getConcerts', userId, group)).filter(r => r.id === concertId);
   return c.json((await hydrateConcerts(userId, rows))[0] ?? null, 201);

@@ -14,23 +14,20 @@
     artist,
     editing = null,
     onSaved = () => {},
+    onChangeArtist,
   }: {
     show: boolean;
-    // null = abierto sin contexto de artista (página global): el modal pide
-    // primero a quién fuiste a ver
-    artist: { id: string; name: string } | null;
+    // el artista se elige FUERA, con SearchModal en modo pick: este modal siempre
+    // se abre ya sabiendo a quién fuiste a ver
+    artist: { id: string; name: string };
     editing?: Concert | null;
     onSaved?: (concert: Concert | null) => void;
+    // presente sólo donde el artista se puede cambiar (alta desde /concerts):
+    // cierra este modal y devuelve el control al buscador
+    onChangeArtist?: () => void;
   } = $props();
 
   type Tab = 'setlistfm' | 'manual';
-
-  // artista elegido en el buscador cuando el modal se abre sin contexto
-  let picked = $state<{ id: string; name: string } | null>(null);
-  let artistQuery = $state('');
-  let artistResults = $state<{ id: string; name: string; imageUrl: string | null; playCount: number }[]>([]);
-  let artistSearching = $state(false);
-  let target = $derived(artist ?? picked);
 
   let tab = $state<Tab>('setlistfm');
   let error = $state('');
@@ -66,32 +63,6 @@
   function close() {
     show = false;
     error = '';
-    picked = null;
-    artistQuery = '';
-    artistResults = [];
-  }
-
-  // búsqueda de artista para el alta desde la página global. Se apoya en el
-  // buscador global (sólo devuelve entidades con escuchas), que es exactamente
-  // el pool válido: no se puede registrar un bolo de alguien que no está en la
-  // librería porque el concierto cuelga de un artista existente
-  async function searchArtists() {
-    const q = artistQuery.trim();
-    if (!q) { artistResults = []; return; }
-    artistSearching = true;
-    try {
-      artistResults = (await api.search(q, 8)).artists;
-    } catch (e) {
-      error = errorMessage(e, 'Error searching artists');
-    } finally {
-      artistSearching = false;
-    }
-  }
-
-  function pickArtist(a: { id: string; name: string }) {
-    picked = a;
-    error = '';
-    loadShows(1);
   }
 
   function onKey(e: KeyboardEvent) {
@@ -99,11 +70,10 @@
   }
 
   async function loadShows(targetPage: number) {
-    if (!target) return;
     searching = true;
     error = '';
     try {
-      const res = await api.setlistfmShows(target!.id, targetPage);
+      const res = await api.setlistfmShows(artist.id, targetPage);
       configured = res.configured;
       shows = res.shows;
       importedIds = res.importedIds;
@@ -123,7 +93,7 @@
     importingId = showId;
     error = '';
     try {
-      const created = await api.importSetlist(target!.id, showId);
+      const created = await api.importSetlist(artist.id, showId);
       importedIds = [...importedIds, showId];
       onSaved(created);
       close();
@@ -136,7 +106,7 @@
 
   async function submitManual(e: SubmitEvent) {
     e.preventDefault();
-    if (saving || !date || !target) return;
+    if (saving || !date) return;
     saving = true;
     error = '';
     const fields = {
@@ -150,7 +120,7 @@
     try {
       const saved = editing
         ? await api.updateConcert(editing.id, fields)
-        : await api.createConcert({ artistId: target!.id, ...fields });
+        : await api.createConcert({ artistId: artist.id, ...fields });
       onSaved(saved);
       close();
     } catch (err) {
@@ -170,10 +140,8 @@
       return;
     }
     tab = 'setlistfm';
-    // sin artista todavía no hay nada que buscar: el paso de selección va antes
-    if (!target) return;
-    if (loadedKey !== target.id) {
-      loadedKey = target.id;
+    if (loadedKey !== artist.id) {
+      loadedKey = artist.id;
       loadShows(1);
     }
   });
@@ -192,49 +160,15 @@
         <button class="concert-close" onclick={close} aria-label="Close">&times;</button>
       </div>
 
-      {#if target}
-        <div class="concert-target">
-          <IconTicket size={18} />
-          <span>{target.name}</span>
-          {#if !artist && !editing}
-            <button class="concert-change-artist" onclick={() => { picked = null; loadedKey = ''; }}>Change</button>
-          {/if}
-        </div>
-      {/if}
+      <div class="concert-target">
+        <IconTicket size={18} />
+        <span>{artist.name}</span>
+        {#if onChangeArtist && !editing}
+          <button class="concert-change-artist" onclick={() => { close(); onChangeArtist(); }}>Change</button>
+        {/if}
+      </div>
 
-      {#if !target}
-        <!-- paso previo del alta global: elegir el artista -->
-        <div class="concert-picker">
-          <input
-            type="search"
-            class="concert-search"
-            placeholder="Search an artist…"
-            bind:value={artistQuery}
-            oninput={searchArtists}
-          />
-          {#if artistSearching}
-            <div class="concert-empty">Searching…</div>
-          {:else if artistQuery.trim() && artistResults.length === 0}
-            <div class="concert-empty">No artists with plays match that search.</div>
-          {:else}
-            <div class="concert-list">
-              {#each artistResults as a (a.id)}
-                <button class="concert-item" onclick={() => pickArtist(a)}>
-                  {#if a.imageUrl}
-                    <img class="concert-artist-thumb" src={a.imageUrl} alt="" />
-                  {:else}
-                    <div class="concert-artist-thumb concert-artist-thumb--empty"></div>
-                  {/if}
-                  <div class="concert-item-info">
-                    <div class="concert-item-venue">{a.name}</div>
-                    <div class="concert-item-meta">{a.playCount} plays</div>
-                  </div>
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {:else if !editing}
+      {#if !editing}
         <div class="concert-tabs">
           <button class="concert-tab" class:active={tab === 'setlistfm'} disabled={!configured} onclick={() => (tab = 'setlistfm')}>
             setlist.fm
@@ -249,9 +183,7 @@
         <div class="concert-error">{error}</div>
       {/if}
 
-      {#if !target}
-        <!-- el paso de selección ya ocupa el cuerpo del modal -->
-      {:else if tab === 'setlistfm' && !editing}
+      {#if tab === 'setlistfm' && !editing}
         {#if !configured}
           <div class="concert-empty">
             setlist.fm is not configured on this server. Add a concert manually instead.
@@ -259,7 +191,7 @@
         {:else if searching}
           <div class="concert-empty">Searching setlist.fm…</div>
         {:else if shows.length === 0}
-          <div class="concert-empty">No setlists found for {target.name}.</div>
+          <div class="concert-empty">No setlists found for {artist.name}.</div>
         {:else}
           <div class="concert-list">
             {#each shows as s (s.id)}
@@ -395,27 +327,6 @@
     padding: 0;
   }
   .concert-change-artist:hover { color: var(--accent); }
-
-  .concert-picker { display: flex; flex-direction: column; min-height: 0; }
-  .concert-search {
-    margin: 0.9rem 1.25rem 0;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.85rem;
-    padding: 0.4rem 0.55rem;
-  }
-  .concert-search:focus { outline: none; border-color: var(--accent); }
-  .concert-artist-thumb {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .concert-artist-thumb--empty { background: var(--border); }
 
   .concert-tabs {
     display: flex;

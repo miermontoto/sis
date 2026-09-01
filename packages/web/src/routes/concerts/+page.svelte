@@ -9,6 +9,7 @@
   import { api, createFetchController, type Concert, type ConcertStats } from '$lib/api';
   import { formatCalendarDate, formatNumber } from '$lib/utils/format';
   import ConcertModal from '$lib/components/ConcertModal.svelte';
+  import SearchModal from '$lib/components/SearchModal.svelte';
   import Setlist from '$lib/components/Setlist.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
 
@@ -20,6 +21,10 @@
   let busyId = $state<number | null>(null);
   let showModal = $state(false);
   let editing = $state<Concert | null>(null);
+  // el artista se elige con el buscador global en modo pick, no con un buscador
+  // propio: mismo debounce, mismo pool y mismas teclas que el resto de la app
+  let showArtistPicker = $state(false);
+  let pickedArtist = $state<{ id: string; name: string } | null>(null);
   const fetchCtrl = createFetchController();
 
   async function load() {
@@ -71,9 +76,17 @@
     }
   }
 
+  // editar entra directo (el artista ya está fijado); dar de alta pasa antes por
+  // el buscador
   function openModal(concert: Concert | null) {
     editing = concert;
-    showModal = true;
+    if (concert) {
+      pickedArtist = { id: concert.artistId, name: concert.artistName };
+      showModal = true;
+      return;
+    }
+    pickedArtist = null;
+    showArtistPicker = true;
   }
 </script>
 
@@ -188,12 +201,28 @@
   {/if}
 {/if}
 
-<ConcertModal
-  bind:show={showModal}
-  artist={editing ? { id: editing.artistId, name: editing.artistName } : null}
-  {editing}
-  onSaved={load}
+<SearchModal
+  bind:show={showArtistPicker}
+  pick={{
+    types: ['artist'],
+    placeholder: 'Which artist did you see?',
+    onPick: (entity) => {
+      pickedArtist = { id: entity.id, name: entity.name };
+      editing = null;
+      showModal = true;
+    },
+  }}
 />
+
+{#if pickedArtist}
+  <ConcertModal
+    bind:show={showModal}
+    artist={pickedArtist}
+    {editing}
+    onSaved={load}
+    onChangeArtist={() => (showArtistPicker = true)}
+  />
+{/if}
 
 <style>
   .concerts-toolbar {

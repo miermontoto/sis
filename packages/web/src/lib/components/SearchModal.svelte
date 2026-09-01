@@ -1,3 +1,14 @@
+<script module lang="ts">
+  // Entidad devuelta por el modo "pick". Va en el script de módulo para poder
+  // importarse como tipo desde fuera del componente.
+  export interface PickedEntity {
+    type: 'artist' | 'album' | 'track' | 'playlist';
+    id: string;
+    name: string;
+    imageUrl: string | null;
+  }
+</script>
+
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { api, type SearchResults } from '$lib/api';
@@ -10,7 +21,30 @@
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
 
-  let { show = $bindable(false) }: { show: boolean } = $props();
+  // Modo "pick": el mismo buscador, pero eligiendo una entidad en vez de navegar
+  // a ella. Lo usa el alta de conciertos para escoger artista. Sin `pick` el
+  // componente se comporta exactamente como siempre (la instancia global del
+  // layout, atajo de teclado incluido).
+  let {
+    show = $bindable(false),
+    pick,
+  }: {
+    show: boolean;
+    pick?: {
+      types: PickedEntity['type'][];
+      onPick: (entity: PickedEntity) => void;
+      placeholder?: string;
+    };
+  } = $props();
+
+  // orden de las secciones y tipo de entidad de cada una. En modo pick sólo se
+  // pintan (y sólo entran en la navegación con teclado) las de los tipos pedidos
+  const SECTION_ORDER = ['playlists', 'artists', 'albums', 'tracks'] as const;
+  type Section = typeof SECTION_ORDER[number];
+  const SECTION_TYPE: Record<Section, PickedEntity['type']> = {
+    playlists: 'playlist', artists: 'artist', albums: 'album', tracks: 'track',
+  };
+  let visibleSections = $derived(SECTION_ORDER.filter(sec => !pick || pick.types.includes(SECTION_TYPE[sec])));
 
   let query = $state('');
   let results = $state<SearchResults | null>(null);
@@ -19,14 +53,18 @@
   let inputEl: HTMLInputElement | undefined = $state();
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // items planos para navegación con teclado
+  // items planos para navegación con teclado, en el orden en que se pintan.
+  // Llevan nombre e imagen porque en modo pick son lo que se devuelve al caller.
   let flatItems = $derived.by(() => {
-    if (!results) return [];
-    const items: { type: 'artist' | 'album' | 'track' | 'playlist'; id: string }[] = [];
-    for (const p of results.playlists) items.push({ type: 'playlist', id: String(p.id) });
-    for (const a of results.artists) items.push({ type: 'artist', id: a.id });
-    for (const a of results.albums) items.push({ type: 'album', id: a.id });
-    for (const t of results.tracks) items.push({ type: 'track', id: t.id });
+    const r = results;
+    if (!r) return [];
+    const items: PickedEntity[] = [];
+    for (const sec of visibleSections) {
+      if (sec === 'playlists') for (const p of r.playlists) items.push({ type: 'playlist', id: String(p.id), name: p.name, imageUrl: p.imageUrl });
+      else if (sec === 'artists') for (const a of r.artists) items.push({ type: 'artist', id: a.id, name: a.name, imageUrl: a.imageUrl });
+      else if (sec === 'albums') for (const a of r.albums) items.push({ type: 'album', id: a.id, name: a.name, imageUrl: a.imageUrl });
+      else for (const t of r.tracks) items.push({ type: 'track', id: t.id, name: t.name, imageUrl: t.albumImageUrl });
+    }
     return items;
   });
 
@@ -37,7 +75,16 @@
     selectedIndex = -1;
   }
 
+  // en modo pick devuelve la entidad al caller; si no, navega como siempre.
+  // `pick` se captura antes de close() porque cerrar limpia el estado del modal
   function navigate(type: string, id: string) {
+    if (pick) {
+      const chosen = flatItems.find(i => i.type === type && i.id === id);
+      const onPick = pick.onPick;
+      close();
+      if (chosen) onPick(chosen);
+      return;
+    }
     close();
     if (type === 'playlist') {
       goto(`/playlists/${id}`);
@@ -91,7 +138,7 @@
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       selectedIndex = Math.max(selectedIndex - 1, -1);
-    } else if (e.key === 'Enter' && e.shiftKey) {
+    } else if (e.key === 'Enter' && e.shiftKey && !pick) {
       const idx = selectedIndex >= 0 ? selectedIndex : 0;
       const item = flatItems[idx];
       if (item) {
@@ -153,22 +200,26 @@
     debounceTimer = setTimeout(() => doSearch(q), 250);
   });
 
-  // índice flat acumulado para mapear a selectedIndex
-  function flatIndex(section: 'playlists' | 'artists' | 'albums' | 'tracks', i: number): number {
+  // índice flat acumulado para mapear a selectedIndex. Se calcula sobre las
+  // secciones VISIBLES: con offsets fijos, ocultar una en modo pick desalinearía
+  // la selección con teclado respecto a las filas pintadas
+  function flatIndex(section: Section, i: number): number {
     if (!results) return -1;
-    if (section === 'playlists') return i;
-    if (section === 'artists') return results.playlists.length + i;
-    if (section === 'albums') return results.playlists.length + results.artists.length + i;
-    return results.playlists.length + results.artists.length + results.albums.length + i;
+    let base = 0;
+    for (const sec of visibleSections) {
+      if (sec === section) return base + i;
+      base += results[sec].length;
+    }
+    return -1;
   }
 
-  let hasResults = $derived(
-    results && (results.artists.length > 0 || results.albums.length > 0 || results.tracks.length > 0 || results.playlists.length > 0)
+  // sólo cuentan las secciones visibles: en modo pick, resultados de un tipo que
+  // no se puede elegir no son resultados
+  let visibleCount = $derived(
+    results ? visibleSections.reduce((n, sec) => n + results![sec].length, 0) : 0
   );
-
-  let noResults = $derived(
-    results && results.artists.length === 0 && results.albums.length === 0 && results.tracks.length === 0 && results.playlists.length === 0
-  );
+  let hasResults = $derived(!!results && visibleCount > 0);
+  let noResults = $derived(!!results && visibleCount === 0);
 
   let playingId = $state<string | null>(null);
   let playError = $state('');
@@ -203,7 +254,7 @@
         bind:value={query}
         type="text"
         class="search-input"
-        placeholder="Search artists, albums, tracks, playlists..."
+        placeholder={pick?.placeholder ?? 'Search artists, albums, tracks, playlists...'}
         autocomplete="off"
         spellcheck="false"
       />
@@ -214,7 +265,7 @@
 
       {#if hasResults}
         <div class="search-results">
-          {#if results!.playlists.length > 0}
+          {#if visibleSections.includes('playlists') && results!.playlists.length > 0}
             <div class="search-section">
               <div class="search-section-title">Playlists</div>
               {#each results!.playlists as playlist, i}
@@ -223,7 +274,7 @@
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('playlists', i)}
                   onmousedown={(e) => onRowMouseDown(e, 'playlist', String(playlist.id))}
-                  oncontextmenu={playlistMenu(playlist)}
+                  oncontextmenu={pick ? undefined : playlistMenu(playlist)}
                   onmouseenter={() => selectedIndex = flatIndex('playlists', i)}
                 >
                   {#if playlist.imageUrl}
@@ -235,7 +286,7 @@
                     <div class="search-result-name">{playlist.name}</div>
                     <div class="search-result-sub">{playlist.subtitle}</div>
                   </div>
-                  {#if playlist.spotifyId}
+                  {#if !pick && playlist.spotifyId}
                     <button class="search-play-btn" title="Play" disabled={playingId === String(playlist.id)} onmousedown={(e) => playItem(e, 'playlist', String(playlist.id), playlist.spotifyId!)}>
                       <IconPlay />
                     </button>
@@ -246,7 +297,7 @@
             </div>
           {/if}
 
-          {#if results!.artists.length > 0}
+          {#if visibleSections.includes('artists') && results!.artists.length > 0}
             <div class="search-section">
               <div class="search-section-title"><IconArtist size={14} /> Artists</div>
               {#each results!.artists as artist, i}
@@ -255,7 +306,7 @@
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('artists', i)}
                   onmousedown={(e) => onRowMouseDown(e, 'artist', artist.id)}
-                  oncontextmenu={entityMenu({ type: 'artist', id: artist.id, name: artist.name, imageUrl: artist.imageUrl })}
+                  oncontextmenu={pick ? undefined : entityMenu({ type: 'artist', id: artist.id, name: artist.name, imageUrl: artist.imageUrl })}
                   onmouseenter={() => selectedIndex = flatIndex('artists', i)}
                 >
                   {#if artist.imageUrl}
@@ -267,7 +318,7 @@
                     <div class="search-result-name">{artist.name}</div>
                     <div class="search-result-sub">Artist</div>
                   </div>
-                  {#if isSpotifyId(artist.id)}
+                  {#if !pick && isSpotifyId(artist.id)}
                     <button class="search-play-btn" title="Play" disabled={playingId === artist.id} onmousedown={(e) => playItem(e, 'artist', artist.id)}>
                       <IconPlay />
                     </button>
@@ -280,7 +331,7 @@
             </div>
           {/if}
 
-          {#if results!.albums.length > 0}
+          {#if visibleSections.includes('albums') && results!.albums.length > 0}
             <div class="search-section">
               <div class="search-section-title"><IconAlbum size={14} /> Albums</div>
               {#each results!.albums as album, i}
@@ -289,7 +340,7 @@
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('albums', i)}
                   onmousedown={(e) => onRowMouseDown(e, 'album', album.id)}
-                  oncontextmenu={entityMenu({ type: 'album', id: album.id, name: album.name, imageUrl: album.imageUrl, parentArtistId: album.artistId ?? undefined })}
+                  oncontextmenu={pick ? undefined : entityMenu({ type: 'album', id: album.id, name: album.name, imageUrl: album.imageUrl, parentArtistId: album.artistId ?? undefined })}
                   onmouseenter={() => selectedIndex = flatIndex('albums', i)}
                 >
                   {#if album.imageUrl}
@@ -301,7 +352,7 @@
                     <div class="search-result-name">{album.name}</div>
                     <div class="search-result-sub">{album.artistName || 'Album'}</div>
                   </div>
-                  {#if isSpotifyId(album.id)}
+                  {#if !pick && isSpotifyId(album.id)}
                     <button class="search-play-btn" title="Play" disabled={playingId === album.id} onmousedown={(e) => playItem(e, 'album', album.id)}>
                       <IconPlay />
                     </button>
@@ -314,7 +365,7 @@
             </div>
           {/if}
 
-          {#if results!.tracks.length > 0}
+          {#if visibleSections.includes('tracks') && results!.tracks.length > 0}
             <div class="search-section">
               <div class="search-section-title"><IconTrack size={14} /> Tracks</div>
               {#each results!.tracks as track, i}
@@ -323,7 +374,7 @@
                   class="search-result"
                   class:selected={selectedIndex === flatIndex('tracks', i)}
                   onmousedown={(e) => onRowMouseDown(e, 'track', track.id)}
-                  oncontextmenu={entityMenu({ type: 'track', id: track.id, name: track.name, imageUrl: track.albumImageUrl, parentArtistId: track.artistId ?? undefined })}
+                  oncontextmenu={pick ? undefined : entityMenu({ type: 'track', id: track.id, name: track.name, imageUrl: track.albumImageUrl, parentArtistId: track.artistId ?? undefined })}
                   onmouseenter={() => selectedIndex = flatIndex('tracks', i)}
                 >
                   {#if track.albumImageUrl}
@@ -335,7 +386,7 @@
                     <div class="search-result-name">{track.name}</div>
                     <div class="search-result-sub">{track.artistName || 'Track'}</div>
                   </div>
-                  {#if isSpotifyId(track.id)}
+                  {#if !pick && isSpotifyId(track.id)}
                     <button class="search-play-btn" title="Play" disabled={playingId === track.id} onmousedown={(e) => playItem(e, 'track', track.id)}>
                       <IconPlay />
                     </button>

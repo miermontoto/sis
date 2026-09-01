@@ -109,6 +109,25 @@ export function getProfileSummaryCached(userId: number): Promise<ProfileSummaryR
   return swrByUser(summaryCache, summaryInFlight, userId, () => dbRead('getProfileSummary', userId, null, null));
 }
 
+/** Refresca SÓLO los contadores de conciertos de la tarjeta ya cacheada.
+ *
+ *  El resumen es un scan del historial completo (cientos de miles de filas), y
+ *  registrar un bolo no cambia ninguna de sus demás cifras: invalidar la entrada
+ *  entera obligaría a rehacer ese scan para actualizar dos números que salen de
+ *  una tabla diminuta e indexada. Sin esto, en cambio, la tarjeta enseñaría
+ *  "0 shows" durante los 10 min de TTL justo después de apuntar el primer
+ *  concierto — que es exactamente cuando el usuario va a mirarla.
+ *
+ *  Sin entrada cacheada no hay nada que parchear: el próximo cálculo ya nace
+ *  con los contadores buenos. */
+export async function refreshConcertCounts(userId: number): Promise<void> {
+  const hit = summaryCache.get(userId);
+  if (!hit) return;
+  const counts = await dbRead('getConcertCounts', userId);
+  hit.data.concerts_attended = counts.concerts_attended;
+  hit.data.artists_seen_live = counts.artists_seen_live;
+}
+
 /** Rachas de escucha (all-time por definición), cacheadas SWR. */
 export function getUserStreaksCached(userId: number): Promise<StreaksRow> {
   return swrByUser(streaksCache, streaksInFlight, userId, () => dbRead('getUserStreaks', userId));
