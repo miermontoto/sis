@@ -7,6 +7,7 @@
 // búsqueda es exacta; si no, cae al nombre y acepta el ruido de los homónimos.
 import { SETLISTFM_API_BASE, SETLISTFM_REQUEST_SPACING_MS, SETLISTFM_PAGE_SIZE, SETLISTFM_TIMEOUT_MS, SETLISTFM_MAX_ATTEMPTS, SETLISTFM_RETRY_BACKOFF_MS, SETLISTFM_MAX_RETRY_WAIT_MS } from '../constants.js';
 import { createLogger } from './logger.js';
+import { acceptedSetlistfmArtists } from '@sis/shared';
 import type { SetlistfmShow } from '@sis/shared';
 
 const log = createLogger('setlistfm');
@@ -40,6 +41,9 @@ interface RawSetlist {
   venue?: { name?: string; city?: { name?: string; country?: { name?: string } } };
   tour?: { name?: string };
   sets?: { set?: { encore?: number; song?: RawSong[] }[] };
+}
+interface RawArtistSearchResponse {
+  artist?: { mbid?: string; name?: string }[];
 }
 interface RawSearchResponse {
   setlist?: RawSetlist[];
@@ -139,6 +143,30 @@ function normalizeShow(raw: RawSetlist): SetlistfmShow | null {
   };
 }
 
+// Entidades aceptadas por nombre de artista, cacheadas en memoria: resolverlas
+// cuesta una llamada más y no cambian de un minuto a otro. Clave normalizada.
+const acceptedCache = new Map<string, { at: number; accepted: { mbid: string; name: string; billing: string }[] }>();
+const ACCEPTED_TTL_MS = 60 * 60_000;
+
+/** Entidades de setlist.fm que cuentan como conciertos de este artista.
+ *
+ *  setlist.fm crea una entidad por variante de crédito ("J Balvin, Dua Lipa,
+ *  Bad Bunny, Tainy", "Kendrick Lamar & SZA", "Myke Towers feat. Bad Bunny"…) y
+ *  la búsqueda por nombre las mezcla todas. Resolverlas y quedarse con las que
+ *  el artista encabeza es lo que separa su gira co-cabecera —que sí es suya— de
+ *  los bolos de otro en los que aparecía acreditado. */
+export async function resolveAcceptedArtists(artistName: string): Promise<{ mbid: string; name: string; billing: string }[]> {
+  const key = artistName.toLowerCase().trim();
+  const hit = acceptedCache.get(key);
+  if (hit && Date.now() - hit.at < ACCEPTED_TTL_MS) return hit.accepted;
+
+  const data = await setlistfmRequest<RawArtistSearchResponse>('/search/artists', { artistName, sort: 'relevance' });
+  const accepted = acceptedSetlistfmArtists(data?.artist ?? [], artistName);
+  acceptedCache.set(key, { at: Date.now(), accepted });
+  log.debug(`"${artistName}": ${accepted.length} entidades aceptadas de ${data?.artist?.length ?? 0} (${accepted.map(a => a.name).join(' | ')})`);
+  return accepted;
+}
+
 /** Bolos de un artista, por MBID cuando lo hay (exacto) o por nombre (aproximado).
  *  Devuelve la página pedida ya normalizada + el total de páginas.
  *
@@ -147,7 +175,7 @@ function normalizeShow(raw: RawSetlist): SetlistfmShow | null {
  *  es viable. La API devuelve 404 cuando ese año no tiene setlists, que el
  *  wrapper ya traduce a búsqueda vacía. */
 export async function searchArtistShows(
-  opts: { mbid?: string | null; artistName?: string | null; page?: number; year?: string | null },
+  opts: { mbid?: string | null; artistName?: string | null; page?: number; year?: string | null; acceptMbids?: Set<string> | null },
 ): Promise<{ shows: SetlistfmShow[]; page: number; totalPages: number }> {
   const page = Math.max(1, opts.page ?? 1);
   const params: Record<string, string> = { p: String(page) };
@@ -159,7 +187,17 @@ export async function searchArtistShows(
   const data = await setlistfmRequest<RawSearchResponse>('/search/setlists', params);
   if (!data) return { shows: [], page, totalPages: 0 };
 
-  const shows = (data.setlist ?? []).map(normalizeShow).filter((s): s is SetlistfmShow => s !== null);
+  // se filtra por MBID: la búsqueda por nombre casa por subcadena y arrastra
+  // entidades que no son este artista. Una entidad sin mbid sólo pasa si su
+  // nombre coincide exactamente (defensivo: no se puede comprobar de otro modo)
+  const accept = opts.acceptMbids;
+  const wanted = (raw: RawSetlist) => {
+    if (!accept || accept.size === 0) return true;
+    const mbid = raw.artist?.mbid;
+    if (mbid) return accept.has(mbid);
+    return (raw.artist?.name ?? '').toLowerCase().trim() === (opts.artistName ?? '').toLowerCase().trim();
+  };
+  const shows = (data.setlist ?? []).filter(wanted).map(normalizeShow).filter((s): s is SetlistfmShow => s !== null);
   const perPage = data.itemsPerPage || SETLISTFM_PAGE_SIZE;
   const totalPages = Math.ceil((data.total ?? shows.length) / perPage);
   log.debug(`búsqueda ${opts.mbid ? `mbid=${opts.mbid}` : `name=${opts.artistName}`}${opts.year ? ` year=${opts.year}` : ''} p${page}: ${shows.length} bolos`);

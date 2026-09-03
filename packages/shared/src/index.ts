@@ -24,6 +24,10 @@ export type { TimeRange } from './constants.js';
 // detalle de entidades
 export type { Rankings, ArtistDetail, ArtistImage, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, ReleaseEvent, AlbumSingle } from './detail.js';
 
+// clasificación de entidades de artista de setlist.fm (cartel propio vs invitado)
+export { classifySetlistfmBilling, acceptedSetlistfmArtists } from './setlistfm-artists.js';
+export type { SetlistfmBilling } from './setlistfm-artists.js';
+
 // conciertos asistidos (+ setlist.fm)
 export type { Concert, ConcertSong, ConcertRef, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse } from './concerts.js';
 

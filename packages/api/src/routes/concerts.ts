@@ -9,7 +9,7 @@ import { getDb } from '../db/connection.js';
 import { getEntityMergeGroup } from '../db/queries/merge.js';
 import { dbRead } from '../db/read-pool.js';
 import { hydrateConcerts, resolveSetlistSongs } from '../services/concerts.js';
-import { isSetlistfmConfigured, searchArtistShows, getShow } from '../services/setlistfm-client.js';
+import { isSetlistfmConfigured, searchArtistShows, getShow, resolveAcceptedArtists } from '../services/setlistfm-client.js';
 import { createLogger } from '../services/logger.js';
 import { refreshConcertCounts } from '../services/social.js';
 import { CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS } from '@sis/shared';
@@ -252,7 +252,12 @@ concerts.get('/setlistfm/:artistId', async (c) => {
   const yearParam = c.req.query('year');
   const year = yearParam && /^\d{4}$/.test(yearParam) ? yearParam : null;
   try {
-    const found = await searchArtistShows({ mbid: artist.mbid || null, artistName: artist.name, page, year });
+    // entidades que cuentan como bolos suyos (la propia + las giras que
+    // encabeza). Sin esto, buscar por nombre arrastra los conciertos de otro en
+    // los que estaba acreditado
+    const accepted = await resolveAcceptedArtists(artist.name);
+    const acceptMbids = new Set(accepted.map(a => a.mbid));
+    const found = await searchArtistShows({ mbid: artist.mbid || null, artistName: artist.name, page, year, acceptMbids });
     const importedIds = await dbRead('getImportedSetlistIds', userId, group);
     return c.json({ configured: true, artistName: artist.name, ...found, importedIds });
   } catch (err) {
