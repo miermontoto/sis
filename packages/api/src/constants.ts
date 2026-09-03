@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w36y';
+export const VERSION = '26w36z';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -169,6 +169,9 @@ export const MB_USER_AGENT = 'SIS/1.0 (https://sis.mier.info)';
 export const MB_DELAY_MS = 1100;
 // score mínimo de una búsqueda musicbrainz para dar el match por bueno
 export const MB_MIN_SCORE = 80;
+// resultados que se piden a la búsqueda: se acepta el primero cuyo título y artista
+// coinciden con los nuestros, no el mejor puntuado a secas
+export const MB_SEARCH_LIMIT = 5;
 
 // harvest de isrcs vía /tracks de spotify: lotes de 50 (límite del endpoint),
 // capado por ciclo para no monopolizar la cuota de la API en el backfill inicial

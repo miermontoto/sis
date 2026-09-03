@@ -69,3 +69,6 @@ export type { MeResponse, UserRecord, ImportResult, HealthData, LastfmStatus, La
 // social: perfiles, follows, feed, share links, compare
 export type { ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedItem, StreaksSummary, CompareResponse, DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse, ShareLink, ShareLinkListResponse, CreateShareLinkRequest } from './social.js';
 export { SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from './constants.js';
+
+// consultas a musicbrainz (query lucene citada + comparación de títulos)
+export { mbRecordingQuery, normalizeTitle, sameTitle } from './musicbrainz.js';

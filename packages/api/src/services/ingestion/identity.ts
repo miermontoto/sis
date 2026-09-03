@@ -8,9 +8,10 @@ import { getDb } from '../../db/connection.js';
 import { reassignTrackRefs } from './upsert.js';
 import { normalizeArtistName } from './imports.js';
 import { spotifyFetch } from '../spotify-client.js';
+import { mbRecordingQuery, sameTitle } from '@sis/shared';
 import type { SpotifyTracksBatchResponse } from '../../types/spotify.js';
 import {
-  MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE,
+  MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE, MB_SEARCH_LIMIT,
   ISRC_HARVEST_BATCH_SIZE, ISRC_HARVEST_MAX_BATCHES, MB_IDENTITY_MAX_PER_CYCLE,
 } from '../../constants.js';
 import { createLogger } from '../logger.js';
@@ -18,6 +19,17 @@ import { createLogger } from '../logger.js';
 const log = createLogger('identity');
 const now = () => new Date().toISOString();
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// tracks sintéticos candidatos a identidad: import:/local: que NO estén en un álbum
+// local:. un álbum local: es un contenedor del usuario (setlist, bootleg,
+// recopilación): sus temas llevan el título original y el artista real, así que la
+// evidencia isrc/mbid los hace converger con el tema de estudio y vacía el álbum
+// (un festival pasó de 20 temas a 9). la identidad existe para que un import:
+// converja con su entidad real, no para deshacer contenedores del usuario
+const identityCandidate = (alias: string) => sql.raw(
+  `(${alias}.spotify_id LIKE 'import:%' OR ${alias}.spotify_id LIKE 'local:%')
+   AND (${alias}.album_id IS NULL OR ${alias}.album_id NOT LIKE 'local:%')`
+);
 
 // cosechar isrcs de tracks reales vía /tracks de spotify (50 por petición). los
 // plays nuevos ya llegan con isrc desde upsertTrack; esto cubre el catálogo previo
@@ -55,12 +67,14 @@ export async function harvestTrackIsrcs(userId: number): Promise<void> {
 
 // respuesta de búsqueda /recording de musicbrainz (search no incluye isrcs; esos
 // requieren el lookup por mbid con inc=isrcs)
+interface MbRecording {
+  id: string;
+  title: string;
+  score: number;
+  'artist-credit'?: { name?: string; artist?: { id?: string; name?: string } }[];
+}
 interface MbRecordingSearch {
-  recordings?: {
-    id: string;
-    score: number;
-    'artist-credit'?: { name?: string; artist?: { id?: string; name?: string } }[];
-  }[];
+  recordings?: MbRecording[];
 }
 
 async function mbFetch<T>(path: string): Promise<T | null> {
@@ -86,7 +100,7 @@ export async function enrichImportTrackIdentity(): Promise<void> {
     FROM tracks t
     JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
     JOIN artists a ON a.spotify_id = ta.artist_id
-    WHERE t.mbid IS NULL AND (t.spotify_id LIKE 'import:%' OR t.spotify_id LIKE 'local:%')
+    WHERE t.mbid IS NULL AND ${identityCandidate('t')}
     LIMIT ${budget}
   `) as { spotify_id: string; name: string; artist_id: string; artist_name: string }[];
 
@@ -96,19 +110,23 @@ export async function enrichImportTrackIdentity(): Promise<void> {
   for (const track of noMbid) {
     budget--;
     try {
-      const query = `recording:${track.name} AND artist:${track.artist_name}`;
-      const data = await mbFetch<MbRecordingSearch>(`/recording?query=${encodeURIComponent(query)}&fmt=json&limit=1`);
-      const recording = data?.recordings?.[0];
-      if (recording && recording.score >= MB_MIN_SCORE) {
+      const query = mbRecordingQuery(track.name, track.artist_name);
+      const data = await mbFetch<MbRecordingSearch>(`/recording?query=${encodeURIComponent(query)}&fmt=json&limit=${MB_SEARCH_LIMIT}`);
+      // el score no basta: una query sin citar devolvía otro tema al 100, y un mbid
+      // equivocado arrastra un isrc equivocado y con él un merge físico en un tema
+      // que no es. sólo vale un resultado cuyo título Y artista son los nuestros.
+      // el crédito se busca por nombre porque el primero es a menudo otro acto (un
+      // "J Balvin, Bad Bunny" dejó a Bad Bunny con el mbid de J Balvin, y la
+      // búsqueda de bolos por ese mbid devolvía la gira de J Balvin)
+      const wanted = normalizeArtistName(track.artist_name);
+      const ownCredit = (r: MbRecording) =>
+        r['artist-credit']?.find(c => normalizeArtistName(c.artist?.name ?? c.name ?? '') === wanted);
+      const recording = data?.recordings?.find(r =>
+        r.score >= MB_MIN_SCORE && sameTitle(r.title, track.name) && ownCredit(r) !== undefined);
+      if (recording) {
         db.run(sql`UPDATE tracks SET mbid = ${recording.id}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
-        // el mbid de artista se acreta sólo del crédito que ES nuestro artista:
-        // la búsqueda casa por recording y el primer crédito es a menudo otro (un
-        // "J Balvin, Bad Bunny" dejó a Bad Bunny con el mbid de J Balvin, y la
-        // búsqueda de bolos por ese mbid devolvía la gira de J Balvin)
-        const wanted = normalizeArtistName(track.artist_name);
-        const artistMbid = recording['artist-credit']
-          ?.find(c => normalizeArtistName(c.artist?.name ?? c.name ?? '') === wanted)
-          ?.artist?.id;
+        // el mbid de artista se acreta del mismo crédito, ya verificado
+        const artistMbid = ownCredit(recording)?.artist?.id;
         if (artistMbid) {
           db.run(sql`UPDATE artists SET mbid = COALESCE(mbid, ${artistMbid}) WHERE spotify_id = ${track.artist_id}`);
         }
@@ -128,9 +146,9 @@ export async function enrichImportTrackIdentity(): Promise<void> {
 
   // fase 2: isrc por lookup del recording
   const noIsrc = db.all(sql`
-    SELECT spotify_id, name, mbid FROM tracks
-    WHERE isrc IS NULL AND mbid IS NOT NULL AND mbid != ''
-      AND (spotify_id LIKE 'import:%' OR spotify_id LIKE 'local:%')
+    SELECT t.spotify_id, t.name, t.mbid FROM tracks t
+    WHERE t.isrc IS NULL AND t.mbid IS NOT NULL AND t.mbid != ''
+      AND ${identityCandidate('t')}
     LIMIT ${budget}
   `) as { spotify_id: string; name: string; mbid: string }[];
 
@@ -166,7 +184,7 @@ export function mergeTracksByIdentity(): void {
            (SELECT COUNT(*) FROM listening_history WHERE track_id = r.spotify_id) AS plays
     FROM tracks i
     JOIN tracks r ON r.isrc = i.isrc
-    WHERE (i.spotify_id LIKE 'import:%' OR i.spotify_id LIKE 'local:%')
+    WHERE ${identityCandidate('i')}
       AND i.isrc IS NOT NULL AND i.isrc != ''
       AND r.spotify_id NOT LIKE 'import:%' AND r.spotify_id NOT LIKE 'local:%'
     UNION
@@ -174,7 +192,7 @@ export function mergeTracksByIdentity(): void {
            (SELECT COUNT(*) FROM listening_history WHERE track_id = r.spotify_id)
     FROM tracks i
     JOIN tracks r ON r.mbid = i.mbid
-    WHERE (i.spotify_id LIKE 'import:%' OR i.spotify_id LIKE 'local:%')
+    WHERE ${identityCandidate('i')}
       AND i.mbid IS NOT NULL AND i.mbid != ''
       AND r.spotify_id NOT LIKE 'import:%' AND r.spotify_id NOT LIKE 'local:%'
   `) as { import_id: string; real_id: string; track_name: string; plays: number }[];
