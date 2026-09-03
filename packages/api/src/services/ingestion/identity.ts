@@ -6,6 +6,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { reassignTrackRefs } from './upsert.js';
+import { normalizeArtistName } from './imports.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyTracksBatchResponse } from '../../types/spotify.js';
 import {
@@ -58,7 +59,7 @@ interface MbRecordingSearch {
   recordings?: {
     id: string;
     score: number;
-    'artist-credit'?: { artist?: { id?: string } }[];
+    'artist-credit'?: { name?: string; artist?: { id?: string; name?: string } }[];
   }[];
 }
 
@@ -100,7 +101,14 @@ export async function enrichImportTrackIdentity(): Promise<void> {
       const recording = data?.recordings?.[0];
       if (recording && recording.score >= MB_MIN_SCORE) {
         db.run(sql`UPDATE tracks SET mbid = ${recording.id}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
-        const artistMbid = recording['artist-credit']?.[0]?.artist?.id;
+        // el mbid de artista se acreta sólo del crédito que ES nuestro artista:
+        // la búsqueda casa por recording y el primer crédito es a menudo otro (un
+        // "J Balvin, Bad Bunny" dejó a Bad Bunny con el mbid de J Balvin, y la
+        // búsqueda de bolos por ese mbid devolvía la gira de J Balvin)
+        const wanted = normalizeArtistName(track.artist_name);
+        const artistMbid = recording['artist-credit']
+          ?.find(c => normalizeArtistName(c.artist?.name ?? c.name ?? '') === wanted)
+          ?.artist?.id;
         if (artistMbid) {
           db.run(sql`UPDATE artists SET mbid = COALESCE(mbid, ${artistMbid}) WHERE spotify_id = ${track.artist_id}`);
         }

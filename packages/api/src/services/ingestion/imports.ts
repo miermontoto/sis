@@ -15,7 +15,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // normaliza nombres de artista para comparar ignorando mayúsculas y diacríticos /
 // estilizaciones (p.ej. "Fito Páez" == "Fito Paez", "JAŸ-Z" == "JAY-Z"). Evita falsos
 // "no resuelto" cuando Spotify devuelve el mismo artista con grafía distinta.
-const normalizeArtistName = (s: string) =>
+export const normalizeArtistName = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
 const RESOLVE_BATCH_LIMIT = 50;
