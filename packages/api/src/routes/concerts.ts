@@ -235,9 +235,9 @@ concerts.get('/setlistfm/:artistId', async (c) => {
   if (!isSetlistfmConfigured()) return c.json({ configured: false, ...empty });
 
   // el MBID sí puede venir de cualquier miembro del grupo: identifica a la misma
-  // persona y es evidencia más fuerte que el nombre. setlist.fm indexa por él,
-  // pero el ladder de identidad sólo lo rellena para los artistas que pasaron
-  // por el reconciliador de sintéticos, así que el nombre es el camino habitual
+  // persona. NO es la clave de búsqueda (ver searchArtistShows): sólo desempata
+  // homónimos, y sólo si aparece entre las entidades que devuelve el nombre.
+  // Lo acreta el reconciliador de sintéticos y a veces es de otro artista
   const withMbid = db.all(sql`
     SELECT mbid FROM artists
     WHERE spotify_id IN (${sql.join(group.map(id => sql`${id}`), sql`, `)})
@@ -255,9 +255,9 @@ concerts.get('/setlistfm/:artistId', async (c) => {
     // entidades que cuentan como bolos suyos (la propia + las giras que
     // encabeza). Sin esto, buscar por nombre arrastra los conciertos de otro en
     // los que estaba acreditado
-    const accepted = await resolveAcceptedArtists(artist.name);
+    const accepted = await resolveAcceptedArtists(artist.name, artist.mbid);
     const acceptMbids = new Set(accepted.map(a => a.mbid));
-    const found = await searchArtistShows({ mbid: artist.mbid || null, artistName: artist.name, page, year, acceptMbids });
+    const found = await searchArtistShows({ artistName: artist.name, page, year, acceptMbids });
     const importedIds = await dbRead('getImportedSetlistIds', userId, group);
     return c.json({ configured: true, artistName: artist.name, ...found, importedIds });
   } catch (err) {

@@ -45,17 +45,29 @@ export function classifySetlistfmBilling(entityName: string, artistName: string)
   return lead && normalize(lead) === artist ? 'coheadline' : 'guest';
 }
 
-/** MBIDs que cuentan como conciertos de este artista, con su etiqueta de cartel. */
+type AcceptedArtist = { mbid: string; name: string; billing: Exclude<SetlistfmBilling, 'guest'> };
+
+/** MBIDs que cuentan como conciertos de este artista, con su etiqueta de cartel.
+ *
+ *  `knownMbid` es lo que guardamos en artists.mbid y SÓLO desempata homónimos:
+ *  si está entre las entidades resueltas, las demás `primary` son otro artista
+ *  con el mismo nombre y se descartan. Si no está, se ignora: es evidencia
+ *  acretada de un recording de MusicBrainz y a veces es de otro (Bad Bunny
+ *  llevaba el de J Balvin). Las co-cabeceras se quedan siempre: son entidades
+ *  distintas de la persona y ningún MBID nuestro las identifica. */
 export function acceptedSetlistfmArtists(
   entities: { mbid?: string | null; name?: string | null }[],
   artistName: string,
-): { mbid: string; name: string; billing: Exclude<SetlistfmBilling, 'guest'> }[] {
-  const out: { mbid: string; name: string; billing: Exclude<SetlistfmBilling, 'guest'> }[] = [];
+  knownMbid?: string | null,
+): AcceptedArtist[] {
+  const out: AcceptedArtist[] = [];
   for (const e of entities) {
     if (!e.mbid || !e.name) continue;
     const billing = classifySetlistfmBilling(e.name, artistName);
     if (billing !== 'guest') out.push({ mbid: e.mbid, name: e.name, billing });
   }
+  const pinned = !!knownMbid && out.some(a => a.billing === 'primary' && a.mbid === knownMbid);
+  const kept = pinned ? out.filter(a => a.billing !== 'primary' || a.mbid === knownMbid) : out;
   // el artista propiamente dicho primero, para que sea el MBID de referencia
-  return out.sort((a, b) => (a.billing === 'primary' ? -1 : 0) - (b.billing === 'primary' ? -1 : 0));
+  return kept.sort((a, b) => (a.billing === 'primary' ? -1 : 0) - (b.billing === 'primary' ? -1 : 0));
 }

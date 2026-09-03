@@ -79,4 +79,31 @@ describe('acceptedSetlistfmArtists', () => {
     expect(ok).toHaveLength(1);
     expect(ok[0].mbid).toBe('x');
   });
+
+  // artists.mbid sólo desempata homónimos: nunca es la clave de búsqueda
+  it('un MBID conocido entre las entidades deja sólo esa primary y conserva las co-cabeceras', () => {
+    const homonyms = [
+      { mbid: 'nirvana-us', name: 'Nirvana' },
+      { mbid: 'nirvana-uk', name: 'Nirvana' },
+      { mbid: 'nirvana-tour', name: 'Nirvana & Foo Fighters' },
+    ];
+    const ok = acceptedSetlistfmArtists(homonyms, 'Nirvana', 'nirvana-uk');
+    expect(ok.map(a => a.mbid)).toEqual(['nirvana-uk', 'nirvana-tour']);
+  });
+
+  // caso real: Bad Bunny llevaba en artists.mbid el de J Balvin, acretado de un
+  // recording compartido. Buscar por ese MBID devolvía la gira de J Balvin, el
+  // filtro la vaciaba y el modal decía "sin bolos", con el 28-06-2026 de Londres
+  // en la primera página de la búsqueda por nombre
+  it('un MBID que no es de ninguna entidad se ignora en vez de vaciar la lista', () => {
+    const ok = acceptedSetlistfmArtists(ents(BAD_BUNNY_ENTITIES), 'Bad Bunny', 'mbid-de-j-balvin');
+    expect(ok.map(a => a.name)).toEqual(['Bad Bunny']);
+  });
+
+  // el MBID de Kendrick es correcto, pero la Grand National Tour (Barcelona,
+  // 30-07-2025) está bajo "Kendrick Lamar & SZA": la co-cabecera sigue dentro
+  it('el MBID propio no descarta la gira co-cabecera', () => {
+    const ok = acceptedSetlistfmArtists(ents(KENDRICK_ENTITIES), 'Kendrick Lamar', 'mb-0');
+    expect(ok.map(a => a.name)).toEqual(['Kendrick Lamar', 'Kendrick Lamar & SZA']);
+  });
 });

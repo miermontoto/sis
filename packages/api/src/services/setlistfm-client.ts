@@ -2,9 +2,9 @@
 // falta SETLISTFM_API_KEY el cliente informa como no configurado y los flujos
 // que dependen de él hacen no-op — mismo patrón que last.fm y push.
 //
-// setlist.fm indexa los artistas por MBID de MusicBrainz, que es exactamente lo
-// que el ladder de identidad ya guarda en artists.mbid: cuando lo hay, la
-// búsqueda es exacta; si no, cae al nombre y acepta el ruido de los homónimos.
+// setlist.fm indexa por MBID de MusicBrainz, pero la búsqueda de bolos va SIEMPRE
+// por nombre: allí un MBID es una sola entidad y cada variante de crédito (la
+// gira co-cabecera incluida) es otra. artists.mbid sólo desempata homónimos.
 import { SETLISTFM_API_BASE, SETLISTFM_REQUEST_SPACING_MS, SETLISTFM_PAGE_SIZE, SETLISTFM_TIMEOUT_MS, SETLISTFM_MAX_ATTEMPTS, SETLISTFM_RETRY_BACKOFF_MS, SETLISTFM_MAX_RETRY_WAIT_MS } from '../constants.js';
 import { createLogger } from './logger.js';
 import { acceptedSetlistfmArtists } from '@sis/shared';
@@ -143,10 +143,12 @@ function normalizeShow(raw: RawSetlist): SetlistfmShow | null {
   };
 }
 
-// Entidades aceptadas por nombre de artista, cacheadas en memoria: resolverlas
-// cuesta una llamada más y no cambian de un minuto a otro. Clave normalizada.
-const acceptedCache = new Map<string, { at: number; accepted: { mbid: string; name: string; billing: string }[] }>();
-const ACCEPTED_TTL_MS = 60 * 60_000;
+// Entidades de setlist.fm por nombre de artista, cacheadas en memoria: resolverlas
+// cuesta una llamada más y no cambian de un minuto a otro. Se cachea la lista
+// cruda y se clasifica en cada llamada (es barato), así el MBID de desempate no
+// forma parte de la clave. Clave normalizada.
+const entityCache = new Map<string, { at: number; entities: { mbid?: string; name?: string }[] }>();
+const ENTITY_TTL_MS = 60 * 60_000;
 
 /** Entidades de setlist.fm que cuentan como conciertos de este artista.
  *
@@ -154,35 +156,47 @@ const ACCEPTED_TTL_MS = 60 * 60_000;
  *  Bad Bunny, Tainy", "Kendrick Lamar & SZA", "Myke Towers feat. Bad Bunny"…) y
  *  la búsqueda por nombre las mezcla todas. Resolverlas y quedarse con las que
  *  el artista encabeza es lo que separa su gira co-cabecera —que sí es suya— de
- *  los bolos de otro en los que aparecía acreditado. */
-export async function resolveAcceptedArtists(artistName: string): Promise<{ mbid: string; name: string; billing: string }[]> {
+ *  los bolos de otro en los que aparecía acreditado.
+ *
+ *  `knownMbid` (artists.mbid) sólo desempata homónimos, ver
+ *  acceptedSetlistfmArtists: si no está entre las entidades se ignora. */
+export async function resolveAcceptedArtists(artistName: string, knownMbid?: string | null): Promise<ReturnType<typeof acceptedSetlistfmArtists>> {
   const key = artistName.toLowerCase().trim();
-  const hit = acceptedCache.get(key);
-  if (hit && Date.now() - hit.at < ACCEPTED_TTL_MS) return hit.accepted;
-
-  const data = await setlistfmRequest<RawArtistSearchResponse>('/search/artists', { artistName, sort: 'relevance' });
-  const accepted = acceptedSetlistfmArtists(data?.artist ?? [], artistName);
-  acceptedCache.set(key, { at: Date.now(), accepted });
-  log.debug(`"${artistName}": ${accepted.length} entidades aceptadas de ${data?.artist?.length ?? 0} (${accepted.map(a => a.name).join(' | ')})`);
+  const hit = entityCache.get(key);
+  let entities = hit && Date.now() - hit.at < ENTITY_TTL_MS ? hit.entities : null;
+  if (!entities) {
+    const data = await setlistfmRequest<RawArtistSearchResponse>('/search/artists', { artistName, sort: 'relevance' });
+    entities = data?.artist ?? [];
+    entityCache.set(key, { at: Date.now(), entities });
+  }
+  const accepted = acceptedSetlistfmArtists(entities, artistName, knownMbid);
+  log.debug(`"${artistName}": ${accepted.length} entidades aceptadas de ${entities.length} (${accepted.map(a => a.name).join(' | ')})`);
   return accepted;
 }
 
-/** Bolos de un artista, por MBID cuando lo hay (exacto) o por nombre (aproximado).
- *  Devuelve la página pedida ya normalizada + el total de páginas.
+/** Bolos de un artista por nombre, filtrados por `acceptMbids`. Devuelve la
+ *  página pedida ya normalizada + el total de páginas.
+ *
+ *  SIEMPRE por nombre, nunca por `artistMbid`: en setlist.fm un MBID es UNA
+ *  entidad y la gira co-cabecera es otra ("Kendrick Lamar & SZA" tiene la Grand
+ *  National Tour entera: el MBID de Kendrick devolvía 14 bolos de 2025 y el
+ *  nombre devuelve 54). El nombre casa por subcadena con todas las variantes de
+ *  crédito y `acceptMbids` decide cuáles son suyas. Además artists.mbid es
+ *  evidencia acretada que a veces es de otro (Bad Bunny llevaba el de J Balvin):
+ *  buscar por él traía la gira de J Balvin, el filtro la vaciaba y el modal
+ *  decía "sin bolos".
  *
  *  `year` acota la búsqueda a un año: un artista de gira larga acumula cientos
  *  de bolos (Bad Bunny pasa de 500, 27 páginas de 20) y paginar hasta el tuyo no
  *  es viable. La API devuelve 404 cuando ese año no tiene setlists, que el
  *  wrapper ya traduce a búsqueda vacía. */
 export async function searchArtistShows(
-  opts: { mbid?: string | null; artistName?: string | null; page?: number; year?: string | null; acceptMbids?: Set<string> | null },
+  opts: { artistName: string; page?: number; year?: string | null; acceptMbids?: Set<string> | null },
 ): Promise<{ shows: SetlistfmShow[]; page: number; totalPages: number }> {
   const page = Math.max(1, opts.page ?? 1);
-  const params: Record<string, string> = { p: String(page) };
+  if (!opts.artistName) return { shows: [], page, totalPages: 0 };
+  const params: Record<string, string> = { artistName: opts.artistName, p: String(page) };
   if (opts.year) params.year = opts.year;
-  if (opts.mbid) params.artistMbid = opts.mbid;
-  else if (opts.artistName) params.artistName = opts.artistName;
-  else return { shows: [], page, totalPages: 0 };
 
   const data = await setlistfmRequest<RawSearchResponse>('/search/setlists', params);
   if (!data) return { shows: [], page, totalPages: 0 };
@@ -195,12 +209,12 @@ export async function searchArtistShows(
     if (!accept || accept.size === 0) return true;
     const mbid = raw.artist?.mbid;
     if (mbid) return accept.has(mbid);
-    return (raw.artist?.name ?? '').toLowerCase().trim() === (opts.artistName ?? '').toLowerCase().trim();
+    return (raw.artist?.name ?? '').toLowerCase().trim() === opts.artistName.toLowerCase().trim();
   };
   const shows = (data.setlist ?? []).filter(wanted).map(normalizeShow).filter((s): s is SetlistfmShow => s !== null);
   const perPage = data.itemsPerPage || SETLISTFM_PAGE_SIZE;
   const totalPages = Math.ceil((data.total ?? shows.length) / perPage);
-  log.debug(`búsqueda ${opts.mbid ? `mbid=${opts.mbid}` : `name=${opts.artistName}`}${opts.year ? ` year=${opts.year}` : ''} p${page}: ${shows.length} bolos`);
+  log.debug(`búsqueda name=${opts.artistName}${opts.year ? ` year=${opts.year}` : ''} p${page}: ${shows.length} bolos`);
   return { shows, page, totalPages };
 }
 
