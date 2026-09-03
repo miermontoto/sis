@@ -22,7 +22,6 @@
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
-  import LiveBadge from '$lib/components/LiveBadge.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
@@ -430,10 +429,12 @@
           {/snippet}
         </PlaylistPopover>
       {/if}
-      <LiveBadge kind="track" concerts={data.liveConcerts ?? []} />
-      {#if !data.mergedInto}
-        <Accolades entityType="track" entityId={trackId} />
-      {/if}
+      <Accolades
+        entityType="track"
+        entityId={trackId}
+        showRecords={!data.mergedInto}
+        concerts={data.liveConcerts ?? []}
+      />
       <EntityActionsMenu
         title="Actions"
         actions={[

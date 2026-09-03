@@ -31,7 +31,6 @@
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
-  import LiveBadge from '$lib/components/LiveBadge.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
@@ -336,12 +335,14 @@
             <IconPlay />
           </button>
         {/if}
-        <LiveBadge kind="artist" concerts={(d.concerts ?? []).map(c => ({
-          id: c.id, artistId: c.artistId, artistName: c.artistName, date: c.date, venue: c.venue, city: c.city,
-        }))} />
-        {#if !d.mergedInto}
-          <Accolades entityType="artist" entityId={artistId} />
-        {/if}
+        <Accolades
+          entityType="artist"
+          entityId={artistId}
+          showRecords={!d.mergedInto}
+          concerts={(d.concerts ?? []).map(c => ({
+            id: c.id, artistId: c.artistId, artistName: c.artistName, date: c.date, venue: c.venue, city: c.city,
+          }))}
+        />
         <EntityActionsMenu
           title="Actions"
           actions={[

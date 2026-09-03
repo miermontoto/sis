@@ -1,15 +1,34 @@
 <script lang="ts">
-  import { api, createFetchController, type Accolade, type EntityType, type RankingMetric } from '$lib/api';
+  // Badge de records del hero. Los bolos a los que fuiste van dentro, como una
+  // sección más: son otra distinción de la entidad y no merecen un segundo botón
+  // idéntico al lado (el ticket en el trigger ya dice que ahí hay directo).
+  //
+  // Ausencia NO es prueba de lo contrario: un concierto dado de alta a mano no
+  // tiene setlist, así que un tema puede haber sonado sin que aquí conste.
+  import { api, createFetchController, type Accolade, type ConcertRef, type EntityType, type RankingMetric } from '$lib/api';
   import HoverPopover from '$lib/components/HoverPopover.svelte';
-  import { formatDuration, formatNumber } from '$lib/utils/format';
+  import IconTicket from '$lib/icons/IconTicket.svelte';
+  import { formatCalendarDate, formatDuration, formatNumber } from '$lib/utils/format';
 
   let {
     entityType,
     entityId,
+    concerts = [],
+    showRecords = true,
   }: {
     entityType: EntityType;
     entityId: string;
+    // en el artista, los bolos suyos; en el tema, aquellos cuyo setlist lo incluía.
+    // llegan con la respuesta de detalle, así que no cuestan una petición aparte
+    concerts?: ConcertRef[];
+    // una entidad fusionada no tiene records propios (son del target), pero sus
+    // bolos sí se muestran: por eso el badge se pinta igual y sólo se salta el fetch
+    showRecords?: boolean;
   } = $props();
+
+  // el artista se ve, el tema se escucha
+  let liveVerb = $derived(entityType === 'track' ? 'Heard live' : 'Seen live');
+  const place = (c: ConcertRef) => [c.venue, c.city].filter(Boolean).join(' · ');
 
   let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
@@ -75,8 +94,14 @@
     return formatDuration(a.value);
   }
 
+  // el record de directo (nº de bolos) se pinta en la cabecera de la sección de
+  // conciertos, no como una fila más: ahí abajo están esos mismos bolos listados y
+  // una fila "Seen live · 1 show" encima sólo repetiría el título
+  const liveType = $derived(entityType === 'track' ? 'mostHeardLive' : 'mostConcerts');
+  let liveAccolade = $derived(concerts.length > 0 ? accolades.find(a => a.type === liveType) ?? null : null);
+
   // separar year-end finishes del resto para renderizarlos en su propia sección
-  let regularAccolades = $derived(accolades.filter(a => a.type !== 'yearEnd'));
+  let regularAccolades = $derived(accolades.filter(a => a.type !== 'yearEnd' && a.type !== liveAccolade?.type));
   // agrupar year-end por rank y juntar los años en un array ordenado desc
   let yearEndGroups = $derived.by(() => {
     const byRank = new Map<number, number[]>();
@@ -105,12 +130,23 @@
     return Math.max(0, accolades.length - shown);
   });
 
+  // etiqueta del trigger: enumera lo que hay dentro, que puede ser sólo directo
+  let triggerLabel = $derived([
+    accolades.length > 0 ? `${accolades.length} record${accolades.length !== 1 ? 's' : ''}` : null,
+    concerts.length > 0 ? `${liveVerb}${concerts.length > 1 ? ` · ${concerts.length} times` : ''}` : null,
+  ].filter(Boolean).join(' · '));
+
   $effect(() => {
     void entityId;
+    open = false;
+    if (!showRecords) {
+      accolades = [];
+      loading = false;
+      return;
+    }
     const signal = fetchCtrl.reset();
     loading = true;
     accolades = [];
-    open = false;
     api.accolades(entityType, entityId, signal)
       .then(r => {
         if (signal.aborted) return;
@@ -124,8 +160,10 @@
 
 </script>
 
-{#if !loading && accolades.length > 0}
-  <HoverPopover label="{accolades.length} records" tone="gold" bind:open>
+<!-- los bolos no se esperan: vienen con el detalle, así que el badge ya puede
+     pintarse mientras los accolades siguen en vuelo -->
+{#if concerts.length > 0 || (!loading && accolades.length > 0)}
+  <HoverPopover label={triggerLabel} tone="gold" bind:open>
     {#snippet trigger()}
       {#each triggerPreview as g}
         <span class="trigger-medal" class:trigger-medal--text={g.rank > 3}>
@@ -133,6 +171,11 @@
         </span>
       {/each}
       {#if triggerOverflow > 0}<span class="trigger-more">+{triggerOverflow}</span>{/if}
+      {#if concerts.length > 0}
+        <span class="trigger-live">
+          <IconTicket size={14} />{#if concerts.length > 1}<span class="trigger-live-count">{concerts.length}</span>{/if}
+        </span>
+      {/if}
     {/snippet}
 
     {#if regularAccolades.length > 0}
@@ -171,6 +214,29 @@
         {/each}
       </div>
     {/if}
+
+    {#if concerts.length > 0}
+      <div class="popover-title live-title" class:popover-title--gap={regularAccolades.length > 0 || yearEndGroups.length > 0}>
+        <span>{liveVerb}</span>
+        {#if liveAccolade}
+          <span class="live-title-rank">{medal(liveAccolade.rank)} {formatValue(liveAccolade)}</span>
+        {/if}
+      </div>
+      <ul class="popover-list">
+        {#each concerts as c (c.id)}
+          <li>
+            <a class="popover-row popover-row--link" href="/concert/{c.id}">
+              <span class="live-date">{formatCalendarDate(c.date)}</span>
+              <span class="live-place">
+                <!-- {' · '} y no un literal: svelte recorta los espacios pegados al
+                     borde de un bloque y el separador salía sin ellos -->
+                {#if entityType === 'track'}{c.artistName}{#if place(c)}{' · '}{/if}{/if}{place(c)}
+              </span>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </HoverPopover>
 {/if}
 
@@ -200,6 +266,48 @@
     font-weight: 700;
     opacity: 0.7;
     margin-left: 0.1rem;
+  }
+  /* el ticket mantiene el verde aunque el trigger se ponga dorado al hover: es el
+     único distintivo que no es una posición en un ranking, sino haber estado allí */
+  .trigger-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    color: var(--accent);
+  }
+  .trigger-live-count {
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* la cabecera de la sección de directo lleva a la derecha el record: la medalla
+     y el número de bolos (HoverPopover pinta el resto del .popover-title) */
+  .live-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .live-title-rank {
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  /* la fecha hace de columna fija a la izquierda, como la medalla en los records */
+  .live-date {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .live-place {
+    font-size: 0.8rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .popover-pills {
