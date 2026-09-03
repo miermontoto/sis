@@ -1,13 +1,12 @@
 <script lang="ts">
-  // Conciertos asistidos de un artista. Cada bolo se puede desplegar para ver el
-  // setlist: las canciones que ya estaban en la librería enlazan a su track y
-  // muestran cuántas veces se habían escuchado ANTES de esa fecha — que es lo
-  // que separa "ya te la sabías" de "la descubriste allí". Las que no están se
-  // pintan apagadas: son las que el usuario no tenía.
+  // Conciertos asistidos de un artista, en su ficha. Cada fila lleva al detalle
+  // del bolo (el setlist se pinta en un solo sitio); las acciones van en el menú
+  // contextual de la fila, como en el resto de listas.
   import { api, type Concert } from '$lib/api';
   import { errorMessage } from '$lib/utils/errors';
   import { formatCalendarDate } from '$lib/utils/format';
-  import IconTicket from '$lib/icons/IconTicket.svelte';
+  import { toastStore } from '$lib/stores/toast.svelte';
+  import ConcertRow from './ConcertRow.svelte';
 
   let {
     concerts,
@@ -21,71 +20,40 @@
     onChanged: () => void;
   } = $props();
 
-  let busyId = $state<number | null>(null);
-  let error = $state('');
-
-  const place = (c: Concert) => [c.venue, c.city].filter(Boolean).join(' · ');
+  let busy = $state(false);
 
   async function remove(concert: Concert) {
-    if (busyId !== null) return;
-    busyId = concert.id;
-    error = '';
+    if (busy) return;
+    if (!confirm(`Remove the ${formatCalendarDate(concert.date)} show? Its setlist and attributions go with it.`)) return;
+    busy = true;
     try {
       await api.deleteConcert(concert.id);
       onChanged();
     } catch (e) {
-      error = errorMessage(e, 'Error deleting concert');
+      toastStore.show(errorMessage(e, 'Error removing concert'));
     } finally {
-      busyId = null;
+      busy = false;
     }
   }
 </script>
 
 <div class="section-header">
-  <h2 class="section-title">Concerts</h2>
+  <h2 class="section-title"><a href="/concerts" class="section-link">Concerts</a></h2>
   <button class="show-all-btn" onclick={onAdd}>Add</button>
 </div>
-
-{#if error}
-  <div class="concert-error">{error}</div>
-{/if}
 
 {#if concerts.length === 0}
   <p class="concerts-empty">No concerts logged yet.</p>
 {:else}
-  <div class="concerts">
+  <div class="track-list concerts-list">
     {#each concerts as c (c.id)}
-      <div class="concert">
-        <div class="concert-row">
-          <span class="concert-icon"><IconTicket size={14} /></span>
-          <!-- la fila entera lleva al detalle, como cualquier otra entidad -->
-          <a class="concert-main" href="/concert/{c.id}">
-            <div class="concert-date">{formatCalendarDate(c.date)}</div>
-            <div class="concert-place">{place(c) || 'Venue unknown'}</div>
-            {#if c.tour}<div class="concert-tour">{c.tour}</div>{/if}
-            {#if c.songsTotal > 0}
-              <div class="concert-setlist-count">{c.songsTotal} songs · {c.songsMatched} in your library</div>
-            {/if}
-            {#if c.notes}<p class="concert-notes">{c.notes}</p>{/if}
-          </a>
-          <div class="concert-actions">
-            {#if c.setlistfmUrl}
-              <a class="concert-action" href={c.setlistfmUrl} target="_blank" rel="noopener" title="View on setlist.fm">↗</a>
-            {/if}
-            <button class="concert-action" onclick={() => onEdit(c)} title="Edit">✎</button>
-            <button class="concert-action" disabled={busyId === c.id} onclick={() => remove(c)} title="Remove">&times;</button>
-          </div>
-        </div>
-      </div>
+      <ConcertRow concert={c} variant="artist" compact {onEdit} onRemove={remove} />
     {/each}
   </div>
 {/if}
 
 <style>
-  .concerts {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+  .concerts-list {
     margin-bottom: 1.5rem;
   }
   .concerts-empty {
@@ -93,86 +61,4 @@
     font-size: 0.82rem;
     margin: 0 0 1.5rem;
   }
-  .concert-error {
-    color: #ff4444;
-    font-size: 0.8rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .concert {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .concert-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    padding: 0.6rem 0.7rem;
-  }
-  .concert-icon {
-    color: var(--accent);
-    display: flex;
-    padding-top: 0.1rem;
-    flex-shrink: 0;
-  }
-  .concert-main {
-    flex: 1;
-    min-width: 0;
-    color: inherit;
-    text-decoration: none;
-  }
-  .concert-main:hover .concert-place { color: var(--accent); }
-  .concert-date {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .concert-place {
-    font-size: 0.88rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .concert-tour {
-    font-size: 0.74rem;
-    color: var(--text-muted);
-    font-style: italic;
-  }
-  .concert-notes {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    margin: 0.3rem 0 0;
-    white-space: pre-wrap;
-  }
-  .concert-setlist-count {
-    padding-top: 0.2rem;
-    color: var(--accent);
-    font-size: 0.75rem;
-  }
-
-  /* los controles sólo aparecen al pasar por encima de la tarjeta: la lista se
-     lee mucho más limpia sin tres glifos por fila compitiendo con el recinto */
-  .concert-actions {
-    display: flex;
-    gap: 0.1rem;
-    flex-shrink: 0;
-    opacity: 0;
-    transition: opacity 0.05s;
-  }
-  .concert:hover .concert-actions,
-  .concert-actions:focus-within { opacity: 1; }
-  .concert-action {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    line-height: 1;
-    padding: 2px 4px;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  .concert-action:hover { color: var(--text); }
-  .concert-action:disabled { opacity: 0.5; cursor: default; }
-
 </style>

@@ -21,7 +21,9 @@ export interface EntityContext {
   parentArtistId?: string;
 }
 
-function buildActions(entity: EntityContext): ContextMenuAction[] {
+// acciones del menú contextual de una entidad. Exportado para las filas que
+// añaden acciones propias al mismo menú (la atribución de un setlist)
+export function entityContextActions(entity: EntityContext): ContextMenuAction[] {
   const actions: ContextMenuAction[] = [];
   if (isSpotifyId(entity.id)) {
     actions.push({
@@ -83,7 +85,7 @@ function buildActions(entity: EntityContext): ContextMenuAction[] {
  */
 export function openEntityContextMenu(entity: EntityContext, onAction?: () => void) {
   return (e: MouseEvent) => {
-    const actions = buildActions(entity);
+    const actions = entityContextActions(entity);
     contextMenu.open(e, onAction
       ? actions.map(a => ({ ...a, onClick: () => { onAction(); return a.onClick(); } }))
       : actions);

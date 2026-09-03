@@ -173,3 +173,26 @@ export function getLocalizedMonthNames(): string[] {
     new Date(2017, i, 1).toLocaleDateString(locale, { month: 'short' })
   );
 }
+
+// variante larga de formatCalendarDate ("Saturday, October 18, 2025"), también
+// en UTC: la fecha de un concierto es de calendario, no un instante
+export function formatCalendarDateLong(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString(getLocale(), {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+  });
+}
+
+// "Oct 18" sin año, para listas ya agrupadas por año (repetirlo en cada fila sobra)
+export function formatCalendarDayMonth(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+// día y mes por separado ("18", "Oct"), para pintar la fecha como ficha en el
+// hueco de la carátula de una fila
+export function calendarDayMonth(dateStr: string): { day: string; month: string } {
+  const date = new Date(dateStr);
+  return {
+    day: date.toLocaleDateString(getLocale(), { day: 'numeric', timeZone: 'UTC' }),
+    month: date.toLocaleDateString(getLocale(), { month: 'short', timeZone: 'UTC' }),
+  };
+}

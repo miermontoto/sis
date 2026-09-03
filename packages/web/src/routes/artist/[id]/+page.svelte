@@ -94,7 +94,7 @@
     label: [c.venue, c.city].filter(Boolean).join(' · ') || 'Concert',
     sublabel: c.tour ?? undefined,
     kind: 'concert' as const,
-    href: '/concerts',
+    href: `/concert/${c.id}`,
   })));
 
   let chartEvents = $derived<ChartEvent[]>([...releaseEvents, ...concertEvents]);

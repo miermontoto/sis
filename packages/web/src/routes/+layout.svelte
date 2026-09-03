@@ -206,7 +206,7 @@
   // páginas de detalle de entidad: en pantallas anchas ensanchan el contenido más allá
   // del cap de 1200px para llenar el ancho disponible y dar sitio al rail de gráficas.
   function isDetailRoute(pathname: string): boolean {
-    return /^\/(artist|album|track)\//.test(pathname);
+    return /^\/(artist|album|track|concert)\//.test(pathname);
   }
 
   $effect(() => {
