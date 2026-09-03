@@ -62,7 +62,11 @@ export interface EntityRecords {
   mostAccolades: RecordEntry[];
 }
 
-export type TrackRecords = EntityRecords;
+export interface TrackRecords extends EntityRecords {
+  // --- directo: temas oídos en más conciertos de los que fuiste. value = nº de bolos.
+  // sale de concert_songs, así que sólo lo alimentan los setlists importados
+  mostHeardLive: RecordEntry[];
+}
 
 export type AlbumRecords = EntityRecords;
 
@@ -71,6 +75,8 @@ export interface ArtistRecordsData extends EntityRecords {
   mostNo1Albums: ArtistRecordEntry[];
   mostDistinctTracks: RecordEntry[];
   oneHitWonders: RecordEntry[];
+  // --- directo: artistas que más veces has visto. value = nº de bolos
+  mostConcerts: RecordEntry[];
 }
 
 export interface RecordsResponse {

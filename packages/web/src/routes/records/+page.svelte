@@ -98,6 +98,7 @@
     if (label === 'playlists') return `${val} playlist${val !== 1 ? 's' : ''}`;
     if (label === 'months') return `${val} mo${val !== 1 ? 's' : ''}`;
     if (label === 'tracks') return `${val} track${val !== 1 ? 's' : ''}`;
+    if (label === 'shows') return `${val} show${val !== 1 ? 's' : ''}`;
     if (label === 'days') return `${formatNumber(val)} day${val !== 1 ? 's' : ''}`;
     if (label === 'count') return `${val} record${val !== 1 ? 's' : ''}`;
     if (label === 'percent') return `${val.toFixed(1)}%`;
@@ -517,6 +518,7 @@
 
   <!-- ============ sections ============ -->
   {@const artistData = ('mostNo1Tracks' in currentData) ? currentData as ArtistRecordsData : null}
+  {@const trackData = ('mostHeardLive' in currentData) ? currentData as TrackRecords : null}
 
   {@const hasAllTime =
     currentData.peakWeekPlays.length > 0 ||
@@ -531,6 +533,11 @@
   {@const hasDiscovery =
     currentData.biggestDebuts.length > 0 ||
     currentData.latestDiscoveries.length > 0}
+  <!-- `?.` en las listas, no sólo en el payload: una respuesta cacheada en el
+       cliente por una versión anterior no trae las claves nuevas -->
+  {@const hasLive =
+    (artistData?.mostConcerts?.length ?? 0) > 0 ||
+    (trackData?.mostHeardLive?.length ?? 0) > 0}
   {@const hasOther =
     currentData.bubblingUnder.length > 0 ||
     currentData.longestGap.length > 0 ||
@@ -561,6 +568,18 @@
     <h2 class="record-group">Discovery</h2>
     {@render recordList('Biggest debuts', currentData.biggestDebuts, 'debut', 'biggestDebuts')}
     {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays', 'latestDiscoveries')}
+  {/if}
+
+  {#if hasLive}
+    <!-- estos dos no salen del historial sino del log de conciertos: sólo tienen
+         datos cuando hay bolos registrados, y el de temas necesita además setlist -->
+    <h2 class="record-group">Live</h2>
+    {#if artistData?.mostConcerts}
+      {@render recordList('Most times seen live', artistData.mostConcerts, 'shows', 'mostConcerts')}
+    {/if}
+    {#if trackData?.mostHeardLive}
+      {@render recordList('Heard live most times', trackData.mostHeardLive, 'shows', 'mostHeardLive')}
+    {/if}
   {/if}
 
   {#if hasOther}

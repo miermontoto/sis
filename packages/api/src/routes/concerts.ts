@@ -11,6 +11,7 @@ import { dbRead } from '../db/read-pool.js';
 import { hydrateConcerts, resolveSetlistSongs } from '../services/concerts.js';
 import { isSetlistfmConfigured, searchArtistShows, getShow, resolveAcceptedArtists } from '../services/setlistfm-client.js';
 import { createLogger } from '../services/logger.js';
+import { invalidateRecordsCacheForUser } from '../services/records-cache.js';
 import { refreshConcertCounts } from '../services/social.js';
 import { CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS } from '@sis/shared';
 import type { ConcertStats, SetlistfmShow } from '@sis/shared';
@@ -119,6 +120,10 @@ concerts.post('/', async (c) => {
               ${text(body.country)}, ${text(body.tour)}, ${text(body.notes, CONCERT_NOTES_MAX_CHARS)})
     `);
     await refreshConcertCounts(userId);
+    // los records de directo (mostConcerts / mostHeardLive) salen del log de
+    // conciertos, no del historial: sin invalidar, la cache los daría por vigentes
+    // hasta la siguiente escucha, porque su marca de agua es MAX(played_at)
+    invalidateRecordsCacheForUser(userId);
     const rows = await dbRead('getConcerts', userId, null);
     const created = rows.find(r => r.id === Number(result.lastInsertRowid));
     return c.json((await hydrateConcerts(userId, created ? [created] : []))[0] ?? null, 201);
@@ -174,6 +179,7 @@ concerts.delete('/:id', async (c) => {
   const result = db.run(sql`DELETE FROM concerts WHERE id = ${id} AND user_id = ${userId}`);
   if (result.changes === 0) return c.json({ error: 'concert not found' }, 404);
   await refreshConcertCounts(userId);
+  invalidateRecordsCacheForUser(userId);
   return c.json({ success: true });
 });
 
@@ -209,6 +215,7 @@ concerts.put('/:id{[0-9]+}/songs/:position{[0-9]+}', async (c) => {
     WHERE concert_id = ${id} AND position = ${position}
   `);
   if (result.changes === 0) return c.json({ error: 'song not found' }, 404);
+  invalidateRecordsCacheForUser(userId);
 
   const rows = (await dbRead('getConcerts', userId, null)).filter(r => r.id === id);
   return c.json((await hydrateConcerts(userId, rows))[0]);
@@ -315,6 +322,7 @@ concerts.post('/setlistfm/:artistId', async (c) => {
   }
 
   await refreshConcertCounts(userId);
+  invalidateRecordsCacheForUser(userId);
   log.info(`concierto importado de setlist.fm: ${show.artistName} ${show.date} (${show.songs.length} canciones)`);
   const rows = (await dbRead('getConcerts', userId, group)).filter(r => r.id === concertId);
   return c.json((await hydrateConcerts(userId, rows))[0] ?? null, 201);

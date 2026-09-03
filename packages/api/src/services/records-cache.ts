@@ -175,6 +175,7 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
 
   const sliceTrack = (e: RecordsResponse['tracks']) => ({
     ...sliceBase(e),
+    mostHeardLive: e.mostHeardLive.slice(0, limit),
   });
 
   const sliceAlbum = (e: RecordsResponse['albums']) => ({
@@ -187,6 +188,7 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
     mostNo1Albums: e.mostNo1Albums.slice(0, limit),
     mostDistinctTracks: e.mostDistinctTracks.slice(0, limit),
     oneHitWonders: e.oneHitWonders.slice(0, limit),
+    mostConcerts: e.mostConcerts.slice(0, limit),
   });
 
   if (type === 'track') return { tracks: sliceTrack(cached.tracks) };
@@ -218,7 +220,13 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   const data = cached[plural];
   if (!data) return { metric, accolades: [] };
 
-  const checks: [string, { entityId?: string; artistId?: string; value: number; week: string | null }[]][] = [
+  // listas que sólo existen en el payload de un tipo: mostDistinctTracks,
+  // oneHitWonders y mostConcerts son de artists; mostHeardLive, de tracks
+  const artistOnly = entityType === 'artist' && 'mostNo1Tracks' in data ? data as RecordsResponse['artists'] : null;
+  const trackOnly = entityType === 'track' && 'mostHeardLive' in data ? data as RecordsResponse['tracks'] : null;
+
+  type Check = [string, { entityId?: string; artistId?: string; value: number; week: string | null }[]];
+  const checks: Check[] = [
     ['peakWeek', data.peakWeekPlays as any[]],
     ['dominance', data.dominance as any[]],
     ['biggestDebut', data.biggestDebuts as any[]],
@@ -231,6 +239,12 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     ['goldenOldies', data.goldenOldies as any[]],
     ['latestDiscoveries', data.latestDiscoveries as any[]],
     ['mostAccolades', data.mostAccolades as any[]],
+    ...(artistOnly ? [
+      ['mostDistinctTracks', artistOnly.mostDistinctTracks],
+      ['oneHitWonders', artistOnly.oneHitWonders],
+      ['mostConcerts', artistOnly.mostConcerts],
+    ] as Check[] : []),
+    ...(trackOnly ? [['mostHeardLive', trackOnly.mostHeardLive]] as Check[] : []),
   ];
 
   for (const [type, list] of checks) {
@@ -255,24 +269,6 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
     }
   }
 
-  // mostDistinctTracks exclusivo de artists (tras quitarlo de albums)
-  if (entityType === 'artist' && 'mostDistinctTracks' in data) {
-    const artistData = data as RecordsResponse['artists'];
-    const idx = artistData.mostDistinctTracks.findIndex((e) => e.entityId === entityId);
-    if (idx !== -1 && idx < RECORDS_LIMIT) {
-      accolades.push({ type: 'mostDistinctTracks', rank: idx + 1, value: artistData.mostDistinctTracks[idx].value, week: null });
-    }
-  }
-
-  // oneHitWonders exclusivo de artists (tras quitarlo de albums)
-  if (entityType === 'artist' && 'oneHitWonders' in data) {
-    const artistData = data as RecordsResponse['artists'];
-    const idx = artistData.oneHitWonders.findIndex((e) => e.entityId === entityId);
-    if (idx !== -1 && idx < RECORDS_LIMIT) {
-      accolades.push({ type: 'oneHitWonders', rank: idx + 1, value: artistData.oneHitWonders[idx].value, week: null });
-    }
-  }
-
   // year-end finishes (todos los años completos en los que la entidad entró en top-10)
   for (const f of data.yearEndFinishes) {
     if (f.entityId === entityId) {
@@ -281,6 +277,16 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   }
 
   return { metric, accolades };
+}
+
+/** Invalida la cache de un usuario. Necesario para los records de directo: no salen
+ *  del historial, así que registrar un bolo no mueve la marca de agua (MAX(played_at))
+ *  y sin borrarla el siguiente ciclo vería "no hay datos nuevos" y no recomputaría. */
+export function invalidateRecordsCacheForUser(userId: number) {
+  for (const [key] of cache) {
+    if (key.startsWith(`${userId}:`)) cache.delete(key);
+  }
+  lastDataTs.delete(userId);
 }
 
 /** Invalida la cache de todos los usuarios (fuerza recomputo en el siguiente ciclo) */

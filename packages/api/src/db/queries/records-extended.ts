@@ -412,6 +412,75 @@ export function computeOneHitWonders(entity: 'artist', db: Db, userId: number, l
   }));
 }
 
+// --- records de directo (concerts / concert_songs) ---
+//
+// Los dos son conteos: no dependen de `sort` (time|plays) ni de los charts semanales.
+// El merge se resuelve inline y no con entityMergeJoin() porque los helpers de
+// merge asumen los alias del historial (lh.track_id / ta.artist_id) y aquí la
+// columna de origen está en las tablas del log de conciertos.
+
+/** Artistas que más veces has visto en directo. El concierto se guarda contra el
+ *  artista visitado, así que el conteo resuelve el grupo de merge igual que el
+ *  resto del log: dos alias fusionados son el mismo artista y suman juntos.
+ *
+ *  Sin umbral: a diferencia de los demás records, haber visto a alguien una vez ya
+ *  es el hecho que se rankea, y el top se corta por `limit`. */
+export function computeMostConcerts(db: Db, userId: number, limit: number): RecordEntry[] {
+  const rows = db.all(sql`
+    WITH agg AS (
+      SELECT COALESCE(mr_a.target_id, c.artist_id) AS eid, COUNT(*) AS shows
+      FROM concerts c
+      LEFT JOIN merge_rules mr_a ON mr_a.entity_type = 'artist' AND mr_a.source_id = c.artist_id AND mr_a.user_id = ${userId}
+      WHERE c.user_id = ${userId}
+      GROUP BY eid
+    )
+    SELECT agg.eid AS eid, agg.shows AS value,
+           a.name AS name, a.image_url AS image_url,
+           NULL AS artist_id, NULL AS artist_name
+    FROM agg
+    JOIN artists a ON a.spotify_id = agg.eid
+    ORDER BY agg.shows DESC, a.name ASC
+    LIMIT ${limit}
+  `) as any[];
+
+  return rows.map(r => mapSimple(r));
+}
+
+/** Temas que sonaron en más conciertos de los que fuiste. Sólo lo alimentan los
+ *  setlists importados con la canción emparejada a la librería (track_id NULL =
+ *  "no la tienes", que es una respuesta válida pero no una entidad que rankear).
+ *
+ *  DISTINCT concert_id: un bis o un medley repiten el tema esa misma noche y aquí
+ *  cuenta el bolo, no cada interpretación — igual que getTrackLiveConcerts.
+ *
+ *  > 1 porque un tema oído en un único concierto no es un récord: sería medio
+ *  setlist empatado a 1 y ordenado al azar (misma regla que inMostPlaylists). */
+export function computeMostHeardLive(db: Db, userId: number, limit: number): RecordEntry[] {
+  const ctx = entityCtx('track', userId);
+  const rows = db.all(sql`
+    WITH agg AS (
+      SELECT COALESCE(mr_t.target_id, cs.track_id) AS eid, COUNT(DISTINCT cs.concert_id) AS shows
+      FROM concert_songs cs
+      JOIN concerts c ON c.id = cs.concert_id
+      LEFT JOIN merge_rules mr_t ON mr_t.entity_type = 'track' AND mr_t.source_id = cs.track_id AND mr_t.user_id = ${userId}
+      WHERE c.user_id = ${userId} AND cs.track_id IS NOT NULL
+      GROUP BY eid
+    )
+    SELECT agg.eid AS eid, agg.shows AS value,
+           ${ctx.finalName} AS name,
+           ${ctx.finalImg} AS image_url,
+           ${ctx.finalArtistId} AS artist_id,
+           ${ctx.finalArtistName} AS artist_name
+    FROM agg
+    ${ctx.finalJoin}
+    WHERE agg.shows > 1
+    ORDER BY agg.shows DESC, ${ctx.finalName} ASC
+    LIMIT ${limit}
+  `) as any[];
+
+  return rows.map(r => mapSimple(r));
+}
+
 // year-end finishes: top-N de cada año completado (para accolades).
 // Sólo incluye años anteriores al actual (el año en curso todavía no "terminó").
 const YEAR_END_LIMIT = 10;
@@ -472,6 +541,8 @@ export function computeMostAccolades(
 
   if (data.mostDistinctTracks) tally(data.mostDistinctTracks);
   if (data.oneHitWonders) tally(data.oneHitWonders);
+  if (data.mostHeardLive) tally(data.mostHeardLive);
+  if (data.mostConcerts) tally(data.mostConcerts);
 
   if (data.mostNo1Tracks) {
     for (const list of [data.mostNo1Tracks, data.mostNo1Albums ?? []]) {

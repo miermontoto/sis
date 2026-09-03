@@ -58,6 +58,8 @@ const RECORD_KEY_TITLES: Record<string, string> = {
   oneHitWonders: 'One-Hit Wonders',
   mostNo1Tracks: 'Most #1 Tracks',
   mostNo1Albums: 'Most #1 Albums',
+  mostConcerts: 'Seen Live Most',
+  mostHeardLive: 'Heard Live Most',
 };
 
 const ARTIST_RECORD_KEYS = new Set(['mostNo1Tracks', 'mostNo1Albums']);

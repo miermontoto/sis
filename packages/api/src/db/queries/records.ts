@@ -13,7 +13,7 @@ import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
   computeMostUniquePerMonth, computeMostDistinctTracks, computeOneHitWonders,
-  computeYearEndFinishes, computeMostAccolades,
+  computeYearEndFinishes, computeMostAccolades, computeMostConcerts, computeMostHeardLive,
 } from './records-extended.js';
 import { createLogger } from '../../services/logger.js';
 
@@ -115,6 +115,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     goldenOldies: timed('track.goldenOldies', () => computeGoldenOldies('track', db, userId, limit)),
     latestDiscoveries: timed('track.latestDiscoveries', () => computeLatestDiscoveries('track', db, userId, limit)),
     mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit)),
+    mostHeardLive: timed('track.mostHeardLive', () => computeMostHeardLive(db, userId, limit)),
     yearEndFinishes: timed('track.yearEndFinishes', () => computeYearEndFinishes('track', db, userId, sort)),
     mostAccolades: [],
   };
@@ -301,6 +302,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     mostUniquePerMonth: timed('artist.mostUniquePerMonth', () => computeMostUniquePerMonth('artist', db, userId, limit)),
     mostDistinctTracks: timed('artist.mostDistinctTracks', () => computeMostDistinctTracks('artist', db, userId, limit)),
     oneHitWonders: timed('artist.oneHitWonders', () => computeOneHitWonders('artist', db, userId, limit)),
+    mostConcerts: timed('artist.mostConcerts', () => computeMostConcerts(db, userId, limit)),
     yearEndFinishes: timed('artist.yearEndFinishes', () => computeYearEndFinishes('artist', db, userId, sort)),
     mostAccolades: [],
   };

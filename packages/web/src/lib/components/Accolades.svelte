@@ -41,6 +41,8 @@
     mostDistinctTracks: 'Distinct tracks',
     oneHitWonders: 'One-hit wonder',
     mostAccolades: 'Most records',
+    mostConcerts: 'Seen live',
+    mostHeardLive: 'Heard live',
   };
 
   function labelFor(a: Accolade): string {
@@ -63,6 +65,7 @@
     if (a.type === 'longestGap') return `${formatNumber(a.value)} day${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'dominance') return `${a.value.toFixed(1)}%`;
     if (a.type === 'mostDistinctTracks') return `${a.value} track${a.value !== 1 ? 's' : ''}`;
+    if (a.type === 'mostConcerts' || a.type === 'mostHeardLive') return `${a.value} show${a.value !== 1 ? 's' : ''}`;
     if (a.type === 'goldenOldies' ||
         a.type === 'latestDiscoveries' ||
         a.type === 'oneHitWonders') {
