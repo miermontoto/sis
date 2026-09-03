@@ -121,6 +121,7 @@ Writing any streaming route: `dbRead` runs **synchronously on the main thread in
 - `packages/web/src/lib/api.ts` — typed API client, all types for API responses, ranking metric preference via localStorage (`sis:rankingMetric`)
 - Pages read localStorage preferences on mount (no global store)
 - `TimeRangeSelector.svelte` — shared range picker used across Top, Trends, Insights pages
+- `HoverPopover.svelte` — trigger + panel de los badges del hero (`Accolades`, `LiveBadge`): hover con ratón, click en táctil, cierre al pulsar fuera y con Escape. Los estilos del contenido (`.popover-title`, `.popover-list`, `.popover-row`) van `:global` bajo `.hover-popover`, porque el markup llega por snippet con el scope del consumidor. Nuevo badge del hero = este componente, nunca un popover propio
 
 ## Deployment
 
