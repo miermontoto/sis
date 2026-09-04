@@ -36,6 +36,9 @@
      se ancla al bloque contenedor inicial, o sea a sangre y bajo el sidebar fijo */
   .detail-backdrop {
     --backdrop-blur: 40px;
+    /* la banda mide 320px pero el degradado se cierra antes del final: las stat cards
+       son semitransparentes y dejaban ver la foto a través de ellas */
+    --backdrop-mask: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.6) 40%, transparent 72%);
     position: absolute;
     top: 0;
     left: 0;
@@ -54,16 +57,19 @@
     background-position: center 28%;
     background-size: cover;
     background-repeat: no-repeat;
-    /* el degradado funde la imagen con el fondo de la página en vez de cortarla */
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 100%);
-    mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 100%);
+    /* el fondo es un tinte, no una ilustración: a plena opacidad una imagen subida a
+       mano (clara y contrastada, elegida a propósito) lavaba la cabecera entera */
+    opacity: 0.5;
+    -webkit-mask-image: var(--backdrop-mask);
+    mask-image: var(--backdrop-mask);
   }
-  /* velo oscuro: una foto clara dejaría el título (--text) sin contraste */
+  /* velo oscuro: una foto clara dejaría el título (--text) sin contraste. va dentro de
+     la imagen a propósito, así la opacidad de arriba compone los dos como un solo grupo */
   .detail-backdrop-img::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(8, 10, 12, 0.55) 0%, rgba(8, 10, 12, 0.82) 100%);
+    background: linear-gradient(180deg, rgba(8, 10, 12, 0.35) 0%, rgba(8, 10, 12, 0.9) 100%);
   }
   /* el blur muestrea fuera del elemento (transparente) y dejaría un halo en los bordes.
      se desborda 3 sigma (el radio de blur() es la desviación típica) por arriba y por
