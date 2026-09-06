@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w36af';
+export const VERSION = '26w36ag';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -315,3 +315,19 @@ export const DEFAULT_BULK_SCAN_SCOPE = 'top200';
 // destacados se resumen antes de aplicar
 export const IMPACT_TOP_THRESHOLD = 50;
 export const IMPACT_BIGGEST_MOVERS = 3;
+
+// --- reports periódicos (cache pre-horneada, ver services/report-cache.ts) ---
+
+// edad a partir de la cual un report cacheado se rehornea en segundo plano. un
+// report es la lectura final de un periodo cerrado: servirlo un día desfasado por
+// un scrobble tardío o un merge es aceptable, esperar una docena de queries al
+// abrirlo no
+export const REPORT_CACHE_TTL_MS = 24 * 60 * 60_000;
+
+// cada cuánto se hornean los últimos periodos cerrados de todos los usuarios, para
+// que el report de la semana recién cerrada exista antes de que alguien lo abra
+export const REPORT_WARM_INTERVAL_MS = 60 * 60_000;
+
+// reports cacheados por usuario (los últimos cerrados + los que vaya abriendo del
+// historial); por encima se descartan los más antiguos
+export const REPORT_CACHE_MAX_PER_USER = 24;

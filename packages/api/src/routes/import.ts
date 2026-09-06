@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { Hono } from 'hono';
 import { importHistory, type ImportResult } from '../services/history-import.js';
+import { invalidateReportCacheForUser } from '../services/report-cache.js';
 import type { AppVariables } from '../app.js';
 import { createLogger } from '../services/logger.js';
 
@@ -42,6 +43,7 @@ importRoute.post('/', async (c) => {
     }
   }
 
+  if (aggregated.imported > 0) invalidateReportCacheForUser(userId);
   return c.json(aggregated);
 });
 
@@ -58,6 +60,7 @@ importRoute.post('/file', async (c) => {
     const text = readFileSync(path, 'utf-8');
     const data = JSON.parse(text);
     const result = importHistory(data, userId);
+    if (result.imported > 0) invalidateReportCacheForUser(userId);
     return c.json(result);
   } catch (err) {
     log.error(`error procesando ${path}:`, err);

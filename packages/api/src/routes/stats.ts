@@ -4,6 +4,7 @@
 // - detail.ts:    artist/:id, album/:id, track/:id, search
 // - charts.ts:    charts/periods, charts, charts/peaks, chart-history/:type/:id
 // - records.ts:   records, accolades/:type/:id, rankings/:type/:id, ranking-history/:type/:id, projected-rankings
+// - reports.ts:   report (periodo cerrado: semana / mes / año)
 
 import { Hono } from 'hono';
 import type { AppVariables } from '../app.js';
@@ -12,6 +13,7 @@ import insights from './stats/insights.js';
 import detail from './stats/detail.js';
 import charts from './stats/charts.js';
 import records from './stats/records.js';
+import reports from './stats/reports.js';
 
 const stats = new Hono<{ Variables: AppVariables }>();
 
@@ -20,5 +22,6 @@ stats.route('/', insights);
 stats.route('/', detail);
 stats.route('/', charts);
 stats.route('/', records);
+stats.route('/', reports);
 
 export default stats;

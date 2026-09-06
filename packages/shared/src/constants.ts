@@ -92,3 +92,19 @@ export const SOCIAL_OVERLAP_WEIGHT_DECAY = 0.9;
 // pesos por tipo de entidad en el overlap combinado de compare
 // (artistas = gusto general, tracks/albums = coincidencias más puntuales)
 export const OVERLAP_TYPE_WEIGHTS = { artists: 0.5, tracks: 0.3, albums: 0.2 } as const;
+
+// --- reports periódicos ---
+
+// filas de cada top del report (artistas / álbumes / temas); la primera se pinta
+// como tarjeta grande encima de la lista
+export const REPORT_TOP_LIMIT = 10;
+
+// géneros y artistas nuevos que lista el report
+export const REPORT_GENRES_LIMIT = 8;
+export const REPORT_NEW_ARTISTS_LIMIT = 6;
+
+// géneros del periodo anterior que se miran para calcular el cambio de puesto
+export const REPORT_GENRES_PREV_LIMIT = 50;
+
+// periodos cerrados que lista el índice de reports por granularidad
+export const REPORT_INDEX_HISTORY = 12;

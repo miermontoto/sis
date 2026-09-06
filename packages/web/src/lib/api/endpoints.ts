@@ -14,6 +14,7 @@ import type {
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
+  Granularity, WeekStartOption, ReportResponse,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, API_BASE } from './client.js';
 
@@ -114,6 +115,10 @@ export const api = {
 
   chartPeriods: (granularity: string, weekStart: string, signal?: AbortSignal) =>
     apiFetch<{ periods: string[] }>('/stats/charts/periods', { granularity, weekStart }, signal),
+
+  // report de un periodo cerrado. tz = desfase local en minutos, solo para el reloj por horas
+  report: (granularity: Granularity, period: string, weekStart: WeekStartOption, sort: RankingMetric, tz: number, signal?: AbortSignal) =>
+    apiFetch<ReportResponse>('/stats/report', { granularity, period, weekStart, sort, tz: String(tz) }, signal),
 
   chart: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', limit = 25, signal?: AbortSignal) =>
     apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }, signal),

@@ -56,8 +56,8 @@ const PERIOD_PREFIX_WEEK = 'week:';
 const EMPTY_ENTITY = '';
 // weekStart por defecto (coincide con DEFAULTS de routes/settings.ts)
 const DEFAULT_WEEK_START: WeekStartOption = 'friday';
-// ruta de deep link para el recap del chart
-const CHARTS_ROUTE = '/charts';
+// deep link del recap de cierre de semana: el report de la semana cerrada
+const REPORT_WEEK_ROUTE = '/reports/week/';
 // ventana de throttle: 24h para datetime('now', ...)
 const THROTTLE_WINDOW = '-1 day';
 
@@ -262,7 +262,7 @@ function emitChartClosing(
     const payload: PushPayload = {
       title: msg.title,
       body: msg.body,
-      data: { type: EVENT_CHART_CLOSING, period, route: CHARTS_ROUTE },
+      data: { type: EVENT_CHART_CLOSING, period, route: REPORT_WEEK_ROUTE + closedLabel },
     };
     dispatchEvent(userId, EVENT_CHART_CLOSING, EMPTY_ENTITY, period, null, payload);
   }

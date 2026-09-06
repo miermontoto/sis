@@ -6,6 +6,7 @@ import { insertLocalPlay } from '../../services/ingestion.js';
 import { DEFAULT_PAGE_LIMIT, MANUAL_SCROBBLE_MAX } from '../../constants.js';
 import { deleteHistoryEntries } from '../../db/queries/index.js';
 import { getUserStreaksCached } from '../../services/social.js';
+import { invalidateReportCacheForUser } from '../../services/report-cache.js';
 import { statsRouter, parseParams } from './_shared.js';
 
 const insights = statsRouter();
@@ -68,6 +69,7 @@ insights.delete('/history', async (c) => {
   }
 
   const deleted = deleteHistoryEntries(db, userId, body.ids);
+  if (deleted > 0) invalidateReportCacheForUser(userId);
   return c.json({ deleted });
 });
 
@@ -128,6 +130,7 @@ insights.post('/history', async (c) => {
     if (insertLocalPlay(s.trackId, s.playedAt, userId, dur)) inserted++;
   }
 
+  if (inserted > 0) invalidateReportCacheForUser(userId);
   return c.json({ inserted, total: normalized.length, duplicates: normalized.length - inserted });
 });
 

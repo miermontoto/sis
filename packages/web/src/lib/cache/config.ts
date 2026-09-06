@@ -59,6 +59,8 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/stats/charts',                 { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/chart-history/',         { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/records',                { ttl: 1 * HOUR, maxStale: 7 * DAY }],
+  // periodos cerrados: inmutables salvo scrobbles tardíos, que el servidor absorbe en un día
+  ['/stats/report',                 { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/accolades/',             { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/rankings-batch',         { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   // series por lote: acompañan a un detalle (1h), así que envejecen con él

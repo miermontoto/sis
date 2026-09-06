@@ -5,6 +5,7 @@ import { syncUserPlaylists } from './playlist-sync.js';
 import { computeAndCacheForUserAsync } from './records-cache.js';
 import { warmRecentRankChanges } from './recent-changes-cache.js';
 import { getProfileSummaryCached, getUserStreaksCached } from './social.js';
+import { warmLatestReports } from './report-cache.js';
 import { getUserById } from './user-manager.js';
 import { createLogger } from './logger.js';
 
@@ -12,6 +13,7 @@ const logPlaylistSync = createLogger('playlist-sync');
 const logRecordsCache = createLogger('records-cache');
 const logRecentChanges = createLogger('recent-changes');
 const logSocialCard = createLogger('social-card');
+const logReportCache = createLogger('report-cache');
 const deferredUsers = new Set<number>();
 
 /** Lanzar tareas diferidas para un usuario (playlist sync + records cache +
@@ -37,6 +39,10 @@ export function triggerDeferredStartup(userId: number) {
       logSocialCard.error(`error en warmup de resumen usuario ${userId}:`, err));
     getUserStreaksCached(userId).catch(err =>
       logSocialCard.error(`error en warmup de rachas usuario ${userId}:`, err));
+    // reports de la última semana / mes / año cerrados: se hornean antes de que el
+    // usuario los abra (ver report-cache.ts)
+    warmLatestReports(userId, user.spotifyId).catch(err =>
+      logReportCache.error(`error horneando reports usuario ${userId}:`, err));
   }
 }
 

@@ -47,7 +47,7 @@ function updateDataTimestamp(db: ReturnType<typeof getDb>, userId: number) {
   if (latest) lastDataTs.set(userId, latest);
 }
 
-function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; sort: Sort; unique: boolean } {
+export function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; sort: Sort; unique: boolean } {
   const rows = db.select().from(userSettings)
     .where(eq(userSettings.userId, spotifyId))
     .all();

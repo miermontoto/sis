@@ -21,6 +21,7 @@ import {
   RESOLVE_INTERVAL_MS,
   ARTIST_FIX_INTERVAL_MS,
   RECORDS_CACHE_INTERVAL_MS,
+  REPORT_WARM_INTERVAL_MS,
   PLAYLIST_SYNC_INTERVAL_MS,
   AUTO_REGENERATE_CHECK_INTERVAL_MS,
   SESSION_GAP_MS,
@@ -29,6 +30,7 @@ import {
 import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { runDueRegenerations } from './playlist-auto-regenerate.js';
 import { computeAndCacheRecords } from './records-cache.js';
+import { warmAllLatestReports } from './report-cache.js';
 import { resetDeferredState } from './deferred-startup.js';
 import { isLastfmConfigured } from './lastfm-client.js';
 import { syncAllLastfmAccounts } from './lastfm-sync.js';
@@ -49,6 +51,7 @@ const logResolve = createLogger('resolve');
 const logLastfm = createLogger('lastfm');
 const logLastfmMeta = createLogger('lastfm-meta');
 const logRecordsCache = createLogger('records-cache');
+const logReportCache = createLogger('report-cache');
 const logPlaylistSync = createLogger('playlist-sync');
 const logAutoRegen = createLogger('auto-regen');
 
@@ -147,6 +150,7 @@ let metadataRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let resolveImportsTimer: ReturnType<typeof setInterval> | null = null;
 let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
+let reportWarmTimer: ReturnType<typeof setInterval> | null = null;
 let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
 let autoRegenerateTimer: ReturnType<typeof setInterval> | null = null;
 let lastfmSyncTimer: ReturnType<typeof setInterval> | null = null;
@@ -549,6 +553,10 @@ export function startPolling() {
     RECORDS_CACHE_INTERVAL_MS,
   );
 
+  // reports pre-horneados: la semana / mes / año recién cerrados existen antes de que
+  // nadie los abra. el primer horneado se delega al arranque diferido del usuario
+  reportWarmTimer = setInterval(() => { warmAllLatestReports().catch(err => logReportCache.error('error:', err)); }, REPORT_WARM_INTERVAL_MS);
+
   // playlist sync (6h) — la primera sync se delega al login/navegación del usuario
   playlistSyncTimer = setInterval(() => {
     syncAllUsersPlaylists()
@@ -577,6 +585,7 @@ export function stopPolling() {
   if (resolveImportsTimer) clearInterval(resolveImportsTimer);
   if (artistFixTimer) clearInterval(artistFixTimer);
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
+  if (reportWarmTimer) clearInterval(reportWarmTimer);
   if (playlistSyncTimer) clearInterval(playlistSyncTimer);
   if (autoRegenerateTimer) clearInterval(autoRegenerateTimer);
   if (lastfmSyncTimer) clearInterval(lastfmSyncTimer);
@@ -585,6 +594,7 @@ export function stopPolling() {
   resolveImportsTimer = null;
   artistFixTimer = null;
   recordsCacheTimer = null;
+  reportWarmTimer = null;
   playlistSyncTimer = null;
   autoRegenerateTimer = null;
   lastfmSyncTimer = null;

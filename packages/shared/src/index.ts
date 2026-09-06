@@ -73,3 +73,11 @@ export { SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DA
 
 // consultas a musicbrainz (query lucene citada + comparación de títulos)
 export { mbRecordingQuery, normalizeTitle, sameTitle } from './musicbrainz.js';
+
+// modelo de periodo (etiquetas y límites compartidos con los charts)
+export { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isGranularity, isPeriodKey, WEEK_START_SHIFT_DAYS } from './periods.js';
+export type { PeriodBounds } from './periods.js';
+
+// reports periódicos
+export type { ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportMonth, ReportMilestone } from './reports.js';
+export { REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_NEW_ARTISTS_LIMIT, REPORT_GENRES_PREV_LIMIT, REPORT_INDEX_HISTORY } from './constants.js';
