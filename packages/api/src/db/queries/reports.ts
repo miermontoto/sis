@@ -181,7 +181,8 @@ function getTops(db: Db, userId: number, granularity: Granularity, period: strin
 
   return {
     artists: topWithChanges(artistRows, artistRows.map(r => formatTopArtistRow(db, r)), prevIds('artist'), peaks('artist', artistRows)) as TopArtistItem[],
-    albums: topWithChanges(albumRows, albumRows.map(r => formatTopAlbumRow(db, r)), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
+    // los álbumes llevan sus artistas: la fila los muestra bajo el nombre, como los temas
+    albums: topWithChanges(albumRows, albumRows.map(r => ({ ...formatTopAlbumRow(db, r), artists: albumArtistRefs(db, r.entity_id) })), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
     tracks: topWithChanges(trackRows, formatTopTrackRows(db, trackRows), prevIds('track'), peaks('track', trackRows)) as TopTrackItem[],
   };
 }
@@ -376,11 +377,13 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string, sor
 const newPick = (ref: ReportEntityRef | null, plays: number, totalMs: number, artists?: { id: string; name: string }[]): ReportNewPick | null =>
   ref ? { ...ref, plays, totalMs, artists } : null;
 
+const albumArtistRefs = (db: Db, albumId: string) => getAlbumArtists(db, albumId).map(a => ({ id: a.artist_id, name: a.name }));
+
 function albumPick(db: Db, t: DiscoveryTop | undefined): ReportNewPick | null {
   if (!t?.top_id) return null;
   const album = lookupAlbum(db, t.top_id);
   if (!album) return null;
-  const artists = getAlbumArtists(db, t.top_id).map(a => ({ id: a.artist_id, name: a.name }));
+  const artists = albumArtistRefs(db, t.top_id);
   return newPick({ id: t.top_id, name: album.name, imageUrl: album.imageUrl }, t.top_plays ?? 0, t.top_ms ?? 0, artists);
 }
 

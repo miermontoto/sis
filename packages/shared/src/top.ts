@@ -31,5 +31,7 @@ export interface TopAlbumItem {
   previousRank: number | null;
   isNew: boolean;
   isReentry?: boolean;
+  /** artistas del álbum (solo lo rellena el report: sus filas los muestran bajo el nombre) */
+  artists?: { id: string; name: string }[];
   album: { name: string; imageUrl: string | null; releaseDate: string | null; color?: string | null } | null;
 }

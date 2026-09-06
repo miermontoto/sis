@@ -31,7 +31,6 @@
   const MONTH_AXIS_LABEL_EVERY = 5;
   // primer día de la semana según la preferencia, como índice de strftime('%w') (0 = domingo)
   const WEEK_START_DOW: Record<WeekStartOption, number> = { sunday: 0, monday: 1, friday: 5 };
-  const RELEASE_YEAR_CHARS = 4;
 
   let granularity = $derived(page.params.granularity ?? '');
   let period = $derived(page.params.period ?? '');
@@ -263,12 +262,14 @@
       <div class="report-column">
         {#if report.top.albums[0]?.album}
           {@const al = report.top.albums[0]}
-          <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album?.imageUrl ?? null} name={al.album?.name ?? ''} sub={al.album?.releaseDate?.slice(0, RELEASE_YEAR_CHARS) ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }} />
+          <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album?.imageUrl ?? null} name={al.album?.name ?? ''} sub={al.artists?.map(x => x.name).join(', ') ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }} />
         {/if}
         <div class="track-list">
           {#each report.top.albums.slice(1) as al, i (al.albumId)}
-            <TrackItem compact rank={i + 2} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} imageUrl={al.album?.imageUrl} imageHref="/album/{al.albumId}" name={al.album?.name ?? al.albumId} nameHref="/album/{al.albumId}" entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }}>
-              {#snippet subtitle()}{al.album?.releaseDate?.slice(0, RELEASE_YEAR_CHARS) ?? ''}{/snippet}
+            <TrackItem compact rank={i + 2} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} imageUrl={al.album?.imageUrl} imageHref="/album/{al.albumId}" name={al.album?.name ?? al.albumId} nameHref="/album/{al.albumId}" entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }}>
+              {#snippet subtitle()}
+                {#each al.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}" class="artist-link">{ar.name}</a>{/each}
+              {/snippet}
               {#snippet meta()}<span class="data-count">{value(al.playCount, al.totalMs)}</span>{/snippet}
             </TrackItem>
           {/each}
@@ -283,7 +284,7 @@
           {#each report.top.tracks.slice(1) as t, i (t.trackId)}
             <TrackItem compact rank={i + 2} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} imageUrl={t.track?.album?.imageUrl} imageHref={t.track?.album ? `/album/${t.track.album.id}` : undefined} name={t.track?.name ?? t.trackId} nameHref="/track/{t.trackId}" entity={t.track ? trackEntity(t.track) : undefined}>
               {#snippet subtitle()}
-                {#each t.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}">{ar.name}</a>{/each}
+                {#each t.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}" class="artist-link">{ar.name}</a>{/each}
               {/snippet}
               {#snippet meta()}<span class="data-count">{value(t.playCount, t.totalMs)}</span>{/snippet}
             </TrackItem>
@@ -352,7 +353,7 @@
               <div class="track-list">
                 <TrackItem compact imageUrl={play.track.album?.imageUrl} imageHref={play.track.album ? `/album/${play.track.album.id}` : undefined} name={play.track.name} nameHref="/track/{play.track.id}" entity={trackEntity(play.track)}>
                   {#snippet subtitle()}
-                    {#each play.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}">{ar.name}</a>{/each}
+                    {#each play.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}" class="artist-link">{ar.name}</a>{/each}
                   {/snippet}
                   {#snippet meta()}<span class="data-count">{formatHistoryStamp(play.playedAt)}</span>{/snippet}
                 </TrackItem>
