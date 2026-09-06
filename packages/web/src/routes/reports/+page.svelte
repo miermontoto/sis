@@ -42,10 +42,10 @@
 <div class="report-latest">
   {#each latest as item (item.granularity)}
     {#if item.period}
+      {@const label = periodLabel(item.period, item.granularity)}
+      {@const range = periodDateRange(item.period, item.granularity, weekStart)}
       <a class="card report-latest-card" href="/reports/{item.granularity}/{item.period}">
         <span class="data-label">Last {GRANULARITY_NOUNS[item.granularity].toLowerCase()}</span>
-        {@const label = periodLabel(item.period, item.granularity)}
-        {@const range = periodDateRange(item.period, item.granularity, weekStart)}
         <span class="report-latest-title">{label}</span>
         <!-- en meses y años el rango de fechas es el propio título: no repetirlo -->
         {#if range !== label}<span class="report-latest-range">{range}</span>{/if}
@@ -71,9 +71,9 @@
 {:else}
   <div class="card report-history">
     {#each visibleHistory as p (p)}
+      {@const label = periodLabel(p, historyGran)}
+      {@const range = periodDateRange(p, historyGran, weekStart)}
       <a class="report-history-row" href="/reports/{historyGran}/{p}">
-        {@const label = periodLabel(p, historyGran)}
-        {@const range = periodDateRange(p, historyGran, weekStart)}
         <span class="report-history-label">{label}</span>
         {#if range !== label}<span class="report-history-range data-count">{range}</span>{/if}
         <IconChevronRight />

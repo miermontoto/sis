@@ -85,12 +85,19 @@ export interface ReportDiscoveryStat {
   playsPct: number;
 }
 
+/** estreno más escuchado de un tipo; artists solo en álbumes y temas (subtítulo) */
+export interface ReportNewPick extends ReportEntityRef {
+  plays: number;
+  totalMs: number;
+  artists?: { id: string; name: string }[];
+}
+
 export interface ReportDiscovery {
   artists: ReportDiscoveryStat;
   albums: ReportDiscoveryStat;
   tracks: ReportDiscoveryStat;
-  /** artistas nuevos más escuchados */
-  topNewArtists: (ReportEntityRef & { plays: number; totalMs: number })[];
+  /** el estreno más escuchado de cada tipo (null si no hubo) */
+  topNew: { artist: ReportNewPick | null; album: ReportNewPick | null; track: ReportNewPick | null };
 }
 
 export interface ReportMonth {

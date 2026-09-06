@@ -10,18 +10,19 @@ import type {
   Granularity, WeekStartOption, RankingMetric, ListeningTimeItem,
   TopArtistItem, TopAlbumItem, TopTrackItem,
   ReportResponse, ReportSummary, ReportFacts, ReportGenre, ReportDecade, ReportDiscovery,
-  ReportDiscoveryStat, ReportMonth, ReportMilestone, ReportEntityRef, ReportPlayRef,
+  ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone, ReportEntityRef, ReportPlayRef,
 } from '@sis/shared';
 import {
   periodBounds, adjacentPeriod, isClosedPeriod,
-  REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT, REPORT_NEW_ARTISTS_LIMIT,
+  REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT,
 } from '@sis/shared';
 import type { Db, SqlChunk, AggregateRow } from './helpers.js';
 import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges } from './helpers.js';
 import { getTopEntities, getPrevPeriodEntities, getGlobalSeries } from './entity.js';
 import { getTopGenres } from './inline.js';
 import { getProfileSummary } from './social.js';
-import { formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, lookupArtist } from './formatters.js';
+import { formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, lookupArtist, lookupAlbum } from './formatters.js';
+import { getAlbumArtists } from './album.js';
 import { enrichTracksBatch } from './track.js';
 import { MILESTONE_THRESHOLDS } from '../../constants.js';
 
@@ -273,6 +274,8 @@ function noPlayBefore(userId: number, start: string, trackIds: SqlChunk): SqlChu
 }
 
 interface DiscoveryTotals { total: number; new_count: number; total_plays: number; new_plays: number }
+// estreno más escuchado del tipo según la métrica del usuario (null sin estrenos)
+interface DiscoveryTop { top_id: string | null; top_plays: number | null; top_ms: number | null }
 
 function toDiscoveryStat(t: DiscoveryTotals | undefined): ReportDiscoveryStat {
   const total = t?.total ?? 0;
@@ -281,41 +284,50 @@ function toDiscoveryStat(t: DiscoveryTotals | undefined): ReportDiscoveryStat {
   return { newCount, totalCount: total, pct: pct(newCount, total), newPlays, playsPct: pct(newPlays, t?.total_plays ?? 0) };
 }
 
-function trackDiscovery(db: Db, userId: number, start: string, end: string): ReportDiscoveryStat {
-  const row = db.get(sql`
-    WITH p AS (
-      SELECT ${resolvedEntityId('track')} AS id, count(*) AS plays
-      FROM listening_history lh ${entityMergeJoin('track', userId)}
-      WHERE ${periodWhere(userId, start, end)}
-      GROUP BY 1
-    )
-    SELECT count(*) AS total, sum(is_new) AS new_count, sum(plays) AS total_plays, sum(CASE WHEN is_new THEN plays ELSE 0 END) AS new_plays
-    FROM (SELECT p.plays, ${noPlayBefore(userId, start, mergeGroup('track', userId, sql`p.id`))} AS is_new FROM p)
-  `) as DiscoveryTotals | undefined;
-  return toDiscoveryStat(row);
+const metricCol = (sort: Sort) => sort === 'plays' ? sql`plays` : sql`total_ms`;
+
+// totales del tipo y su estreno más escuchado en una pasada: la CTE con el probe se
+// materializa y los escalares del top leen de ella en vez de repetir el probe
+function discoveryTotals(db: Db, period: SqlChunk, isNew: SqlChunk, sort: Sort): (DiscoveryTotals & DiscoveryTop) | undefined {
+  const top = (col: SqlChunk) => sql`(SELECT ${col} FROM q WHERE is_new ORDER BY ${metricCol(sort)} DESC, id LIMIT 1)`;
+  return db.get(sql`
+    WITH p AS (${period}),
+    q AS MATERIALIZED (SELECT p.id, p.plays, p.total_ms, ${isNew} AS is_new FROM p)
+    SELECT count(*) AS total, sum(is_new) AS new_count, sum(plays) AS total_plays,
+      sum(CASE WHEN is_new THEN plays ELSE 0 END) AS new_plays,
+      ${top(sql`id`)} AS top_id, ${top(sql`plays`)} AS top_plays, ${top(sql`total_ms`)} AS top_ms
+    FROM q
+  `) as (DiscoveryTotals & DiscoveryTop) | undefined;
 }
 
-function albumDiscovery(db: Db, userId: number, start: string, end: string): ReportDiscoveryStat {
+function trackDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+  const period = sql`
+    SELECT ${resolvedEntityId('track')} AS id, count(*) AS plays, sum(${playDuration()}) AS total_ms
+    FROM listening_history lh
+    JOIN tracks t ON t.spotify_id = lh.track_id
+    ${entityMergeJoin('track', userId)}
+    WHERE ${periodWhere(userId, start, end)}
+    GROUP BY 1`;
+  return discoveryTotals(db, period, noPlayBefore(userId, start, mergeGroup('track', userId, sql`p.id`)), sort);
+}
+
+function albumDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
   // tracks del grupo de álbumes (idx_tracks_album_id). los sources de merges de track
   // quedan fuera a propósito: incluirlos obliga a un join merge_rules × tracks por
   // álbum del periodo (5s en un año) para cubrir el caso de un álbum cuyos únicos
   // plays previos fueran de tracks luego mergeados
   const albumTracks = sql`SELECT tr.spotify_id FROM tracks tr WHERE tr.album_id IN (${mergeGroup('album', userId, sql`p.id`)})`;
-  const row = db.get(sql`
-    WITH p AS (
-      SELECT ${resolvedEntityId('album')} AS id, count(*) AS plays
-      FROM listening_history lh ${trackJoinResolvingMerges(userId)} ${entityMergeJoin('album', userId)}
-      WHERE ${periodWhere(userId, start, end)} AND t.album_id IS NOT NULL
-      GROUP BY 1
-    )
-    SELECT count(*) AS total, sum(is_new) AS new_count, sum(plays) AS total_plays, sum(CASE WHEN is_new THEN plays ELSE 0 END) AS new_plays
-    FROM (SELECT p.plays, ${noPlayBefore(userId, start, albumTracks)} AS is_new FROM p)
-  `) as DiscoveryTotals | undefined;
-  return toDiscoveryStat(row);
+  const period = sql`
+    SELECT ${resolvedEntityId('album')} AS id, count(*) AS plays, sum(${playDuration()}) AS total_ms
+    FROM listening_history lh ${trackJoinResolvingMerges(userId)} ${entityMergeJoin('album', userId)}
+    WHERE ${periodWhere(userId, start, end)} AND t.album_id IS NOT NULL
+    GROUP BY 1`;
+  return discoveryTotals(db, period, noPlayBefore(userId, start, albumTracks), sort);
 }
 
-// los artistas vuelven fila a fila: además de los totales hacen falta los nuevos más oídos
-function artistDiscovery(db: Db, userId: number, start: string, end: string): { stat: ReportDiscoveryStat; topNew: ReportDiscovery['topNewArtists'] } {
+// los artistas vuelven fila a fila (agregado por track + expansión a artista resuelto,
+// como topArtistsAggregate); totales y estreno se sacan en memoria
+function artistDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
   const artistTracks = sql`
     SELECT ta2.track_id FROM track_artists ta2 WHERE ta2.artist_id IN (${mergeGroup('artist', userId, sql`p.id`)})`;
   const rows = db.all(sql`
@@ -336,7 +348,7 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string): { 
     )
     SELECT p.id, p.plays, p.total_ms, ${noPlayBefore(userId, start, artistTracks)} AS is_new
     FROM p
-    ORDER BY p.plays DESC
+    ORDER BY ${sort === 'plays' ? sql`p.plays` : sql`p.total_ms`} DESC, p.id
   `) as { id: string; plays: number; total_ms: number; is_new: number }[];
 
   const totals = rows.reduce<DiscoveryTotals>((acc, r) => ({
@@ -346,21 +358,40 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string): { 
     new_plays: acc.new_plays + (r.is_new ? r.plays : 0),
   }), { total: 0, new_count: 0, total_plays: 0, new_plays: 0 });
 
-  const topNew = rows.filter(r => r.is_new).slice(0, REPORT_NEW_ARTISTS_LIMIT).flatMap((r) => {
-    const ref = artistRef(db, r.id);
-    return ref ? [{ ...ref, plays: r.plays, totalMs: r.total_ms }] : [];
-  });
-
-  return { stat: toDiscoveryStat(totals), topNew };
+  return { totals, top: rows.find(r => r.is_new) ?? null };
 }
 
-function getDiscovery(db: Db, userId: number, start: string, end: string): ReportDiscovery {
-  const artists = artistDiscovery(db, userId, start, end);
+const newPick = (ref: ReportEntityRef | null, plays: number, totalMs: number, artists?: { id: string; name: string }[]): ReportNewPick | null =>
+  ref ? { ...ref, plays, totalMs, artists } : null;
+
+function albumPick(db: Db, t: DiscoveryTop | undefined): ReportNewPick | null {
+  if (!t?.top_id) return null;
+  const album = lookupAlbum(db, t.top_id);
+  if (!album) return null;
+  const artists = getAlbumArtists(db, t.top_id).map(a => ({ id: a.artist_id, name: a.name }));
+  return newPick({ id: t.top_id, name: album.name, imageUrl: album.imageUrl }, t.top_plays ?? 0, t.top_ms ?? 0, artists);
+}
+
+function trackPick(db: Db, t: DiscoveryTop | undefined): ReportNewPick | null {
+  if (!t?.top_id) return null;
+  const track = enrichTracksBatch(db, [t.top_id]).get(t.top_id);
+  if (!track) return null;
+  return newPick({ id: t.top_id, name: track.name, imageUrl: track.album?.imageUrl ?? null }, t.top_plays ?? 0, t.top_ms ?? 0, track.artists.map(a => ({ id: a.id, name: a.name })));
+}
+
+function getDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort): ReportDiscovery {
+  const artists = artistDiscovery(db, userId, start, end, sort);
+  const albums = albumDiscovery(db, userId, start, end, sort);
+  const tracks = trackDiscovery(db, userId, start, end, sort);
   return {
-    artists: artists.stat,
-    albums: albumDiscovery(db, userId, start, end),
-    tracks: trackDiscovery(db, userId, start, end),
-    topNewArtists: artists.topNew,
+    artists: toDiscoveryStat(artists.totals),
+    albums: toDiscoveryStat(albums),
+    tracks: toDiscoveryStat(tracks),
+    topNew: {
+      artist: artists.top ? newPick(artistRef(db, artists.top.id), artists.top.plays, artists.top.total_ms) : null,
+      album: albumPick(db, albums),
+      track: trackPick(db, tracks),
+    },
   };
 }
 
@@ -463,7 +494,7 @@ export function getReport(db: Db, userId: number, granularity: Granularity, peri
     genres: getGenres(db, userId, start, end, prev, summary.plays),
     genreCoveragePct: genreCoverage(db, userId, start, end, summary.plays),
     decades: getDecades(db, userId, start, end, summary.plays),
-    discovery: getDiscovery(db, userId, start, end),
+    discovery: getDiscovery(db, userId, start, end, sort),
     months: granularity === 'year' ? getMonths(db, userId, start, end, sort) : null,
     milestones: getMilestones(db, userId, start, end, summary.plays),
   };

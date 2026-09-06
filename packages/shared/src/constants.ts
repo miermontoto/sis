@@ -99,9 +99,8 @@ export const OVERLAP_TYPE_WEIGHTS = { artists: 0.5, tracks: 0.3, albums: 0.2 } a
 // como tarjeta grande encima de la lista
 export const REPORT_TOP_LIMIT = 10;
 
-// géneros y artistas nuevos que lista el report
+// géneros que lista el report
 export const REPORT_GENRES_LIMIT = 8;
-export const REPORT_NEW_ARTISTS_LIMIT = 6;
 
 // géneros del periodo anterior que se miran para calcular el cambio de puesto
 export const REPORT_GENRES_PREV_LIMIT = 50;

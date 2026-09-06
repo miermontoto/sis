@@ -39,7 +39,8 @@
     <div class="report-top-img report-top-img--empty" class:report-top-img--round={round}></div>
   {/if}
   <span class="report-top-name">{name}</span>
-  {#if sub}<span class="report-top-sub">{sub}</span>{/if}
+  <!-- siempre en el flujo: sin subtítulo la tarjeta sería más baja que sus vecinas -->
+  <span class="report-top-sub">{sub}</span>
   <span class="report-top-value">
     <span class="data-count">{value}</span>
     <RankChange {rankChange} {isNew} />
@@ -78,6 +79,7 @@
   .report-top-sub {
     font-size: 0.8rem;
     color: var(--text-muted);
+    min-height: 1.3em;
   }
   .report-top-value {
     display: inline-flex;

@@ -16,7 +16,6 @@
   import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
-  import CoverGrid from '$lib/components/CoverGrid.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import ReportBars, { type BarItem } from '$lib/components/reports/ReportBars.svelte';
   import ReportPolar from '$lib/components/reports/ReportPolar.svelte';
@@ -148,12 +147,8 @@
     key: String(d.decade), label: `${d.decade}s`, value: d.plays, valueLabel: `${d.pct}%`,
     sublabel: d.topArtist?.name, imageUrl: d.topArtist?.imageUrl, round: true, href: d.topArtist ? `/artist/${d.topArtist.id}` : undefined,
   })));
-  let newArtistFaces = $derived((report?.discovery.topNewArtists ?? []).map(a => ({
-    href: `/artist/${a.id}`, imageUrl: a.imageUrl, name: a.name, stat: value(a.plays, a.totalMs), round: true,
-  })));
 
   let avgPlaysPerDay = $derived(report ? Math.round(report.summary.plays / Math.max(1, report.summary.days)) : 0);
-  let avgMsPerDay = $derived(report ? report.summary.totalMs / Math.max(1, report.summary.days) : 0);
 
   const trackEntity = (t: { id: string; name: string; album: { imageUrl: string | null } | null; artists: { id: string }[] }): EntityContext =>
     ({ type: 'track', id: t.id, name: t.name, imageUrl: t.album?.imageUrl ?? null, parentArtistId: t.artists[0]?.id });
@@ -251,11 +246,12 @@
       <div class="report-column">
         {#if report.top.artists[0]?.artist}
           {@const a = report.top.artists[0]}
-          <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist?.imageUrl ?? null} round name={a.artist?.name ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }} />
+          <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist?.imageUrl ?? null} round name={a.artist?.name ?? ''} sub={a.artist?.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }} />
         {/if}
         <div class="track-list">
           {#each report.top.artists.slice(1) as a, i (a.artistId)}
             <TrackItem compact rank={i + 2} rankChange={a.rankChange} isNew={a.isNew} imageUrl={a.artist?.imageUrl} imageHref="/artist/{a.artistId}" imageRound name={a.artist?.name ?? a.artistId} nameHref="/artist/{a.artistId}" entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }}>
+              {#snippet subtitle()}{a.artist?.genres[0] ?? ''}{/snippet}
               {#snippet meta()}<span class="data-count">{value(a.playCount, a.totalMs)}</span>{/snippet}
             </TrackItem>
           {/each}
@@ -269,6 +265,7 @@
         <div class="track-list">
           {#each report.top.albums.slice(1) as al, i (al.albumId)}
             <TrackItem compact rank={i + 2} rankChange={al.rankChange} isNew={al.isNew} imageUrl={al.album?.imageUrl} imageHref="/album/{al.albumId}" name={al.album?.name ?? al.albumId} nameHref="/album/{al.albumId}" entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }}>
+              {#snippet subtitle()}{al.album?.releaseDate?.slice(0, RELEASE_YEAR_CHARS) ?? ''}{/snippet}
               {#snippet meta()}<span class="data-count">{value(al.playCount, al.totalMs)}</span>{/snippet}
             </TrackItem>
           {/each}
@@ -277,7 +274,7 @@
       <div class="report-column">
         {#if report.top.tracks[0]?.track}
           {@const t = report.top.tracks[0]}
-          <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track?.album?.imageUrl ?? null} name={t.track?.name ?? ''} sub={t.track?.artists.map(x => x.name).join(', ') ?? ''} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} entity={t.track ? trackEntity(t.track) : undefined} />
+          <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track?.album?.imageUrl ?? null} name={t.track?.name ?? ''} sub={[t.track?.artists.map(x => x.name).join(', '), facts.topTrackShare > 0 ? `${facts.topTrackShare}% of plays` : ''].filter(Boolean).join(' · ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} entity={t.track ? trackEntity(t.track) : undefined} />
         {/if}
         <div class="track-list">
           {#each report.top.tracks.slice(1) as t, i (t.trackId)}
@@ -310,13 +307,15 @@
       {/if}
     </div>
 
-    <!-- quick facts -->
+    <!-- quick facts: pocas tarjetas y etiquetas cortas (la cifra grande ya cuenta la
+         historia); el primer y último play van en una línea porque un título de tema
+         no cabe en una stat card -->
     <h2 class="section-title">Quick facts</h2>
     <div class="stats-grid report-facts">
       {#if facts.busiestDay}
-        <a class="card stat-card stat-card--link" href="/history?date={facts.busiestDay.date}">
+        <a class="card stat-card stat-card--link" href="/history?date={facts.busiestDay.date}" title="{formatNumber(facts.busiestDay.plays)} plays">
           <div class="stat-value">{formatShortDateUTC(new Date(facts.busiestDay.date))}</div>
-          <div class="stat-label">Busiest day · {formatNumber(facts.busiestDay.plays)} plays</div>
+          <div class="stat-label">Busiest day</div>
         </a>
       {/if}
       {#if facts.busiestHour !== null}
@@ -331,33 +330,26 @@
       </div>
       <div class="card stat-card">
         <div class="stat-value">{formatNumber(avgPlaysPerDay)}</div>
-        <div class="stat-label">Plays per day · {formatHours(avgMsPerDay)}</div>
+        <div class="stat-label">Plays per day</div>
       </div>
-      {#if facts.longestStreak > 1}
+      <!-- la racha solo aporta cuando no es simplemente "todos los días activos seguidos" -->
+      {#if facts.longestStreak > 1 && facts.longestStreak < s.activeDays}
         <div class="card stat-card">
           <div class="stat-value">{facts.longestStreak}</div>
           <div class="stat-label">Day streak</div>
         </div>
       {/if}
-      {#if report.top.tracks[0]?.track && facts.topTrackShare > 0}
-        <div class="card stat-card">
-          <div class="stat-value">{facts.topTrackShare}%</div>
-          <div class="stat-label">of plays were {report.top.tracks[0].track.name}</div>
-        </div>
-      {/if}
-      {#if facts.firstPlay?.track}
-        <a class="card stat-card stat-card--link" href="/track/{facts.firstPlay.track.id}">
-          <div class="stat-value report-fact-track">{facts.firstPlay.track.name}</div>
-          <div class="stat-label">First play · {formatHistoryStamp(facts.firstPlay.playedAt)}</div>
-        </a>
-      {/if}
-      {#if facts.lastPlay?.track}
-        <a class="card stat-card stat-card--link" href="/track/{facts.lastPlay.track.id}">
-          <div class="stat-value report-fact-track">{facts.lastPlay.track.name}</div>
-          <div class="stat-label">Last play · {formatHistoryStamp(facts.lastPlay.playedAt)}</div>
-        </a>
-      {/if}
     </div>
+    {#if facts.firstPlay?.track || facts.lastPlay?.track}
+      <p class="report-edges">
+        {#if facts.firstPlay?.track}
+          <span><span class="data-label">First play</span> <a href="/track/{facts.firstPlay.track.id}">{facts.firstPlay.track.name}</a> <span class="data-count">{formatHistoryStamp(facts.firstPlay.playedAt)}</span></span>
+        {/if}
+        {#if facts.lastPlay?.track}
+          <span><span class="data-label">Last play</span> <a href="/track/{facts.lastPlay.track.id}">{facts.lastPlay.track.name}</a> <span class="data-count">{formatHistoryStamp(facts.lastPlay.playedAt)}</span></span>
+        {/if}
+      </p>
+    {/if}
 
     <!-- géneros + décadas -->
     {#if genreBars.length > 0 || decadeBars.length > 0}
@@ -394,8 +386,22 @@
         <div class="report-discovery-tile"><span class="data-val">{formatNumber(d.albums.newCount)}</span><span class="data-label">new albums of {formatNumber(d.albums.totalCount)}</span></div>
         <div class="report-discovery-tile"><span class="data-val">{formatNumber(d.tracks.newCount)}</span><span class="data-label">new tracks of {formatNumber(d.tracks.totalCount)}</span></div>
       </div>
-      {#if newArtistFaces.length > 0}
-        <CoverGrid items={newArtistFaces} />
+      <!-- topNew se lee con ?.: una respuesta cacheada por la versión anterior no trae la clave -->
+      {#if d.topNew?.artist || d.topNew?.album || d.topNew?.track}
+        <div class="report-discovery-picks">
+          {#if d.topNew.artist}
+            {@const n = d.topNew.artist}
+            <ReportTopCard label="New artist" href="/artist/{n.id}" imageUrl={n.imageUrl} round name={n.name} value={value(n.plays, n.totalMs)} entity={{ type: 'artist', id: n.id, name: n.name, imageUrl: n.imageUrl }} />
+          {/if}
+          {#if d.topNew.album}
+            {@const n = d.topNew.album}
+            <ReportTopCard label="New album" href="/album/{n.id}" imageUrl={n.imageUrl} name={n.name} sub={n.artists?.map(x => x.name).join(', ') ?? ''} value={value(n.plays, n.totalMs)} entity={{ type: 'album', id: n.id, name: n.name, imageUrl: n.imageUrl, parentArtistId: n.artists?.[0]?.id }} />
+          {/if}
+          {#if d.topNew.track}
+            {@const n = d.topNew.track}
+            <ReportTopCard label="New track" href="/track/{n.id}" imageUrl={n.imageUrl} name={n.name} sub={n.artists?.map(x => x.name).join(', ') ?? ''} value={value(n.plays, n.totalMs)} entity={{ type: 'track', id: n.id, name: n.name, imageUrl: n.imageUrl, parentArtistId: n.artists?.[0]?.id }} />
+          {/if}
+        </div>
       {/if}
     </div>
 
@@ -504,17 +510,33 @@
     align-items: center;
     gap: 0.4rem;
   }
+  /* las tres columnas comparten filas (subgrid): la tarjeta del nº 1 mide lo mismo
+     en todas aunque un nombre se parta en dos líneas, y las listas arrancan a la
+     misma altura */
   .report-columns {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto auto;
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
   .report-column {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
     gap: 0.75rem;
     min-width: 0;
+  }
+  /* como ítems de grid, la tarjeta y la lista no encogen por debajo de su contenido
+     (min-width: auto): un título de tema kilométrico ensanchaba la columna entera */
+  .report-column > .track-list,
+  .report-column > :global(.report-top-card) {
+    min-width: 0;
+  }
+  /* filas de dos líneas en las tres listas: un artista sin género o un álbum sin
+     año no puede dejar su fila más baja que las de al lado */
+  .report-column :global(.track-item) {
+    min-height: 3.1rem;
   }
   .report-charts {
     display: grid;
@@ -533,11 +555,19 @@
     color: var(--text-muted);
     font-size: 0.6em;
   }
-  .report-fact-track {
-    font-size: clamp(0.85rem, 1.5vw, 1rem);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .report-edges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.5rem;
+    margin: -0.75rem 0 1.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .report-edges a {
+    color: var(--text);
+  }
+  .report-edges a:hover {
+    color: var(--accent);
   }
   .report-pair {
     display: grid;
@@ -578,6 +608,11 @@
     padding: 0.6rem 0.75rem;
     background: var(--bg-hover);
     border-radius: var(--radius);
+  }
+  .report-discovery-picks {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
   }
   .report-months {
     display: grid;
@@ -625,13 +660,15 @@
   }
   .report-month-track:hover { color: var(--accent); }
   @media (max-width: 1024px) {
-    .report-columns { grid-template-columns: 1fr; }
+    .report-columns { grid-template-columns: 1fr; grid-template-rows: none; }
+    .report-column { grid-row: auto; grid-template-rows: auto auto; }
     .report-charts, .report-charts--triple { grid-template-columns: 1fr; }
     .report-months { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 768px) {
     .report-pair { grid-template-columns: 1fr; }
     .report-discovery-tiles { grid-template-columns: 1fr; }
+    .report-discovery-picks { grid-template-columns: 1fr; }
     .report-title h1 { font-size: 1.5rem; }
   }
 </style>
