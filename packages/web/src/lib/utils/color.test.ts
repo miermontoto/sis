@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readableTextOn, hexToRgb, rgbToHex, resolveEntityColor } from './color';
+import { readableTextOn, hexToRgb, rgbToHex, resolveEntityColor, dominantFromPixels, paletteFromPixels } from './color';
 
 // el nombre de la entidad se pinta dentro de su barra cuando cabe, y el relleno
 // de la barra es el color dominante de la portada: sin elegir el texto por
@@ -75,5 +75,50 @@ describe('resolveEntityColor', () => {
   it('sin pick ni imagen cae al verde por defecto', async () => {
     await expect(resolveEntityColor(null, null)).resolves.toEqual(SPOTIFY_GREEN);
     await expect(resolveEntityColor('nope', undefined)).resolves.toEqual(SPOTIFY_GREEN);
+  });
+});
+
+// bloque rgba sintético: cada color repetido n veces, alfa opaco
+function pixels(blocks: [[number, number, number], number][]): Uint8ClampedArray {
+  return new Uint8ClampedArray(blocks.flatMap(([[r, g, b], n]) => Array.from({ length: n }, () => [r, g, b, 255]).flat()));
+}
+
+describe('dominantFromPixels', () => {
+  it('elige el píxel más saturado y brillante aunque sea minoritario, aclarado a la luma mínima', () => {
+    // 90 grises y 10 rojos: el rojo gana por saturación; su luma (~80) se sube a 90
+    const data = pixels([[[128, 128, 128], 90], [[220, 20, 20], 10]]);
+    expect(dominantFromPixels(data)).toEqual([248, 23, 23]);
+  });
+
+  it('sin nada saturado usa la media de lo que no es negro', () => {
+    const data = pixels([[[100, 100, 100], 50], [[0, 0, 0], 50]]);
+    expect(dominantFromPixels(data)).toEqual([100, 100, 100]);
+  });
+
+  it('todo negro cae al verde por defecto', () => {
+    expect(dominantFromPixels(pixels([[[0, 0, 0], 20]]))).toEqual(SPOTIFY_GREEN);
+  });
+});
+
+describe('paletteFromPixels', () => {
+  it('devuelve los colores más presentes, sin negros y sin repetir un tono casi igual', () => {
+    const data = pixels([
+      [[200, 30, 30], 50],
+      [[202, 32, 28], 30], // el mismo rojo a ojo: no merece swatch propio
+      [[30, 60, 200], 40],
+      [[10, 10, 10], 100], // negro: mayoritario pero inútil como color de gráfica
+      [[240, 240, 240], 20],
+    ]);
+    expect(paletteFromPixels(data, 6)).toEqual([[200, 30, 30], [30, 60, 200], [240, 240, 240]]);
+  });
+
+  it('respeta el tope pedido en orden de presencia', () => {
+    const data = pixels([[[200, 30, 30], 50], [[30, 60, 200], 40], [[240, 240, 240], 20]]);
+    expect(paletteFromPixels(data, 2)).toEqual([[200, 30, 30], [30, 60, 200]]);
+  });
+
+  it('sin píxeles útiles devuelve vacío', () => {
+    expect(paletteFromPixels(pixels([[[0, 0, 0], 10]]), 6)).toEqual([]);
+    expect(paletteFromPixels(new Uint8ClampedArray(0), 6)).toEqual([]);
   });
 });

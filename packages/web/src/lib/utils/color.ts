@@ -70,66 +70,126 @@ export function resolveEntityColor(color: string | null | undefined, imageUrl: s
   return imageUrl ? extractColor(imageUrl) : Promise.resolve(DEFAULT_COLOR);
 }
 
-export function extractColor(url: string): Promise<Rgb> {
+// muestreo: la imagen se reduce a size×size antes de leer píxeles. 32 basta para el
+// dominante; la paleta del cuentagotas muestrea a 64 para no perder colores pequeños
+const DOMINANT_SAMPLE_SIZE = 32;
+// brillo (canal máximo / 255) por debajo del cual un píxel cuenta como negro
+const MIN_BRIGHTNESS = 0.08;
+// el dominante es el píxel con mejor saturación × brillo; por debajo de este score no
+// hay nada "de color" en la imagen y se usa la media
+const MIN_DOMINANT_SCORE = 0.15;
+const SCORE_BASE = 0.3;
+const SCORE_BRIGHTNESS_WEIGHT = 0.7;
+// luma mínima del resultado: por debajo se aclara, o no se vería sobre el fondo oscuro
+const MIN_LUMA = 90;
+const LUMA_WEIGHTS = [0.299, 0.587, 0.114];
+// paleta: cuantización a 5 bits por canal (32 niveles) y distancia mínima entre dos
+// colores elegidos, para que la paleta no sean seis tonos del mismo rojo
+const PALETTE_BITS = 5;
+const PALETTE_SHIFT = 8 - PALETTE_BITS;
+const PALETTE_MIN_DISTANCE = 48;
+
+/**
+ * Píxeles rgba de `url` reducida a size×size; null si la imagen no carga o el canvas
+ * queda contaminado (sin cabeceras CORS el navegador no deja leer sus píxeles).
+ */
+export function readImagePixels(url: string, size: number): Promise<Uint8ClampedArray | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
-        const size = 32;
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-
-        let bestR = 0, bestG = 0, bestB = 0, bestScore = -1;
-        let sumR = 0, sumG = 0, sumB = 0, count = 0;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const pr = data[i], pg = data[i+1], pb = data[i+2];
-          const max = Math.max(pr, pg, pb), min = Math.min(pr, pg, pb);
-          const sat = max === 0 ? 0 : (max - min) / max;
-          const brightness = max / 255;
-          const score = sat * (0.3 + brightness * 0.7);
-
-          if (brightness > 0.08) {
-            sumR += pr; sumG += pg; sumB += pb; count++;
-          }
-          if (score > bestScore) {
-            bestScore = score;
-            bestR = pr; bestG = pg; bestB = pb;
-          }
-        }
-
-        let r: number, g: number, b: number;
-
-        if (bestScore > 0.15) {
-          r = bestR; g = bestG; b = bestB;
-        } else if (count > 0) {
-          r = Math.round(sumR / count);
-          g = Math.round(sumG / count);
-          b = Math.round(sumB / count);
-        } else {
-          resolve(DEFAULT_COLOR);
-          return;
-        }
-
-        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (lum < 90) {
-          const factor = 90 / Math.max(lum, 1);
-          r = Math.min(255, Math.round(r * factor));
-          g = Math.min(255, Math.round(g * factor));
-          b = Math.min(255, Math.round(b * factor));
-        }
-
-        resolve([r, g, b]);
+        resolve(ctx.getImageData(0, 0, size, size).data);
       } catch {
-        resolve(DEFAULT_COLOR);
+        resolve(null);
       }
     };
-    img.onerror = () => resolve(DEFAULT_COLOR);
+    img.onerror = () => resolve(null);
     img.src = url;
   });
+}
+
+/**
+ * Color dominante de un bloque de píxeles rgba: el más saturado y brillante; si no hay
+ * nada saturado, la media de lo que no es negro. El resultado se aclara hasta MIN_LUMA
+ * porque tiñe fondos oscuros. Pura a propósito: es lo que se puede testear.
+ */
+export function dominantFromPixels(data: Uint8ClampedArray): Rgb {
+  let bestR = 0, bestG = 0, bestB = 0, bestScore = -1;
+  let sumR = 0, sumG = 0, sumB = 0, count = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const pr = data[i], pg = data[i + 1], pb = data[i + 2];
+    const max = Math.max(pr, pg, pb), min = Math.min(pr, pg, pb);
+    const sat = max === 0 ? 0 : (max - min) / max;
+    const brightness = max / 255;
+    const score = sat * (SCORE_BASE + brightness * SCORE_BRIGHTNESS_WEIGHT);
+
+    if (brightness > MIN_BRIGHTNESS) {
+      sumR += pr; sumG += pg; sumB += pb; count++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestR = pr; bestG = pg; bestB = pb;
+    }
+  }
+
+  let r: number, g: number, b: number;
+  if (bestScore > MIN_DOMINANT_SCORE) {
+    r = bestR; g = bestG; b = bestB;
+  } else if (count > 0) {
+    r = Math.round(sumR / count);
+    g = Math.round(sumG / count);
+    b = Math.round(sumB / count);
+  } else {
+    return DEFAULT_COLOR;
+  }
+
+  const luma = LUMA_WEIGHTS[0] * r + LUMA_WEIGHTS[1] * g + LUMA_WEIGHTS[2] * b;
+  if (luma < MIN_LUMA) {
+    const factor = MIN_LUMA / Math.max(luma, 1);
+    r = Math.min(255, Math.round(r * factor));
+    g = Math.min(255, Math.round(g * factor));
+    b = Math.min(255, Math.round(b * factor));
+  }
+  return [r, g, b];
+}
+
+function colorDistance(a: Rgb, b: Rgb): number {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+/**
+ * Hasta `count` colores representativos de un bloque de píxeles rgba, del más presente
+ * al menos: media de los buckets más poblados de una cuantización gruesa, saltando los
+ * negros y los que se parecen a uno ya elegido. Es la paleta del cuentagotas.
+ */
+export function paletteFromPixels(data: Uint8ClampedArray, count: number): Rgb[] {
+  const buckets = new Map<number, { r: number; g: number; b: number; n: number }>();
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    if (Math.max(r, g, b) / 255 <= MIN_BRIGHTNESS) continue;
+    const key = ((r >> PALETTE_SHIFT) << (2 * PALETTE_BITS)) | ((g >> PALETTE_SHIFT) << PALETTE_BITS) | (b >> PALETTE_SHIFT);
+    const acc = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
+    acc.r += r; acc.g += g; acc.b += b; acc.n++;
+    buckets.set(key, acc);
+  }
+  const means = [...buckets.values()]
+    .sort((a, b) => b.n - a.n)
+    .map(({ r, g, b, n }): Rgb => [Math.round(r / n), Math.round(g / n), Math.round(b / n)]);
+  // greedy: de más a menos poblado, descartando lo que ya está representado
+  return means.reduce<Rgb[]>(
+    (picked, c) => picked.length < count && picked.every((p) => colorDistance(p, c) >= PALETTE_MIN_DISTANCE) ? [...picked, c] : picked,
+    [],
+  );
+}
+
+/** Color dominante de la imagen en `url` (ver dominantFromPixels); el verde si no se puede leer. */
+export function extractColor(url: string): Promise<Rgb> {
+  return readImagePixels(url, DOMINANT_SAMPLE_SIZE).then((px) => (px ? dominantFromPixels(px) : DEFAULT_COLOR));
 }

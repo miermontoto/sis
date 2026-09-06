@@ -3,9 +3,11 @@
   // historial de imágenes observadas más un hueco para subir una propia. lo comparten
   // el detalle de álbum (portadas) y el de artista (fotos): mismo widget sobre dos
   // tablas espejo (album_covers / artist_images).
+  import { untrack } from 'svelte';
   import { formatShortDate } from '$lib/utils/format';
   import { hexToRgb, readableTextOn } from '$lib/utils/color';
   import IconImage from '$lib/icons/IconImage.svelte';
+  import CoverEyedropper from './CoverEyedropper.svelte';
 
   // 'image' = imagen principal de la entidad, 'background' = fondo del detalle,
   // 'color' = color manual del álbum (gráficas y tinte del hero)
@@ -60,15 +62,27 @@
     color?: string | null;
     defaultColor?: string | null;
     onSetColor?: (color: string | null) => void | Promise<void>;
-    onPreviewColor?: (color: string) => void;
+    onPreviewColor?: (color: string | null) => void;
   } = $props();
 
   // la pestaña activa decide qué imagen se marca y a qué handler va el pick
   let backgroundTab = $derived(mode === 'background' && !!onSetBackground);
   let colorTab = $derived(mode === 'color' && !!onSetColor);
   let hasTabs = $derived(!!onSetBackground || !!onSetColor);
-  // valor del input nativo: el pick, o el extraído mientras no lo haya
-  let pickerValue = $derived(color ?? defaultColor ?? FALLBACK_PICKER_COLOR);
+  // color bajo el puntero en el cuentagotas: se enseña como vista previa sin guardarlo
+  let hoverColor = $state<string | null>(null);
+  // valor del input nativo y de la muestra: lo que se está previsualizando, si no el
+  // pick, si no el extraído
+  let pickerValue = $derived(hoverColor ?? color ?? defaultColor ?? FALLBACK_PICKER_COLOR);
+
+  // al cerrar o cambiar de pestaña con el puntero aún sobre el cuentagotas no llega
+  // ningún pointerleave: la vista previa se retira a mano
+  $effect(() => {
+    if (open && colorTab) return;
+    if (untrack(() => hoverColor) === null) return;
+    hoverColor = null;
+    onPreviewColor?.(null);
+  });
   // "auto" se pinta sobre el color extraído: el texto tiene que leerse encima
   let autoTextColor = $derived.by(() => {
     const rgb = hexToRgb(defaultColor);
@@ -156,7 +170,15 @@
             onchange={(e) => onSetColor?.(e.currentTarget.value)}
           />
         </label>
-        <span class="picker-color-value">{color ?? defaultColor ?? ''}{#if !color}{' · auto'}{/if}</span>
+        <span class="picker-color-value">{pickerValue}{#if !hoverColor && !color}{' · auto'}{/if}</span>
+        {#if imageUrl}
+          <!-- cuentagotas: la paleta de la imagen y la imagen misma para leer un píxel -->
+          <CoverEyedropper
+            {imageUrl}
+            onHover={(c) => { hoverColor = c; onPreviewColor?.(c); }}
+            onPick={(c) => { hoverColor = null; onSetColor?.(c); }}
+          />
+        {/if}
       {:else}
       {#if backgroundTab}
         <!-- sin fondo propio el detalle cae en la imagen principal, no se queda en plano -->
