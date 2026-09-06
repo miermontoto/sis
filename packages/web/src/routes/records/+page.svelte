@@ -557,17 +557,16 @@
   {@const hasDiscovery =
     currentData.biggestDebuts.length > 0 ||
     currentData.latestDiscoveries.length > 0}
-  <!-- `?.` en las listas, no sólo en el payload: una respuesta cacheada en el
-       cliente por una versión anterior no trae las claves nuevas -->
-  {@const hasLive =
-    (artistData?.mostConcerts?.length ?? 0) > 0 ||
-    (trackData?.mostHeardLive?.length ?? 0) > 0}
+  <!-- `?.` en las listas de directo, no sólo en el payload: una respuesta cacheada
+       en el cliente por una versión anterior no trae las claves nuevas -->
   {@const hasOther =
     currentData.bubblingUnder.length > 0 ||
     currentData.longestGap.length > 0 ||
     currentData.goldenOldies.length > 0 ||
     currentData.mostUniquePerMonth.length > 0 ||
-    (artistData ? (artistData.mostDistinctTracks.length + artistData.oneHitWonders.length) > 0 : false)}
+    (artistData ? (artistData.mostDistinctTracks.length + artistData.oneHitWonders.length) > 0 : false) ||
+    (artistData?.mostConcerts?.length ?? 0) > 0 ||
+    (trackData?.mostHeardLive?.length ?? 0) > 0}
 
   {#if hasAllTime}
     <h2 class="record-group">All-time bests</h2>
@@ -594,18 +593,6 @@
     {@render datedList('Latest discoveries', currentData.latestDiscoveries, 'first heard', 'plays', 'latestDiscoveries')}
   {/if}
 
-  {#if hasLive}
-    <!-- estos dos no salen del historial sino del log de conciertos: sólo tienen
-         datos cuando hay bolos registrados, y el de temas necesita además setlist -->
-    <h2 class="record-group">Live</h2>
-    {#if artistData?.mostConcerts}
-      {@render recordList('Most times seen live', artistData.mostConcerts, 'shows', 'mostConcerts')}
-    {/if}
-    {#if trackData?.mostHeardLive}
-      {@render recordList('Heard live most times', trackData.mostHeardLive, 'shows', 'mostHeardLive')}
-    {/if}
-  {/if}
-
   {#if hasOther}
     <h2 class="record-group">Other records</h2>
     {@render bubblingList('Bubbling under', currentData.bubblingUnder, 'bubblingUnder')}
@@ -615,6 +602,16 @@
     {#if artistData}
       {@render recordList('Most distinct tracks played', artistData.mostDistinctTracks, 'tracks', 'mostDistinctTracks')}
       {@render oneHitList('One-hit wonders', artistData.oneHitWonders, 'oneHitWonders')}
+    {/if}
+    <!-- los de directo no salen del historial sino del log de conciertos: sólo
+         tienen datos cuando hay bolos registrados, y el de temas necesita además
+         setlist. Van aquí y no en un grupo propio: dos listas que casi siempre
+         están vacías no sostienen una cabecera -->
+    {#if artistData?.mostConcerts}
+      {@render recordList('Most times seen live', artistData.mostConcerts, 'shows', 'mostConcerts')}
+    {/if}
+    {#if trackData?.mostHeardLive}
+      {@render recordList('Heard live most times', trackData.mostHeardLive, 'shows', 'mostHeardLive')}
     {/if}
   {/if}
 {/if}
