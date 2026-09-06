@@ -2,6 +2,7 @@ import { getDb } from '../db/connection.js';
 import { getRecords } from '../db/queries/index.js';
 import { dbRead } from '../db/read-pool.js';
 import type { RecordsResponse, EntityRecords, Accolade, AccoladesResponse } from '@sis/shared';
+import { ACCOLADE_RECORD_KEYS } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
@@ -220,53 +221,18 @@ export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', ent
   const data = cached[plural];
   if (!data) return { metric, accolades: [] };
 
-  // listas que sólo existen en el payload de un tipo: mostDistinctTracks,
-  // oneHitWonders y mostConcerts son de artists; mostHeardLive, de tracks
-  const artistOnly = entityType === 'artist' && 'mostNo1Tracks' in data ? data as RecordsResponse['artists'] : null;
-  const trackOnly = entityType === 'track' && 'mostHeardLive' in data ? data as RecordsResponse['tracks'] : null;
-
-  type Check = [string, { entityId?: string; artistId?: string; value: number; week: string | null }[]];
-  const checks: Check[] = [
-    ['peakWeek', data.peakWeekPlays as any[]],
-    ['dominance', data.dominance as any[]],
-    ['biggestDebut', data.biggestDebuts as any[]],
-    ['weeksAtNo1', data.mostWeeksAtNo1 as any[]],
-    ['bubblingUnder', data.bubblingUnder as any[]],
-    ['weeksInChart', data.mostWeeksInTop5 as any[]],
-    ['longestRun', data.longestChartRun as any[]],
-    ['inMostPlaylists', data.inMostPlaylists as any[]],
-    ['longestGap', data.longestGap as any[]],
-    ['goldenOldies', data.goldenOldies as any[]],
-    ['latestDiscoveries', data.latestDiscoveries as any[]],
-    ['mostAccolades', data.mostAccolades as any[]],
-    ...(artistOnly ? [
-      ['mostDistinctTracks', artistOnly.mostDistinctTracks],
-      ['oneHitWonders', artistOnly.oneHitWonders],
-      ['mostConcerts', artistOnly.mostConcerts],
-    ] as Check[] : []),
-    ...(trackOnly ? [['mostHeardLive', trackOnly.mostHeardLive]] as Check[] : []),
-  ];
-
-  for (const [type, list] of checks) {
-    const idx = list.findIndex((e) => e.entityId === entityId);
-    if (idx !== -1 && idx < RECORDS_LIMIT) {
-      const entry = list[idx] as any;
-      accolades.push({ type, rank: idx + 1, value: entry.value, week: entry.week ?? null });
-    }
-  }
-
-  if (entityType === 'artist' && 'mostNo1Tracks' in data) {
-    const artistData = data as RecordsResponse['artists'];
-    const artistChecks: [string, { artistId: string; count: number }[]][] = [
-      ['mostNo1Tracks', artistData.mostNo1Tracks as any[]],
-      ['mostNo1Albums', artistData.mostNo1Albums as any[]],
-    ];
-    for (const [type, list] of artistChecks) {
-      const idx = list.findIndex((e) => e.artistId === entityId);
-      if (idx !== -1 && idx < RECORDS_LIMIT) {
-        accolades.push({ type, rank: idx + 1, value: list[idx].count, week: null });
-      }
-    }
+  // una entrada por lista de la tabla compartida. Las que no existen en este
+  // payload (mostConcerts en tracks, mostHeardLive en artistas…) se saltan solas.
+  // mostNo1Tracks/Albums son ArtistRecordEntry: id en artistId y valor en count
+  type Entry = { entityId?: string; artistId?: string; value?: number; count?: number; week?: string | null };
+  const lists = data as unknown as Record<string, Entry[] | undefined>;
+  for (const [type, listKey] of Object.entries(ACCOLADE_RECORD_KEYS)) {
+    const list = lists[listKey];
+    if (!list) continue;
+    const idx = list.findIndex((e) => (e.entityId ?? e.artistId) === entityId);
+    if (idx === -1 || idx >= RECORDS_LIMIT) continue;
+    const entry = list[idx];
+    accolades.push({ type, rank: idx + 1, value: entry.value ?? entry.count ?? 0, week: entry.week ?? null });
   }
 
   // year-end finishes (todos los años completos en los que la entidad entró en top-10)

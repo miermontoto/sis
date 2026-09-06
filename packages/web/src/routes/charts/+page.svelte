@@ -6,7 +6,7 @@
 
   type ChartEntityType = 'tracks' | 'albums' | 'artists';
   import { formatDuration, formatNumber, formatMonthYear, formatShortDateUTC } from '$lib/utils/format';
-  import { computeCurrentPeriod } from '$lib/utils/periods';
+  import { computeCurrentPeriod, weekDateRange } from '$lib/utils/periods';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { setQueryParams } from '$lib/utils/query-state';
   import RankChange from '$lib/components/RankChange.svelte';
@@ -180,32 +180,9 @@
       if (!/^\d{4}-\d{2}$/.test(period)) return period;
       return formatMonthYear(period + '-01');
     }
-    // week: YYYY-WNN
-    // SQLite %W: semanas empezando lunes, semana 00 = la que contiene ene 1
-    // El lunes de la semana N es: ene 1 + (N * 7) - (díaDeSemana de ene 1, ajustado)
-    const match = period.match(/^(\d{4})-W(\d{2})$/);
-    if (!match) return period;
-    const year = parseInt(match[1]);
-    const wn = parseInt(match[2]);
-
-    // encontrar el primer lunes del año o antes
-    const jan1 = new Date(Date.UTC(year, 0, 1));
-    const jan1Day = jan1.getUTCDay(); // 0=dom, 1=lun, ...
-    // días hasta el lunes de esa semana: si ene 1 es lunes (1), offset=0; si martes (2), offset=-1; ...
-    // SQLite %W: semana 00 empieza el lunes <= ene 1
-    const daysToMonday = jan1Day === 0 ? -6 : 1 - jan1Day;
-    const week0Monday = new Date(Date.UTC(year, 0, 1 + daysToMonday));
-    const monday = new Date(week0Monday);
-    monday.setUTCDate(monday.getUTCDate() + wn * 7);
-
-    // ajustar según el weekStart configurado
-    // el backend resta días antes de calcular %W, así que la "semana" real empieza en otro día
-    const start = new Date(monday);
-    if (ws === 'sunday') start.setUTCDate(start.getUTCDate() + 1); // el backend resta 1, nosotros sumamos 1 para compensar
-    else if (ws === 'friday') start.setUTCDate(start.getUTCDate() + 4); // el backend resta 4
-
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 6);
+    const range = weekDateRange(period, ws);
+    if (!range) return period;
+    const { start, end } = range;
 
     const fmt = (d: Date) => formatShortDateUTC(d);
     const y1 = start.getUTCFullYear();

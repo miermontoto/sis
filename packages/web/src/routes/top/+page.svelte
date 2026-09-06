@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { nextFrame, waitForElement } from '$lib/utils/dom';
   import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy, tick } from 'svelte';
   import { TOP_PAGE_LIMIT } from '@sis/shared';
@@ -594,16 +595,6 @@
     return topAlbums.findIndex(a => a.albumId === id);
   }
 
-  async function waitForElement(selector: string, timeoutMs = 2000): Promise<HTMLElement | null> {
-    const deadline = performance.now() + timeoutMs;
-    let el = document.querySelector<HTMLElement>(selector);
-    while (!el && performance.now() < deadline) {
-      await new Promise<void>(r => requestAnimationFrame(() => r()));
-      el = document.querySelector<HTMLElement>(selector);
-    }
-    return el;
-  }
-
   async function focusEntity(id: string) {
     const idx = findIndex(id);
     if (idx < 0) return;
@@ -614,8 +605,8 @@
     if (!el) return;
     // dejar que el navegador termine cualquier scroll pendiente (p.ej. el reset
     // de SvelteKit tras la navegación) antes de posicionar el item
-    await new Promise<void>(r => requestAnimationFrame(() => r()));
-    await new Promise<void>(r => requestAnimationFrame(() => r()));
+    await nextFrame();
+    await nextFrame();
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     // limpiar el parámetro de URL después de que el scroll haya tenido tiempo de ejecutarse
     setTimeout(() => setQueryParams({ focus: null }), 1000);

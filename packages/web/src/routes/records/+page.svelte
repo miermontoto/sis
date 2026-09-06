@@ -1,6 +1,9 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
   import { onMount, onDestroy } from 'svelte';
+  import { page } from '$app/stores';
+  import { get } from 'svelte/store';
+  import { nextFrame, waitForElement } from '$lib/utils/dom';
   import { api, createFetchController, getRankingMetric, getWeekStart, getRecordsUnique, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { urlEnumParam } from '$lib/utils/query-state.svelte';
@@ -33,6 +36,27 @@
   let loading = $derived(loadingTab === tab.value);
 
   const fetchCtrl = createFetchController();
+
+  // #<clave de lista> en la URL: los accolades de los detalles enlazan a su
+  // sección. Se consume una sola vez, tras la primera carga que la pinta (si
+  // el hash apunta a una sección de otra pestaña, espera a que se cargue esa)
+  const SECTION_HIGHLIGHT_MS = 2000;
+  let pendingSection: string | null = get(page).url.hash.slice(1) || null;
+  let focusedSection = $state<string | null>(null);
+
+  async function revealSection() {
+    const key = pendingSection;
+    if (!key) return;
+    const el = await waitForElement(`#${CSS.escape(key)}`);
+    if (!el) return;
+    pendingSection = null;
+    focusedSection = key;
+    // dejar que el navegador termine el scroll de la navegación antes de posicionar
+    await nextFrame();
+    await nextFrame();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { if (focusedSection === key) focusedSection = null; }, SECTION_HIGHLIGHT_MS);
+  }
 
   async function loadTab(tabId: TabType) {
     const key = cacheKey(tabId);
@@ -84,7 +108,7 @@
     void metric;
     void weekStart;
     void unique;
-    loadTab(tab.value);
+    void loadTab(tab.value).then(revealSection);
   });
 
   function entityLink(type: string, id: string): string {
@@ -206,7 +230,7 @@
 
   {#snippet recordList(title: string, items: RecordEntry[], valueType: string, recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -248,7 +272,7 @@
 
   {#snippet datedList(title: string, items: RecordEntry[], dateLabel: string, valueType: string, recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -288,7 +312,7 @@
 
   {#snippet gapList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -332,7 +356,7 @@
 
   {#snippet chartRunList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -374,7 +398,7 @@
 
   {#snippet bubblingList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -414,7 +438,7 @@
 
   {#snippet oneHitList(title: string, items: RecordEntry[], recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -491,7 +515,7 @@
 
   {#snippet artistRecordList(title: string, items: { artistId: string; name: string; imageUrl: string | null; count: number }[], recordKey: string)}
     {#if items.length > 0}
-      <div class="record-section">
+      <div class="record-section" id={recordKey} class:record-section--focused={focusedSection === recordKey}>
         {@render sectionHeader(title, recordKey)}
         <div class="record-list">
           {#each items as item, i}
@@ -640,7 +664,19 @@
   }
   .record-group:first-of-type { margin-top: 0.25rem; }
 
-  .record-section { margin-bottom: 1.5rem; }
+  .record-section {
+    margin-bottom: 1.5rem;
+    scroll-margin-top: 1rem;
+  }
+  /* llegada por ancla desde un accolade: un flash sobre la lista, como el del
+     item enfocado en /top */
+  .record-section--focused .record-list {
+    animation: record-section-flash 1.8s ease-out;
+  }
+  @keyframes record-section-flash {
+    0%   { box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.45), 0 0 0 4px rgba(29, 185, 84, 0.15); }
+    100% { box-shadow: 0 0 0 1px transparent, 0 0 0 4px transparent; }
+  }
   .record-header {
     display: flex;
     align-items: center;

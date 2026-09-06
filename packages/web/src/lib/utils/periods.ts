@@ -3,24 +3,62 @@ import { getWeekStart, setLastPeriod } from '$lib/api';
 import { formatMonthYear } from './format';
 
 const GRANULARITIES: Granularity[] = ['week', 'month', 'year'];
+const DAY_MS = 86_400_000;
+const DAYS_PER_WEEK = 7;
+// días que periodExpr() resta a played_at antes de calcular %W (espejo del servidor)
+const WEEK_START_SHIFT: Record<WeekStartOption, number> = { monday: 0, sunday: 1, friday: 4 };
+const WEEK_KEY_RE = /^(\d{4})-W(\d{2})$/;
 
-/** Replicar strftime('%Y-W%W', date, offset) de SQLite */
+const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY_MS);
+// lunes = 0 … domingo = 6, como el `wd` de strftime('%W')
+const mondayBasedDay = (d: Date) => (d.getUTCDay() + 6) % DAYS_PER_WEEK;
+const dayOfYear = (d: Date) => Math.round((d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY_MS);
+
+/** 'YYYY-MM-DD' de una fecha UTC (el formato de startDate/endDate en la API) */
+export const toIsoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * Clave de semana de una fecha UTC: réplica exacta de strftime('%Y-W%W') tras el
+ * desplazamiento de periodExpr(). Semanas de lunes; la que contiene el 1 de enero
+ * es la 01 si ese día cae en lunes y la 00 si no. SQLite calcula
+ * (día_del_año + 7 - día_de_semana) / 7, y no (día_del_año + desfase_de_ene_1) / 7:
+ * la segunda fórmula da una semana de menos los años que empiezan en lunes (2024).
+ */
+export function weekKey(date: Date, ws: WeekStartOption): string {
+  const shifted = addDays(date, -WEEK_START_SHIFT[ws]);
+  const week = Math.floor((dayOfYear(shifted) + DAYS_PER_WEEK - mondayBasedDay(shifted)) / DAYS_PER_WEEK);
+  return `${shifted.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Días reales que cubre una clave de semana: la inversa de weekKey(). En el
+ * espacio desplazado la semana N va del lunes N al domingo, recortada al año
+ * (la 00 empieza el 1 de enero y la última acaba el 31 de diciembre: los días de
+ * fuera pertenecen a la clave del año vecino); después se deshace el desplazamiento.
+ */
+export function weekDateRange(period: string, ws: WeekStartOption): { start: Date; end: Date } | null {
+  const match = period.match(WEEK_KEY_RE);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const dec31 = new Date(Date.UTC(year, 11, 31));
+  // primer lunes del año (el propio 1 de enero si cae en lunes) + 7 días por semana
+  const monday = addDays(jan1, (DAYS_PER_WEEK - mondayBasedDay(jan1)) % DAYS_PER_WEEK + (week - 1) * DAYS_PER_WEEK);
+  const shift = WEEK_START_SHIFT[ws];
+  return {
+    start: addDays(new Date(Math.max(monday.getTime(), jan1.getTime())), shift),
+    end: addDays(new Date(Math.min(addDays(monday, DAYS_PER_WEEK - 1).getTime(), dec31.getTime())), shift),
+  };
+}
+
+/** Periodo actual: el que el servidor asignaría a un play de hoy */
 export function computeCurrentPeriod(gran: Granularity, ws: WeekStartOption): string {
   const now = new Date();
   if (gran === 'year') return String(now.getFullYear());
   if (gran === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  const d = new Date(now);
-  if (ws === 'sunday') d.setDate(d.getDate() - 1);
-  else if (ws === 'friday') d.setDate(d.getDate() - 4);
-
-  const year = d.getFullYear();
-  const jan1 = new Date(year, 0, 1);
-  const jan1Day = jan1.getDay();
-  const jan1DayMon = jan1Day === 0 ? 6 : jan1Day - 1;
-  const daysFromJan1 = Math.floor((d.getTime() - jan1.getTime()) / 86400000);
-  const weekNum = Math.floor((daysFromJan1 + jan1DayMon) / 7);
-  return `${year}-W${String(weekNum).padStart(2, '0')}`;
+  // el día natural local, llevado a UTC para que weekKey() no vuelva a aplicar la zona
+  return weekKey(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())), ws);
 }
 
 /** Periodo anterior */
@@ -31,12 +69,10 @@ export function prevPeriod(period: string, granularity: Granularity): string | n
     const d = new Date(y, m - 2, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
-  const match = period.match(/^(\d{4})-W(\d{2})$/);
-  if (!match) return null;
-  const [, ys, ws] = match;
-  const wn = parseInt(ws);
-  if (wn <= 0) return `${parseInt(ys) - 1}-W52`;
-  return `${ys}-W${String(wn - 1).padStart(2, '0')}`;
+  // el desplazamiento no cambia la secuencia de claves, sólo qué días cubre cada
+  // una: basta retroceder un día desde el arranque de la semana en espacio de lunes
+  const range = weekDateRange(period, 'monday');
+  return range ? weekKey(addDays(range.start, -1), 'monday') : null;
 }
 
 export interface ClosedChart {

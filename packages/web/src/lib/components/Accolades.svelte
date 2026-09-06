@@ -5,10 +5,11 @@
   //
   // Ausencia NO es prueba de lo contrario: un concierto dado de alta a mano no
   // tiene setlist, así que un tema puede haber sonado sin que aquí conste.
-  import { api, createFetchController, type Accolade, type ConcertRef, type EntityType, type RankingMetric } from '$lib/api';
+  import { api, createFetchController, getWeekStart, ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES, type Accolade, type ConcertRef, type EntityType, type RankingMetric, type WeekStartOption } from '$lib/api';
   import HoverPopover from '$lib/components/HoverPopover.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
   import { formatCalendarDate, formatDuration, formatNumber } from '$lib/utils/format';
+  import { toIsoDate, weekDateRange } from '$lib/utils/periods';
 
   let {
     entityType,
@@ -30,11 +31,26 @@
   let liveVerb = $derived(entityType === 'track' ? 'Heard live' : 'Seen live');
   const place = (c: ConcertRef) => [c.venue, c.city].filter(Boolean).join(' · ');
 
+  // plural con el que /records, /top y /charts nombran el tipo en su query
   let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
+  let weekStart = $state<WeekStartOption>('monday');
 
-  function accoladeHref(a: Accolade): string | null {
-    if (a.week) return `/charts?type=${chartType}&granularity=week&period=${a.week}`;
-    return null;
+  // cada record vive en la sección homónima de /records (id = clave de su lista)
+  function recordsHref(a: Accolade): string | null {
+    const key = (ACCOLADE_RECORD_KEYS as Record<string, string>)[a.type];
+    return key ? `/records?tab=${chartType}#${key}` : null;
+  }
+
+  // el top con el rango exacto en que se midió el valor y la entidad enfocada
+  const topRangeHref = (start: string, end: string) =>
+    `/top?tab=${chartType}&range=custom&startDate=${start}&endDate=${end}&focus=${entityId}`;
+
+  // sólo un record semanal tiene un "cuándo" que enseñar: su valor lleva al top
+  // de esa semana. El resto son all-time y la fila entera va a /records
+  function periodHref(a: Accolade): string | null {
+    if (!a.week || !WEEK_SCOPED_ACCOLADES.has(a.type)) return null;
+    const range = weekDateRange(a.week, weekStart);
+    return range ? topRangeHref(toIsoDate(range.start), toIsoDate(range.end)) : null;
   }
 
   let accolades = $state<Accolade[]>([]);
@@ -145,6 +161,7 @@
       return;
     }
     const signal = fetchCtrl.reset();
+    weekStart = getWeekStart();
     loading = true;
     accolades = [];
     api.accolades(entityType, entityId, signal)
@@ -159,6 +176,11 @@
   });
 
 </script>
+
+{#snippet medalLabel(a: Accolade)}
+  <span class="popover-medal" class:popover-medal--text={a.rank > 3}>{medal(a.rank)}</span>
+  <span class="popover-label">{labelFor(a)}</span>
+{/snippet}
 
 <!-- los bolos no se esperan: vienen con el detalle, así que el badge ya puede
      pintarse mientras los accolades siguen en vuelo -->
@@ -182,20 +204,22 @@
       <div class="popover-title">Records</div>
       <ul class="popover-list">
         {#each regularAccolades as a}
-          {@const href = accoladeHref(a)}
+          {@const href = recordsHref(a)}
+          {@const valueHref = periodHref(a)}
           <li>
-            {#if href}
-              <a {href} class="popover-row popover-row--link">
-                <span class="popover-medal" class:popover-medal--text={a.rank > 3}>{medal(a.rank)}</span>
-                <span class="popover-label">{labelFor(a)}</span>
+            {#if valueHref}
+              <!-- fila partida: la etiqueta lleva a la sección de /records y el
+                   valor al top de la semana en que se midió. Dos enlaces, así
+                   que ninguno puede envolver al otro -->
+              <div class="popover-row popover-row--split">
+                <a {href} class="popover-main">{@render medalLabel(a)}</a>
+                <a href={valueHref} class="popover-value popover-value--link" title="Top {chartType} that week">{formatValue(a)}</a>
+              </div>
+            {:else}
+              <a {href} class="popover-row" class:popover-row--link={!!href}>
+                {@render medalLabel(a)}
                 <span class="popover-value">{formatValue(a)}</span>
               </a>
-            {:else}
-              <div class="popover-row">
-                <span class="popover-medal" class:popover-medal--text={a.rank > 3}>{medal(a.rank)}</span>
-                <span class="popover-label">{labelFor(a)}</span>
-                <span class="popover-value">{formatValue(a)}</span>
-              </div>
             {/if}
           </li>
         {/each}
@@ -209,7 +233,7 @@
           <span class="popover-pill" class:popover-pill--text={g.rank > 3}>
             <span class="pill-medal">{medal(g.rank)}</span>
             {#if g.years.length > 1}<span class="pill-count">×{g.years.length}</span>{/if}
-            <span class="pill-years">{#each g.years as year, yi}{#if yi > 0},{' '}{/if}<a href="/top?tab={chartType}&range=custom&startDate={year}-01-01&endDate={year}-12-31&focus={entityId}" class="pill-year-link">{year}</a>{/each}</span>
+            <span class="pill-years">{#each g.years as year, yi}{#if yi > 0},{' '}{/if}<a href={topRangeHref(`${year}-01-01`, `${year}-12-31`)} class="pill-year-link">{year}</a>{/each}</span>
           </span>
         {/each}
       </div>
@@ -219,7 +243,7 @@
       <div class="popover-title live-title" class:popover-title--gap={regularAccolades.length > 0 || yearEndGroups.length > 0}>
         <span>{liveVerb}</span>
         {#if liveAccolade}
-          <span class="live-title-rank">{medal(liveAccolade.rank)} {formatValue(liveAccolade)}</span>
+          <a class="live-title-rank" href={recordsHref(liveAccolade)}>{medal(liveAccolade.rank)} {formatValue(liveAccolade)}</a>
         {/if}
       </div>
       <ul class="popover-list">
@@ -291,6 +315,45 @@
   .live-title-rank {
     color: var(--text);
     white-space: nowrap;
+    text-decoration: none;
+    transition: color 0.05s;
+  }
+  .live-title-rank:hover {
+    color: var(--accent);
+  }
+
+  /* fila partida: la etiqueta hereda el hover de fila y el valor se marca como
+     enlace propio con subrayado punteado, para que se lea que va a otro sitio */
+  .popover-row.popover-row--split {
+    padding: 0;
+    gap: 0;
+  }
+  .popover-main {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.35rem 0.4rem;
+    border-radius: var(--radius);
+    color: inherit;
+    text-decoration: none;
+    transition: background 0.05s;
+  }
+  .popover-main:hover {
+    background: rgba(29, 185, 84, 0.1);
+  }
+  .popover-value--link {
+    padding: 0.35rem 0.4rem;
+    border-radius: var(--radius);
+    text-decoration: underline dotted;
+    text-decoration-color: var(--text-muted);
+    text-underline-offset: 3px;
+    transition: background 0.05s, color 0.05s;
+  }
+  .popover-value--link:hover {
+    color: var(--accent);
+    background: rgba(29, 185, 84, 0.1);
   }
 
   /* la fecha hace de columna fija a la izquierda, como la medalla en los records */

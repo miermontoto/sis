@@ -47,6 +47,7 @@ export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, Album
 
 // accolades
 export type { Accolade, AccoladesResponse } from './accolades.js';
+export { ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES } from './accolades.js';
 
 // búsqueda
 export type { SearchResults } from './search.js';
