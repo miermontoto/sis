@@ -14,6 +14,7 @@
     value,
     rankChange = null,
     isNew = false,
+    isReentry = false,
     entity,
   }: {
     label: string;
@@ -25,6 +26,7 @@
     value: string;
     rankChange?: number | null;
     isNew?: boolean;
+    isReentry?: boolean;
     entity?: EntityContext;
   } = $props();
 
@@ -43,7 +45,7 @@
   <span class="report-top-sub">{sub}</span>
   <span class="report-top-value">
     <span class="data-count">{value}</span>
-    <RankChange {rankChange} {isNew} />
+    <RankChange {rankChange} {isNew} {isReentry} />
   </span>
 </a>
 

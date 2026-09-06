@@ -19,6 +19,7 @@ import {
 import type { Db, SqlChunk, AggregateRow } from './helpers.js';
 import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges } from './helpers.js';
 import { getTopEntities, getPrevPeriodEntities, getGlobalSeries } from './entity.js';
+import { getChartPeaks } from './charts.js';
 import { getTopGenres } from './inline.js';
 import { getProfileSummary } from './social.js';
 import { formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, lookupArtist, lookupAlbum } from './formatters.js';
@@ -154,23 +155,34 @@ function buildFacts(db: Db, userId: number, start: string, end: string, daily: L
 
 // --- tops con cambio de puesto ---
 
-function topWithChanges<T extends object>(rows: AggregateRow[], formatted: T[], prevIds: string[] | null) {
-  return formatted.map((item, i) => ({ ...item, ...prevRankFields(prevIds, rows[i].entity_id, i + 1) }));
+// NEW / RE con la misma regla que la página de charts: el cambio de puesto sale del
+// top 200 del periodo anterior, y para lo que no estaba ahí el escaneo de peaks de
+// los charts (getChartPeaks) decide si ya había pasado por el chart (RE) o no (NEW).
+// Cuesta ~1-2 s por tipo, que absorbe la cache pre-horneada
+function topWithChanges<T extends object>(rows: AggregateRow[], formatted: T[], prevIds: string[] | null, peaks: Record<string, { isReentry: boolean }>) {
+  return formatted.map((item, i) => {
+    const id = rows[i].entity_id;
+    const { previousRank, rankChange } = prevRankFields(prevIds, id, i + 1);
+    const isReentry = previousRank === null && (peaks[id]?.isReentry ?? false);
+    return { ...item, previousRank, rankChange, isReentry, isNew: prevIds !== null && previousRank === null && !isReentry };
+  });
 }
 
-function getTops(db: Db, userId: number, start: string, end: string, prev: { start: string; end: string } | null, sort: Sort) {
+function getTops(db: Db, userId: number, granularity: Granularity, period: string, weekStart: WeekStartOption, start: string, end: string, prev: { start: string; end: string } | null, sort: Sort) {
   const endIncl = inclusiveEnd(end);
   const prevIds = (type: 'artist' | 'album' | 'track') =>
     prev ? getPrevPeriodEntities(db, type, prev.start, prev.end, sort, userId).map(r => r.entity_id) : null;
+  const peaks = (type: 'artist' | 'album' | 'track', rows: AggregateRow[]) =>
+    getChartPeaks(db, type, granularity, weekStart, period, sort, userId, rows.map(r => r.entity_id));
 
   const artistRows = getTopEntities(db, 'artist', start, sort, REPORT_TOP_LIMIT, endIncl, userId);
   const albumRows = getTopEntities(db, 'album', start, sort, REPORT_TOP_LIMIT, endIncl, userId);
   const trackRows = getTopEntities(db, 'track', start, sort, REPORT_TOP_LIMIT, endIncl, userId);
 
   return {
-    artists: topWithChanges(artistRows, artistRows.map(r => formatTopArtistRow(db, r)), prevIds('artist')) as TopArtistItem[],
-    albums: topWithChanges(albumRows, albumRows.map(r => formatTopAlbumRow(db, r)), prevIds('album')) as TopAlbumItem[],
-    tracks: topWithChanges(trackRows, formatTopTrackRows(db, trackRows), prevIds('track')) as TopTrackItem[],
+    artists: topWithChanges(artistRows, artistRows.map(r => formatTopArtistRow(db, r)), prevIds('artist'), peaks('artist', artistRows)) as TopArtistItem[],
+    albums: topWithChanges(albumRows, albumRows.map(r => formatTopAlbumRow(db, r)), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
+    tracks: topWithChanges(trackRows, formatTopTrackRows(db, trackRows), prevIds('track'), peaks('track', trackRows)) as TopTrackItem[],
   };
 }
 
@@ -480,7 +492,7 @@ export function getReport(db: Db, userId: number, granularity: Granularity, peri
     : null;
 
   const clock = getReportClock(db, userId, start, end, tzOffsetMinutes);
-  const top = getTops(db, userId, start, end, prev, sort);
+  const top = getTops(db, userId, granularity, period, weekStart, start, end, prev, sort);
 
   return {
     period: { granularity, period, start, end, prev: prev ? prevLabel : null, next },

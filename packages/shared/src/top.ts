@@ -7,6 +7,8 @@ export interface TopTrackItem {
   rankChange: number | null;
   previousRank: number | null;
   isNew: boolean;
+  /** fuera del periodo anterior pero ya había estado en el chart (solo lo rellena el report) */
+  isReentry?: boolean;
   track: TrackInfo | null;
 }
 
@@ -17,6 +19,7 @@ export interface TopArtistItem {
   rankChange: number | null;
   previousRank: number | null;
   isNew: boolean;
+  isReentry?: boolean;
   artist: { name: string; imageUrl: string | null; genres: string[] } | null;
 }
 
@@ -27,5 +30,6 @@ export interface TopAlbumItem {
   rankChange: number | null;
   previousRank: number | null;
   isNew: boolean;
+  isReentry?: boolean;
   album: { name: string; imageUrl: string | null; releaseDate: string | null; color?: string | null } | null;
 }

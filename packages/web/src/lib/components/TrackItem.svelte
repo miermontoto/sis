@@ -11,6 +11,7 @@
     rankChange?: number | null;
     globalRank?: number | null;
     isNew?: boolean;
+    isReentry?: boolean;
     imageUrl?: string | null;
     imageHref?: string;
     imageRound?: boolean;
@@ -29,7 +30,7 @@
     cover?: Snippet;
   }
 
-  let { href, rank, rankChange, globalRank, isNew = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
+  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
 
   let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
 </script>
@@ -44,7 +45,7 @@
     {#if rankChange !== undefined}
       <div class="rank-col">
         <span class="track-rank" style:color={medalColor(rank)}>{rank}</span>
-        <RankChange rankChange={rankChange} {isNew} />
+        <RankChange rankChange={rankChange} {isNew} {isReentry} />
       </div>
     {:else}
       <span class="track-rank" style:color={medalColor(rank)}>{rank}</span>

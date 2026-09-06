@@ -246,11 +246,11 @@
       <div class="report-column">
         {#if report.top.artists[0]?.artist}
           {@const a = report.top.artists[0]}
-          <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist?.imageUrl ?? null} round name={a.artist?.name ?? ''} sub={a.artist?.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }} />
+          <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist?.imageUrl ?? null} round name={a.artist?.name ?? ''} sub={a.artist?.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }} />
         {/if}
         <div class="track-list">
           {#each report.top.artists.slice(1) as a, i (a.artistId)}
-            <TrackItem compact rank={i + 2} rankChange={a.rankChange} isNew={a.isNew} imageUrl={a.artist?.imageUrl} imageHref="/artist/{a.artistId}" imageRound name={a.artist?.name ?? a.artistId} nameHref="/artist/{a.artistId}" entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }}>
+            <TrackItem compact rank={i + 2} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} imageUrl={a.artist?.imageUrl} imageHref="/artist/{a.artistId}" imageRound name={a.artist?.name ?? a.artistId} nameHref="/artist/{a.artistId}" entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }}>
               {#snippet subtitle()}{a.artist?.genres[0] ?? ''}{/snippet}
               {#snippet meta()}<span class="data-count">{value(a.playCount, a.totalMs)}</span>{/snippet}
             </TrackItem>
@@ -260,11 +260,11 @@
       <div class="report-column">
         {#if report.top.albums[0]?.album}
           {@const al = report.top.albums[0]}
-          <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album?.imageUrl ?? null} name={al.album?.name ?? ''} sub={al.album?.releaseDate?.slice(0, RELEASE_YEAR_CHARS) ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }} />
+          <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album?.imageUrl ?? null} name={al.album?.name ?? ''} sub={al.album?.releaseDate?.slice(0, RELEASE_YEAR_CHARS) ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }} />
         {/if}
         <div class="track-list">
           {#each report.top.albums.slice(1) as al, i (al.albumId)}
-            <TrackItem compact rank={i + 2} rankChange={al.rankChange} isNew={al.isNew} imageUrl={al.album?.imageUrl} imageHref="/album/{al.albumId}" name={al.album?.name ?? al.albumId} nameHref="/album/{al.albumId}" entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }}>
+            <TrackItem compact rank={i + 2} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} imageUrl={al.album?.imageUrl} imageHref="/album/{al.albumId}" name={al.album?.name ?? al.albumId} nameHref="/album/{al.albumId}" entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null }}>
               {#snippet subtitle()}{al.album?.releaseDate?.slice(0, RELEASE_YEAR_CHARS) ?? ''}{/snippet}
               {#snippet meta()}<span class="data-count">{value(al.playCount, al.totalMs)}</span>{/snippet}
             </TrackItem>
@@ -274,11 +274,11 @@
       <div class="report-column">
         {#if report.top.tracks[0]?.track}
           {@const t = report.top.tracks[0]}
-          <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track?.album?.imageUrl ?? null} name={t.track?.name ?? ''} sub={[t.track?.artists.map(x => x.name).join(', '), facts.topTrackShare > 0 ? `${facts.topTrackShare}% of plays` : ''].filter(Boolean).join(' · ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} entity={t.track ? trackEntity(t.track) : undefined} />
+          <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track?.album?.imageUrl ?? null} name={t.track?.name ?? ''} sub={[t.track?.artists.map(x => x.name).join(', '), facts.topTrackShare > 0 ? `${facts.topTrackShare}% of plays` : ''].filter(Boolean).join(' · ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} entity={t.track ? trackEntity(t.track) : undefined} />
         {/if}
         <div class="track-list">
           {#each report.top.tracks.slice(1) as t, i (t.trackId)}
-            <TrackItem compact rank={i + 2} rankChange={t.rankChange} isNew={t.isNew} imageUrl={t.track?.album?.imageUrl} imageHref={t.track?.album ? `/album/${t.track.album.id}` : undefined} name={t.track?.name ?? t.trackId} nameHref="/track/{t.trackId}" entity={t.track ? trackEntity(t.track) : undefined}>
+            <TrackItem compact rank={i + 2} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} imageUrl={t.track?.album?.imageUrl} imageHref={t.track?.album ? `/album/${t.track.album.id}` : undefined} name={t.track?.name ?? t.trackId} nameHref="/track/{t.trackId}" entity={t.track ? trackEntity(t.track) : undefined}>
               {#snippet subtitle()}
                 {#each t.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}">{ar.name}</a>{/each}
               {/snippet}
