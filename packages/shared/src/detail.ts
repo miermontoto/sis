@@ -70,7 +70,8 @@ export interface AlbumRating {
 }
 
 export interface AlbumDetail {
-  album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null };
+  // color: pick manual (#rrggbb) que manda sobre el extraído de la portada; null = sin pick
+  album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; totalTracks: number | null; albumType: string | null; color: string | null };
   artists: { id: string; name: string; imageUrl: string | null }[];
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
   series: { period: string; play_count: number; total_ms: number }[];
@@ -88,7 +89,7 @@ export interface AlbumDetail {
 export interface TrackDetail {
   track: {
     id: string; name: string; durationMs: number; trackNumber: number | null; explicit: boolean;
-    album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; albumType: string | null } | null;
+    album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; albumType: string | null; color?: string | null } | null;
     artists: { id: string; name: string; imageUrl: string | null }[];
   };
   stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };

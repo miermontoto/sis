@@ -29,7 +29,7 @@ import { hasAnyUsers, getUserById } from './services/user-manager.js';
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
-import { VERSION, UPLOAD_MAX_BYTES } from './constants.js';
+import { VERSION, UPLOAD_MAX_BYTES, ALBUM_COLOR_RE } from './constants.js';
 
 export type AppVariables = {
   userId: number;
@@ -137,6 +137,17 @@ app.put('/api/covers/album/:albumId', async (c) => {
   if (!imageUrl) return c.json({ error: 'imageUrl required' }, 400);
   const db = getDb();
   db.run(sql`UPDATE albums SET image_url = ${imageUrl}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
+  return c.json({ ok: true });
+});
+
+// color manual del álbum: manda sobre el extraído de la portada en las gráficas y en el
+// tinte del hero. null lo borra y el color vuelve a salir de la portada
+app.put('/api/covers/album/:albumId/color', async (c) => {
+  const albumId = c.req.param('albumId');
+  const { color } = await c.req.json<{ color: string | null }>();
+  if (color !== null && !ALBUM_COLOR_RE.test(String(color))) return c.json({ error: 'color must be #rrggbb or null' }, 400);
+  const db = getDb();
+  db.run(sql`UPDATE albums SET color = ${color ? color.toLowerCase() : null}, updated_at = datetime('now') WHERE spotify_id = ${albumId}`);
   return c.json({ ok: true });
 });
 

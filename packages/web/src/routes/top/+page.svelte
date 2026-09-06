@@ -11,7 +11,7 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import { extractColor, readableTextOn } from '$lib/utils/color';
+  import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
   import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, measureTextWidth, truncateToWidth, niceAxisMax, MONO_STACK, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { fitZipf } from '$lib/utils/zipf';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
@@ -60,16 +60,16 @@
   }
 
   // --- bar chart ---
+  // color de cada fila: para álbumes (y tracks, a través del suyo) el pick manual del
+  // álbum manda sobre el extraído de la portada; los artistas solo tienen foto
   async function extractBarColors(tab: string, tracks: TopTrackItem[], artistsList: TopArtistItem[], albumsList: TopAlbumItem[], count: number) {
-    let urls: (string | null)[] = [];
-    if (tab === 'tracks') {
-      urls = tracks.slice(0, count).map(t => t.track?.album?.imageUrl ?? null);
-    } else if (tab === 'artists') {
-      urls = artistsList.slice(0, count).map(a => a.artist?.imageUrl ?? null);
-    } else {
-      urls = albumsList.slice(0, count).map(a => a.album?.imageUrl ?? null);
+    if (tab === 'artists') {
+      return Promise.all(artistsList.slice(0, count).map(a => resolveEntityColor(null, a.artist?.imageUrl)));
     }
-    return Promise.all(urls.map(u => u ? extractColor(u) : Promise.resolve<[number, number, number]>([29, 185, 84])));
+    const albumsOf = tab === 'tracks'
+      ? tracks.slice(0, count).map(t => t.track?.album ?? null)
+      : albumsList.slice(0, count).map(a => a.album ?? null);
+    return Promise.all(albumsOf.map(al => resolveEntityColor(al?.color, al?.imageUrl)));
   }
 
   function metricValue(item: { playCount: number; totalMs: number }): number {

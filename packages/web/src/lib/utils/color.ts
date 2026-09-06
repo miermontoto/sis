@@ -1,4 +1,8 @@
-const DEFAULT_COLOR: [number, number, number] = [29, 185, 84];
+export type Rgb = [number, number, number];
+
+const DEFAULT_COLOR: Rgb = [29, 185, 84];
+const HEX_COLOR_RE = /^#?([0-9a-f]{6})$/i;
+const HEX_RADIX = 16;
 
 // fondo real bajo las barras del chart (--bg-card). Los rellenos son
 // semitransparentes, así que el color que se ve es la composición de los dos y
@@ -42,7 +46,31 @@ export function readableTextOn(rgb: [number, number, number], alpha: number): st
     : LIGHT_TEXT;
 }
 
-export function extractColor(url: string): Promise<[number, number, number]> {
+/** `#rrggbb` (con o sin almohadilla) a tupla rgb; null si no es un hex de 6 dígitos. */
+export function hexToRgb(hex: string | null | undefined): Rgb | null {
+  const m = hex ? HEX_COLOR_RE.exec(hex.trim()) : null;
+  if (!m) return null;
+  const n = parseInt(m[1], HEX_RADIX);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+/** Tupla rgb a `#rrggbb` en minúsculas, que es lo que acepta un `<input type="color">`. */
+export function rgbToHex([r, g, b]: Rgb): string {
+  return '#' + [r, g, b].map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(HEX_RADIX).padStart(2, '0')).join('');
+}
+
+/**
+ * Color de una entidad para gráficas y tintes: el pick manual (`color`) manda; sin él
+ * se extrae de la imagen, y sin imagen queda el verde por defecto. Es el único sitio
+ * que decide esa precedencia, así que todos los consumidores la comparten.
+ */
+export function resolveEntityColor(color: string | null | undefined, imageUrl: string | null | undefined): Promise<Rgb> {
+  const manual = hexToRgb(color);
+  if (manual) return Promise.resolve(manual);
+  return imageUrl ? extractColor(imageUrl) : Promise.resolve(DEFAULT_COLOR);
+}
+
+export function extractColor(url: string): Promise<Rgb> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';

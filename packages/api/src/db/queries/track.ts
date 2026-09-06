@@ -8,7 +8,7 @@ export interface EnrichedTrack {
   id: string;
   name: string;
   durationMs: number;
-  album: { id: string; name: string; imageUrl: string | null } | null;
+  album: { id: string; name: string; imageUrl: string | null; color: string | null } | null;
   artists: { id: string; name: string }[];
 }
 
@@ -28,11 +28,11 @@ export function enrichTracksBatch(db: Db, trackIds: string[]): Map<string, Enric
   // 1. Tracks + álbumes en una sola query
   const trackRows = db.all(sql`
     SELECT t.spotify_id, t.name, t.duration_ms, t.album_id,
-           al.spotify_id as al_id, al.name as al_name, al.image_url as al_image
+           al.spotify_id as al_id, al.name as al_name, al.image_url as al_image, al.color as al_color
     FROM tracks t
     LEFT JOIN albums al ON al.spotify_id = t.album_id
     WHERE t.spotify_id IN (${sql.join(uniqueIds.map(id => sql`${id}`), sql`, `)})
-  `) as { spotify_id: string; name: string; duration_ms: number; album_id: string | null; al_id: string | null; al_name: string | null; al_image: string | null }[];
+  `) as { spotify_id: string; name: string; duration_ms: number; album_id: string | null; al_id: string | null; al_name: string | null; al_image: string | null; al_color: string | null }[];
 
   // 2. Artistas de todos los tracks en una sola query
   const artistRows = db.all(sql`
@@ -55,7 +55,7 @@ export function enrichTracksBatch(db: Db, trackIds: string[]): Map<string, Enric
       id: row.spotify_id,
       name: row.name,
       durationMs: row.duration_ms,
-      album: row.al_id ? { id: row.al_id, name: row.al_name!, imageUrl: row.al_image } : null,
+      album: row.al_id ? { id: row.al_id, name: row.al_name!, imageUrl: row.al_image, color: row.al_color } : null,
       artists: artistsByTrack.get(row.spotify_id) ?? [],
     });
   }

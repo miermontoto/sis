@@ -123,6 +123,9 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   // elección, el fondo cae a image_url (barrido de spotify). sale del mismo pool de
   // artist_images, así que no necesita historial propio
   try { sqlite.exec('ALTER TABLE artists ADD COLUMN background_url TEXT'); } catch {}
+  // color manual del álbum (#rrggbb) para las gráficas y el tinte del hero. NULL = el que
+  // se extrae de la portada en el cliente, que sigue siendo el valor por defecto
+  try { sqlite.exec('ALTER TABLE albums ADD COLUMN color TEXT'); } catch {}
 
   // multi-user: unique en user_id para auth_tokens y polling_state
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id)'); } catch {}

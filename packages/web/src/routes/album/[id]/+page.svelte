@@ -8,7 +8,7 @@
   import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
   import { medalColor } from '$lib/utils/medals';
-  import { extractColor } from '$lib/utils/color';
+  import { extractColor, hexToRgb, rgbToHex, type Rgb } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
@@ -29,6 +29,7 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
+  import IconPalette from '$lib/icons/IconPalette.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
@@ -38,7 +39,14 @@
 
   let data = $state<AlbumDetail | null>(null);
   let loading = $state(true);
-  let heroColor = $state('');
+  // color extraído de la portada activa: es el valor por defecto del tinte y el "auto"
+  // del picker de color, así que se calcula aunque haya un pick manual
+  let coverRgb = $state<Rgb | null>(null);
+  // color en vivo mientras el input nativo está abierto: tiñe sin guardar todavía
+  let colorPreview = $state<string | null>(null);
+  let pickerMode = $state<'image' | 'background' | 'color'>('image');
+  // el tinte del hero: la vista previa, si no el pick manual del álbum, si no la portada
+  let heroColor = $derived((hexToRgb(colorPreview ?? data?.album.color) ?? coverRgb)?.join(',') ?? '');
   let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
@@ -86,13 +94,24 @@
 
   let hasMultipleCovers = $derived((data?.covers?.length ?? 0) > 1 || data?.album.imageUrl === null);
 
+  function refreshCoverColor(imageUrl: string | null, signal?: AbortSignal) {
+    if (!imageUrl) { coverRgb = null; return; }
+    extractColor(imageUrl).then((rgb) => { if (!signal?.aborted) coverRgb = rgb; });
+  }
+
   async function selectCover(imageUrl: string) {
     if (!data) return;
     await api.setAlbumCover(albumId, imageUrl);
     data = { ...data, album: { ...data.album, imageUrl } };
-    if (imageUrl) {
-      extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
-    }
+    refreshCoverColor(imageUrl);
+  }
+
+  // pick manual del color: null vuelve al extraído de la portada
+  async function selectColor(color: string | null) {
+    if (!data) return;
+    colorPreview = null;
+    await api.setAlbumColor(albumId, color);
+    data = { ...data, album: { ...data.album, color } };
   }
 
   async function handleCoverUpload(file: File) {
@@ -103,7 +122,7 @@
       album: { ...data.album, imageUrl },
       covers: [{ id: 0, imageUrl, source: 'upload' as const, observedAt: new Date().toISOString() }, ...(data.covers ?? [])],
     };
-    extractColor(imageUrl).then(([r, g, b]) => { heroColor = `${r},${g},${b}`; });
+    refreshCoverColor(imageUrl);
   }
 
   async function loadNaturalTracks(id: string) {
@@ -144,13 +163,7 @@
             .catch(() => {});
         }
       }
-      if (result.album.imageUrl) {
-        extractColor(result.album.imageUrl).then(([r, g, b]) => {
-          if (!signal.aborted) heroColor = `${r},${g},${b}`;
-        });
-      } else {
-        heroColor = '';
-      }
+      refreshCoverColor(result.album.imageUrl, signal);
     } catch (e) {
       if (isAbortError(e)) return;
       throw e;
@@ -280,8 +293,13 @@
         alt={data.album.name}
         noun="cover"
         bind:open={showCoverPicker}
+        bind:mode={pickerMode}
+        color={data.album.color}
+        defaultColor={coverRgb ? rgbToHex(coverRgb) : null}
         onSelect={selectCover}
         onUpload={handleCoverUpload}
+        onSetColor={selectColor}
+        onPreviewColor={(c) => { colorPreview = c; }}
       />
       <div class="detail-header-info">
         <h1>{data.album.name}{#if albumId === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
@@ -325,7 +343,8 @@
         actions={[
           ...(isSpotifyId(albumId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') }] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
-          { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { showCoverPicker = true; } },
+          { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
+          { label: 'Change color', icon: IconPalette, onClick: () => { pickerMode = 'color'; showCoverPicker = true; } },
           { label: 'Manage merges', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
           { label: 'Auto-merge tracks', icon: IconMerge, onClick: () => { mergeInitialStep = 'remerge'; showMergeModal = true; } },
         ]}

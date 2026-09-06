@@ -352,6 +352,10 @@ export const api = {
   setAlbumCover: (albumId: string, imageUrl: string) =>
     apiMutate<{ ok: boolean }>('PUT', `/covers/album/${encodeURIComponent(albumId)}`, { imageUrl }),
 
+  // color manual del álbum (#rrggbb) para gráficas y tinte; null vuelve al extraído de la portada
+  setAlbumColor: (albumId: string, color: string | null) =>
+    apiMutate<{ ok: boolean }>('PUT', `/covers/album/${encodeURIComponent(albumId)}/color`, { color }),
+
   setArtistImage: (artistId: string, imageUrl: string) =>
     apiMutate<{ ok: boolean }>('PUT', `/covers/artist/${encodeURIComponent(artistId)}`, { imageUrl }),
 

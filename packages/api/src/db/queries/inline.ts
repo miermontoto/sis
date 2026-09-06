@@ -266,8 +266,8 @@ export function lookupArtistById(db: Db, id: string) {
 
 export function lookupAlbumById(db: Db, id: string) {
   return db.all(sql`
-    SELECT spotify_id, name, image_url, release_date, total_tracks, album_type FROM albums WHERE spotify_id = ${id}
-  `)[0] as { spotify_id: string; name: string; image_url: string | null; release_date: string | null; total_tracks: number | null; album_type: string | null } | undefined;
+    SELECT spotify_id, name, image_url, release_date, total_tracks, album_type, color FROM albums WHERE spotify_id = ${id}
+  `)[0] as { spotify_id: string; name: string; image_url: string | null; release_date: string | null; total_tracks: number | null; album_type: string | null; color: string | null } | undefined;
 }
 
 export function lookupTrackById(db: Db, id: string) {

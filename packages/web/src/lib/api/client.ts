@@ -254,12 +254,15 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'POST',   prefix: '/concerts',                  clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
   { method: 'PUT',    prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
   { method: 'DELETE', prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
-  { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
+  // portada y color de álbum viajan dentro de cada lista y detalle que pinta el álbum o
+  // sus temas (tops, detalle de artista, detalle de track): se limpian todos. Es un pick
+  // manual y raro, así que perder esas caches sale barato; un hero con el color viejo no
+  { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/covers/'] },
   { method: 'PUT',    prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
   // el genérico /covers/ es el de álbum (la ruta es /covers/:albumId): las de artista
   // van antes porque applyMutationInvalidation para en la primera regla que casa
   { method: 'POST',   prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
-  { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/covers/'] },
+  { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/covers/'] },
   { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
   { method: 'DELETE', prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
   { method: 'POST',   prefix: '/now-playing/queue',         clear: [] },

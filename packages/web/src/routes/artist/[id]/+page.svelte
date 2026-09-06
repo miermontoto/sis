@@ -117,11 +117,11 @@
   // filas de las gráficas: las listas top ya cargadas, sin refetch. Un item sin
   // entidad (track/álbum borrado) no se pinta, igual que en la lista
   let trackChartItems = $derived<RankingChartItem[]>((data?.topTracks ?? []).slice(0, CHART_ROW_CAP).flatMap(t => t.track
-    ? [{ id: t.trackId, name: t.track.name, imageUrl: t.track.album?.imageUrl ?? null, playCount: t.playCount, totalMs: t.totalMs, href: `/track/${t.trackId}` }]
+    ? [{ id: t.trackId, name: t.track.name, imageUrl: t.track.album?.imageUrl ?? null, color: t.track.album?.color, playCount: t.playCount, totalMs: t.totalMs, href: `/track/${t.trackId}` }]
     : []));
 
   let albumChartItems = $derived<RankingChartItem[]>((data?.topAlbums ?? []).slice(0, CHART_ROW_CAP).flatMap(a => a.album
-    ? [{ id: a.albumId, name: a.album.name, imageUrl: a.album.imageUrl, playCount: a.playCount, totalMs: a.totalMs, href: `/album/${a.albumId}` }]
+    ? [{ id: a.albumId, name: a.album.name, imageUrl: a.album.imageUrl, color: a.album.color, playCount: a.playCount, totalMs: a.totalMs, href: `/album/${a.albumId}` }]
     : []));
 
   function loadTopView(kind: TopListKind): TopView {

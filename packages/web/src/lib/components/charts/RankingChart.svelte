@@ -8,6 +8,8 @@
     playCount: number;
     totalMs: number;
     href: string;
+    // pick manual de color (#rrggbb): manda sobre el extraído de la portada
+    color?: string | null;
   }
 
   export type RankingChartMode = 'bar' | 'velocity';
@@ -26,7 +28,7 @@
   import { isAbortError } from '$lib/utils/errors';
   import { formatNumber, formatShortDate } from '$lib/utils/format';
   import { periodLabel } from '$lib/utils/periods';
-  import { extractColor, readableTextOn } from '$lib/utils/color';
+  import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
   import { fitZipf } from '$lib/utils/zipf';
   import {
     GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, MONO_STACK, zoomX,
@@ -63,16 +65,17 @@
   const MINUTES_PER_HOUR = 60;
 
   // --- colores ---
-  // color dominante de cada portada, por id: al cambiar la lista solo se extraen
-  // las que faltan. Un color es un hecho de la imagen, no de la lista, así que un
-  // resultado que llega tarde se guarda igual
+  // color de cada fila, por id: el pick manual del álbum si lo hay y, si no, el
+  // dominante de su portada. Al cambiar la lista solo se resuelven las que faltan;
+  // un color es un hecho de la fila, no de la lista, así que un resultado que
+  // llega tarde se guarda igual
   let colors = $state<Map<string, Rgb>>(new Map());
 
   $effect(() => {
     const known = untrack(() => colors);
-    const pending = items.filter(i => i.imageUrl && !known.has(i.id));
+    const pending = items.filter(i => (i.color || i.imageUrl) && !known.has(i.id));
     if (pending.length === 0) return;
-    Promise.all(pending.map(i => extractColor(i.imageUrl!))).then(rgbs => {
+    Promise.all(pending.map(i => resolveEntityColor(i.color, i.imageUrl))).then(rgbs => {
       const next = new Map(untrack(() => colors));
       pending.forEach((i, k) => next.set(i.id, rgbs[k]));
       colors = next;

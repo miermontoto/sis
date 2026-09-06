@@ -40,6 +40,8 @@ export const albums = sqliteTable('albums', {
   totalTracks: integer('total_tracks'),
   albumType: text('album_type'),
   mbid: text('mbid'),
+  // color manual (#rrggbb) para las gráficas y el tinte del hero; NULL = el extraído de la portada
+  color: text('color'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 

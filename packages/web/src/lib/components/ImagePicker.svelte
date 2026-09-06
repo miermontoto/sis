@@ -4,10 +4,14 @@
   // el detalle de álbum (portadas) y el de artista (fotos): mismo widget sobre dos
   // tablas espejo (album_covers / artist_images).
   import { formatShortDate } from '$lib/utils/format';
+  import { hexToRgb, readableTextOn } from '$lib/utils/color';
   import IconImage from '$lib/icons/IconImage.svelte';
 
-  // 'image' = imagen principal de la entidad, 'background' = fondo del detalle
-  type PickerMode = 'image' | 'background';
+  // 'image' = imagen principal de la entidad, 'background' = fondo del detalle,
+  // 'color' = color manual del álbum (gráficas y tinte del hero)
+  type PickerMode = 'image' | 'background' | 'color';
+  // lo que enseña el input nativo si aún no hay ni pick ni color extraído
+  const FALLBACK_PICKER_COLOR = '#1db954';
 
   // shape común de AlbumCover y ArtistImage (source se pinta tal cual en el tooltip)
   interface EntityImage {
@@ -26,10 +30,14 @@
     open = $bindable(false),
     mode = $bindable('image'),
     backgroundUrl = null,
+    color = null,
+    defaultColor = null,
     onSelect,
     onUpload,
     onSetBackground,
     onUploadBackground,
+    onSetColor,
+    onPreviewColor,
   }: {
     imageUrl: string | null;
     images: EntityImage[];
@@ -46,10 +54,26 @@
     // detalle sobre el mismo pool de imágenes (solo artista; los álbumes no lo pasan)
     onSetBackground?: (imageUrl: string | null) => void | Promise<void>;
     onUploadBackground?: (file: File) => void | Promise<void>;
+    // pick manual de color (#rrggbb) y el extraído de la imagen, que es lo que se usa
+    // sin pick ("auto"). Con onSetColor el picker crece una pestaña de color; null en
+    // el handler vuelve al extraído. onPreviewColor llega en vivo mientras se elige
+    color?: string | null;
+    defaultColor?: string | null;
+    onSetColor?: (color: string | null) => void | Promise<void>;
+    onPreviewColor?: (color: string) => void;
   } = $props();
 
   // la pestaña activa decide qué imagen se marca y a qué handler va el pick
   let backgroundTab = $derived(mode === 'background' && !!onSetBackground);
+  let colorTab = $derived(mode === 'color' && !!onSetColor);
+  let hasTabs = $derived(!!onSetBackground || !!onSetColor);
+  // valor del input nativo: el pick, o el extraído mientras no lo haya
+  let pickerValue = $derived(color ?? defaultColor ?? FALLBACK_PICKER_COLOR);
+  // "auto" se pinta sobre el color extraído: el texto tiene que leerse encima
+  let autoTextColor = $derived.by(() => {
+    const rgb = hexToRgb(defaultColor);
+    return rgb ? readableTextOn(rgb, 1) : undefined;
+  });
   let activeUrl = $derived(backgroundTab ? backgroundUrl : imageUrl);
 
   let containerEl: HTMLDivElement | undefined = $state();
@@ -102,12 +126,38 @@
   </button>
   {#if open}
     <div class="picker-list">
-      {#if onSetBackground}
+      {#if hasTabs}
         <div class="picker-tabs">
-          <button class="picker-tab" class:picker-tab--active={!backgroundTab} onclick={() => { mode = 'image'; }}>{noun}</button>
-          <button class="picker-tab" class:picker-tab--active={backgroundTab} onclick={() => { mode = 'background'; }}>background</button>
+          <button class="picker-tab" class:picker-tab--active={!backgroundTab && !colorTab} onclick={() => { mode = 'image'; }}>{noun}</button>
+          {#if onSetBackground}
+            <button class="picker-tab" class:picker-tab--active={backgroundTab} onclick={() => { mode = 'background'; }}>background</button>
+          {/if}
+          {#if onSetColor}
+            <button class="picker-tab" class:picker-tab--active={colorTab} onclick={() => { mode = 'color'; }}>color</button>
+          {/if}
         </div>
       {/if}
+      {#if colorTab}
+        <!-- "auto" es el color extraído de la imagen: lo que se usa sin pick propio -->
+        <button
+          class="picker-thumb picker-thumb--none picker-swatch"
+          class:picker-thumb--active={!color}
+          style:background={defaultColor ?? undefined}
+          style:color={color ? autoTextColor : undefined}
+          onclick={() => onSetColor?.(null)}
+          title="Use the color extracted from the {noun}"
+        >auto</button>
+        <!-- el input nativo va dentro de la muestra: pulsarla abre el selector del navegador -->
+        <label class="picker-thumb picker-swatch picker-swatch--pick" class:picker-thumb--active={!!color} style:background={pickerValue} title="Pick a color">
+          <input
+            type="color"
+            value={pickerValue}
+            oninput={(e) => onPreviewColor?.(e.currentTarget.value)}
+            onchange={(e) => onSetColor?.(e.currentTarget.value)}
+          />
+        </label>
+        <span class="picker-color-value">{color ?? defaultColor ?? ''}{#if !color}{' · auto'}{/if}</span>
+      {:else}
       {#if backgroundTab}
         <!-- sin fondo propio el detalle cae en la imagen principal, no se queda en plano -->
         <button
@@ -136,6 +186,7 @@
         {/if}
         <input type="file" accept="image/*" onchange={handleUpload} hidden />
       </label>
+      {/if}
     </div>
   {/if}
 </div>
@@ -259,5 +310,24 @@
   .picker-thumb--upload:hover {
     border-color: var(--accent);
     color: var(--accent);
+  }
+  /* muestras de color: el fondo lo pone el estilo inline con el color en cuestión */
+  .picker-swatch--pick {
+    position: relative;
+    border-color: var(--border);
+  }
+  .picker-swatch--pick input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .picker-color-value {
+    flex: 0 0 100%;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
   }
 </style>

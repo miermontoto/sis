@@ -27,5 +27,5 @@ export interface TopAlbumItem {
   rankChange: number | null;
   previousRank: number | null;
   isNew: boolean;
-  album: { name: string; imageUrl: string | null; releaseDate: string | null } | null;
+  album: { name: string; imageUrl: string | null; releaseDate: string | null; color?: string | null } | null;
 }

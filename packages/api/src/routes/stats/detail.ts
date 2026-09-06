@@ -161,7 +161,7 @@ detail.get('/album/:id', async (c) => {
         name: row.name,
         durationMs: row.duration_ms,
         trackNumber: row.track_number,
-        album: { id: album.spotify_id, name: album.name, imageUrl: album.image_url },
+        album: { id: album.spotify_id, name: album.name, imageUrl: album.image_url, color: album.color },
         artists: trackArtists && trackArtists.length > 0 ? trackArtists : albumArtists,
       },
     };
@@ -171,6 +171,7 @@ detail.get('/album/:id', async (c) => {
     album: {
       id: album.spotify_id, name: album.name, imageUrl: album.image_url,
       releaseDate: album.release_date, totalTracks: album.total_tracks, albumType: album.album_type,
+      color: album.color,
     },
     artists: albumArtistRows.map((a) => ({ id: a.artist_id, name: a.name, imageUrl: a.image_url })),
     stats: statsRow,
@@ -227,7 +228,7 @@ detail.get('/track/:id', async (c) => {
     track: {
       id: track.spotify_id, name: track.name, durationMs: track.duration_ms,
       trackNumber: track.track_number, explicit: track.explicit,
-      album: albumRaw ? { id: albumRaw.spotify_id, name: albumRaw.name, imageUrl: albumRaw.image_url, releaseDate: albumRaw.release_date, albumType: albumRaw.album_type } : null,
+      album: albumRaw ? { id: albumRaw.spotify_id, name: albumRaw.name, imageUrl: albumRaw.image_url, releaseDate: albumRaw.release_date, albumType: albumRaw.album_type, color: albumRaw.color } : null,
       artists: arts.map((a) => ({ id: a.spotify_id, name: a.name, imageUrl: a.image_url })),
     },
     stats: statsRow,

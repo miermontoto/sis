@@ -3,7 +3,8 @@ export interface TrackInfo {
   name: string;
   durationMs: number;
   trackNumber?: number | null;
-  album: { id: string; name: string; imageUrl: string | null } | null;
+  // color: pick manual del álbum (#rrggbb), null = el extraído de la portada
+  album: { id: string; name: string; imageUrl: string | null; color?: string | null } | null;
   artists: { id: string; name: string }[];
 }
 
@@ -18,4 +19,5 @@ export interface FormattedAlbum {
   imageUrl: string | null;
   releaseDate: string | null;
   albumType?: string | null;
+  color?: string | null;
 }

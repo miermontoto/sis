@@ -13,7 +13,7 @@
   import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
   import { medalColor } from '$lib/utils/medals';
-  import { extractColor } from '$lib/utils/color';
+  import { resolveEntityColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
@@ -82,9 +82,10 @@
       const result = await api.trackDetail(id, 'all', signal);
       if (signal.aborted) return;
       data = result;
-      const imgUrl = result.track.album?.imageUrl;
-      if (imgUrl) {
-        extractColor(imgUrl).then(([r, g, b]) => {
+      // el tinte sale del álbum: su color manual si lo tiene, si no el de la portada
+      const album = result.track.album;
+      if (album?.color || album?.imageUrl) {
+        resolveEntityColor(album.color, album.imageUrl).then(([r, g, b]) => {
           if (!signal.aborted) heroColor = `${r},${g},${b}`;
         });
       } else {

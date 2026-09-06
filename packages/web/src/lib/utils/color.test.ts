@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readableTextOn } from './color';
+import { readableTextOn, hexToRgb, rgbToHex, resolveEntityColor } from './color';
 
 // el nombre de la entidad se pinta dentro de su barra cuando cabe, y el relleno
 // de la barra es el color dominante de la portada: sin elegir el texto por
@@ -39,5 +39,41 @@ describe('readableTextOn', () => {
     // a baja opacidad manda el fondo oscuro y el texto tiene que volver a ser claro
     expect(readableTextOn(WHITE_COVER, 0.9)).toBe(DARK);
     expect(readableTextOn(WHITE_COVER, 0.3)).toBe(LIGHT);
+  });
+});
+
+// el pick manual de color de un álbum viaja como #rrggbb y las gráficas trabajan
+// en tuplas rgb: la conversión tiene que ser exacta en los dos sentidos, y el
+// resolver tiene que preferir el pick sin llegar a tocar la imagen
+describe('hexToRgb / rgbToHex', () => {
+  it('convierte en los dos sentidos, con y sin almohadilla, sin importar mayúsculas', () => {
+    expect(hexToRgb('#1db954')).toEqual(SPOTIFY_GREEN);
+    expect(hexToRgb('1DB954')).toEqual(SPOTIFY_GREEN);
+    expect(rgbToHex(SPOTIFY_GREEN)).toBe('#1db954');
+    expect(rgbToHex(hexToRgb('#0a0b0c')!)).toBe('#0a0b0c');
+  });
+
+  it('rechaza lo que no es un hex de 6 dígitos', () => {
+    expect(hexToRgb('#fff')).toBeNull();
+    expect(hexToRgb('red')).toBeNull();
+    expect(hexToRgb('')).toBeNull();
+    expect(hexToRgb(null)).toBeNull();
+    expect(hexToRgb(undefined)).toBeNull();
+  });
+
+  it('acota canales fuera de rango al pasar a hex', () => {
+    expect(rgbToHex([300, -5, 12.6])).toBe('#ff000d');
+  });
+});
+
+describe('resolveEntityColor', () => {
+  it('el pick manual manda y se resuelve sin cargar ninguna imagen', async () => {
+    // en vitest no hay Image: si intentara extraer de la url, reventaría o colgaría
+    await expect(resolveEntityColor('#283ca0', 'https://example.test/cover.jpg')).resolves.toEqual(DEEP_BLUE);
+  });
+
+  it('sin pick ni imagen cae al verde por defecto', async () => {
+    await expect(resolveEntityColor(null, null)).resolves.toEqual(SPOTIFY_GREEN);
+    await expect(resolveEntityColor('nope', undefined)).resolves.toEqual(SPOTIFY_GREEN);
   });
 });
