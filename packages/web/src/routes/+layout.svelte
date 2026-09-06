@@ -37,7 +37,9 @@
   import IconNext from '$lib/icons/IconNext.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { nextFitTier, SIDEBAR_FIT_NP_INLINE, SIDEBAR_FIT_NAV_COMPACT } from '$lib/utils/sidebar-fit';
+  import { positionPopover } from '$lib/utils/popover';
   import { pwaInfo } from 'virtual:pwa-info';
 
   // estado del modal global de merge (abierto desde el menú contextual).
@@ -77,7 +79,15 @@
   // rail izquierdo colapsado (solo iconos): preferencia de escritorio persistida
   let sidebarCollapsed = $state<boolean>(getSidebarCollapsed());
   let sidebarEl = $state<HTMLElement | null>(null);
-  let sidebarOverflows = $state(false);
+  let sidebarSpacerEl = $state<HTMLElement | null>(null);
+  let navEl = $state<HTMLElement | null>(null);
+  // escalera de ajuste vertical (utils/sidebar-fit): 0 todo expandido, 1 now
+  // playing en línea, 2 nav compacto (un renglón por grupo). Los px que ahorró
+  // cada escalón, medidos al aplicarlo, son la histéresis que impide oscilar
+  let sidebarFit = $state(0);
+  const fitSavings: number[] = [];
+  let navCompact = $derived(sidebarFit >= SIDEBAR_FIT_NAV_COMPACT);
+  let npInline = $derived(nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && sidebarFit >= SIDEBAR_FIT_NP_INLINE));
 
   const unsubNpDisplay = onNowPlayingDisplayChange((v) => { nowPlayingDisplay = v; });
   const unsubSidebarCollapsed = onSidebarCollapsedChange((v) => { sidebarCollapsed = v; });
@@ -158,23 +168,32 @@
 
   $effect(() => {
     const el = sidebarEl;
-    if (!el) return;
-    // histéresis para evitar feedback loop: NP compacto reduce scrollHeight,
-    // lo que haría que sidebarOverflows vuelva a false, agrandando NP de
-    // nuevo. Para volver a full, exigimos margen suficiente (~150px, la
-    // diferencia aproximada entre NP full y compacto).
-    const NP_HEIGHT_DIFF = 150;
-    const check = () => {
-      if (sidebarOverflows) {
-        sidebarOverflows = el.scrollHeight + NP_HEIGHT_DIFF > el.clientHeight;
-      } else {
-        sidebarOverflows = el.scrollHeight > el.clientHeight;
-      }
+    const spacer = sidebarSpacerEl;
+    if (!el || !spacer) return;
+    // alto real del contenido: el spacer (flex: 1) absorbe el hueco libre, así
+    // que restándolo sale lo que ocupa la columna aunque quepa de sobra
+    const contentHeight = () => el.scrollHeight - spacer.offsetHeight;
+    let stepping = false;
+    const check = async () => {
+      if (stepping) return;
+      const tier = sidebarFit;
+      const before = contentHeight();
+      const next = nextFitTier(tier, el.clientHeight - before, fitSavings);
+      if (next === tier) return;
+      stepping = true;
+      sidebarFit = next;
+      await tick();
+      // el ahorro se mide al bajar el escalón, con el DOM ya actualizado; un
+      // escalón sin efecto (now playing apagado) ahorra 0 y la escalera sigue
+      if (next > tier) fitSavings[next - 1] = before - contentHeight();
+      stepping = false;
+      check();
     };
-    check();
-    const ro = new ResizeObserver(check);
+    untrack(check);
+    const ro = new ResizeObserver(() => check());
     ro.observe(el);
-    const mo = new MutationObserver(check);
+    ro.observe(spacer);
+    const mo = new MutationObserver(() => check());
     mo.observe(el, { childList: true, subtree: true });
     return () => { ro.disconnect(); mo.disconnect(); };
   });
@@ -185,16 +204,29 @@
       const inMobile = mobileUserMenuRef?.contains(e.target as Node);
       if (!inDesktop && !inMobile) showUserMenu = false;
     }
-    if (expandedGroup && !tabbarRef?.contains(e.target as Node)) {
+    if (expandedGroup && !tabbarRef?.contains(e.target as Node) && !navEl?.contains(e.target as Node)) {
       expandedGroup = null;
     }
+  }
+
+  function handleEscape(e: KeyboardEvent) {
+    if (e.key === 'Escape') expandedGroup = null;
   }
 
   $effect(() => {
     if (showUserMenu || expandedGroup) {
       document.addEventListener('click', handleClickOutside, true);
-      return () => document.removeEventListener('click', handleClickOutside, true);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('click', handleClickOutside, true);
+        document.removeEventListener('keydown', handleEscape);
+      };
     }
+  });
+
+  // al recuperar sitio el nav vuelve a expandirse y su desplegable deja de existir
+  $effect(() => {
+    if (!navCompact) expandedGroup = null;
   });
 
   // rutas sin chrome ni auth gate: login + vistas públicas de share links +
@@ -272,6 +304,7 @@
       items: [
         { href: '/insights', label: 'Insights', icon: '!' },
         { href: '/records', label: 'Records', icon: '^' },
+        { href: '/reports', label: 'Reports', icon: '¶' },
       ],
     },
     {
@@ -294,6 +327,7 @@
   ];
 
   const nav = navGroups.flatMap(group => group.items);
+  const desktopNavGroups = navGroups.filter(g => !('desktopHidden' in g));
   const mobileNavGroups = navGroups
     .map(g => ({ label: g.label, items: g.items.filter(i => !('mobileHidden' in i)) }))
     .filter(g => g.items.length > 0);
@@ -304,6 +338,20 @@
 
   function isGroupActive(group: typeof mobileNavGroups[number]) {
     return group.items.some(i => isNavActive(i.href));
+  }
+
+  // icono con el que se representa un grupo compactado (pestaña móvil, renglón
+  // del nav compacto): el del item activo si estás dentro, si no el del primero
+  function groupIcon(group: typeof mobileNavGroups[number]) {
+    return (group.items.find(i => isNavActive(i.href)) ?? group.items[0]).icon;
+  }
+
+  // desplegable del nav compacto: se abre al pasar el ratón (puntero real; en
+  // táctil manda el click, si no el primer tap abre y cierra), mismo contrato
+  // que HoverPopover
+  function hoverGroup(e: PointerEvent, label: string | null) {
+    if (e.pointerType === 'touch') return;
+    expandedGroup = label;
   }
 
   function handleGroupTap(group: typeof mobileNavGroups[number]) {
@@ -420,17 +468,54 @@
           <kbd>⌘K</kbd>
         </button>
       </div>
-      <nav class="sidebar-nav sidebar-nav--desktop" aria-label="Primary navigation">
-        {#each navGroups.filter(g => !('desktopHidden' in g)) as group}
-          <div class="sidebar-nav-section">
-            <span class="sidebar-nav-heading">{group.label}</span>
-            {#each group.items as item}
-              <a href={item.href} class:active={isNavActive(item.href)} title={item.label}>
-                <span class="sidebar-nav-icon" aria-hidden="true">{item.icon}</span>
-                <span>{item.label}</span>
-              </a>
-            {/each}
-          </div>
+      <nav class="sidebar-nav sidebar-nav--desktop" class:sidebar-nav--compact={navCompact} bind:this={navEl} aria-label="Primary navigation">
+        {#each desktopNavGroups as group}
+          {#if navCompact}
+            <!-- el control accesible es el botón; el div sólo capta el hover del ratón -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="sidebar-nav-group"
+              onpointerenter={(e) => hoverGroup(e, group.label)}
+              onpointerleave={(e) => hoverGroup(e, null)}
+            >
+              <button
+                type="button"
+                class="sidebar-nav-group-btn"
+                class:active={isGroupActive(group)}
+                aria-haspopup="true"
+                aria-expanded={expandedGroup === group.label}
+                title={group.label}
+                onclick={() => handleGroupTap(group)}
+              >
+                <span class="sidebar-nav-icon" aria-hidden="true">{groupIcon(group)}</span>
+                <span>{group.label}</span>
+                <span class="sidebar-nav-chevron" aria-hidden="true">›</span>
+              </button>
+              {#if expandedGroup === group.label}
+                <div class="sidebar-nav-flyout" use:positionPopover={'right'}>
+                  <div class="sidebar-nav-flyout-panel">
+                    <span class="sidebar-nav-heading">{group.label}</span>
+                    {#each group.items as item}
+                      <a href={item.href} class:active={isNavActive(item.href)} title={item.label} onclick={() => expandedGroup = null}>
+                        <span class="sidebar-nav-icon" aria-hidden="true">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </a>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <div class="sidebar-nav-section">
+              <span class="sidebar-nav-heading">{group.label}</span>
+              {#each group.items as item}
+                <a href={item.href} class:active={isNavActive(item.href)} title={item.label}>
+                  <span class="sidebar-nav-icon" aria-hidden="true">{item.icon}</span>
+                  <span>{item.label}</span>
+                </a>
+              {/each}
+            </div>
+          {/if}
         {/each}
       </nav>
       {#if sessionTrackingDisplay === 'all' && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
@@ -550,7 +635,7 @@
               class:active={isGroupActive(group)}
               onclick={() => handleGroupTap(group)}
             >
-              <span class="sidebar-nav-icon" aria-hidden="true">{group.items[0].icon}</span>
+              <span class="sidebar-nav-icon" aria-hidden="true">{groupIcon(group)}</span>
               <span>{group.label}</span>
             </button>
             {#if expandedGroup === group.label && group.items.length > 1}
@@ -570,7 +655,7 @@
           </div>
         {/each}
       </nav>
-      <div class="sidebar-spacer"></div>
+      <div class="sidebar-spacer" bind:this={sidebarSpacerEl}></div>
       <div class="sidebar-friends">
         <FriendsActivity />
       </div>
@@ -581,7 +666,7 @@
       {/if}
       {#if nowPlayingDisplay !== 'off'}
         <div class="sidebar-now-playing">
-          <NowPlaying compact rail={sidebarCollapsed} inline={nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && sidebarOverflows)} />
+          <NowPlaying compact rail={sidebarCollapsed} inline={npInline} />
         </div>
       {/if}
       {#if user?.authenticated}

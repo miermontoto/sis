@@ -129,6 +129,7 @@ Writing any streaming route: `dbRead` runs **synchronously on the main thread in
 - `packages/web/src/lib/api.ts` — typed API client, all types for API responses, ranking metric preference via localStorage (`sis:rankingMetric`)
 - Pages read localStorage preferences on mount (no global store)
 - `TimeRangeSelector.svelte` — shared range picker used across Top, Trends, Insights pages
+- Sidebar vertical fit: `sidebarFit` en `+layout.svelte` es una **escalera** (`utils/sidebar-fit.ts`, unit-tested): 0 todo expandido → 1 now playing en línea → 2 nav compacto (un renglón por grupo con desplegable lateral, como las pestañas móviles). Cada escalón se deshace sólo cuando sobra lo que ahorró, **medido al aplicarlo** (el spacer es `flex: 1`, su alto es la holgura): sin esa histéresis oscila. No vuelvas a un `scrollHeight > clientHeight` booleano ni a un delta fijo. El desplegable es `position: fixed` vía `positionPopover(node, 'right')`, pegado al grupo sin hueco (el padding hace de puente del hover), porque el sidebar tiene `overflow` y recortaría un `absolute`.
 - `HoverPopover.svelte` — trigger + panel del badge del hero (`Accolades`, que incluye records y bolos): hover con ratón, click en táctil, cierre al pulsar fuera y con Escape. Los estilos del contenido (`.popover-title`, `.popover-list`, `.popover-row`) van `:global` bajo `.hover-popover`, porque el markup llega por snippet con el scope del consumidor. Nuevo badge del hero = este componente, nunca un popover propio
 
 ## Deployment
