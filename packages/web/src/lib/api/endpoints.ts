@@ -168,6 +168,10 @@ export const api = {
   rankingsBatch: (type: 'track' | 'album', ids: string[], sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<Record<string, number>>('/stats/rankings-batch', { type, ids: ids.join(','), sort }, signal),
 
+  // series temporales de un lote de ids del mismo tipo (velocity chart de las listas top): id → serie
+  seriesBatch: (type: EntityType, ids: string[], range = 'all', dates?: DateRangeParams, signal?: AbortSignal) =>
+    apiFetch<Record<string, { period: string; play_count: number; total_ms: number }[]>>('/stats/series-batch', { type, ids: ids.join(','), ...rangeParams(range, dates) }, signal),
+
   rankingHistory: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<RankingHistoryPointWithCrossovers[]>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort, crossovers: 'true' }, signal),
 

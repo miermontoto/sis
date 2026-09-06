@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w36ae';
+export const VERSION = '26w36af';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -132,6 +132,10 @@ export const DEFAULT_PAGE_LIMIT = 50;
 
 // rankings-batch: tope de ids por petición (mismo tope que trackLimit/albumLimit de detail)
 export const RANKINGS_BATCH_LIMIT = 200;
+
+// series-batch: tope de ids por petición. Es el mayor Top N que pintan las gráficas
+// de ranking (velocity), no un tope de página: por encima, el chart ya no se lee
+export const SERIES_BATCH_LIMIT = 50;
 
 // /stats/charts/peaks/stream: trozos de ranking en vuelo a la vez. El escaneo va
 // del año más reciente al más antiguo y cada trozo cierra parte de las entidades,

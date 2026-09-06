@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
 import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
+import { resolveEntityIds } from './merge.js';
 
 /** Stats agregados para cualquier entidad. Para álbumes y artistas, pasar IDs pre-resueltos. */
 export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, rangeEnd: string | null | undefined, entityIds: string[] | undefined, userId: number): StatsRow {
@@ -132,6 +133,19 @@ export function getEntitySeries(db: Db, entityType: EntityType, entityId: string
     GROUP BY period
     ORDER BY period ASC
   `) as SeriesRow[];
+}
+
+/**
+ * Series de varias entidades del mismo tipo en un solo viaje al worker. El velocity
+ * chart de una lista top pinta N líneas acumuladas, y pedir N detalles arrastraría
+ * recent plays, versiones y breakdown por álbum que nadie va a pintar. Cada id se
+ * resuelve a su grupo de merge antes de consultar, igual que hace el detalle.
+ */
+export function getEntitySeriesBatch(db: Db, entityType: EntityType, ids: string[], rangeStart: string | null, range: TimeRange, rangeEnd: string | null | undefined, customDays: number | undefined, userId: number): Record<string, SeriesRow[]> {
+  return Object.fromEntries(ids.map((id) => [
+    id,
+    getEntitySeries(db, entityType, id, rangeStart, range, resolveEntityIds(db, entityType, id, userId), rangeEnd, customDays, userId),
+  ]));
 }
 
 /** Serie temporal global */

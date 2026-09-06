@@ -17,6 +17,7 @@
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
+  import RankingChart, { type RankingChartItem, type RankingChartMode } from '$lib/components/charts/RankingChart.svelte';
   import MergeBanners from '$lib/components/MergeBanners.svelte';
   import RelatedArtists from '$lib/components/RelatedArtists.svelte';
   import ConcertList from '$lib/components/ConcertList.svelte';
@@ -47,6 +48,20 @@
   const TOP_ALBUMS_LIMIT = 5;
   const SHOW_ALL_LIMIT = 200;
 
+  // vista de cada lista top: la lista de siempre, o las mismas filas como gráfica
+  // de barras / velocity (las del /top). Se recuerda por lista, no por artista
+  type TopListKind = 'tracks' | 'albums';
+  type TopView = 'list' | RankingChartMode;
+  const TOP_VIEW_OPTIONS: { value: TopView; label: string }[] = [
+    { value: 'list', label: 'List' },
+    { value: 'bar', label: 'Bar' },
+    { value: 'velocity', label: 'Velocity' },
+  ];
+  const TOP_VIEW_KEY_PREFIX = 'sis:artistTopView:';
+  // "show all" trae hasta 200 filas: la lista las aguanta, la gráfica no (200
+  // barras son 9k px y 200 líneas una maraña), así que pinta como mucho el Top 50
+  const CHART_ROW_CAP = 50;
+
   // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
   const artistId = $derived($page.params.id ?? '');
 
@@ -72,6 +87,7 @@
   let albumGlobalRanks = $state<Record<string, number> | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let layout = $state<DetailLayout>(defaultLayout('artist'));
+  let topView = $state<Record<TopListKind, TopView>>({ tracks: 'list', albums: 'list' });
   const fetchCtrl = createFetchController();
   // un controller por lista: expandir álbumes no debe abortar el fetch de tracks
   const listCtrl = { tracks: createFetchController(), albums: createFetchController() };
@@ -97,6 +113,26 @@
   })));
 
   let chartEvents = $derived<ChartEvent[]>([...releaseEvents, ...concertEvents]);
+
+  // filas de las gráficas: las listas top ya cargadas, sin refetch. Un item sin
+  // entidad (track/álbum borrado) no se pinta, igual que en la lista
+  let trackChartItems = $derived<RankingChartItem[]>((data?.topTracks ?? []).slice(0, CHART_ROW_CAP).flatMap(t => t.track
+    ? [{ id: t.trackId, name: t.track.name, imageUrl: t.track.album?.imageUrl ?? null, playCount: t.playCount, totalMs: t.totalMs, href: `/track/${t.trackId}` }]
+    : []));
+
+  let albumChartItems = $derived<RankingChartItem[]>((data?.topAlbums ?? []).slice(0, CHART_ROW_CAP).flatMap(a => a.album
+    ? [{ id: a.albumId, name: a.album.name, imageUrl: a.album.imageUrl, playCount: a.playCount, totalMs: a.totalMs, href: `/album/${a.albumId}` }]
+    : []));
+
+  function loadTopView(kind: TopListKind): TopView {
+    const stored = localStorage.getItem(TOP_VIEW_KEY_PREFIX + kind);
+    return TOP_VIEW_OPTIONS.some(o => o.value === stored) ? stored as TopView : 'list';
+  }
+
+  function setTopView(kind: TopListKind, view: TopView) {
+    topView[kind] = view;
+    localStorage.setItem(TOP_VIEW_KEY_PREFIX + kind, view);
+  }
 
   function openConcertModal(concert: Concert | null) {
     editingConcert = concert;
@@ -267,6 +303,7 @@
     artistShowGlobalRanks = getArtistShowGlobalRanks();
     backdropMode = getArtistBackdrop();
     layout = getDetailLayout('artist');
+    topView = { tracks: loadTopView('tracks'), albums: loadTopView('albums') };
     initialized = true;
   });
 
@@ -358,6 +395,21 @@
     </div>
   {/snippet}
 
+  <!-- List · Bar · Velocity de una lista top: mismos botones que "show all",
+       que vive a su lado en la misma cabecera -->
+  {#snippet viewToggle(kind: TopListKind)}
+    <div class="view-toggle" role="group" aria-label="View as">
+      {#each TOP_VIEW_OPTIONS as opt (opt.value)}
+        <button
+          class="show-all-btn"
+          class:active={topView[kind] === opt.value}
+          aria-pressed={topView[kind] === opt.value}
+          onclick={() => setTopView(kind, opt.value)}
+        >{opt.label}</button>
+      {/each}
+    </div>
+  {/snippet}
+
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
   {#snippet sec(key: string)}
     {#if key === 'stats'}
@@ -374,22 +426,41 @@
       <ActivityChart series={d.series} {metric} events={chartEvents} />
     {:else if key === 'topTracks'}
       {#if d.topTracks.length > 0}
-        <div class="section-header">
+        {@const view = topView.tracks}
+        <div class="section-header section-header--views">
           <h2 class="section-title">Top tracks</h2>
-          <button class="show-all-btn" onclick={() => toggleList('tracks')}>
-            {showAllTracks ? 'Show less' : 'Show all'}
-          </button>
+          <div class="section-actions">
+            {@render viewToggle('tracks')}
+            <button class="show-all-btn" onclick={() => toggleList('tracks')}>
+              {showAllTracks ? 'Show less' : 'Show all'}
+            </button>
+          </div>
         </div>
-        <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
+        {#if view === 'list'}
+          <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
+        {:else}
+          <div class="card chart-card">
+            <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />
+          </div>
+        {/if}
       {/if}
     {:else if key === 'topAlbums'}
       {#if d.topAlbums.length > 0}
-        <div class="section-header">
+        {@const view = topView.albums}
+        <div class="section-header section-header--views">
           <h2 class="section-title">Top albums</h2>
-          <button class="show-all-btn" onclick={() => toggleList('albums')}>
-            {showAllAlbums ? 'Show less' : 'Show all'}
-          </button>
+          <div class="section-actions">
+            {@render viewToggle('albums')}
+            <button class="show-all-btn" onclick={() => toggleList('albums')}>
+              {showAllAlbums ? 'Show less' : 'Show all'}
+            </button>
+          </div>
         </div>
+        {#if view !== 'list'}
+          <div class="card chart-card">
+            <RankingChart items={albumChartItems} entityType="album" {metric} mode={view} />
+          </div>
+        {:else}
         <div class="track-list">
           {#each d.topAlbums as item, i}
             {#if item.album}
@@ -422,6 +493,7 @@
             {/if}
           {/each}
         </div>
+        {/if}
       {/if}
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
@@ -485,3 +557,31 @@
   />
 {/if}
 
+<style>
+  /* título + vista + show all: en pantallas estrechas los botones bajan de línea */
+  .section-header--views {
+    flex-wrap: wrap;
+  }
+
+  .section-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  /* la vista activa se marca como el rango activo de los selectores de tiempo */
+  .view-toggle .show-all-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  .chart-card {
+    margin-bottom: 1.5rem;
+  }
+</style>

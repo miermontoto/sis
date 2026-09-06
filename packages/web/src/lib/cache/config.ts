@@ -61,6 +61,8 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/stats/records',                { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/accolades/',             { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/rankings-batch',         { ttl: 30 * MIN, maxStale: 24 * HOUR }],
+  // series por lote: acompañan a un detalle (1h), así que envejecen con él
+  ['/stats/series-batch',           { ttl: 1 * HOUR, maxStale: 7 * DAY }],
   ['/stats/rankings/',              { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/ranking-history/',       { ttl: 30 * MIN, maxStale: 24 * HOUR }],
   ['/stats/card/',                  { ttl: 1 * HOUR, maxStale: 7 * DAY }],

@@ -6,7 +6,7 @@ import { getRangeStart } from '../../db/queries/index.js';
 import type { MergeInfo } from '../../db/queries/index.js';
 import type { EntityCard } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
-import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS } from '../../constants.js';
+import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS, SERIES_BATCH_LIMIT } from '../../constants.js';
 import { statsRouter, parseParams } from './_shared.js';
 
 const detail = statsRouter();
@@ -338,6 +338,19 @@ detail.get('/search', async (c) => {
   const userId = c.get('userId');
 
   return c.json(await dbRead('searchEntities', term, limit, userId));
+});
+
+// series de un lote de entidades del mismo tipo (velocity chart de las listas top):
+// una petición por lote en vez de N detalles, con los mismos params de rango que
+// el resto de /stats. Respuesta: id → serie, con el id tal cual se pidió
+detail.get('/series-batch', async (c) => {
+  const type = c.req.query('type');
+  if (type !== 'track' && type !== 'album' && type !== 'artist') return c.json({ error: 'invalid type' }, 400);
+  const ids = (c.req.query('ids') ?? '').split(',').filter(Boolean).slice(0, SERIES_BATCH_LIMIT);
+  if (ids.length === 0) return c.json({});
+  const { range, rangeStart, rangeEnd, customDays } = parseParams(c);
+  const rangeKey = range === 'custom' ? 'all' : range;
+  return c.json(await dbRead('getEntitySeriesBatch', type, ids, rangeStart, rangeKey, rangeEnd, customDays, c.get('userId')));
 });
 
 export default detail;
