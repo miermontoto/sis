@@ -38,7 +38,7 @@
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
-  import { nextFitTier, SIDEBAR_FIT_NP_INLINE, SIDEBAR_FIT_NAV_COMPACT } from '$lib/utils/sidebar-fit';
+  import { chooseFit, sameFit, type FitChoice, type FitSizes } from '$lib/utils/sidebar-fit';
   import { positionPopover } from '$lib/utils/popover';
   import { pwaInfo } from 'virtual:pwa-info';
 
@@ -81,13 +81,14 @@
   let sidebarEl = $state<HTMLElement | null>(null);
   let sidebarSpacerEl = $state<HTMLElement | null>(null);
   let navEl = $state<HTMLElement | null>(null);
-  // escalera de ajuste vertical (utils/sidebar-fit): 0 todo expandido, 1 now
-  // playing en línea, 2 nav compacto (un renglón por grupo). Los px que ahorró
-  // cada escalón, medidos al aplicarlo, son la histéresis que impide oscilar
-  let sidebarFit = $state(0);
-  const fitSavings: number[] = [];
-  let navCompact = $derived(sidebarFit >= SIDEBAR_FIT_NAV_COMPACT);
-  let npInline = $derived(nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && sidebarFit >= SIDEBAR_FIT_NP_INLINE));
+  let npWrapEl = $state<HTMLElement | null>(null);
+  // ajuste vertical (utils/sidebar-fit): qué partes plegables van compactas.
+  // Se elige con las alturas medidas de cada parte en cada modo, no con un
+  // "¿desborda?" booleano, para que la decisión no se realimente
+  let fitChoice = $state<FitChoice>({ navCompact: false, npInline: false });
+  const fitSizes: FitSizes = { base: 0 };
+  let navCompact = $derived(fitChoice.navCompact);
+  let npInline = $derived(nowPlayingDisplay === 'compact' || (nowPlayingDisplay === 'auto' && fitChoice.npInline));
 
   const unsubNpDisplay = onNowPlayingDisplayChange((v) => { nowPlayingDisplay = v; });
   const unsubSidebarCollapsed = onSidebarCollapsedChange((v) => { sidebarCollapsed = v; });
@@ -169,33 +170,48 @@
   $effect(() => {
     const el = sidebarEl;
     const spacer = sidebarSpacerEl;
-    if (!el || !spacer) return;
+    const nav = navEl;
+    if (!el || !spacer || !nav) return;
     // alto real del contenido: el spacer (flex: 1) absorbe el hueco libre, así
     // que restándolo sale lo que ocupa la columna aunque quepa de sobra
     const contentHeight = () => el.scrollHeight - spacer.offsetHeight;
-    let stepping = false;
+    let applying = false;
     const check = async () => {
-      if (stepping) return;
-      const tier = sidebarFit;
-      const before = contentHeight();
-      const next = nextFitTier(tier, el.clientHeight - before, fitSavings);
-      if (next === tier) return;
-      stepping = true;
-      sidebarFit = next;
+      if (applying) return;
+      // mide cada parte en el modo en que está pintada; el otro modo conserva
+      // su última medida, o sigue desconocido hasta que se pinte
+      const navH = nav.offsetHeight;
+      fitSizes[navCompact ? 'navCompact' : 'navFull'] = navH;
+      const npH = npWrapEl?.offsetHeight ?? 0;
+      if (npWrapEl?.querySelector('.np')) fitSizes[npInline ? 'npInline' : 'npFull'] = npH;
+      else { fitSizes.npFull = npH; fitSizes.npInline = npH; } // sin tarjeta, los dos modos miden lo mismo
+      fitSizes.base = contentHeight() - navH - npH;
+      const next = chooseFit(el.clientHeight, fitSizes, { navCompact, npInline });
+      if (sameFit(next, fitChoice)) return;
+      applying = true;
+      fitChoice = next;
       await tick();
-      // el ahorro se mide al bajar el escalón, con el DOM ya actualizado; un
-      // escalón sin efecto (now playing apagado) ahorra 0 y la escalera sigue
-      if (next > tier) fitSavings[next - 1] = before - contentHeight();
-      stepping = false;
-      check();
+      applying = false;
+      check(); // lo recién pintado ya tiene medida: quizá cabe otra combinación
     };
     untrack(check);
     const ro = new ResizeObserver(() => check());
     ro.observe(el);
     ro.observe(spacer);
+    ro.observe(nav);
     const mo = new MutationObserver(() => check());
     mo.observe(el, { childList: true, subtree: true });
     return () => { ro.disconnect(); mo.disconnect(); };
+  });
+
+  // al cambiar el ancho del rail cambian las alturas: olvida las medidas de los
+  // modos que no están pintados para que se vuelvan a sondear
+  $effect(() => {
+    sidebarCollapsed;
+    untrack(() => {
+      delete fitSizes[navCompact ? 'navFull' : 'navCompact'];
+      delete fitSizes[npInline ? 'npFull' : 'npInline'];
+    });
   });
 
   function handleClickOutside(e: MouseEvent) {
@@ -665,7 +681,7 @@
         </div>
       {/if}
       {#if nowPlayingDisplay !== 'off'}
-        <div class="sidebar-now-playing">
+        <div class="sidebar-now-playing" bind:this={npWrapEl}>
           <NowPlaying compact rail={sidebarCollapsed} inline={npInline} />
         </div>
       {/if}
