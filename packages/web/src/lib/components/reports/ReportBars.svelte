@@ -6,9 +6,10 @@
     value: number;
     /** texto a la derecha (ya formateado) */
     valueLabel: string;
+    /** entidad junto a la etiqueta (artista líder de la década), con su foto y enlace: es
+     *  lo que se pincha, la etiqueta en sí (una década, un género) no tiene página */
     sublabel?: string;
-    href?: string;
-    /** imagen opcional a la izquierda (foto del artista líder de la década) */
+    sublabelHref?: string;
     imageUrl?: string | null;
     round?: boolean;
     /** cambio de puesto respecto al periodo anterior; undefined = no se pinta */
@@ -30,13 +31,17 @@
   {#each items as item (item.key)}
     <div class="report-bar">
       <div class="report-bar-row">
-        {#if item.imageUrl}
-          <img class="report-bar-art" class:report-bar-art--round={item.round} src={item.imageUrl} alt="" />
+        <span class="report-bar-label">{item.label}</span>
+        {#if item.sublabel}
+          {#if item.sublabelHref}
+            <a class="report-bar-sub report-bar-sub--link" href={item.sublabelHref}>
+              {#if item.imageUrl}<img class="report-bar-art" class:report-bar-art--round={item.round} src={item.imageUrl} alt="" />{/if}
+              <span class="report-bar-sub-text">{item.sublabel}</span>
+            </a>
+          {:else}
+            <span class="report-bar-sub"><span class="report-bar-sub-text">{item.sublabel}</span></span>
+          {/if}
         {/if}
-        <span class="report-bar-label">
-          {#if item.href}<a href={item.href}>{item.label}</a>{:else}{item.label}{/if}
-        </span>
-        {#if item.sublabel}<span class="report-bar-sub">{item.sublabel}</span>{/if}
         {#if item.rankChange !== undefined}<RankChange rankChange={item.rankChange} isNew={item.isNew ?? false} />{/if}
         <span class="report-bar-value data-count">{item.valueLabel}</span>
       </div>
@@ -68,15 +73,25 @@
   }
   .report-bar-art--round { border-radius: 50%; }
   .report-bar-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-shrink: 0;
     white-space: nowrap;
   }
-  .report-bar-label a { color: inherit; }
-  .report-bar-label a:hover { color: var(--accent); }
   .report-bar-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
     color: var(--text-muted);
     font-size: 0.75rem;
+  }
+  .report-bar-sub--link {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .report-bar-sub--link:hover {
+    color: var(--accent);
+  }
+  .report-bar-sub-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

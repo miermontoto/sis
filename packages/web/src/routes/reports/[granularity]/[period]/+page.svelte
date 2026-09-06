@@ -2,7 +2,7 @@
   import { untrack, onDestroy } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getWeekStart, getRankingMetric, getArtistBackdrop, type ReportResponse, type Granularity, type WeekStartOption, type RankingMetric, type ArtistBackdrop, type ListeningTimeItem } from '$lib/api';
+  import { api, createFetchController, getWeekStart, getRankingMetric, getArtistBackdrop, type ReportResponse, type ReportFacts, type Granularity, type WeekStartOption, type RankingMetric, type ArtistBackdrop, type ListeningTimeItem } from '$lib/api';
   import { isGranularity, isPeriodKey, isClosedPeriod } from '@sis/shared';
   import { isAbortError } from '$lib/utils/errors';
   import { periodLabel } from '$lib/utils/periods';
@@ -145,13 +145,16 @@
   })));
   let decadeBars = $derived<BarItem[]>((report?.decades ?? []).map(d => ({
     key: String(d.decade), label: `${d.decade}s`, value: d.plays, valueLabel: `${d.pct}%`,
-    sublabel: d.topArtist?.name, imageUrl: d.topArtist?.imageUrl, round: true, href: d.topArtist ? `/artist/${d.topArtist.id}` : undefined,
+    sublabel: d.topArtist?.name, imageUrl: d.topArtist?.imageUrl, round: true, sublabelHref: d.topArtist ? `/artist/${d.topArtist.id}` : undefined,
   })));
 
   let avgPlaysPerDay = $derived(report ? Math.round(report.summary.plays / Math.max(1, report.summary.days)) : 0);
 
   const trackEntity = (t: { id: string; name: string; album: { imageUrl: string | null } | null; artists: { id: string }[] }): EntityContext =>
     ({ type: 'track', id: t.id, name: t.name, imageUrl: t.album?.imageUrl ?? null, parentArtistId: t.artists[0]?.id });
+
+  // primer y último play del periodo, como dos tarjetas iguales
+  const edgePlays = (f: ReportFacts) => [{ label: 'First play', play: f.firstPlay }, { label: 'Last play', play: f.lastPlay }];
 </script>
 
 {#if error}
@@ -341,14 +344,23 @@
       {/if}
     </div>
     {#if facts.firstPlay?.track || facts.lastPlay?.track}
-      <p class="report-edges">
-        {#if facts.firstPlay?.track}
-          <span><span class="data-label">First play</span> <a href="/track/{facts.firstPlay.track.id}">{facts.firstPlay.track.name}</a> <span class="data-count">{formatHistoryStamp(facts.firstPlay.playedAt)}</span></span>
-        {/if}
-        {#if facts.lastPlay?.track}
-          <span><span class="data-label">Last play</span> <a href="/track/{facts.lastPlay.track.id}">{facts.lastPlay.track.name}</a> <span class="data-count">{formatHistoryStamp(facts.lastPlay.playedAt)}</span></span>
-        {/if}
-      </p>
+      <div class="report-edges">
+        {#each edgePlays(facts) as { label, play } (label)}
+          {#if play?.track}
+            <div class="card report-edge">
+              <span class="data-label">{label}</span>
+              <div class="track-list">
+                <TrackItem compact imageUrl={play.track.album?.imageUrl} imageHref={play.track.album ? `/album/${play.track.album.id}` : undefined} name={play.track.name} nameHref="/track/{play.track.id}" entity={trackEntity(play.track)}>
+                  {#snippet subtitle()}
+                    {#each play.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}">{ar.name}</a>{/each}
+                  {/snippet}
+                  {#snippet meta()}<span class="data-count">{formatHistoryStamp(play.playedAt)}</span>{/snippet}
+                </TrackItem>
+              </div>
+            </div>
+          {/if}
+        {/each}
+      </div>
     {/if}
 
     <!-- géneros + décadas -->
@@ -556,18 +568,17 @@
     font-size: 0.6em;
   }
   .report-edges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 1.5rem;
-    margin: -0.75rem 0 1.5rem;
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
   }
-  .report-edges a {
-    color: var(--text);
+  .report-edge {
+    padding: 0.75rem 0.75rem 0.5rem;
   }
-  .report-edges a:hover {
-    color: var(--accent);
+  .report-edge > .data-label {
+    display: block;
+    margin: 0 0.5rem 0.35rem;
   }
   .report-pair {
     display: grid;
@@ -669,6 +680,7 @@
     .report-pair { grid-template-columns: 1fr; }
     .report-discovery-tiles { grid-template-columns: 1fr; }
     .report-discovery-picks { grid-template-columns: 1fr; }
+    .report-edges { grid-template-columns: 1fr; }
     .report-title h1 { font-size: 1.5rem; }
   }
 </style>
