@@ -168,11 +168,12 @@ a:hover {
 }
 
 /* el logo es el enlace al dashboard (el grupo Listen no cabía en la columna):
-   brillo al pasar el ratón y un punto tras la marca cuando estás en él */
+   brillo al pasar el ratón y subrayado en acento cuando estás en él, como las
+   pestañas .tab. No un punto: un punto verde es el indicador de directo */
 .sidebar-logo-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
+  display: inline-block;
+  padding-bottom: 0.15rem;
+  border-bottom: 2px solid transparent;
   font-family: var(--font-mono);
   font-size: 1.25rem;
   font-weight: 700;
@@ -180,20 +181,15 @@ a:hover {
   letter-spacing: 0.06em;
   line-height: 1.1;
   text-shadow: 0 0 10px rgba(29, 185, 84, 0.4);
-  transition: color 0.05s;
+  transition: color 0.05s, border-color 0.05s;
 }
 
 .sidebar-logo-mark:hover {
   color: var(--accent-hover);
 }
 
-.sidebar-logo-mark.active::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px rgba(29, 185, 84, 0.6);
+.sidebar-logo-mark.active {
+  border-bottom-color: var(--accent);
 }
 
 .sidebar-search {
