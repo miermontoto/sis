@@ -95,10 +95,10 @@
 
 {#if data && data.sessionTrackCount > 0}
   <div class="session-card">
-    <div class="session-header">
+    <a class="session-header" href="/history">
       <span class="session-title">Session</span>
       <span class="session-count">{data.sessionTrackCount} tracks · {formatDuration(data.sessionTotalMs)}</span>
-    </div>
+    </a>
     {#if displayMode !== 'none' && data.session.some(r => bestChange(filterChanges(r.changes)) !== null)}
       <div class="session-list">
         {#each data.session as r}
@@ -147,6 +147,7 @@
 
 <style>
   .session-card {
+    position: relative;
     padding: 0.6rem;
     background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.02));
     border: 1px solid rgba(74, 158, 255, 0.15);
@@ -155,13 +156,33 @@
     color: var(--text-secondary, #aaa);
   }
 
+  /* la cabecera es el enlace al historial. la tarjeta entera no puede serlo
+     (las filas ya llevan sus propios enlaces y se anidarían <a>), así que el
+     enlace estira un overlay sobre toda la tarjeta y la lista se pone por
+     encima: pinchar en cualquier hueco lleva al historial, las filas siguen
+     yendo a lo suyo */
   .session-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .session-header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .session-header:hover .session-title,
+  .session-header:hover .session-count {
+    color: var(--text-primary, #fff);
   }
 
   .session-list {
+    position: relative; /* por encima del overlay de la cabecera */
+    z-index: 1;
     margin-top: 0.4rem;
     display: flex;
     flex-direction: column;
