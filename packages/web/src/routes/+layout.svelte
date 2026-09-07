@@ -301,14 +301,16 @@
   });
 
   const navGroups = [
+    // en escritorio el grupo no existe: el dashboard es el logo SIS de la cabecera
+    // (la columna no cabía con todo) y History se llega desde "Recent plays" del
+    // dashboard, la tarjeta de sesión, las stat cards y el atajo `h`. Ambos siguen
+    // en `nav` para que la cabecera móvil titule la página
     {
       label: 'Listen',
+      desktopHidden: true,
       items: [
         { href: '/', label: 'Dashboard', icon: '~' },
-        // fuera de ambos menús (la columna de escritorio no cabía): se llega desde
-        // "Recent plays" del dashboard, la tarjeta de sesión, las stat cards y el
-        // atajo `h`. Sigue en `nav` para que la cabecera móvil titule la página
-        { href: '/history', label: 'History', icon: '#', mobileHidden: true, desktopHidden: true },
+        { href: '/history', label: 'History', icon: '#', mobileHidden: true },
       ],
     },
     {
@@ -346,9 +348,7 @@
   ];
 
   const nav = navGroups.flatMap(group => group.items);
-  const desktopNavGroups = navGroups
-    .filter(g => !('desktopHidden' in g))
-    .map(g => ({ label: g.label, items: g.items.filter(i => !('desktopHidden' in i)) }));
+  const desktopNavGroups = navGroups.filter(g => !('desktopHidden' in g));
   const mobileNavGroups = navGroups
     .map(g => ({ label: g.label, items: g.items.filter(i => !('mobileHidden' in i)) }))
     .filter(g => g.items.length > 0);
@@ -469,7 +469,7 @@
       <div class="sidebar-top">
         <div class="sidebar-head">
           <div class="sidebar-logo">
-            <span class="sidebar-logo-mark">SIS</span>
+            <a href="/" class="sidebar-logo-mark" class:active={isNavActive('/')} aria-current={isNavActive('/') ? 'page' : undefined} title="Dashboard">SIS</a>
           </div>
           <button
             type="button"
@@ -490,15 +490,7 @@
       </div>
       <nav class="sidebar-nav sidebar-nav--desktop" class:sidebar-nav--compact={navCompact} bind:this={navEl} aria-label="Primary navigation">
         {#each desktopNavGroups as group}
-          {#if navCompact && group.items.length === 1}
-            <!-- grupo de un solo item: enlace directo, sin desplegable ni chevron (como su pestaña móvil) -->
-            <div class="sidebar-nav-group">
-              <a href={group.items[0].href} class="sidebar-nav-group-btn" class:active={isGroupActive(group)} title={group.label}>
-                <span class="sidebar-nav-icon" aria-hidden="true">{groupIcon(group)}</span>
-                <span>{group.label}</span>
-              </a>
-            </div>
-          {:else if navCompact}
+          {#if navCompact}
             <!-- el control accesible es el botón; el div sólo capta el hover del ratón -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
