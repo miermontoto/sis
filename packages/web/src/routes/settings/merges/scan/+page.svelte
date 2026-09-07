@@ -210,7 +210,6 @@
 </script>
 
 <div class="page-header">
-  <h1>Scan for duplicates</h1>
   <a href="/settings/merges" class="back-link">← Merges</a>
 </div>
 
@@ -345,7 +344,6 @@
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
-  .page-header h1 { margin: 0; }
   .back-link {
     font-size: 0.85rem;
     color: var(--text-muted);

@@ -270,11 +270,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Race Chart</h1>
-  <p>Animated bar chart race showing cumulative plays over time.</p>
-</div>
-
 <div class="controls card">
   <div class="control-row">
     <div class="control-group">
@@ -334,11 +329,6 @@
 </div>
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .controls {
     margin-top: 1rem;

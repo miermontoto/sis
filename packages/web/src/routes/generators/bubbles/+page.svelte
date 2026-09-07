@@ -138,11 +138,6 @@
   }
 </script>
 
-<div class="page-header">
-  <h1>Bubbles</h1>
-  <p>Bubble chart of your most-listened artists.</p>
-</div>
-
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 <div class="card controls">
@@ -215,11 +210,6 @@
 {/if}
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .controls {
     display: flex;

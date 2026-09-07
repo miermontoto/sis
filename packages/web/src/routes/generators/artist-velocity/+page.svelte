@@ -197,11 +197,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Artist Velocity</h1>
-  <p>Compare the cumulative listening trajectory of each artist.</p>
-</div>
-
 <div class="av-layout">
   <aside class="av-sidebar card">
     <div class="av-header">
@@ -249,11 +244,6 @@
 </div>
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .av-layout {
     display: grid;

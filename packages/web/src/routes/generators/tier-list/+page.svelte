@@ -430,11 +430,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Tier List</h1>
-  <p>Build a tier list from your library. Drag items into rows, or tap one and tap a row.</p>
-</div>
-
 <div class="card sources">
   <div class="control-row">
     <div class="control-group">
@@ -614,11 +609,6 @@
 {/snippet}
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .sources {
     margin-bottom: 1rem;

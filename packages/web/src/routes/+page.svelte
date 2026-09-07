@@ -132,10 +132,6 @@
 </script>
 
 <PullToRefresh onrefresh={refresh}>
-<div class="page-header">
-  <h1>Dashboard</h1>
-</div>
-
 {#if closedChartsStore.charts.length > 0}
   <div class="card closed-charts-card">
     <div class="closed-charts-header">

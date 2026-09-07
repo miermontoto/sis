@@ -34,11 +34,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Reports</h1>
-  <p>Your weeks, months and years in music, once they close.</p>
-</div>
-
 <div class="report-latest">
   {#each latest as item (item.granularity)}
     {#if item.period}

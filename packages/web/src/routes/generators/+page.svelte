@@ -57,11 +57,6 @@
   ];
 </script>
 
-<div class="page-header">
-  <h1>Generators</h1>
-  <p>Visual tools built on top of your listening history.</p>
-</div>
-
 <div class="generator-grid">
   {#each generators as g}
     <a href={g.href} class="generator-card">
@@ -73,11 +68,6 @@
 </div>
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .generator-grid {
     display: grid;

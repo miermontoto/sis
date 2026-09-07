@@ -76,11 +76,6 @@
   <title>Feed — SIS</title>
 </svelte:head>
 
-<div class="page-header">
-  <h1>Feed</h1>
-  <p>Recent activity from people you follow</p>
-</div>
-
 {#if loading && !feed}
   <div class="loading"><div class="spinner"></div></div>
 {:else if !feed || feed.users.length === 0}

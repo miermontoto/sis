@@ -777,10 +777,6 @@
   }
 </script>
 
-<div class="page-header">
-  <h1>Rankings</h1>
-</div>
-
 <div class="tabs">
   <button class="tab" class:active={activeTab === 'tracks'} onclick={() => setTab('tracks')}>
     <IconTrack size={14} /> Tracks

@@ -134,11 +134,6 @@
   }
 </script>
 
-<div class="page-header">
-  <h1>Concerts</h1>
-  <p>Every show you have logged, and how much of each setlist you already knew.</p>
-</div>
-
 {#if loading && !stats}
   <div class="loading"><div class="spinner"></div></div>
 {:else if error && !stats}

@@ -322,8 +322,6 @@
   }
 </script>
 
-<h1>Playlists</h1>
-
 <div class="tabs">
   <button class:active={activeTab === 'library'} onclick={() => activeTab = 'library'}>Library</button>
   <button class:active={activeTab === 'generate'} onclick={() => activeTab = 'generate'}>Generate</button>
@@ -633,7 +631,6 @@
 {/if}
 
 <style>
-  h1 { margin-bottom: 1.5rem; }
   h2 { margin: 0 0 1rem; font-size: 1.1rem; }
 
   .tabs {

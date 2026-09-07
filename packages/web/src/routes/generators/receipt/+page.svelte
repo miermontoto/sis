@@ -367,11 +367,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Receipt</h1>
-  <p>Top 10 tracks or artists as a shopping receipt with estimated Spotify royalties.</p>
-</div>
-
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 <div class="card controls">
@@ -404,11 +399,6 @@
 {/if}
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .controls {
     display: flex;

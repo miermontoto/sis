@@ -321,10 +321,6 @@
   }
 </script>
 
-<div class="page-header">
-  <h1>Charts</h1>
-</div>
-
 {#if closedChart}
   <div class="closed-chart-banner">
     <IconChart size={14} />

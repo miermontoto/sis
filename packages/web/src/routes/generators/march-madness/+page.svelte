@@ -483,14 +483,6 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="page-header">
-  <h1>March Madness</h1>
-  <p>
-    {field === 'random' ? `Draw a random field of ${entityTab}` : `Seed your top ${entityTab}`}
-    into a bracket and pick your way to a champion.
-  </p>
-</div>
-
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 <div class="card controls">
@@ -692,11 +684,6 @@
 {/if}
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .controls {
     display: flex;

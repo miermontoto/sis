@@ -322,11 +322,6 @@
 
 </script>
 
-<div class="page-header">
-  <h1>Insights</h1>
-  <p>Listening patterns and habits</p>
-</div>
-
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
 {#if loading}

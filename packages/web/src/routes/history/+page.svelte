@@ -293,11 +293,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Listening History</h1>
-  <p>Every track you've played</p>
-</div>
-
 <div class="history-controls">
   <div class="controls-left">
     <input

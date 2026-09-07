@@ -183,11 +183,6 @@
   }
 </script>
 
-<div class="page-header">
-  <h1>Records</h1>
-  <p>All-time bests, longevity, discovery and monthly milestones.</p>
-</div>
-
 <div class="records-tabs">
   <button class="rec-tab" class:rec-tab--active={tab.value === 'tracks'} onclick={() => tab.value = 'tracks'}><IconTrack size={14} /> Tracks</button>
   <button class="rec-tab" class:rec-tab--active={tab.value === 'albums'} onclick={() => tab.value = 'albums'}><IconAlbum size={14} /> Albums</button>

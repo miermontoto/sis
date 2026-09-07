@@ -102,7 +102,6 @@
 </script>
 
 <div class="page-header">
-  <h1>Merges &amp; relations</h1>
   <a href="/settings" class="back-link">← Settings</a>
   <a href="/settings/merges/scan" class="scan-link">Scan for duplicates →</a>
 </div>
@@ -229,9 +228,6 @@
     align-items: baseline;
     gap: 1rem;
     margin-bottom: 1.5rem;
-  }
-  .page-header h1 {
-    margin: 0;
   }
   .back-link {
     font-size: 0.85rem;

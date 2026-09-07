@@ -390,11 +390,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Rerank</h1>
-  <p>Drag your ranking into the order you wish it had, and see what it would take to make it real.</p>
-</div>
-
 <div class="card sources">
   <div class="control-row">
     <div class="control-group">
@@ -655,11 +650,6 @@
 {/if}
 
 <style>
-  .page-header p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
-    font-size: 0.9rem;
-  }
 
   .sources {
     margin-bottom: 1rem;

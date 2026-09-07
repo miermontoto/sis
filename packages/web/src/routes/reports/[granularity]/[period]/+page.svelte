@@ -157,9 +157,6 @@
 </script>
 
 {#if error}
-  <div class="page-header">
-    <h1>Report</h1>
-  </div>
   <div class="card empty-state report-empty">
     {#if error === 'invalid'}
       <p>This report doesn't exist.</p>

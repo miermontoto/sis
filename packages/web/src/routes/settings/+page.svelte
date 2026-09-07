@@ -428,10 +428,6 @@
   });
 </script>
 
-<div class="page-header">
-  <h1>Settings</h1>
-</div>
-
 {#if loading}
   <div class="loading">
     <div class="spinner"></div>
