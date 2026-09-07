@@ -177,15 +177,6 @@ a:hover {
   text-shadow: 0 0 10px rgba(29, 185, 84, 0.4);
 }
 
-.sidebar-logo-subtitle {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  line-height: 1.2;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
 .sidebar-search {
   display: flex;
   align-items: center;
@@ -365,7 +356,7 @@ a:hover {
 }
 
 /* --- rail colapsado (solo iconos) --- */
-/* cabecera: apila logo + toggle centrados y oculta el subtítulo */
+/* cabecera: apila logo + toggle centrados */
 .sidebar-collapsed .sidebar-head {
   flex-direction: column;
   align-items: center;
@@ -379,10 +370,6 @@ a:hover {
 .sidebar-collapsed .sidebar-logo {
   align-items: center;
   padding: 0;
-}
-
-.sidebar-collapsed .sidebar-logo-subtitle {
-  display: none;
 }
 
 /* búsqueda: solo el icono, centrado */
