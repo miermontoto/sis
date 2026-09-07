@@ -70,23 +70,23 @@ export function resolveEntityColor(color: string | null | undefined, imageUrl: s
   return imageUrl ? extractColor(imageUrl) : Promise.resolve(DEFAULT_COLOR);
 }
 
-// muestreo: la imagen se reduce a size×size antes de leer píxeles. 32 basta para el
-// dominante; la paleta del cuentagotas muestrea a 64 para no perder colores pequeños
-const DOMINANT_SAMPLE_SIZE = 32;
+// muestreo: la imagen se reduce a size×size antes de leer píxeles. 64 basta para
+// medir áreas sin perder colores pequeños (un logo sobre fondo neutro)
+const DOMINANT_SAMPLE_SIZE = 64;
 // brillo (canal máximo / 255) por debajo del cual un píxel cuenta como negro
 const MIN_BRIGHTNESS = 0.08;
-// el dominante es el píxel con mejor saturación × brillo; por debajo de este score no
-// hay nada "de color" en la imagen y se usa la media
+// colorfulness por debajo de la cual un color cuenta como neutro (gris, beige apagado)
 const MIN_DOMINANT_SCORE = 0.15;
 const SCORE_BASE = 0.3;
 const SCORE_BRIGHTNESS_WEIGHT = 0.7;
 // luma mínima del resultado: por debajo se aclara, o no se vería sobre el fondo oscuro
 const MIN_LUMA = 90;
 const LUMA_WEIGHTS = [0.299, 0.587, 0.114];
-// paleta: cuantización a 5 bits por canal (32 niveles) y distancia mínima entre dos
-// colores elegidos, para que la paleta no sean seis tonos del mismo rojo
+// cuantización: bits por canal de los buckets. El dominante agrupa grueso (16 niveles)
+// para que un degradado no reparta su área en decenas de buckets; la paleta más fino
+// (32 niveles) porque luego funde los parecidos por distancia mínima
+const DOMINANT_BITS = 4;
 const PALETTE_BITS = 5;
-const PALETTE_SHIFT = 8 - PALETTE_BITS;
 const PALETTE_MIN_DISTANCE = 48;
 
 /**
@@ -114,50 +114,83 @@ export function readImagePixels(url: string, size: number): Promise<Uint8Clamped
   });
 }
 
-/**
- * Color dominante de un bloque de píxeles rgba: el más saturado y brillante; si no hay
- * nada saturado, la media de lo que no es negro. El resultado se aclara hasta MIN_LUMA
- * porque tiñe fondos oscuros. Pura a propósito: es lo que se puede testear.
- */
-export function dominantFromPixels(data: Uint8ClampedArray): Rgb {
-  let bestR = 0, bestG = 0, bestB = 0, bestScore = -1;
-  let sumR = 0, sumG = 0, sumB = 0, count = 0;
+interface Bucket { rgb: Rgb; n: number }
 
+// buckets de `bits` por canal con la media y el nº de píxeles de cada uno, de más a
+// menos poblado y sin negros: la medida de área que comparten dominante y paleta
+function quantize(data: Uint8ClampedArray, bits: number): Bucket[] {
+  const shift = 8 - bits;
+  const buckets = new Map<number, { r: number; g: number; b: number; n: number }>();
   for (let i = 0; i < data.length; i += 4) {
-    const pr = data[i], pg = data[i + 1], pb = data[i + 2];
-    const max = Math.max(pr, pg, pb), min = Math.min(pr, pg, pb);
-    const sat = max === 0 ? 0 : (max - min) / max;
-    const brightness = max / 255;
-    const score = sat * (SCORE_BASE + brightness * SCORE_BRIGHTNESS_WEIGHT);
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    if (Math.max(r, g, b) / 255 <= MIN_BRIGHTNESS) continue;
+    const key = ((r >> shift) << (2 * bits)) | ((g >> shift) << bits) | (b >> shift);
+    const acc = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
+    acc.r += r; acc.g += g; acc.b += b; acc.n++;
+    buckets.set(key, acc);
+  }
+  return [...buckets.values()]
+    .sort((a, b) => b.n - a.n)
+    .map(({ r, g, b, n }) => ({ rgb: [Math.round(r / n), Math.round(g / n), Math.round(b / n)] as Rgb, n }));
+}
 
-    if (brightness > MIN_BRIGHTNESS) {
-      sumR += pr; sumG += pg; sumB += pb; count++;
-    }
+// "cuánto color" tiene un rgb: saturación ponderada por brillo, para que un rojo vivo
+// puntúe más que un granate apagado con la misma saturación
+function colorfulness([r, g, b]: Rgb): number {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const sat = max === 0 ? 0 : (max - min) / max;
+  return sat * (SCORE_BASE + (max / 255) * SCORE_BRIGHTNESS_WEIGHT);
+}
+
+// píxel suelto con más color, o null si ninguno pasa de neutro: el criterio original
+// del dominante, que sobrevive como último recurso
+function loudestPixel(data: Uint8ClampedArray): Rgb | null {
+  let best: Rgb | null = null;
+  let bestScore = MIN_DOMINANT_SCORE;
+  for (let i = 0; i < data.length; i += 4) {
+    const rgb: Rgb = [data[i], data[i + 1], data[i + 2]];
+    const score = colorfulness(rgb);
     if (score > bestScore) {
       bestScore = score;
-      bestR = pr; bestG = pg; bestB = pb;
+      best = rgb;
     }
   }
+  return best;
+}
 
-  let r: number, g: number, b: number;
-  if (bestScore > MIN_DOMINANT_SCORE) {
-    r = bestR; g = bestG; b = bestB;
-  } else if (count > 0) {
-    r = Math.round(sumR / count);
-    g = Math.round(sumG / count);
-    b = Math.round(sumB / count);
-  } else {
-    return DEFAULT_COLOR;
-  }
+// media ponderada por área de los buckets (= media de los píxeles que no son negros)
+function meanOf(buckets: Bucket[]): Rgb | null {
+  const total = buckets.reduce((acc, bk) => acc + bk.n, 0);
+  if (total === 0) return null;
+  const sum = buckets.reduce((acc, bk) => [acc[0] + bk.rgb[0] * bk.n, acc[1] + bk.rgb[1] * bk.n, acc[2] + bk.rgb[2] * bk.n], [0, 0, 0]);
+  return [Math.round(sum[0] / total), Math.round(sum[1] / total), Math.round(sum[2] / total)];
+}
 
+// aclara hasta MIN_LUMA: el color tiñe fondos oscuros y un granate se perdería
+function brighten([r, g, b]: Rgb): Rgb {
   const luma = LUMA_WEIGHTS[0] * r + LUMA_WEIGHTS[1] * g + LUMA_WEIGHTS[2] * b;
-  if (luma < MIN_LUMA) {
-    const factor = MIN_LUMA / Math.max(luma, 1);
-    r = Math.min(255, Math.round(r * factor));
-    g = Math.min(255, Math.round(g * factor));
-    b = Math.min(255, Math.round(b * factor));
-  }
-  return [r, g, b];
+  if (luma >= MIN_LUMA) return [r, g, b];
+  const factor = MIN_LUMA / Math.max(luma, 1);
+  return [r, g, b].map((c) => Math.min(255, Math.round(c * factor))) as Rgb;
+}
+
+/**
+ * Color dominante de un bloque de píxeles rgba: el más común de entre los que tienen
+ * color (área × colorfulness sobre buckets gruesos). Así el rojo del que está hecha la
+ * portada gana a su píxel más chillón, y un fondo neutro grande no gana a un logo de
+ * color. Sin buckets con color: el píxel suelto más vivo y, si ni eso, la media de lo
+ * que no es negro. Pura a propósito: es lo que se puede testear.
+ */
+export function dominantFromPixels(data: Uint8ClampedArray): Rgb {
+  const buckets = quantize(data, DOMINANT_BITS);
+  const common = buckets
+    .filter((bk) => colorfulness(bk.rgb) > MIN_DOMINANT_SCORE)
+    .reduce<{ score: number; rgb: Rgb } | null>((best, bk) => {
+      const score = bk.n * colorfulness(bk.rgb);
+      return best && best.score >= score ? best : { score, rgb: bk.rgb };
+    }, null);
+  const rgb = common?.rgb ?? loudestPixel(data) ?? meanOf(buckets);
+  return rgb ? brighten(rgb) : DEFAULT_COLOR;
 }
 
 function colorDistance(a: Rgb, b: Rgb): number {
@@ -166,25 +199,13 @@ function colorDistance(a: Rgb, b: Rgb): number {
 
 /**
  * Hasta `count` colores representativos de un bloque de píxeles rgba, del más presente
- * al menos: media de los buckets más poblados de una cuantización gruesa, saltando los
- * negros y los que se parecen a uno ya elegido. Es la paleta del cuentagotas.
+ * al menos: media de los buckets más poblados, saltando los negros y los que se parecen
+ * a uno ya elegido. Es la paleta del cuentagotas.
  */
 export function paletteFromPixels(data: Uint8ClampedArray, count: number): Rgb[] {
-  const buckets = new Map<number, { r: number; g: number; b: number; n: number }>();
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2];
-    if (Math.max(r, g, b) / 255 <= MIN_BRIGHTNESS) continue;
-    const key = ((r >> PALETTE_SHIFT) << (2 * PALETTE_BITS)) | ((g >> PALETTE_SHIFT) << PALETTE_BITS) | (b >> PALETTE_SHIFT);
-    const acc = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
-    acc.r += r; acc.g += g; acc.b += b; acc.n++;
-    buckets.set(key, acc);
-  }
-  const means = [...buckets.values()]
-    .sort((a, b) => b.n - a.n)
-    .map(({ r, g, b, n }): Rgb => [Math.round(r / n), Math.round(g / n), Math.round(b / n)]);
   // greedy: de más a menos poblado, descartando lo que ya está representado
-  return means.reduce<Rgb[]>(
-    (picked, c) => picked.length < count && picked.every((p) => colorDistance(p, c) >= PALETTE_MIN_DISTANCE) ? [...picked, c] : picked,
+  return quantize(data, PALETTE_BITS).reduce<Rgb[]>(
+    (picked, bk) => picked.length < count && picked.every((p) => colorDistance(p, bk.rgb) >= PALETTE_MIN_DISTANCE) ? [...picked, bk.rgb] : picked,
     [],
   );
 }

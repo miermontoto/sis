@@ -84,10 +84,23 @@ function pixels(blocks: [[number, number, number], number][]): Uint8ClampedArray
 }
 
 describe('dominantFromPixels', () => {
-  it('elige el píxel más saturado y brillante aunque sea minoritario, aclarado a la luma mínima', () => {
-    // 90 grises y 10 rojos: el rojo gana por saturación; su luma (~80) se sube a 90
+  it('un color minoritario gana a un fondo neutro, aclarado a la luma mínima', () => {
+    // 90 grises y 10 rojos: el gris no tiene color y no compite; la luma del rojo
+    // (~80) se sube a 90 para que tiña sobre fondo oscuro
     const data = pixels([[[128, 128, 128], 90], [[220, 20, 20], 10]]);
     expect(dominantFromPixels(data)).toEqual([248, 23, 23]);
+  });
+
+  it('entre colores con color gana el que ocupa más área, no el más chillón', () => {
+    // la portada está hecha de un rojo oscuro; el rojo puro es un brillo puntual. Antes
+    // ganaba el píxel más vivo y el "auto" salía más chillón que el álbum
+    const data = pixels([[[200, 60, 60], 500], [[255, 0, 0], 20]]);
+    expect(dominantFromPixels(data)).toEqual([200, 60, 60]);
+  });
+
+  it('un fondo neutro grande no gana a un color con área', () => {
+    const data = pixels([[[128, 128, 128], 1000], [[60, 90, 220], 100]]);
+    expect(dominantFromPixels(data)).toEqual([60, 90, 220]);
   });
 
   it('sin nada saturado usa la media de lo que no es negro', () => {
