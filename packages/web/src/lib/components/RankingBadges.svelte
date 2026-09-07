@@ -25,6 +25,13 @@
   let chartInstance = $state<echarts.ECharts | null>(null);
   const fetchCtrl = createFetchController();
 
+  // echarts escribe white-space:nowrap como estilo inline en el tooltip, y una regla
+  // de clase no puede con un inline: el ancho máximo sí se aplicaba, pero el texto no
+  // partía y los nombres largos se salían de la caja. extraCssText va al final de ese
+  // mismo inline, así que aquí sí gana
+  const XO_TOOLTIP_CSS = 'white-space:normal;max-width:300px;';
+  const XO_LIMIT = 5; // máximo de entidades listadas por sentido
+
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
   let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
@@ -89,7 +96,7 @@
       grid: { ...GRID },
       tooltip: {
         ...TOOLTIP_BASE,
-        className: 'xo-tooltip',
+        extraCssText: XO_TOOLTIP_CSS,
         formatter: (params: TooltipParams) => {
           const p = tooltipPoint(params);
           const point = history[p.dataIndex];
@@ -100,13 +107,13 @@
             const { surpassedBy, surpassed } = point.crossovers;
             const renderEntity = (e: typeof surpassedBy[0], arrow: string, cls: string) => {
               const img = e.imageUrl ? `<img class="xo-img" src="${e.imageUrl}"/>` : '';
-              return `<div class="xo-row"><span class="${cls}">${arrow}</span>${img}<span>${e.name}</span></div>`;
+              return `<div class="xo-row"><span class="${cls}">${arrow}</span>${img}<span class="xo-name">${e.name}</span></div>`;
             };
             if (surpassedBy.length > 0 || surpassed.length > 0) html += `<div class="xo-sep"></div>`;
-            for (const e of surpassed.slice(0, 5)) html += renderEntity(e, '▲', 'xo-up');
-            if (surpassed.length > 5) html += `<div class="xo-more">+${surpassed.length - 5} más</div>`;
-            for (const e of surpassedBy.slice(0, 5)) html += renderEntity(e, '▼', 'xo-down');
-            if (surpassedBy.length > 5) html += `<div class="xo-more">+${surpassedBy.length - 5} más</div>`;
+            for (const e of surpassed.slice(0, XO_LIMIT)) html += renderEntity(e, '▲', 'xo-up');
+            if (surpassed.length > XO_LIMIT) html += `<div class="xo-more">+${surpassed.length - XO_LIMIT} más</div>`;
+            for (const e of surpassedBy.slice(0, XO_LIMIT)) html += renderEntity(e, '▼', 'xo-down');
+            if (surpassedBy.length > XO_LIMIT) html += `<div class="xo-more">+${surpassedBy.length - XO_LIMIT} más</div>`;
           }
           return html;
         },
@@ -345,8 +352,10 @@
     font-size: 10px;
     color: #6a7a7a;
   }
-  :global(.xo-tooltip) {
-    max-width: 300px;
-    white-space: normal;
+  /* el nombre es el único hijo de la fila que cede: min-width 0 para que el flex lo deje
+     encoger y partir en líneas, y anywhere por si un título sin espacios no cabe ni así */
+  :global(.xo-name) {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 </style>
