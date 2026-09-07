@@ -41,6 +41,7 @@
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import IconLink from '$lib/icons/IconLink.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
+  import IconTicket from '$lib/icons/IconTicket.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
   // tamaños de las listas top: colapsadas por defecto, expandidas con "show all"
@@ -389,6 +390,7 @@
             { label: 'Change background', icon: IconImage, onClick: () => { pickerMode = 'background'; showImagePicker = true; } },
             { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
             { label: 'Related artists', icon: IconLink, onClick: () => { showRelateModal = true; } },
+            { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
           ]}
         />
       </div>
@@ -501,12 +503,15 @@
         <EntityHistoryChart series={d.series} {metric} events={chartEvents} />
       {/if}
     {:else if key === 'concerts'}
-      <ConcertList
-        concerts={d.concerts ?? []}
-        onAdd={() => openConcertModal(null)}
-        onEdit={(concert) => openConcertModal(concert)}
-        onChanged={refreshConcerts}
-      />
+      <!-- sin bolos registrados no hay sección: el alta vive en el menú del hero -->
+      {#if (d.concerts ?? []).length > 0}
+        <ConcertList
+          concerts={d.concerts ?? []}
+          onAdd={() => openConcertModal(null)}
+          onEdit={(concert) => openConcertModal(concert)}
+          onChanged={refreshConcerts}
+        />
+      {/if}
     {:else if key === 'relations'}
       {#if d.relatedArtists.length > 0}
         <RelatedArtists artists={d.relatedArtists} onManage={() => { showRelateModal = true; }} />

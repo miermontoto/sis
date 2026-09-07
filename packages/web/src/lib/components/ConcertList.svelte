@@ -2,6 +2,8 @@
   // Conciertos asistidos de un artista, en su ficha. Cada fila lleva al detalle
   // del bolo (el setlist se pinta en un solo sitio); las acciones van en el menú
   // contextual de la fila, como en el resto de listas.
+  // La lista se asume no vacía: sin bolos la ficha no monta la sección (el alta
+  // pasa a estar en el menú del hero), como el resto de secciones del detalle.
   import { api, type Concert } from '$lib/api';
   import { errorMessage } from '$lib/utils/errors';
   import { formatCalendarDate } from '$lib/utils/format';
@@ -42,23 +44,14 @@
   <button class="show-all-btn" onclick={onAdd}>Add</button>
 </div>
 
-{#if concerts.length === 0}
-  <p class="concerts-empty">No concerts logged yet.</p>
-{:else}
-  <div class="track-list concerts-list">
-    {#each concerts as c (c.id)}
-      <ConcertRow concert={c} variant="artist" compact {onEdit} onRemove={remove} />
-    {/each}
-  </div>
-{/if}
+<div class="track-list concerts-list">
+  {#each concerts as c (c.id)}
+    <ConcertRow concert={c} variant="artist" compact {onEdit} onRemove={remove} />
+  {/each}
+</div>
 
 <style>
   .concerts-list {
     margin-bottom: 1.5rem;
-  }
-  .concerts-empty {
-    color: var(--text-muted);
-    font-size: 0.82rem;
-    margin: 0 0 1.5rem;
   }
 </style>
