@@ -240,81 +240,98 @@
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
   {#snippet sec(key: string)}
     {#if key === 'stats'}
-      <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(trackId)} />
+      <section class="detail-section">
+        <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(trackId)} />
+      </section>
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
-        <RankingBadges entityType="track" entityId={trackId} bind:highlightedMonth />
+        <section class="detail-section">
+          <RankingBadges entityType="track" entityId={trackId} bind:highlightedMonth />
+        </section>
       {/if}
     {:else if key === 'chartStats'}
       {#if !d.mergedInto}
-        <ChartStats entityType="track" entityId={trackId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        <section class="detail-section">
+          <ChartStats entityType="track" entityId={trackId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        </section>
       {/if}
     {:else if key === 'albumBreakdown'}
       {#if d.albumBreakdown.length > 1}
-        <h2 class="section-title">Played in</h2>
-        <div class="track-list">
-          {#each d.albumBreakdown as item, i}
-            <a href="/album/{item.album.id}" class="track-item">
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-              {#if item.album.imageUrl}
-                <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
-              {:else}
-                <div class="track-art"></div>
-              {/if}
-              <div class="track-info">
-                <div class="track-name">{item.album.name}</div>
-                <div class="track-artist">{item.album.releaseDate ?? ''}</div>
-              </div>
-              <div class="track-meta">
-                <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-              </div>
-            </a>
-          {/each}
-        </div>
+        <section class="detail-section">
+          <h2 class="section-title">Played in</h2>
+          <div class="track-list">
+            {#each d.albumBreakdown as item, i}
+              <a href="/album/{item.album.id}" class="track-item">
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+                {#if item.album.imageUrl}
+                  <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+                {:else}
+                  <div class="track-art"></div>
+                {/if}
+                <div class="track-info">
+                  <div class="track-name">{item.album.name}</div>
+                  <div class="track-artist">{item.album.releaseDate ?? ''}</div>
+                </div>
+                <div class="track-meta">
+                  <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                  <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                </div>
+              </a>
+            {/each}
+          </div>
+        </section>
       {/if}
     {:else if key === 'activity'}
+      <!-- misma condición que la propia gráfica: sin serie no hay sección -->
       {#if d.series.length > 1}
-        <h2 class="section-title">Listening history</h2>
+        <section class="detail-section">
+          <h2 class="section-title">Listening history</h2>
+          <ActivityChart series={d.series} {metric} height="260px" events={releaseEvents} />
+        </section>
       {/if}
-      <ActivityChart series={d.series} {metric} height="260px" events={releaseEvents} />
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
-        <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
+        <section class="detail-section">
+          <h2 class="section-title">History by year</h2>
+          <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
+        </section>
       {/if}
     {:else if key === 'versions'}
       {#if d.versions.length > 0}
-        <h2 class="section-title">Versions</h2>
-        <div class="track-list versions-list">
-          {#each d.versions as v, i}
-            <svelte:element
-              this={v.isCurrent ? 'div' : 'a'}
-              {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}
-              class="track-item"
-              class:track-item--current={v.isCurrent}
-            >
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-              {#if v.album?.imageUrl}
-                <img class="track-art" src={v.album.imageUrl} alt={v.album.name} />
-              {:else}
-                <div class="track-art"></div>
-              {/if}
-              <div class="track-info">
-                <div class="track-name">{v.name}</div>
-                <div class="track-artist">{v.album?.name ?? ''}</div>
-              </div>
-              <div class="track-meta">
-                <div class="track-plays">{metric === 'plays' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
-                <div class="track-time">{metric === 'time' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
-              </div>
-            </svelte:element>
-          {/each}
-        </div>
+        <section class="detail-section">
+          <h2 class="section-title">Versions</h2>
+          <div class="track-list versions-list">
+            {#each d.versions as v, i}
+              <svelte:element
+                this={v.isCurrent ? 'div' : 'a'}
+                {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}
+                class="track-item"
+                class:track-item--current={v.isCurrent}
+              >
+                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+                {#if v.album?.imageUrl}
+                  <img class="track-art" src={v.album.imageUrl} alt={v.album.name} />
+                {:else}
+                  <div class="track-art"></div>
+                {/if}
+                <div class="track-info">
+                  <div class="track-name">{v.name}</div>
+                  <div class="track-artist">{v.album?.name ?? ''}</div>
+                </div>
+                <div class="track-meta">
+                  <div class="track-plays">{metric === 'plays' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
+                  <div class="track-time">{metric === 'time' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
+                </div>
+              </svelte:element>
+            {/each}
+          </div>
+        </section>
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
-        <RecentPlaysRail entityType="track" entityId={trackId} initial={d.recentPlays} historyHref={`/history?track=${trackId}`} />
+        <section class="detail-section">
+          <RecentPlaysRail entityType="track" entityId={trackId} initial={d.recentPlays} historyHref={`/history?track=${trackId}`} />
+        </section>
       {/if}
     {/if}
   {/snippet}

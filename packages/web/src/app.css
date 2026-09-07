@@ -484,6 +484,44 @@ a:hover {
   min-width: 0;
 }
 
+/* Cada sección de una vista de detalle va en su propio contenedor. Antes el
+   markup era plano (título, contenido, título, contenido…) y el hueco entre
+   secciones era lo que saliera del colapso de márgenes de cada pieza: 1.5rem
+   detrás de una lista (que no lleva margen) y 3rem detrás de una gráfica (que
+   sí), y el título dentro de un .section-header quedaba descuadrado respecto a
+   su botón, porque align-items:center centra la CAJA DE MÁRGENES y la del
+   título era asimétrica (1.5 arriba, 0.75 abajo). Ahora el hueco lo pone la
+   sección y dentro nadie aporta márgenes propios de separación. */
+.detail-section {
+  min-width: 0;
+  margin-bottom: 1.5rem;
+}
+
+/* una sección sin contenido (p.ej. chart stats sin datos) no ocupa */
+.detail-section:empty {
+  display: none;
+}
+
+/* el margen superior del título lo aporta la sección */
+.detail-section .section-title {
+  margin-top: 0;
+}
+
+/* la cabecera es quien separa del contenido: con el margen fuera del título,
+   flex ya puede centrar de verdad el título contra sus acciones */
+.detail-section .section-header {
+  margin: 0 0 0.75rem;
+}
+
+.detail-section .section-header .section-title {
+  margin: 0;
+}
+
+/* nada dentro de la sección arrastra separación hacia la siguiente */
+.detail-section > :last-child {
+  margin-bottom: 0;
+}
+
 /* recent plays en el rail: contenedor con scroll propio para el infinite scroll.
    en móvil/estrecho, altura acotada (evita un bloque enorme al final de la página). */
 .recent-scroll {
@@ -514,9 +552,20 @@ a:hover {
     flex-direction: column;
     min-height: 0;
   }
+  /* los items flex del rail son sus secciones; cada una es a su vez columna para
+     que su contenido (la lista, el scroll) pueda crecer o encoger dentro */
+  .detail-rail > .detail-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
   /* recent plays crece hasta terminar donde acaba el main; con hueco de sobra
      absorbe el resto, pero mantiene un mínimo para que siempre se vean varias
      filas (aunque versions sea largo) */
+  .detail-rail > .detail-section:has(.recent-scroll) {
+    flex: 1 1 0;
+    margin-bottom: 0;
+  }
   .detail-rail .recent-scroll {
     flex: 1 1 0;
     min-height: 12rem;
@@ -528,11 +577,6 @@ a:hover {
   .detail-rail .singles-list {
     min-height: 0;
     overflow-y: auto;
-  }
-  /* alinear el primer título del rail con la parte superior del hero (en móvil, donde
-     el rail va abajo, sí queremos el margen de separación) */
-  .detail-rail > .section-title:first-child {
-    margin-top: 0;
   }
 }
 
@@ -550,6 +594,12 @@ a:hover {
   gap: 0.5rem;
   margin-bottom: 1.5rem;
   align-items: stretch;
+}
+
+/* .stats-grid vive en media docena de páginas con su margen; dentro de una
+   sección de detalle el hueco lo pone la sección */
+.detail-section > .stats-grid {
+  margin-bottom: 0;
 }
 
 .stat-card {

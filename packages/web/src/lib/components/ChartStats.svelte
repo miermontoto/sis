@@ -193,9 +193,6 @@
 {/if}
 
 <style>
-  .chart-stats-section {
-    margin-bottom: 1.5rem;
-  }
   .chart-stats-row {
     display: flex;
     gap: 0.5rem;

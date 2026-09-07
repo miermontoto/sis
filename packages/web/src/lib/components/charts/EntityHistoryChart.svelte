@@ -127,7 +127,6 @@
 
 <style>
   .chart-card {
-    margin-bottom: 1rem;
     padding: 0.75rem;
   }
   .history-head {

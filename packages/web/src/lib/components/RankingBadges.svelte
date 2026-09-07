@@ -208,9 +208,6 @@
     margin-bottom: 0.5rem;
     flex-wrap: wrap;
   }
-  .rankings-row:last-child {
-    margin-bottom: 1.5rem;
-  }
   .ranking-badge {
     display: flex;
     flex-direction: column;

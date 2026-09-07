@@ -415,110 +415,133 @@
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
   {#snippet sec(key: string)}
     {#if key === 'stats'}
-      <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(artistId)} />
+      <section class="detail-section">
+        <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(artistId)} />
+      </section>
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
-        <RankingBadges entityType="artist" entityId={artistId} bind:highlightedMonth />
+        <section class="detail-section">
+          <RankingBadges entityType="artist" entityId={artistId} bind:highlightedMonth />
+        </section>
       {/if}
     {:else if key === 'chartStats'}
       {#if !d.mergedInto}
-        <ChartStats entityType="artist" entityId={artistId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        <section class="detail-section">
+          <ChartStats entityType="artist" entityId={artistId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        </section>
       {/if}
     {:else if key === 'activity'}
-      <ActivityChart series={d.series} {metric} events={chartEvents} />
+      <!-- misma condición que la propia gráfica: sin serie no hay sección -->
+      {#if d.series.length > 1}
+        <section class="detail-section">
+          <ActivityChart series={d.series} {metric} events={chartEvents} />
+        </section>
+      {/if}
     {:else if key === 'topTracks'}
       {#if d.topTracks.length > 0}
         {@const view = topView.tracks}
-        <div class="section-header section-header--views">
-          <h2 class="section-title">Top tracks</h2>
-          <div class="section-actions">
-            {@render viewToggle('tracks')}
-            <button class="show-all-btn" onclick={() => toggleList('tracks')}>
-              {showAllTracks ? 'Show less' : 'Show all'}
-            </button>
+        <section class="detail-section">
+          <div class="section-header section-header--views">
+            <h2 class="section-title">Top tracks</h2>
+            <div class="section-actions">
+              {@render viewToggle('tracks')}
+              <button class="show-all-btn" onclick={() => toggleList('tracks')}>
+                {showAllTracks ? 'Show less' : 'Show all'}
+              </button>
+            </div>
           </div>
-        </div>
-        {#if view === 'list'}
-          <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
-        {:else}
-          <div class="card chart-card">
-            <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />
-          </div>
-        {/if}
+          {#if view === 'list'}
+            <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
+          {:else}
+            <div class="card chart-card">
+              <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />
+            </div>
+          {/if}
+        </section>
       {/if}
     {:else if key === 'topAlbums'}
       {#if d.topAlbums.length > 0}
         {@const view = topView.albums}
-        <div class="section-header section-header--views">
-          <h2 class="section-title">Top albums</h2>
-          <div class="section-actions">
-            {@render viewToggle('albums')}
-            <button class="show-all-btn" onclick={() => toggleList('albums')}>
-              {showAllAlbums ? 'Show less' : 'Show all'}
-            </button>
+        <section class="detail-section">
+          <div class="section-header section-header--views">
+            <h2 class="section-title">Top albums</h2>
+            <div class="section-actions">
+              {@render viewToggle('albums')}
+              <button class="show-all-btn" onclick={() => toggleList('albums')}>
+                {showAllAlbums ? 'Show less' : 'Show all'}
+              </button>
+            </div>
           </div>
-        </div>
-        {#if view !== 'list'}
-          <div class="card chart-card">
-            <RankingChart items={albumChartItems} entityType="album" {metric} mode={view} />
+          {#if view !== 'list'}
+            <div class="card chart-card">
+              <RankingChart items={albumChartItems} entityType="album" {metric} mode={view} />
+            </div>
+          {:else}
+          <div class="track-list">
+            {#each d.topAlbums as item, i}
+              {#if item.album}
+                <a
+                  href="/album/{item.albumId}"
+                  class="track-item"
+                  oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId })}
+                >
+                  <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
+                  {#if item.album.imageUrl}
+                    <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
+                  {:else}
+                    <div class="track-art"></div>
+                  {/if}
+                  <div class="track-info">
+                    <div class="track-name">{item.album.name}</div>
+                    <div class="track-artist">{item.album.releaseDate ?? ''}</div>
+                  </div>
+                  {#if artistShowAlbumAccolades}
+                    <Accolades entityType="album" entityId={item.albumId} />
+                  {/if}
+                  {#if albumGlobalRanks?.[item.albumId] != null}
+                    <span class="global-rank" title="All-time rank" style:color={medalColor(albumGlobalRanks[item.albumId])}>#{albumGlobalRanks[item.albumId]}</span>
+                  {/if}
+                  <div class="track-meta">
+                    <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                    <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+                  </div>
+                </a>
+              {/if}
+            {/each}
           </div>
-        {:else}
-        <div class="track-list">
-          {#each d.topAlbums as item, i}
-            {#if item.album}
-              <a
-                href="/album/{item.albumId}"
-                class="track-item"
-                oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId })}
-              >
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                {#if item.album.imageUrl}
-                  <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
-                {:else}
-                  <div class="track-art"></div>
-                {/if}
-                <div class="track-info">
-                  <div class="track-name">{item.album.name}</div>
-                  <div class="track-artist">{item.album.releaseDate ?? ''}</div>
-                </div>
-                {#if artistShowAlbumAccolades}
-                  <Accolades entityType="album" entityId={item.albumId} />
-                {/if}
-                {#if albumGlobalRanks?.[item.albumId] != null}
-                  <span class="global-rank" title="All-time rank" style:color={medalColor(albumGlobalRanks[item.albumId])}>#{albumGlobalRanks[item.albumId]}</span>
-                {/if}
-                <div class="track-meta">
-                  <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                  <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                </div>
-              </a>
-            {/if}
-          {/each}
-        </div>
-        {/if}
+          {/if}
+        </section>
       {/if}
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
-        <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} events={chartEvents} />
+        <section class="detail-section">
+          <h2 class="section-title">History by year</h2>
+          <EntityHistoryChart series={d.series} {metric} events={chartEvents} />
+        </section>
       {/if}
     {:else if key === 'concerts'}
       <!-- sin bolos registrados no hay sección: el alta vive en el menú del hero -->
       {#if (d.concerts ?? []).length > 0}
-        <ConcertList
-          concerts={d.concerts ?? []}
-          onAdd={() => openConcertModal(null)}
-          onEdit={(concert) => openConcertModal(concert)}
-          onChanged={refreshConcerts}
-        />
+        <section class="detail-section">
+          <ConcertList
+            concerts={d.concerts ?? []}
+            onAdd={() => openConcertModal(null)}
+            onEdit={(concert) => openConcertModal(concert)}
+            onChanged={refreshConcerts}
+          />
+        </section>
       {/if}
     {:else if key === 'relations'}
       {#if d.relatedArtists.length > 0}
-        <RelatedArtists artists={d.relatedArtists} onManage={() => { showRelateModal = true; }} />
+        <section class="detail-section">
+          <RelatedArtists artists={d.relatedArtists} onManage={() => { showRelateModal = true; }} />
+        </section>
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
-        <RecentPlaysRail entityType="artist" entityId={artistId} initial={d.recentPlays} historyHref={`/history?artist=${artistId}`} />
+        <section class="detail-section">
+          <RecentPlaysRail entityType="artist" entityId={artistId} initial={d.recentPlays} historyHref={`/history?artist=${artistId}`} />
+        </section>
       {/if}
     {/if}
   {/snippet}

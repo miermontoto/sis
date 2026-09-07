@@ -172,6 +172,7 @@
     }
   }
 
+
   let initialized = false;
   let prevId = '';
 
@@ -216,69 +217,88 @@
   <!-- despacha cada sección configurable por su key (ver detail-layout.ts) -->
   {#snippet sec(key: string)}
     {#if key === 'stats'}
-      <StatsGrid stats={d.stats} />
+      <section class="detail-section">
+        <StatsGrid stats={d.stats} />
+      </section>
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}
-        <RankingBadges entityType="album" entityId={albumId} bind:highlightedMonth />
+        <section class="detail-section">
+          <RankingBadges entityType="album" entityId={albumId} bind:highlightedMonth />
+        </section>
       {/if}
     {:else if key === 'chartStats'}
       {#if !d.mergedInto}
-        <ChartStats entityType="album" entityId={albumId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        <section class="detail-section">
+          <ChartStats entityType="album" entityId={albumId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+        </section>
       {/if}
     {:else if key === 'activity'}
-      <ActivityChart series={d.series} {metric} events={releaseEvents} />
+      <!-- misma condición que la propia gráfica: sin serie no hay sección -->
+      {#if d.series.length > 1}
+        <section class="detail-section">
+          <ActivityChart series={d.series} {metric} events={releaseEvents} />
+        </section>
+      {/if}
     {:else if key === 'tracks'}
       {#if d.tracks.length > 0}
-        <div class="section-header">
-          <h2 class="section-title">Tracks</h2>
-          <div class="track-sort-toggle">
-            <button class:active={trackSort === 'ranked'} onclick={() => toggleTrackSort('ranked')}>Ranked</button>
-            <button class:active={trackSort === 'natural'} onclick={() => toggleTrackSort('natural')}># Order</button>
+        <section class="detail-section">
+          <div class="section-header">
+            <h2 class="section-title">Tracks</h2>
+            <div class="track-sort-toggle">
+              <button class:active={trackSort === 'ranked'} onclick={() => toggleTrackSort('ranked')}>Ranked</button>
+              <button class:active={trackSort === 'natural'} onclick={() => toggleTrackSort('natural')}># Order</button>
+            </div>
           </div>
-        </div>
-        {#if trackSort === 'natural' && loadingNatural}
-          <div class="loading"><div class="spinner"></div></div>
-        {:else if trackSort === 'natural'}
-          <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
-        {:else}
-          <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
-        {/if}
+          {#if trackSort === 'natural' && loadingNatural}
+            <div class="loading"><div class="spinner"></div></div>
+          {:else if trackSort === 'natural'}
+            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
+          {:else}
+            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
+          {/if}
+        </section>
       {/if}
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
-        <h2 class="section-title">History by year</h2>
-        <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
+        <section class="detail-section">
+          <h2 class="section-title">History by year</h2>
+          <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
+        </section>
       {/if}
     {:else if key === 'singles'}
       {#if (d.relatedSingles ?? []).length > 0}
-        <h2 class="section-title">Singles</h2>
-        <div class="track-list singles-list">
-          {#each d.relatedSingles as s, i}
-            <a href="/album/{s.id}" class="track-item">
-              <span class="track-rank">{i + 1}</span>
-              {#if s.imageUrl}
-                <img class="track-art" src={s.imageUrl} alt={s.name} />
-              {:else}
-                <div class="track-art"></div>
-              {/if}
-              <div class="track-info">
-                <div class="track-name">{s.name}</div>
-                <div class="track-artist">{s.date}</div>
-              </div>
-              {#if singleGlobalRanks?.[s.id] != null}
-                <span class="global-rank" title="All-time rank" style:color={medalColor(singleGlobalRanks[s.id])}>#{singleGlobalRanks[s.id]}</span>
-              {/if}
-              <div class="track-meta">
-                <div class="track-plays">{metric === 'plays' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
-                <div class="track-time">{metric === 'time' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
-              </div>
-            </a>
-          {/each}
-        </div>
+        <section class="detail-section">
+          <h2 class="section-title">Singles</h2>
+          <div class="track-list singles-list">
+            {#each d.relatedSingles as s, i}
+              <a href="/album/{s.id}" class="track-item">
+                <span class="track-rank">{i + 1}</span>
+                {#if s.imageUrl}
+                  <img class="track-art" src={s.imageUrl} alt={s.name} />
+                {:else}
+                  <div class="track-art"></div>
+                {/if}
+                <div class="track-info">
+                  <div class="track-name">{s.name}</div>
+                  <div class="track-artist">{s.date}</div>
+                </div>
+                {#if singleGlobalRanks?.[s.id] != null}
+                  <span class="global-rank" title="All-time rank" style:color={medalColor(singleGlobalRanks[s.id])}>#{singleGlobalRanks[s.id]}</span>
+                {/if}
+                <div class="track-meta">
+                  <div class="track-plays">{metric === 'plays' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
+                  <div class="track-time">{metric === 'time' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
+                </div>
+              </a>
+            {/each}
+          </div>
+        </section>
       {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
-        <RecentPlaysRail entityType="album" entityId={albumId} initial={d.recentPlays} historyHref={`/history?album=${albumId}`} />
+        <section class="detail-section">
+          <RecentPlaysRail entityType="album" entityId={albumId} initial={d.recentPlays} historyHref={`/history?album=${albumId}`} />
+        </section>
       {/if}
     {/if}
   {/snippet}

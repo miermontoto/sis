@@ -50,8 +50,3 @@
   {/each}
 </div>
 
-<style>
-  .concerts-list {
-    margin-bottom: 1.5rem;
-  }
-</style>

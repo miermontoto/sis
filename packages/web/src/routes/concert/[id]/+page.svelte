@@ -220,96 +220,106 @@
       </div>
 
       {#if d.songsTotal > 0}
-        <div class="stats-grid">
-          <div class="card stat-card">
-            <div class="stat-value">{formatNumber(d.songsTotal)}</div>
-            <div class="stat-label">Songs played</div>
-          </div>
-          <div class="card stat-card">
-            <div class="stat-value">{formatNumber(d.songsMatched)}</div>
-            <div class="stat-label">In your library</div>
-          </div>
-          <div class="card stat-card">
-            <div class="stat-value">{formatNumber(knownBefore)}</div>
-            <div class="stat-label">Already knew</div>
-          </div>
-          <div class="card stat-card">
-            <div class="stat-value">{formatNumber(debuts)}</div>
-            <div class="stat-label">First heard live</div>
-          </div>
-        </div>
-
-        <h2 class="section-title">Setlist</h2>
-        <div class="track-list">
-          {#each d.songs as song (song.position)}
-            {@const plays = song.playsBefore ?? 0}
-            {#if song.position === encoreStart}
-              <div class="setlist-divider"><span>Encore</span></div>
-            {/if}
-            <!-- el div sólo capta el botón derecho; el control accesible es el
-                 botón de atribución de la fila -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="setlist-row" class:setlist-row--unmatched={!song.trackId} oncontextmenu={songMenu(song)}>
-              <TrackItem
-                rank={song.position + 1}
-                name={song.name}
-                nameHref={song.trackId ? `/track/${song.trackId}` : undefined}
-                imageUrl={song.track?.album?.imageUrl}
-                imageHref={song.track?.album ? `/album/${song.track.album.id}` : undefined}
-              >
-                {#snippet subtitle()}
-                  {#if song.trackId && song.track}
-                    {#each song.track.artists as a, i (a.id)}
-                      <a href="/artist/{a.id}" class="artist-link">{a.name}</a>{#if i < song.track.artists.length - 1}{', '}{/if}
-                    {/each}
-                  {:else}
-                    <span class="song-unmatched">Not in your library</span>
-                  {/if}
-                  {#if song.coverArtist}<span class="song-tag">{song.coverArtist} cover</span>{/if}
-                  {#if song.info}<span class="song-info">{song.info}</span>{/if}
-                {/snippet}
-                {#snippet meta()}
-                  <!-- las escuchas previas en acento, como la métrica de cualquier
-                       fila; el "primera vez" apagado, que en un setlist de
-                       descubrimientos se repite en casi todas -->
-                  {#if song.trackId && plays > 0}
-                    <div class="track-plays">{formatNumber(plays)} plays</div>
-                  {:else if song.trackId}
-                    <div class="track-time">First time</div>
-                  {/if}
-                  <button
-                    class="song-action"
-                    class:song-action--quiet={!!song.trackId}
-                    disabled={busyPosition === song.position}
-                    onclick={() => openPicker(song)}
-                    title={song.trackId ? 'Attribute to a different track' : 'Attribute to a track in your library'}
-                  >
-                    {song.trackId ? 'Change' : 'Attribute'}
-                  </button>
-                {/snippet}
-              </TrackItem>
+        <section class="detail-section">
+          <div class="stats-grid">
+            <div class="card stat-card">
+              <div class="stat-value">{formatNumber(d.songsTotal)}</div>
+              <div class="stat-label">Songs played</div>
             </div>
-          {/each}
-        </div>
+            <div class="card stat-card">
+              <div class="stat-value">{formatNumber(d.songsMatched)}</div>
+              <div class="stat-label">In your library</div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-value">{formatNumber(knownBefore)}</div>
+              <div class="stat-label">Already knew</div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-value">{formatNumber(debuts)}</div>
+              <div class="stat-label">First heard live</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <h2 class="section-title">Setlist</h2>
+          <div class="track-list">
+            {#each d.songs as song (song.position)}
+              {@const plays = song.playsBefore ?? 0}
+              {#if song.position === encoreStart}
+                <div class="setlist-divider"><span>Encore</span></div>
+              {/if}
+              <!-- el div sólo capta el botón derecho; el control accesible es el
+                   botón de atribución de la fila -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="setlist-row" class:setlist-row--unmatched={!song.trackId} oncontextmenu={songMenu(song)}>
+                <TrackItem
+                  rank={song.position + 1}
+                  name={song.name}
+                  nameHref={song.trackId ? `/track/${song.trackId}` : undefined}
+                  imageUrl={song.track?.album?.imageUrl}
+                  imageHref={song.track?.album ? `/album/${song.track.album.id}` : undefined}
+                >
+                  {#snippet subtitle()}
+                    {#if song.trackId && song.track}
+                      {#each song.track.artists as a, i (a.id)}
+                        <a href="/artist/{a.id}" class="artist-link">{a.name}</a>{#if i < song.track.artists.length - 1}{', '}{/if}
+                      {/each}
+                    {:else}
+                      <span class="song-unmatched">Not in your library</span>
+                    {/if}
+                    {#if song.coverArtist}<span class="song-tag">{song.coverArtist} cover</span>{/if}
+                    {#if song.info}<span class="song-info">{song.info}</span>{/if}
+                  {/snippet}
+                  {#snippet meta()}
+                    <!-- las escuchas previas en acento, como la métrica de cualquier
+                         fila; el "primera vez" apagado, que en un setlist de
+                         descubrimientos se repite en casi todas -->
+                    {#if song.trackId && plays > 0}
+                      <div class="track-plays">{formatNumber(plays)} plays</div>
+                    {:else if song.trackId}
+                      <div class="track-time">First time</div>
+                    {/if}
+                    <button
+                      class="song-action"
+                      class:song-action--quiet={!!song.trackId}
+                      disabled={busyPosition === song.position}
+                      onclick={() => openPicker(song)}
+                      title={song.trackId ? 'Attribute to a different track' : 'Attribute to a track in your library'}
+                    >
+                      {song.trackId ? 'Change' : 'Attribute'}
+                    </button>
+                  {/snippet}
+                </TrackItem>
+              </div>
+            {/each}
+          </div>
+        </section>
       {:else}
-        <div class="empty-state">
-          No setlist for this show. Concerts imported from setlist.fm bring theirs; this one was logged by hand.
-        </div>
+        <section class="detail-section">
+          <div class="empty-state">
+            No setlist for this show. Concerts imported from setlist.fm bring theirs; this one was logged by hand.
+          </div>
+        </section>
       {/if}
     </div>
 
     <aside class="detail-rail">
       {#if d.notes}
-        <h2 class="section-title">Notes</h2>
-        <div class="card"><p class="concert-notes">{d.notes}</p></div>
+        <section class="detail-section">
+          <h2 class="section-title">Notes</h2>
+          <div class="card"><p class="concert-notes">{d.notes}</p></div>
+        </section>
       {/if}
       {#if otherShows.length > 0}
-        <h2 class="section-title">More shows</h2>
-        <div class="track-list">
-          {#each otherShows as c (c.id)}
-            <ConcertRow concert={c} variant="artist" compact />
-          {/each}
-        </div>
+        <section class="detail-section">
+          <h2 class="section-title">More shows</h2>
+          <div class="track-list">
+            {#each otherShows as c (c.id)}
+              <ConcertRow concert={c} variant="artist" compact />
+            {/each}
+          </div>
+        </section>
       {/if}
     </aside>
   </div>
