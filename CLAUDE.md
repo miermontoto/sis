@@ -174,6 +174,7 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 - `pnpm check` runs oxlint first (`.oxlintrc.json`, tree at 0 findings). Only `correctness` is on plus a few hand-picked rules; the `perf`/`suspicious` categories are off on purpose (they flag the deliberate sequential `await`s in Spotify pagination). Two rules are disabled for `.svelte` only, because the Svelte compiler defeats them: `no-unassigned-vars` (`bind:this` targets are assigned by the compiler) and `no-unused-expressions` (a bare `store.value;` inside `$effect` is how a dependency is registered — deleting it silently breaks reactivity).
 - Svelte 5 runes ($state, $derived, $effect)
 - ECharts tree-shaken imports via echarts/core
+- ECharts HTML tooltips: echarts sets `white-space:nowrap` **inline** on the tooltip element, so a class rule (via `className`) can't override it silently. Style the box through `tooltip.extraCssText` (appended to that same inline style) — see `RankingBadges.svelte`
 
 ## Git & deploy workflow
 
