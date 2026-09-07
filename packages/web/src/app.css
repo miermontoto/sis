@@ -1502,14 +1502,28 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   color: var(--accent);
 }
 
+/* La cabecera lleva la separación; sus hijos, ninguna. `align-items: center`
+   centra la CAJA DE MÁRGENES, así que un margen suelto dentro descuadra a ese
+   hijo respecto a los demás: el título con `1.5rem 0 0.75rem` caía 6px por
+   debajo de su botón, y los hermanos se "arreglaban" copiando ese mismo margen
+   literal (`.report-history-tabs`) o anulando sólo el de arriba
+   (`.report-card-header`, que dejaba el título 6px por encima de su etiqueta). */
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-}
-.section-header .section-title {
   margin: 1.5rem 0 0.75rem;
+}
+
+.section-header .section-title,
+.section-header .time-range-selector {
+  margin: 0;
+}
+
+/* dentro de una card el padding ya separa, igual que con el título suelto */
+.card > .section-header {
+  margin-top: 0;
 }
 
 .show-all-btn {

@@ -57,7 +57,7 @@
 
 <div class="section-header">
   <h2 class="section-title">Past reports</h2>
-  <div class="time-range-selector report-history-tabs">
+  <div class="time-range-selector">
     {#each GRANULARITIES as g (g)}
       <button class="range-btn" class:active={historyGran === g} onclick={() => { historyGran = g; showAll = false; }}>{GRANULARITY_LABELS[g]}</button>
     {/each}
@@ -124,9 +124,6 @@
     color: var(--accent);
   }
   /* el selector global lleva margen inferior: aquí va alineado con el título de sección */
-  .report-history-tabs {
-    margin: 1.5rem 0 0.75rem;
-  }
   .report-history {
     display: flex;
     flex-direction: column;

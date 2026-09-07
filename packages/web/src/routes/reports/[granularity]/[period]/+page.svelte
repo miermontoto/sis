@@ -369,7 +369,7 @@
       <div class="report-pair">
         {#if genreBars.length > 0}
           <div class="card">
-            <div class="section-header report-card-header">
+            <div class="section-header">
               <h3 class="section-title">Top genres</h3>
               <span class="data-label" title="Share of plays whose artist has genre tags">{report.genreCoveragePct}% tagged</span>
             </div>
@@ -560,10 +560,6 @@
   .report-charts--triple {
     grid-template-columns: 2fr 1fr 1fr;
   }
-  .report-charts .section-title,
-  .report-pair .section-title {
-    margin-top: 0;
-  }
   .report-of {
     color: var(--text-muted);
     font-size: 0.6em;
@@ -586,9 +582,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
     margin-bottom: 1.5rem;
-  }
-  .report-card-header .section-title {
-    margin: 0 0 0.75rem;
   }
   .report-discovery {
     margin-bottom: 1.5rem;
