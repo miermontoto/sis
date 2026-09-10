@@ -531,8 +531,11 @@ a:hover {
    para LLENAR el ancho disponible (no el 1200 normal) y reparte en columna principal
    (1fr, crece) + rail de gráficas auxiliares (fijo, más ancho). por debajo, una sola
    columna con el rail al final. */
-/* dashboard e insights no tienen cap: llenan la pantalla entera a cualquier ancho */
-.main-content--full {
+/* dashboard e insights no tienen cap: llenan la pantalla entera a cualquier
+   ancho. con dos clases porque el dashboard lleva también --detail (por la
+   rejilla con rail) y su cap de 1900px, declarado después, ganaba a igual
+   especificidad */
+.main-content.main-content--full {
   max-width: none;
 }
 
