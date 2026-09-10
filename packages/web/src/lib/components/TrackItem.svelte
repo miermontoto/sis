@@ -68,11 +68,11 @@
         {name}
       {/if}
     </div>
-    {#if subtitle}
-      <div class="track-artist">
-        {@render subtitle()}
-      </div>
-    {/if}
+    <!-- la línea de subtítulo se reserva aunque no haya (artistas): sin ella la
+         fila mide unos px menos y una lista que alterna tipos de entidad salta -->
+    <div class="track-artist">
+      {#if subtitle}{@render subtitle()}{:else}&nbsp;{/if}
+    </div>
   </div>
   {#if extra}
     {@render extra()}
