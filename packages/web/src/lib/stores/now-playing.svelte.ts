@@ -11,7 +11,6 @@ let _lastCheckedTrackId: string | null = null;
 // lecturas cacheadas medidas ANTES que ella son obsoletas y se descartan
 let _liveInfoAtMs = 0;
 let _liveGuardUntil = 0;
-let _trackStartedAt = 0;
 let _lastFinishedPlay = $state<HistoryItem | null>(null);
 let _volumePercent = $state<number | null>(null);
 // base de progreso del track: valor conocido + instante (reloj cliente) en que
@@ -75,9 +74,22 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
     }
   }
 
-  if (nextTrackId !== prevTrackId) {
-    if (prevTrackId && _data?.track && _trackStartedAt > 0 && Date.now() - _trackStartedAt >= MIN_PLAY_MS) {
-      const finished = _data.track;
+  if (nextTrackId !== prevTrackId && prevTrackId && _data?.track) {
+    const finished = _data.track;
+    // ms escuchados del track saliente: el progreso extrapolado justo en el
+    // corte (aquí _data y _progress todavía apuntan al track que termina),
+    // capado a su duración. Es la misma cifra que el poller manda como
+    // duration_played_ms, así que el parche optimista suma lo que sumará la
+    // relectura en vez de asumir siempre el track entero.
+    //
+    // Y es también el umbral: se mide CUÁNTO SONÓ el track, no cuánto lleva el
+    // cliente mirándolo. Contra el reloj de observación, abrir la app (o
+    // recargar la página) a mitad de canción no emitía nada — el play aterrizaba
+    // en el servidor y ninguna vista se enteraba. Al revés, pausar a los 10s y
+    // volver media hora después emitía un play que el servidor descarta.
+    // Sin base de progreso (usuarios solo-last.fm) se asume el track entero
+    const playedMs = Math.min(progressMsAt(Date.now()) ?? finished.durationMs, finished.durationMs);
+    if (playedMs >= MIN_PLAY_MS) {
       const playedAt = new Date().toISOString();
       _lastFinishedPlay = {
         id: Date.now(),
@@ -85,12 +97,6 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
         contextType: null,
         track: finished,
       };
-      // ms escuchados del track saliente: el progreso extrapolado justo en el
-      // corte (aquí _data y _progress todavía apuntan al track que termina),
-      // capado a su duración. Es la misma cifra que el poller manda como
-      // duration_played_ms, así que el parche optimista suma lo que sumará la
-      // relectura en vez de asumir siempre el track entero
-      const playedMs = Math.min(progressMsAt(Date.now()) ?? finished.durationMs, finished.durationMs);
       playUpdatesStore.emitOptimistic({
         trackId: finished.id,
         albumId: finished.album?.id ?? null,
@@ -99,11 +105,10 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
         playedAt,
       });
     }
-    _trackStartedAt = nextTrackId ? Date.now() : 0;
   }
 
   _data = data;
-  playUpdatesStore.setWatermark(data?.historyWatermark);
+  playUpdatesStore.applyHistoryTail(data?.historyWatermark, data?.landedPlays);
   if (data?.volumePercent != null) _volumePercent = data.volumePercent;
 
   // progreso: live/cached traen base fresca (extrapolada por la edad de
@@ -185,7 +190,7 @@ async function checkPlaylists(trackId: string | undefined) {
 
 async function poll() {
   try {
-    applyNowPlaying(await api.nowPlaying(), 'cached');
+    applyNowPlaying(await api.nowPlaying(playUpdatesStore.watermark), 'cached');
     checkLiked(_data?.track?.id);
     checkPlaylists(_data?.track?.id);
   } catch {
@@ -195,7 +200,7 @@ async function poll() {
 
 async function pollLive() {
   try {
-    applyNowPlaying(await api.nowPlayingLive(), 'live');
+    applyNowPlaying(await api.nowPlayingLive(playUpdatesStore.watermark), 'live');
     checkLiked(_data?.track?.id);
     checkPlaylists(_data?.track?.id);
   } catch {
@@ -229,7 +234,7 @@ async function refreshAfterPlayback() {
   for (const delayMs of PLAY_REFRESH_DELAYS_MS) {
     await new Promise(r => setTimeout(r, delayMs));
     try {
-      const live = await api.nowPlayingLive();
+      const live = await api.nowPlayingLive(playUpdatesStore.watermark);
       const changed = trackIdOf(live) !== prevTrackId || (!!live?.isPlaying && !prevIsPlaying);
       if (!changed) continue;
       applyNowPlaying(live, 'live');

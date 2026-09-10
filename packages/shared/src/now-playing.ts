@@ -17,6 +17,24 @@ export interface NowPlayingResponse {
   // scheduleHistoryFlush), así que el cliente la usa para saber cuándo sus
   // agregados son releíbles. null = el usuario no tiene historial todavía
   historyWatermark?: string | null;
+  // plays que han aterrizado en listening_history por encima de la marca que
+  // mandó el cliente (?since=). Es la respuesta a "¿qué se ha registrado
+  // mientras no miraba?": el cliente NO puede deducirlo observando la tarjeta,
+  // porque un repeat-one, la app en segundo plano, otro dispositivo o un
+  // scrobble de last.fm/listenbrainz no cambian el track sonando. Sin `since`
+  // viene vacío: esa lectura es la línea base, no un delta
+  landedPlays?: LandedPlay[];
+}
+
+// un play ya registrado, con las entidades que toca. Mismos ids crudos que
+// pinta el resto de la app (spotify_id), para que una vista pueda preguntar
+// "¿me toca esto?" sin resolver merges
+export interface LandedPlay {
+  trackId: string;
+  albumId: string | null;
+  artistIds: string[];
+  playedAt: string;
+  playedMs: number;
 }
 
 export interface SpotifyDevice {

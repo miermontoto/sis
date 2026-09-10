@@ -6,28 +6,70 @@ import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
-import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS } from '../constants.js';
+import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, HISTORY_TAIL_LIMIT } from '../constants.js';
 import type { AppVariables } from '../app.js';
-import type { SpotifyDevice, PlayContextRequest } from '@sis/shared';
+import type { SpotifyDevice, PlayContextRequest, LandedPlay } from '@sis/shared';
 import type { SpotifyCurrentlyPlayingResponse } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
 
-// played_at más reciente del usuario en listening_history. El índice único
-// (user_id, played_at) hace de esto un seek al final del rango, no un scan, así
-// que sale gratis en un endpoint que el cliente sondea cada 10s.
+// Cola del historial: la marca de agua (played_at más reciente) y, si el cliente
+// manda la suya en `?since=`, los plays que han aterrizado por encima de ella.
 //
-// Sirve de marca de agua: el cliente detecta el final de un track al instante,
+// La marca sirve de reloj: el cliente detecta el final de un track al instante,
 // pero el play tarda unos segundos en aterrizar (scheduleHistoryFlush repolla
 // recently-played en escalera). Releer los agregados antes de que aterrice
 // recachearía el estado anterior durante otra hora, así que las vistas esperan
 // a ver avanzar esta marca.
-function readHistoryWatermark(userId: number | undefined): string | null {
-  if (!userId) return null;
-  const row = getDb().get(
+//
+// La lista es la otra mitad, y es la que hace que el refresco no dependa de que
+// el cliente haya VISTO empezar el track: un repeat-one, la app en segundo
+// plano, otro dispositivo o un scrobble de last.fm/listenbrainz registran plays
+// sin que la tarjeta cambie nunca. El servidor dice qué se registró y las vistas
+// releen; el cliente ya no tiene que adivinarlo por observación.
+//
+// Coste: el índice único (user_id, played_at) hace de la marca un seek al final
+// del rango, y del delta un rango indexado que casi siempre trae cero filas —
+// gratis en un endpoint que se sondea cada 10s.
+function readHistoryTail(userId: number | undefined, since: string | undefined) {
+  if (!userId) return { historyWatermark: null, landedPlays: [] as LandedPlay[] };
+  const db = getDb();
+  const row = db.get(
     sql`SELECT MAX(played_at) AS watermark FROM listening_history WHERE user_id = ${userId}`
   ) as { watermark: string | null } | undefined;
-  return row?.watermark ?? null;
+  const watermark = row?.watermark ?? null;
+
+  // sin marca del cliente (primer poll) no hay delta que pedir: esa lectura es
+  // su línea base. Las marcas son ISO-8601 UTC del servidor, así que compararlas
+  // como texto equivale a compararlas como instantes
+  if (!since || !watermark || watermark <= since) {
+    return { historyWatermark: watermark, landedPlays: [] as LandedPlay[] };
+  }
+
+  const rows = db.all(sql`
+    SELECT
+      lh.track_id AS trackId,
+      lh.played_at AS playedAt,
+      COALESCE(lh.duration_played_ms, t.duration_ms, 0) AS playedMs,
+      t.album_id AS albumId,
+      (SELECT GROUP_CONCAT(ta.artist_id) FROM track_artists ta WHERE ta.track_id = lh.track_id) AS artistIds
+    FROM listening_history lh
+    LEFT JOIN tracks t ON t.spotify_id = lh.track_id
+    WHERE lh.user_id = ${userId} AND lh.played_at > ${since}
+    ORDER BY lh.played_at DESC
+    LIMIT ${HISTORY_TAIL_LIMIT}
+  `) as Array<{ trackId: string; playedAt: string; playedMs: number; albumId: string | null; artistIds: string | null }>;
+
+  // el LIMIT se queda con los más NUEVOS (de ahí el DESC), pero la lista se
+  // entrega en orden cronológico, como ocurrieron
+  const landedPlays: LandedPlay[] = rows.reverse().map(r => ({
+    trackId: r.trackId,
+    albumId: r.albumId,
+    artistIds: r.artistIds ? r.artistIds.split(',') : [],
+    playedAt: r.playedAt,
+    playedMs: r.playedMs,
+  }));
+  return { historyWatermark: watermark, landedPlays };
 }
 
 // retorna el track actual desde polling_state (sin llamada a spotify)
@@ -37,10 +79,10 @@ nowPlaying.get('/', (c) => {
   const state = userId
     ? db.select().from(pollingState).where(eq(pollingState.userId, userId)).get()
     : null;
-  const historyWatermark = readHistoryWatermark(userId);
+  const tail = readHistoryTail(userId, c.req.query('since'));
 
   if (!state?.lastCurrentlyPlayingTrackId) {
-    return c.json({ playing: false, isPlaying: false, historyWatermark });
+    return c.json({ playing: false, isPlaying: false, ...tail });
   }
 
   // usuarios solo-last.fm (sin token de spotify) no pueden controlar la
@@ -51,12 +93,12 @@ nowPlaying.get('/', (c) => {
   if (state.lastCurrentlyPlayingAt) {
     const lastUpdate = new Date(state.lastCurrentlyPlayingAt).getTime();
     if (Date.now() - lastUpdate > staleThresholdMs) {
-      return c.json({ playing: false, isPlaying: false, historyWatermark });
+      return c.json({ playing: false, isPlaying: false, ...tail });
     }
   }
 
   const track = db.select().from(tracks).where(eq(tracks.spotifyId, state.lastCurrentlyPlayingTrackId)).get();
-  if (!track) return c.json({ playing: false, isPlaying: false, historyWatermark });
+  if (!track) return c.json({ playing: false, isPlaying: false, ...tail });
 
   const album = track.albumId
     ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
@@ -92,7 +134,7 @@ nowPlaying.get('/', (c) => {
       artists: artistList.map(a => ({ id: a!.spotifyId, name: a!.name })),
     },
     updatedAt: state.lastCurrentlyPlayingAt,
-    historyWatermark,
+    ...tail,
   });
 });
 
@@ -151,9 +193,9 @@ nowPlaying.get('/live', async (c) => {
   const userId = c.get('userId');
   const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
-  const historyWatermark = readHistoryWatermark(userId);
+  const tail = readHistoryTail(userId, c.req.query('since'));
   if (!data?.item || data.currently_playing_type !== 'track') {
-    return c.json({ playing: false, isPlaying: false, historyWatermark });
+    return c.json({ playing: false, isPlaying: false, ...tail });
   }
 
   const item = data.item;
@@ -174,7 +216,7 @@ nowPlaying.get('/live', async (c) => {
       artists: (item.artists ?? []).map((a) => ({ id: a.id, name: a.name })),
     },
     updatedAt: new Date().toISOString(),
-    historyWatermark,
+    ...tail,
   });
 });
 

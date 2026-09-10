@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w37ag';
+export const VERSION = '26w37ah';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -242,6 +242,12 @@ export const OG_IMAGE_HEIGHT = 630;
 
 // TTL del caché en memoria de imágenes OG generadas (10 min)
 export const OG_IMAGE_CACHE_MS = 10 * 60_000;
+
+// plays que /now-playing reporta como recién aterrizados en una sola respuesta.
+// Cubre de sobra un poll de 10s; el tope existe para que un cliente que vuelve
+// tras horas fuera (o un import de historial reciente) no se traiga media tabla:
+// lo que se pierda por el corte lo absorbe el TTL normal de cada vista
+export const HISTORY_TAIL_LIMIT = 20;
 
 // umbral de staleness para now-playing en superficies sociales (2 min)
 export const SOCIAL_NOW_PLAYING_STALE_MS = 2 * 60_000;

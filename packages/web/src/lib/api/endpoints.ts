@@ -27,8 +27,11 @@ const artistTopParams = (opts?: { sort?: string; limit?: number; range?: string;
 });
 
 export const api = {
-  nowPlaying: () => apiFetch<NowPlayingResponse>('/now-playing'),
-  nowPlayingLive: () => apiFetch<NowPlayingResponse>('/now-playing/live'),
+  // `since` = marca de agua del historial que ya conoce el cliente: la respuesta
+  // trae los plays registrados por encima de ella (ver readHistoryTail). Sin
+  // ella la respuesta es sólo la marca, que es lo que necesita el primer poll
+  nowPlaying: (since?: string | null) => apiFetch<NowPlayingResponse>('/now-playing', since ? { since } : undefined),
+  nowPlayingLive: (since?: string | null) => apiFetch<NowPlayingResponse>('/now-playing/live', since ? { since } : undefined),
   friendsActivity: () => apiFetch<FriendsActivityResponse>('/now-playing/friends'),
 
   topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, lookback?: string, signal?: AbortSignal) =>

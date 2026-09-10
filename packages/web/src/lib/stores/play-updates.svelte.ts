@@ -8,18 +8,28 @@
 //     entran al top desde fuera de la página cargada, ni plays que Spotify
 //     acabe descartando.
 //
-//   - confirmed: se emite cuando la marca de agua del historial (el played_at
-//     más reciente del servidor, ver readHistoryWatermark) supera a la que
-//     había al detectar el corte. Sólo entonces el play está en
-//     listening_history y una relectura devuelve la verdad. Invalidar antes
-//     recachearía el estado ANTERIOR durante todo el TTL del endpoint (hasta
-//     una hora en los detalles), que es exactamente el fallo que se quiere
-//     evitar; de ahí que no valga un simple setTimeout.
+//   - confirmed: son los plays que el SERVIDOR dice que ya están en
+//     listening_history (los manda /now-playing en `landedPlays`, ver
+//     readHistoryTail). Sólo entonces una relectura devuelve la verdad;
+//     invalidar antes recachearía el estado ANTERIOR durante todo el TTL del
+//     endpoint (hasta una hora en los detalles), que es exactamente el fallo
+//     que se quiere evitar, de ahí que no valga un simple setTimeout.
+//
+// Que la confirmación venga del servidor y no de correlacionar con lo emitido
+// aquí es lo que hace que el refresco no dependa de haber VISTO el corte. Antes
+// un play sólo se confirmaba si el cliente había emitido antes su señal
+// optimista, así que todo lo que no pasa por la tarjeta —repeat-one, la app en
+// segundo plano, otro dispositivo, un scrobble de last.fm o listenbrainz, un
+// import— aterrizaba sin que ninguna vista se enterara.
 //
 // El reparto de trabajo entre las dos: los rankings (caros, muchas variantes de
 // rango cacheadas) se quedan en la señal optimista y dejan que el TTL normal
 // los reconcilie; los detalles de una entidad concreta (clave de cache
-// estrecha, un solo request) se releen con la confirmada.
+// estrecha, un solo request) se releen con la confirmada. Ningún consumidor
+// SUMA sobre la confirmada —todos relen—, así que un play que llegue por las
+// dos señales no se cuenta dos veces.
+
+import type { LandedPlay } from '@sis/shared';
 
 export interface PlayUpdate {
   // secuencia monótona: los consumidores deduplican con ella, porque un $effect
@@ -40,53 +50,35 @@ export interface ConfirmedBatch {
   updates: PlayUpdate[];
 }
 
-// un play que el servidor nunca llegue a registrar (demasiado corto para que
-// Spotify lo exponga) no puede quedarse esperando confirmación para siempre:
-// caducaría confirmándose con el avance de marca de OTRO play posterior
-const PENDING_TTL_MS = 5 * 60_000;
-
 let _seq = 0;
 let _optimistic = $state<PlayUpdate | null>(null);
 let _confirmed = $state<ConfirmedBatch | null>(null);
 
 let _watermark: string | null = null;
-let _watermarkSeen = false;
-let _pending: { update: PlayUpdate; watermarkAtEmit: string | null; emittedAt: number }[] = [];
 
 export function emitOptimistic(input: Omit<PlayUpdate, 'seq'>): void {
-  const update: PlayUpdate = { ...input, seq: ++_seq };
-  _optimistic = update;
-  // sin ninguna lectura de marca todavía no hay contra qué comparar: el play se
-  // queda pendiente y la primera marca que llegue hace de línea base
-  _pending.push({ update, watermarkAtEmit: _watermarkSeen ? _watermark : null, emittedAt: Date.now() });
+  _optimistic = { ...input, seq: ++_seq };
 }
 
-// las marcas son ISO-8601 UTC generadas por el servidor, así que comparar como
-// strings equivale a comparar instantes y no mete el reloj del cliente en medio
-export function setWatermark(next: string | null | undefined): void {
-  if (next === undefined) return;
+// Aplica la cola de historial que trae cada lectura de now-playing: la marca de
+// agua conocida (que viaja de vuelta como `?since=` en el siguiente poll) y los
+// plays registrados por encima de ella.
+//
+// Las marcas son ISO-8601 UTC generadas por el servidor, así que comparar como
+// strings equivale a comparar instantes y no mete el reloj del cliente en medio.
+export function applyHistoryTail(watermark: string | null | undefined, landed?: LandedPlay[]): void {
+  if (watermark === undefined) return;
 
-  if (!_watermarkSeen) {
-    _watermarkSeen = true;
-    _watermark = next;
-    // los pendientes emitidos antes de conocer marca alguna toman ésta como
-    // línea base en vez de confirmarse en falso con la primera lectura
-    _pending = _pending.map(p => (p.watermarkAtEmit === null ? { ...p, watermarkAtEmit: next } : p));
-    return;
-  }
+  // dos respuestas en vuelo a la vez (el poll del límite del track y el tick de
+  // 10s se solapan) pidieron el mismo `since` y traen los mismos plays: la
+  // segunda se filtra contra la marca que ya avanzó la primera
+  const fresh = (landed ?? []).filter(p => _watermark === null || p.playedAt > _watermark);
 
-  if (next !== null && (_watermark === null || next > _watermark)) _watermark = next;
-  if (_pending.length === 0) return;
+  if (watermark !== null && (_watermark === null || watermark > _watermark)) _watermark = watermark;
+  if (fresh.length === 0) return;
 
-  const cutoff = Date.now() - PENDING_TTL_MS;
-  const confirmed: PlayUpdate[] = [];
-  _pending = _pending.filter(p => {
-    const landed = next !== null && (p.watermarkAtEmit === null || next > p.watermarkAtEmit);
-    if (landed) confirmed.push(p.update);
-    return !landed && p.emittedAt >= cutoff;
-  });
-
-  if (confirmed.length > 0) _confirmed = { seq: ++_seq, updates: confirmed };
+  const updates = fresh.map(p => ({ ...p, seq: ++_seq }));
+  _confirmed = { seq: ++_seq, updates };
 }
 
 // ids que un play toca para un tipo de entidad. Un track en colaboración cuenta
@@ -105,6 +97,9 @@ export function batchTouches(updates: PlayUpdate[], type: 'tracks' | 'artists' |
 export const playUpdatesStore = {
   get optimistic() { return _optimistic; },
   get confirmed() { return _confirmed; },
+  // lo que el cliente ya sabe registrado: viaja como `?since=` para que el
+  // servidor sólo mande el delta
+  get watermark() { return _watermark; },
   emitOptimistic,
-  setWatermark,
+  applyHistoryTail,
 };

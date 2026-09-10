@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// el store guarda estado a nivel de módulo (marca de agua, pendientes), así que
+// el store guarda estado a nivel de módulo (la marca de agua conocida), así que
 // cada caso arranca con una instancia limpia
 let mod: typeof import('./play-updates.svelte');
 
@@ -29,60 +29,69 @@ describe('playUpdatesStore: señal optimista', () => {
   });
 });
 
-describe('playUpdatesStore: confirmación por marca de agua', () => {
-  it('no confirma con la primera marca leída: es sólo la línea base', () => {
+describe('playUpdatesStore: cola de historial', () => {
+  it('la primera lectura es sólo línea base: marca sin plays no confirma nada', () => {
     const { playUpdatesStore } = mod;
-    // el caso real: el corte se detecta antes de que ninguna respuesta de
-    // now-playing haya traído marca. Confirmar aquí sería releer ANTES de que
-    // el servidor volcase el play, y recachear las cifras viejas
-    playUpdatesStore.emitOptimistic(PLAY);
-    playUpdatesStore.setWatermark('2026-06-05T09:59:00.000Z');
+    playUpdatesStore.applyHistoryTail('2026-06-05T09:59:00.000Z', []);
     expect(playUpdatesStore.confirmed).toBeNull();
+    expect(playUpdatesStore.watermark).toBe('2026-06-05T09:59:00.000Z');
   });
 
-  it('no confirma mientras la marca no avance', () => {
+  it('confirma los plays que reporta el servidor', () => {
     const { playUpdatesStore } = mod;
-    playUpdatesStore.setWatermark('2026-06-05T09:59:00.000Z');
-    playUpdatesStore.emitOptimistic(PLAY);
-
-    playUpdatesStore.setWatermark('2026-06-05T09:59:00.000Z');
-    expect(playUpdatesStore.confirmed).toBeNull();
-  });
-
-  it('confirma cuando la marca supera a la que había al emitir', () => {
-    const { playUpdatesStore } = mod;
-    playUpdatesStore.setWatermark('2026-06-05T09:59:00.000Z');
-    playUpdatesStore.emitOptimistic(PLAY);
-    playUpdatesStore.setWatermark('2026-06-05T10:00:03.000Z');
+    playUpdatesStore.applyHistoryTail('2026-06-05T09:59:00.000Z', []);
+    playUpdatesStore.applyHistoryTail('2026-06-05T10:00:03.000Z', [{ ...PLAY, playedAt: '2026-06-05T10:00:03.000Z' }]);
 
     const batch = playUpdatesStore.confirmed!;
     expect(batch.updates).toHaveLength(1);
     expect(batch.updates[0].trackId).toBe('track-a');
   });
 
-  it('confirma en un solo lote los plays acumulados de una ráfaga de skips', () => {
+  it('confirma sin señal optimista previa: el play no tiene por qué haberse visto', () => {
     const { playUpdatesStore } = mod;
-    playUpdatesStore.setWatermark('2026-06-05T09:59:00.000Z');
-    playUpdatesStore.emitOptimistic(PLAY);
-    playUpdatesStore.emitOptimistic({ ...PLAY, trackId: 'track-b' });
-    playUpdatesStore.setWatermark('2026-06-05T10:00:03.000Z');
+    // repeat-one, app en segundo plano, otro dispositivo o un scrobble externo:
+    // el servidor registra el play sin que la tarjeta de now-playing cambie
+    playUpdatesStore.applyHistoryTail('2026-06-05T09:59:00.000Z', []);
+    playUpdatesStore.applyHistoryTail('2026-06-05T10:00:03.000Z', [{ ...PLAY, playedAt: '2026-06-05T10:00:03.000Z' }]);
+    expect(playUpdatesStore.confirmed!.updates).toHaveLength(1);
+  });
+
+  it('confirma en un solo lote los plays de una ráfaga', () => {
+    const { playUpdatesStore } = mod;
+    playUpdatesStore.applyHistoryTail('2026-06-05T09:59:00.000Z', []);
+    playUpdatesStore.applyHistoryTail('2026-06-05T10:00:06.000Z', [
+      { ...PLAY, playedAt: '2026-06-05T10:00:03.000Z' },
+      { ...PLAY, trackId: 'track-b', playedAt: '2026-06-05T10:00:06.000Z' },
+    ]);
 
     expect(playUpdatesStore.confirmed!.updates.map(u => u.trackId)).toEqual(['track-a', 'track-b']);
   });
 
-  it('ignora una marca ausente (respuesta sin el campo)', () => {
+  it('no reemite los plays de una respuesta en vuelo con el mismo `since`', () => {
     const { playUpdatesStore } = mod;
-    playUpdatesStore.setWatermark('2026-06-05T09:59:00.000Z');
-    playUpdatesStore.emitOptimistic(PLAY);
-    playUpdatesStore.setWatermark(undefined);
+    // el poll del límite del track y el tick de 10s se solapan: los dos piden
+    // el mismo delta y el servidor devuelve las mismas filas dos veces
+    const landed = [{ ...PLAY, playedAt: '2026-06-05T10:00:03.000Z' }];
+    playUpdatesStore.applyHistoryTail('2026-06-05T09:59:00.000Z', []);
+    playUpdatesStore.applyHistoryTail('2026-06-05T10:00:03.000Z', landed);
+    const first = playUpdatesStore.confirmed!;
+
+    playUpdatesStore.applyHistoryTail('2026-06-05T10:00:03.000Z', landed);
+    expect(playUpdatesStore.confirmed).toBe(first);
+  });
+
+  it('ignora una respuesta sin el campo (marca undefined)', () => {
+    const { playUpdatesStore } = mod;
+    playUpdatesStore.applyHistoryTail('2026-06-05T09:59:00.000Z', []);
+    playUpdatesStore.applyHistoryTail(undefined, undefined);
     expect(playUpdatesStore.confirmed).toBeNull();
+    expect(playUpdatesStore.watermark).toBe('2026-06-05T09:59:00.000Z');
   });
 
   it('un usuario sin historial previo se confirma con su primer play', () => {
     const { playUpdatesStore } = mod;
-    playUpdatesStore.setWatermark(null);
-    playUpdatesStore.emitOptimistic(PLAY);
-    playUpdatesStore.setWatermark('2026-06-05T10:00:03.000Z');
+    playUpdatesStore.applyHistoryTail(null, []);
+    playUpdatesStore.applyHistoryTail('2026-06-05T10:00:03.000Z', [{ ...PLAY, playedAt: '2026-06-05T10:00:03.000Z' }]);
 
     expect(playUpdatesStore.confirmed!.updates).toHaveLength(1);
   });
