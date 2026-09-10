@@ -3,6 +3,9 @@
   import { api, invalidateCache, getRankingMetric, getSessionTrackingDisplay, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric, type GenreItem, type ReportResponse, type WeekStartOption } from '$lib/api';
   import { REPORT_GENRES_LIMIT, nextMilestone } from '@sis/shared';
   import TrackList from '$lib/components/TrackList.svelte';
+  import TrackItem from '$lib/components/TrackItem.svelte';
+  import EntityTypePicker, { isEntityType } from '$lib/components/EntityTypePicker.svelte';
+  import type { EntityType } from '$lib/utils/entity-context';
   import TopCollage from '$lib/components/TopCollage.svelte';
   import WeekStrip, { type WeekStripDay } from '$lib/components/WeekStrip.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
@@ -34,6 +37,8 @@
   const RECENT_LIMIT = 10;
   const RECENT_POLL_MS = 15_000;
   const TZ_OFFSET_MINUTES = -new Date().getTimezoneOffset();
+  // tipo de entidad de "this week last year", recordado como preferencia de vista
+  const LAST_YEAR_TYPE_KEY = 'sis:lastYearEntity';
 
   // los buckets diarios de /listening-time son UTC: las claves se calculan igual
   const utcDayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -47,7 +52,10 @@
   let dayBuckets = $state<WeekStripDay[]>([]);
   let streaks = $state<StreaksData | null>(null);
   let lastReport = $state<ReportResponse | null>(null);
+  let lastYearType = $state<EntityType>('track');
   let lastYearTracks = $state<TopTrackItem[]>([]);
+  let lastYearAlbums = $state<TopAlbumItem[]>([]);
+  let lastYearArtists = $state<TopArtistItem[]>([]);
   let genres = $state<GenreItem[]>([]);
   let metric = $state<RankingMetric>('time');
   let weekStart = $state<WeekStartOption>('monday');
@@ -82,6 +90,8 @@
     end.setUTCFullYear(end.getUTCFullYear() - 1);
     return { startDate: utcDayKey(new Date(end.getTime() - (STRIP_DAYS - 1) * DAY_MS)), endDate: utcDayKey(end) };
   });
+
+  let lastYearCount = $derived(lastYearType === 'track' ? lastYearTracks.length : lastYearType === 'album' ? lastYearAlbums.length : lastYearArtists.length);
 
   const value = (plays: number, ms: number) => metric === 'plays' ? `${formatNumber(plays)} plays` : formatDuration(ms);
 
@@ -156,15 +166,31 @@
       loadingReport = false;
     }
 
-    api.topTracks('custom', LIST_LIMIT, metric, lastYearRange)
-      .then((t) => { lastYearTracks = t; })
-      .catch((e) => console.error('lastYear:', e))
-      .finally(() => { loadingLastYear = false; });
+    loadLastYear();
 
     api.topGenres('week', REPORT_GENRES_LIMIT)
       .then((g) => { genres = g; })
       .catch((e) => console.error('topGenres:', e))
       .finally(() => { loadingGenres = false; });
+  }
+
+  // sólo se pide la lista del tipo elegido; cambiar de tipo trae la suya (la
+  // cache SWR devuelve al instante una ya vista)
+  function loadLastYear() {
+    loadingLastYear = true;
+    const request =
+      lastYearType === 'track' ? api.topTracks('custom', LIST_LIMIT, metric, lastYearRange).then((t) => { lastYearTracks = t; })
+      : lastYearType === 'album' ? api.topAlbums('custom', LIST_LIMIT, metric, lastYearRange).then((a) => { lastYearAlbums = a; })
+      : api.topArtists('custom', LIST_LIMIT, metric, lastYearRange).then((a) => { lastYearArtists = a; });
+    request
+      .catch((e) => console.error('lastYear:', e))
+      .finally(() => { loadingLastYear = false; });
+  }
+
+  function setLastYearType(type: EntityType) {
+    lastYearType = type;
+    localStorage.setItem(LAST_YEAR_TYPE_KEY, type);
+    loadLastYear();
   }
 
   // pull-to-refresh: sin invalidar, loadData se resuelve entera desde la cache
@@ -177,6 +203,8 @@
 
   onMount(() => {
     layout = getDetailLayout('dashboard');
+    const storedType = localStorage.getItem(LAST_YEAR_TYPE_KEY);
+    if (isEntityType(storedType)) lastYearType = storedType;
     loadData();
     const pollInterval = setInterval(pollRecent, RECENT_POLL_MS);
     return () => clearInterval(pollInterval);
@@ -425,17 +453,45 @@
     {/if}
   {:else if key === 'lastYear'}
     <!-- sin historial de hace un año no hay nada que recordar: sección fuera -->
-    {#if loadingLastYear || lastYearTracks.length > 0}
+    {#if loadingLastYear || lastYearCount > 0}
       <section class="detail-section">
         <div class="card">
           <div class="section-header">
-            <h3 class="section-title"><a href="/top?range=custom&startDate={lastYearRange.startDate}&endDate={lastYearRange.endDate}" class="section-link">This week last year</a></h3>
-            <span class="data-label">{lastYearRange.startDate.slice(0, 4)}</span>
+            <h3 class="section-title"><a href="/top?range=custom&tab={lastYearType}s&startDate={lastYearRange.startDate}&endDate={lastYearRange.endDate}" class="section-link">This week last year</a></h3>
+            <div class="section-actions">
+              <span class="data-label">{lastYearRange.startDate.slice(0, 4)}</span>
+              <EntityTypePicker value={lastYearType} onchange={setLastYearType} variant="pills" iconsOnly />
+            </div>
           </div>
           {#if loadingLastYear}
             {@render trackGhost(LIST_LIMIT, true)}
-          {:else}
+          {:else if lastYearType === 'track'}
             <TrackList items={lastYearTracks} showRank {metric} compact />
+          {:else if lastYearType === 'album'}
+            <div class="track-list">
+              {#each lastYearAlbums as item, i (item.albumId)}
+                {#if item.album}
+                  {@const album = item.album}
+                  <!-- /top-albums no trae los artistas (sólo el report): el año, como la lista del artista -->
+                  <TrackItem compact rank={i + 1} imageUrl={album.imageUrl} imageHref="/album/{item.albumId}" name={album.name} nameHref="/album/{item.albumId}" entity={{ type: 'album', id: item.albumId, name: album.name, imageUrl: album.imageUrl ?? null }}>
+                    {#snippet subtitle()}{album.releaseDate?.slice(0, 4) ?? ''}{/snippet}
+                    {#snippet meta()}<span class="data-count">{value(item.playCount, item.totalMs)}</span>{/snippet}
+                  </TrackItem>
+                {/if}
+              {/each}
+            </div>
+          {:else}
+            <div class="track-list">
+              {#each lastYearArtists as item, i (item.artistId)}
+                {#if item.artist}
+                  {@const artist = item.artist}
+                  <TrackItem compact rank={i + 1} imageUrl={artist.imageUrl} imageHref="/artist/{item.artistId}" imageRound name={artist.name} nameHref="/artist/{item.artistId}" entity={{ type: 'artist', id: item.artistId, name: artist.name, imageUrl: artist.imageUrl ?? null }}>
+                    {#snippet subtitle()}{artist.genres[0] ?? ''}{/snippet}
+                    {#snippet meta()}<span class="data-count">{value(item.playCount, item.totalMs)}</span>{/snippet}
+                  </TrackItem>
+                {/if}
+              {/each}
+            </div>
           {/if}
         </div>
       </section>
@@ -534,6 +590,13 @@
   .dash-main > :global(.detail-section--half:has(+ .detail-section--half)),
   .dash-main > :global(.detail-section--half + .detail-section--half) {
     grid-column: auto;
+  }
+
+  /* año + selector de entidad a la derecha del título */
+  .section-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
   }
 
   /* línea de contexto bajo cada cifra: ayer, la semana pasada, el récord… */
