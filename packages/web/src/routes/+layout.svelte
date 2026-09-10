@@ -251,19 +251,6 @@
     return pathname === '/login' || pathname === '/privacy' || pathname.startsWith('/s/');
   }
 
-  // páginas con rail (detalles de entidad y el dashboard): en pantallas anchas
-  // ensanchan el contenido más allá del cap de 1200px para llenar el ancho
-  // disponible y dar sitio a la segunda columna.
-  function isDetailRoute(pathname: string): boolean {
-    return pathname === '/' || /^\/(artist|album|track|concert)\//.test(pathname);
-  }
-
-  // páginas sin cap de ancho: el dashboard y las gráficas de insights aprovechan
-  // la pantalla entera
-  function isFullWidthRoute(pathname: string): boolean {
-    return pathname === '/' || pathname === '/insights';
-  }
-
   $effect(() => {
     if (isBareRoute(page.url.pathname)) {
       authChecked = true;
@@ -722,7 +709,7 @@
       {/if}
       <div class="sidebar-footer">{#if appVersion}<span class="sidebar-version">{appVersion}</span> · {/if}made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
-    <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)} class:main-content--full={isFullWidthRoute(page.url.pathname)}>
+    <main class="main-content">
       <div class="mobile-header">
         <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">

@@ -410,8 +410,6 @@
     display: flex;
     flex-direction: column;
     padding: 0.5rem 1.25rem;
-    max-width: 560px;
-    margin: 0 auto;
   }
 
   .h2h-row {

@@ -262,7 +262,6 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 640px;
   }
 
   .stream-group {

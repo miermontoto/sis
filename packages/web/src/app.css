@@ -471,7 +471,6 @@ a:hover {
   flex: 1;
   min-width: 0;
   padding: 2rem;
-  max-width: 1200px;
   transition: margin-left 0.16s ease;
 }
 
@@ -527,32 +526,20 @@ a:hover {
   max-height: 32rem;
 }
 
-/* a partir de ~1800px hay sitio para dos columnas: la página de detalle sube su cap
-   para LLENAR el ancho disponible (no el 1200 normal) y reparte en columna principal
-   (1fr, crece) + rail de gráficas auxiliares (fijo, más ancho). por debajo, una sola
-   columna con el rail al final. */
-/* dashboard e insights no tienen cap: llenan la pantalla entera a cualquier
-   ancho. con dos clases porque el dashboard lleva también --detail (por la
-   rejilla con rail) y su cap de 1900px, declarado después, ganaba a igual
-   especificidad */
-.main-content.main-content--full {
-  max-width: none;
-}
-
+/* ninguna vista lleva cap de ancho: .main-content llena la pantalla (hubo un
+   cap de 1200px, y otro de 1900px para los detalles, y se quitaron el
+   2026-09-10 porque en monitores anchos dejaban un tercio vacío). a partir de
+   ~1800px hay sitio para dos columnas: columna principal (1fr, crece) + rail
+   de gráficas auxiliares (fijo). por debajo, una sola columna con el rail al
+   final. */
 @media (min-width: 1800px) {
-  .main-content--detail {
-    max-width: 1900px;
-  }
-  /* en el dashboard el rail crece un poco con la pantalla para que la columna
-     principal no se quede con todo el ancho extra */
-  .main-content--full .detail-body {
-    grid-template-columns: minmax(0, 1fr) minmax(400px, min(24%, 560px));
-  }
   /* stretch: el rail iguala la altura de la columna principal para poder anclar
      su último bloque (recent plays) al fondo de esa columna */
+  /* el rail crece un poco con la pantalla (hasta 560px) para que la columna
+     principal no se quede con todo el ancho extra */
   .detail-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-columns: minmax(0, 1fr) minmax(400px, min(24%, 560px));
     gap: var(--detail-gap);
     align-items: stretch;
   }
