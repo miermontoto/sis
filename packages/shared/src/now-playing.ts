@@ -11,6 +11,12 @@ export interface NowPlayingResponse {
   volumePercent?: number | null;
   track?: TrackInfo;
   updatedAt?: string;
+  // marca de agua del historial: el played_at más reciente del usuario en
+  // listening_history. avanza SOLO cuando el servidor ya ha volcado un play
+  // (el volcado va en escalera de 8/25/75s tras el corte, ver
+  // scheduleHistoryFlush), así que el cliente la usa para saber cuándo sus
+  // agregados son releíbles. null = el usuario no tiene historial todavía
+  historyWatermark?: string | null;
 }
 
 export interface SpotifyDevice {

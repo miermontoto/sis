@@ -1,10 +1,10 @@
 <script lang="ts">
   import { nextFrame, waitForElement } from '$lib/utils/dom';
   import { isAbortError } from '$lib/utils/errors';
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
   import { TOP_PAGE_LIMIT } from '@sis/shared';
   import { goto, afterNavigate } from '$app/navigation';
-  import { api, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
+  import { api, invalidateCache, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
@@ -15,6 +15,9 @@
   import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, measureTextWidth, truncateToWidth, niceAxisMax, MONO_STACK, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { fitZipf } from '$lib/utils/zipf';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
+  import { applyPlayToTopRows } from '$lib/utils/optimistic-play';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import RankChange from '$lib/components/RankChange.svelte';
   import LiveEq from '$lib/components/LiveEq.svelte';
@@ -559,10 +562,15 @@
   let pendingFocusId = $state<string | null>(null);
   let focusedId = $state<string | null>(null);
 
-  async function loadData() {
+  // silent: relectura de reconciliación tras un play ya volcado. Sin spinner y
+  // sin rebobinar el scroll infinito, porque la lista ya está en pantalla y sólo
+  // se está sustituyendo por la versión del servidor
+  async function loadData(silent = false) {
     const signal = fetchCtrl.reset();
-    loading = true;
-    visibleCount = PAGE_SIZE;
+    if (!silent) {
+      loading = true;
+      visibleCount = PAGE_SIZE;
+    }
     try {
       const dates = getCustomDates();
       const lb = lookback !== 'disabled' && LOOKBACK_QUALIFYING_RANGES.has(range) ? lookback : undefined;
@@ -580,7 +588,7 @@
       if (isAbortError(e)) return;
       throw e;
     } finally {
-      if (!signal.aborted) loading = false;
+      if (!signal.aborted && !silent) loading = false;
       if (!signal.aborted && pendingFocusId) {
         const id = pendingFocusId;
         pendingFocusId = null;
@@ -726,6 +734,84 @@
 
   $effect(() => {
     if (sentinel && observer) observer.observe(sentinel);
+  });
+
+  // --- play recién terminado: parche optimista ---
+  //
+  // Se queda en local a propósito. Releer sería purgar '/stats/top-' entero
+  // (todas las variantes de rango cacheadas) una vez por track para ganar una
+  // fila; el TTL normal de 10 min ya reconcilia. Ver optimistic-play.ts.
+  let lastOptimisticSeq = 0;
+
+  // el parche sólo vale si la ventana visible llega hasta ahora: un rango
+  // custom que termina en el pasado no puede recibir el play de hoy
+  function rangeIncludesNow(): boolean {
+    if (range !== 'custom') return true;
+    return !!endDate && endDate >= new Date().toISOString().slice(0, 10);
+  }
+
+  function headIds(): string {
+    if (activeTab === 'tracks') return topTracks.slice(0, chartCount).map(t => t.trackId).join(',');
+    if (activeTab === 'artists') return topArtists.slice(0, chartCount).map(a => a.artistId).join(',');
+    return topAlbums.slice(0, chartCount).map(a => a.albumId).join(',');
+  }
+
+  function applyOptimisticPlay(update: PlayUpdate) {
+    // una carga en vuelo va a sustituir las filas con la verdad del servidor:
+    // parchear ahora sería trabajo tirado (o un doble conteo si la respuesta ya
+    // trae el play)
+    if (loading || !rangeIncludesNow()) return;
+
+    const ids = targetIdsFor(update, activeTab);
+    const before = headIds();
+    if (activeTab === 'tracks') {
+      topTracks = applyPlayToTopRows(topTracks, t => t.trackId, ids, update.playedMs, metric);
+    } else if (activeTab === 'artists') {
+      topArtists = applyPlayToTopRows(topArtists, a => a.artistId, ids, update.playedMs, metric);
+    } else {
+      topAlbums = applyPlayToTopRows(topAlbums, a => a.albumId, ids, update.playedMs, metric);
+    }
+
+    // los colores de las barras van por posición, así que si el reordenamiento
+    // toca la cabeza hay que reextraerlos o la barra i se quedaría con el color
+    // de quien ocupaba antes ese puesto (las imágenes ya están en la cache del
+    // navegador: no hay descarga nueva)
+    if (headIds() !== before) {
+      extractBarColors(activeTab, topTracks, topArtists, topAlbums, chartCount)
+        .then(colors => { barColors = colors; })
+        .catch(() => {});
+    }
+  }
+
+  $effect(() => {
+    const update = playUpdatesStore.optimistic;
+    if (!update || update.seq <= lastOptimisticSeq) return;
+    lastOptimisticSeq = update.seq;
+    // untrack: applyOptimisticPlay lee y escribe las mismas listas, y sin esto
+    // el efecto se reengancharía a su propia escritura
+    untrack(() => applyOptimisticPlay(update));
+  });
+
+  // Cuando el play ya está en el historial se relee de verdad, en silencio. No
+  // es por las cifras (el parche optimista suma exactamente lo mismo que el
+  // servidor), sino por la cache: la entrada SWR sigue teniendo la lista de
+  // antes del play, así que sin esto salir de la página y volver dentro del TTL
+  // haría RETROCEDER lo que se acaba de ver moverse.
+  //
+  // El purgado de '/stats/top-' es ancho, pero se paga sólo mientras esta
+  // página está montada — que es justo cuando importa. Un purgado global por
+  // cada track dejaría la vista sin cache para todo el mundo.
+  let lastConfirmedSeq = 0;
+
+  $effect(() => {
+    const batch = playUpdatesStore.confirmed;
+    if (!batch || batch.seq <= lastConfirmedSeq) return;
+    lastConfirmedSeq = batch.seq;
+    untrack(() => {
+      if (loading || !rangeIncludesNow()) return;
+      if (!batch.updates.some(u => targetIdsFor(u, activeTab).length > 0)) return;
+      invalidateCache('/stats/top-').then(() => loadData(true)).catch(() => {});
+    });
   });
 
   $effect(() => {
@@ -929,8 +1015,8 @@
               <div class="track-name">{item.artist.name}</div>
             </div>
             <div class="track-meta">
-              <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-              <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              <div class="track-plays" class:stat-flash={statFlashStore.isFlashing(item.artistId)}>{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              <div class="track-time" class:stat-flash={statFlashStore.isFlashing(item.artistId)}>{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
             </div>
           </a>
         {/if}
@@ -970,8 +1056,8 @@
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
             <div class="track-meta">
-              <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-              <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              <div class="track-plays" class:stat-flash={statFlashStore.isFlashing(item.albumId)}>{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
+              <div class="track-time" class:stat-flash={statFlashStore.isFlashing(item.albumId)}>{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
             </div>
           </a>
         {/if}

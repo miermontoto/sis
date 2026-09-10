@@ -1676,6 +1676,26 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   50% { opacity: 0; }
 }
 
+/* la cifra acaba de sumar un play: seis parpadeos en verde para que el cambio
+   no se lo pierda el usuario. La marca la pone y la quita stat-flash.svelte.ts,
+   cuyo temporizador tiene que sumar lo mismo que dura esto (6 x 0.35s) */
+@keyframes stat-flash {
+  50% { color: var(--accent); }
+}
+
+.stat-flash {
+  animation: stat-flash 0.35s ease-in-out 6;
+}
+
+/* un parpadeo repetido es de lo más agresivo con sensibilidad al movimiento:
+   se conserva el color de aviso, sin la animación */
+@media (prefers-reduced-motion: reduce) {
+  .stat-flash {
+    animation: none;
+    color: var(--accent);
+  }
+}
+
 /* shimmer ghost loading */
 @keyframes shimmer {
   0% { background-position: 200% 0; }

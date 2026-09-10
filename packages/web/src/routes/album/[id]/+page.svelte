@@ -1,7 +1,10 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
+  import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
+  import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getAlbumShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -173,6 +176,31 @@
   }
 
 
+  // --- play confirmado: relectura de la ficha ---
+  //
+  // El cliente ve el corte al instante, pero el play tarda unos segundos en
+  // aterrizar en listening_history (volcado en escalera de 8/25/75s). Releer
+  // antes recachearía las cifras VIEJAS durante el TTL entero de la ficha (1h),
+  // así que se espera a que avance la marca de agua del historial.
+  let lastConfirmedSeq = 0;
+
+  $effect(() => {
+    const batch = playUpdatesStore.confirmed;
+    if (!batch || batch.seq <= lastConfirmedSeq) return;
+    lastConfirmedSeq = batch.seq;
+    // untrack: loadData lee flags de settings que no deben volverse deps
+    untrack(() => {
+      const id = albumId;
+      if (!id || !batchTouches(batch.updates, 'albums', id)) return;
+      invalidateEntityDetail('album', id)
+        .then(() => loadData(id))
+        // el parpadeo va después de la recarga: las cifras cambian ahí, no al
+        // detectarse el corte (que fue hace unos segundos)
+        .then(() => statFlashStore.flash([id]))
+        .catch(() => {});
+    });
+  });
+
   let initialized = false;
   let prevId = '';
 
@@ -218,7 +246,7 @@
   {#snippet sec(key: string)}
     {#if key === 'stats'}
       <section class="detail-section">
-        <StatsGrid stats={d.stats} />
+        <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(albumId)} />
       </section>
     {:else if key === 'rankingBadges'}
       {#if !d.mergedInto}

@@ -2,6 +2,7 @@
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
   import { formatDuration, formatTrackLength, formatDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import TrackItem from './TrackItem.svelte';
   import Accolades from './Accolades.svelte';
 
@@ -102,11 +103,12 @@
       {/snippet}
       {#snippet meta()}
         {#if isTopTrack(item)}
-          <div class="track-plays">{formatMetric(item)}</div>
+          {@const flash = statFlashStore.isFlashing(trackId)}
+          <div class="track-plays" class:stat-flash={flash}>{formatMetric(item)}</div>
           {#if metric === 'time'}
-            <div class="track-time">{item.playCount} plays</div>
+            <div class="track-time" class:stat-flash={flash}>{item.playCount} plays</div>
           {:else}
-            <div class="track-time">{formatDuration(item.totalMs)}</div>
+            <div class="track-time" class:stat-flash={flash}>{formatDuration(item.totalMs)}</div>
           {/if}
         {/if}
         {#if showTime && 'playedAt' in item}

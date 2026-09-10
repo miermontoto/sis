@@ -1,5 +1,6 @@
 import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem } from '$lib/api';
 import { MIN_PLAY_MS } from '@sis/shared';
+import { playUpdatesStore } from './play-updates.svelte';
 
 let _data = $state<NowPlayingResponse | null>(null);
 let _intervalId: ReturnType<typeof setInterval> | null = null;
@@ -76,17 +77,33 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
 
   if (nextTrackId !== prevTrackId) {
     if (prevTrackId && _data?.track && _trackStartedAt > 0 && Date.now() - _trackStartedAt >= MIN_PLAY_MS) {
+      const finished = _data.track;
+      const playedAt = new Date().toISOString();
       _lastFinishedPlay = {
         id: Date.now(),
-        playedAt: new Date().toISOString(),
+        playedAt,
         contextType: null,
-        track: _data.track,
+        track: finished,
       };
+      // ms escuchados del track saliente: el progreso extrapolado justo en el
+      // corte (aquí _data y _progress todavía apuntan al track que termina),
+      // capado a su duración. Es la misma cifra que el poller manda como
+      // duration_played_ms, así que el parche optimista suma lo que sumará la
+      // relectura en vez de asumir siempre el track entero
+      const playedMs = Math.min(progressMsAt(Date.now()) ?? finished.durationMs, finished.durationMs);
+      playUpdatesStore.emitOptimistic({
+        trackId: finished.id,
+        albumId: finished.album?.id ?? null,
+        artistIds: finished.artists.map(a => a.id),
+        playedMs,
+        playedAt,
+      });
     }
     _trackStartedAt = nextTrackId ? Date.now() : 0;
   }
 
   _data = data;
+  playUpdatesStore.setWatermark(data?.historyWatermark);
   if (data?.volumePercent != null) _volumePercent = data.volumePercent;
 
   // progreso: live/cached traen base fresca (extrapolada por la edad de

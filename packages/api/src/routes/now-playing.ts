@@ -13,6 +13,23 @@ import type { SpotifyCurrentlyPlayingResponse } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
 
+// played_at más reciente del usuario en listening_history. El índice único
+// (user_id, played_at) hace de esto un seek al final del rango, no un scan, así
+// que sale gratis en un endpoint que el cliente sondea cada 10s.
+//
+// Sirve de marca de agua: el cliente detecta el final de un track al instante,
+// pero el play tarda unos segundos en aterrizar (scheduleHistoryFlush repolla
+// recently-played en escalera). Releer los agregados antes de que aterrice
+// recachearía el estado anterior durante otra hora, así que las vistas esperan
+// a ver avanzar esta marca.
+function readHistoryWatermark(userId: number | undefined): string | null {
+  if (!userId) return null;
+  const row = getDb().get(
+    sql`SELECT MAX(played_at) AS watermark FROM listening_history WHERE user_id = ${userId}`
+  ) as { watermark: string | null } | undefined;
+  return row?.watermark ?? null;
+}
+
 // retorna el track actual desde polling_state (sin llamada a spotify)
 nowPlaying.get('/', (c) => {
   const userId = c.get('userId');
@@ -20,9 +37,10 @@ nowPlaying.get('/', (c) => {
   const state = userId
     ? db.select().from(pollingState).where(eq(pollingState.userId, userId)).get()
     : null;
+  const historyWatermark = readHistoryWatermark(userId);
 
   if (!state?.lastCurrentlyPlayingTrackId) {
-    return c.json({ playing: false, isPlaying: false });
+    return c.json({ playing: false, isPlaying: false, historyWatermark });
   }
 
   // usuarios solo-last.fm (sin token de spotify) no pueden controlar la
@@ -33,12 +51,12 @@ nowPlaying.get('/', (c) => {
   if (state.lastCurrentlyPlayingAt) {
     const lastUpdate = new Date(state.lastCurrentlyPlayingAt).getTime();
     if (Date.now() - lastUpdate > staleThresholdMs) {
-      return c.json({ playing: false, isPlaying: false });
+      return c.json({ playing: false, isPlaying: false, historyWatermark });
     }
   }
 
   const track = db.select().from(tracks).where(eq(tracks.spotifyId, state.lastCurrentlyPlayingTrackId)).get();
-  if (!track) return c.json({ playing: false, isPlaying: false });
+  if (!track) return c.json({ playing: false, isPlaying: false, historyWatermark });
 
   const album = track.albumId
     ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
@@ -74,6 +92,7 @@ nowPlaying.get('/', (c) => {
       artists: artistList.map(a => ({ id: a!.spotifyId, name: a!.name })),
     },
     updatedAt: state.lastCurrentlyPlayingAt,
+    historyWatermark,
   });
 });
 
@@ -132,8 +151,9 @@ nowPlaying.get('/live', async (c) => {
   const userId = c.get('userId');
   const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
+  const historyWatermark = readHistoryWatermark(userId);
   if (!data?.item || data.currently_playing_type !== 'track') {
-    return c.json({ playing: false, isPlaying: false });
+    return c.json({ playing: false, isPlaying: false, historyWatermark });
   }
 
   const item = data.item;
@@ -154,6 +174,7 @@ nowPlaying.get('/live', async (c) => {
       artists: (item.artists ?? []).map((a) => ({ id: a.id, name: a.name })),
     },
     updatedAt: new Date().toISOString(),
+    historyWatermark,
   });
 });
 

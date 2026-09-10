@@ -3,8 +3,12 @@
 
   let {
     stats,
+    flash = false,
   }: {
     stats: { play_count: number; total_ms: number; first_played: string | null; last_played: string | null };
+    // la ficha acaba de recargarse con un play nuevo: parpadean las cifras que
+    // ese play mueve. "First played" no es una de ellas
+    flash?: boolean;
   } = $props();
 
   // partes alrededor de los ":" para poder animarlos como un reloj digital
@@ -15,11 +19,11 @@
 
 <div class="stats-grid">
   <div class="card stat-card">
-    <div class="stat-value">{formatNumber(stats.play_count)}</div>
+    <div class="stat-value" class:stat-flash={flash}>{formatNumber(stats.play_count)}</div>
     <div class="stat-label">Plays</div>
   </div>
   <div class="card stat-card">
-    <div class="stat-value">{formatDuration(stats.total_ms)}</div>
+    <div class="stat-value" class:stat-flash={flash}>{formatDuration(stats.total_ms)}</div>
     <div class="stat-label">Listening time</div>
   </div>
   {#if stats.first_played}
@@ -37,7 +41,7 @@
   {/if}
   {#if stats.last_played}
     <a href="/history?date={localDateKey(stats.last_played)}&focus={encodeURIComponent(stats.last_played)}" class="card stat-card stat-card--link">
-      <div class="stat-value">
+      <div class="stat-value" class:stat-flash={flash}>
         {#if isToday(stats.last_played)}
           {@const parts = timeParts(stats.last_played)}
           {#each parts as part, i}{part}{#if i < parts.length - 1}<span class="time-colon">:</span>{/if}{/each}

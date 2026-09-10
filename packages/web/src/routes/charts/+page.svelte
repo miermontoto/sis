@@ -1,6 +1,6 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { page } from '$app/stores';
   import { api, createFetchController, getRankingMetric, getWeekStart, type ChartPeak, type ChartResponse, type DropoutEntry, type RankingMetric, type WeekStartOption, type Granularity } from '$lib/api';
 
@@ -14,6 +14,9 @@
   import LiveEq from '$lib/components/LiveEq.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
+  import { statFlashStore } from '$lib/stores/stat-flash.svelte';
+  import { applyPlayToChart } from '$lib/utils/optimistic-play';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
@@ -153,6 +156,45 @@
       if (!signal.aborted) loading = false;
     }
   }
+
+  // --- play recién terminado: parche optimista del periodo ABIERTO ---
+  //
+  // Un chart es un agregado por periodo, y un periodo cerrado es inmutable: el
+  // play de ahora no puede cambiar el chart de la semana pasada. Por eso no se
+  // invalida nada (ni '/stats/charts', 1h de TTL, ni mucho menos los peaks, que
+  // son el endpoint caro): sólo se retoca la entrada del periodo en curso.
+  let lastOptimisticSeq = 0;
+
+  function applyOptimisticPlay(update: PlayUpdate) {
+    let next: Map<string, ChartResponse> | null = null;
+
+    for (const [key, chart] of cache) {
+      // clave = `${type}:${granularity}:${period}:${metric}`; ninguna de las
+      // cuatro partes contiene ':', así que el split es exacto. Cada entrada se
+      // ordena por SU métrica y se compara contra el periodo abierto de SU
+      // granularidad, no contra los de la vista actual
+      const [type, gran, period, keyMetric] = key.split(':');
+      if (period !== computeCurrentPeriod(gran as Granularity, weekStart)) continue;
+
+      const ids = targetIdsFor(update, type as ChartEntityType);
+      const patched = applyPlayToChart(chart, ids, update.playedMs, keyMetric as RankingMetric);
+      if (patched === chart) continue;
+
+      if (!next) next = new Map(cache);
+      next.set(key, patched);
+    }
+
+    if (next) cache = next;
+  }
+
+  $effect(() => {
+    const update = playUpdatesStore.optimistic;
+    if (!update || update.seq <= lastOptimisticSeq) return;
+    lastOptimisticSeq = update.seq;
+    // untrack: applyOptimisticPlay lee y reescribe `cache`, y sin esto el
+    // efecto se reengancharía a su propia escritura
+    untrack(() => applyOptimisticPlay(update));
+  });
 
   function entityLink(id: string): string {
     if (activeType === 'artists') return `/artist/${id}`;
@@ -447,8 +489,8 @@
           {/if}
         </div>
         <div class="chart-meta">
-          <div class="chart-primary">{metric === 'plays' ? `${formatNumber(entry.plays)} plays` : formatDuration(entry.totalMs)}</div>
-          <div class="chart-secondary">{metric === 'plays' ? formatDuration(entry.totalMs) : `${formatNumber(entry.plays)} plays`}</div>
+          <div class="chart-primary" class:stat-flash={statFlashStore.isFlashing(entry.entityId)}>{metric === 'plays' ? `${formatNumber(entry.plays)} plays` : formatDuration(entry.totalMs)}</div>
+          <div class="chart-secondary" class:stat-flash={statFlashStore.isFlashing(entry.entityId)}>{metric === 'plays' ? formatDuration(entry.totalMs) : `${formatNumber(entry.plays)} plays`}</div>
         </div>
       </a>
     {/each}
