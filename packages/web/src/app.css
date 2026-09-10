@@ -25,6 +25,8 @@
   --silver: #c0c0c0;
   --bronze: #cd7f32;
   --radius: 2px;
+  /* hueco entre secciones de las vistas con rejilla (detalles y dashboard) y entre sus columnas */
+  --detail-gap: 1.5rem;
   /* separación entre filas de .track-list: las filas live la cancelan para pegarse */
   --track-list-gap: 0.5rem;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
@@ -490,7 +492,7 @@ a:hover {
    sección y dentro nadie aporta márgenes propios de separación. */
 .detail-section {
   min-width: 0;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--detail-gap);
 }
 
 /* una sección sin contenido (p.ej. chart stats sin datos) no ocupa */
@@ -548,7 +550,7 @@ a:hover {
   .detail-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 400px;
-    gap: 1.5rem;
+    gap: var(--detail-gap);
     align-items: stretch;
   }
   /* rail como columna flex: las gráficas/versiones toman su alto natural y

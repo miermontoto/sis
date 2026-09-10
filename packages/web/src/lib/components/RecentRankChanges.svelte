@@ -181,10 +181,6 @@
 {/if}
 
 <style>
-  .changes-card {
-    margin-bottom: 1.5rem;
-  }
-
   /* título + filtros: en el rail (400px) los botones bajan de línea */
   .changes-header {
     flex-wrap: wrap;

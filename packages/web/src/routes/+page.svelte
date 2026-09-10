@@ -382,6 +382,7 @@
     <!-- sin semana cerrada (historial recién empezado) o sin plays en ella no hay sección -->
     {#if lastReportPeriod && (loadingReport || (lastReport && lastReport.summary.plays > 0))}
       <section class="detail-section">
+        <div class="card">
         <div class="section-header">
           <h3 class="section-title"><a href="/reports/week/{lastReportPeriod}" class="section-link">Last week's report</a></h3>
           <span class="data-label">{periodDateRange(lastReportPeriod, 'week', weekStart)}</span>
@@ -389,7 +390,7 @@
         {#if loadingReport || !lastReport}
           <div class="report-picks">
             {#each Array(3) as _}
-              <div class="card report-pick-ghost"><div class="report-pick-ghost-img ghost-shimmer"></div><div class="ghost-line ghost-line--title"></div></div>
+              <div class="report-pick-ghost"><div class="report-pick-ghost-img ghost-shimmer"></div><div class="ghost-line ghost-line--title"></div></div>
             {/each}
           </div>
         {:else}
@@ -409,16 +410,17 @@
           </p>
           <div class="report-picks">
             {#if a?.artist}
-              <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist.imageUrl ?? null} round name={a.artist.name} sub={a.artist.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} entity={{ type: 'artist', id: a.artistId, name: a.artist.name, imageUrl: a.artist.imageUrl ?? null }} />
+              <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist.imageUrl ?? null} round name={a.artist.name} sub={a.artist.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} entity={{ type: 'artist', id: a.artistId, name: a.artist.name, imageUrl: a.artist.imageUrl ?? null }} flat />
             {/if}
             {#if al?.album}
-              <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album.imageUrl ?? null} name={al.album.name} sub={al.artists?.map(x => x.name).join(', ') ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album.name, imageUrl: al.album.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }} />
+              <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album.imageUrl ?? null} name={al.album.name} sub={al.artists?.map(x => x.name).join(', ') ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album.name, imageUrl: al.album.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }} flat />
             {/if}
             {#if t?.track}
-              <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track.album?.imageUrl ?? null} name={t.track.name} sub={t.track.artists.map(x => x.name).join(', ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} entity={trackEntity(t.track)} />
+              <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track.album?.imageUrl ?? null} name={t.track.name} sub={t.track.artists.map(x => x.name).join(', ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} entity={trackEntity(t.track)} flat />
             {/if}
           </div>
         {/if}
+        </div>
       </section>
     {/if}
   {:else if key === 'lastYear'}
@@ -522,7 +524,7 @@
   .dash-main {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.5rem;
+    gap: var(--detail-gap);
     align-content: start;
   }
   .dash-main > :global(*) {
@@ -547,7 +549,6 @@
   }
 
   .closed-charts-card {
-    margin-bottom: 1.5rem;
     border-color: rgba(29, 185, 84, 0.3);
     background: rgba(29, 185, 84, 0.04);
   }
@@ -606,7 +607,7 @@
 
   /* report de la semana pasada: resumen y los tres nº 1, como en el report */
   .report-summary {
-    margin: 0 0 0.75rem;
+    margin: 0 0 0.5rem;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
