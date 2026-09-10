@@ -716,7 +716,7 @@
       {/if}
       <div class="sidebar-footer">{#if appVersion}<span class="sidebar-version">{appVersion}</span> · {/if}made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
     </aside>
-    <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)}>
+    <main class="main-content" class:main-content--detail={isDetailRoute(page.url.pathname)} class:main-content--full={page.url.pathname === '/'}>
       <div class="mobile-header">
         <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">

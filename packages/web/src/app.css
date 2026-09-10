@@ -533,6 +533,14 @@ a:hover {
   .main-content--detail {
     max-width: 1900px;
   }
+  /* el dashboard no tiene cap: llena la pantalla entera, y el rail crece un
+     poco con ella para que la columna principal no se quede con todo */
+  .main-content--full {
+    max-width: none;
+  }
+  .main-content--full .detail-body {
+    grid-template-columns: minmax(0, 1fr) minmax(400px, min(24%, 560px));
+  }
   /* stretch: el rail iguala la altura de la columna principal para poder anclar
      su último bloque (recent plays) al fondo de esa columna */
   .detail-body {
