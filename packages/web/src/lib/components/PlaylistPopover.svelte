@@ -126,7 +126,13 @@
 <div class="like-wrap" onmouseenter={openHover} onmouseleave={closeHover}>
   {@render likeButton?.()}
   {#if inPlaylists.length > 0 || (trackId && ownedPlaylists.length > 0)}
-    <button type="button" class="like-badge" onclick={togglePin}>{#if inPlaylists.length > 0}+{inPlaylists.length}{/if}</button>
+    <button
+      type="button"
+      class="like-badge"
+      class:like-badge--empty={inPlaylists.length === 0}
+      title={inPlaylists.length > 0 ? `In ${inPlaylists.length} playlist${inPlaylists.length > 1 ? 's' : ''}` : 'Add to playlist'}
+      onclick={togglePin}
+    >+{#if inPlaylists.length > 0}{inPlaylists.length}{/if}</button>
     {#if open}
       <div class="like-popover" use:positionPopover>
         <div class="like-popover-inner">

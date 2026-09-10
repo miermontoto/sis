@@ -1364,6 +1364,12 @@ a.track-item {
   line-height: 14px;
   cursor: pointer;
 }
+/* sin playlists el badge es sólo el "+": afordancia de añadir, no una cifra, así
+   que va en muted (el rosa es el color de la cuenta). el "+" siempre se pinta:
+   vacío, el padding y el borde lo dejaban como una rayita junto al corazón */
+.like-badge--empty {
+  color: var(--text-muted);
+}
 .like-popover {
   /* posición fija calculada por use:positionPopover para no salirse del viewport
      ni ser recortado por el overflow de la sidebar */
