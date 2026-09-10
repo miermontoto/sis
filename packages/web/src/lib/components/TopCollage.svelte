@@ -25,7 +25,7 @@
 
 <div class="collage">
   {#each items.slice(0, COLLAGE_SIZE) as item, i (item.href)}
-    <a href={item.href} class="tile" class:tile--lead={i === 0} class:tile--live={item.isLive} title="{item.name} — {item.stat}" oncontextmenu={item.oncontextmenu}>
+    <a href={item.href} class="tile" class:tile--lead={i === 0} class:tile--live={item.isLive} oncontextmenu={item.oncontextmenu}>
       {#if item.imageUrl}
         <img class="tile-img" src={item.imageUrl} alt={item.name} loading="lazy" />
       {:else}
