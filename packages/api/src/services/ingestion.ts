@@ -5,8 +5,8 @@
 // - dedup.ts: deduplicación de tracks/álbumes/plays
 // - identity.ts: cosecha de isrc/mbid y convergencia de sintéticos por identidad
 
-export { resolveLocalFileIds, upsertTrack, insertLocalPlay, insertPlay, DEDUP_WINDOW_S } from './ingestion/upsert.js';
-export { harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity } from './ingestion/identity.js';
+export { resolveLocalFileIds, resolveDuplicateTrackId, upsertTrack, insertLocalPlay, insertPlay, DEDUP_WINDOW_S } from './ingestion/upsert.js';
+export { harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion/identity.js';
 export { ensureFullAlbumTracks, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations } from './ingestion/enrichment.js';
 export {
   cleanOrphanImports, cleanNonMusicImports,
@@ -14,4 +14,4 @@ export {
   fixTrackAlbumAssignments, fixTrackArtistAssociations,
   mergeImportTracks,
 } from './ingestion/imports.js';
-export { deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations } from './ingestion/dedup.js';
+export { deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, pruneOrphanSearchIndex, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations } from './ingestion/dedup.js';

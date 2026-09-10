@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateLocalAlbums, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveDuplicateTrackId, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, pruneOrphanSearchIndex, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings, checkDailyEvents } from './notification-events.js';
@@ -188,6 +188,8 @@ function startTokenlessEnrichment() {
     try {
       await enrichImportTrackIdentity();
       mergeTracksByIdentity();
+      mergeDuplicateTracksByIsrc();
+      pruneOrphanSearchIndex();
     } catch (err) {
       logMetadata.error('error identidad:', err);
     }
@@ -271,6 +273,11 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
 
     // resolver IDs sintéticos para archivos locales antes de comparar
     resolveLocalFileIds(data.item);
+    // y redirigir al gemelo exacto ya conocido (mismo isrc + duración) ANTES de comparar,
+    // no dentro de upsertTrack: polling_state guardaría el id canónico y data.item.id
+    // seguiría siendo el crudo, así que trackChanged saldría true en CADA poll y cerraría
+    // el play anterior una y otra vez
+    resolveDuplicateTrackId(data.item);
 
     const state = getPollingStateForUser(userId);
     const trackChanged = state?.lastCurrentlyPlayingTrackId !== data.item.id;
@@ -507,7 +514,7 @@ export function startPolling() {
     .catch(err => logMetadata.error('error portadas de vídeo:', err));
   // isrcs del catálogo real (evidencia de identidad) y convergencia de sintéticos
   harvestTrackIsrcs(globalUserId)
-    .then(() => mergeTracksByIdentity())
+    .then(() => { mergeTracksByIdentity(); mergeDuplicateTracksByIsrc(); pruneOrphanSearchIndex(); })
     .catch(err => logMetadata.error('error isrcs:', err));
 
   metadataRefreshTimer = setInterval(() => {
@@ -519,7 +526,7 @@ export function startPolling() {
       .then(() => recoverSingleCovers(uid))
       .catch(err => logMetadata.error('error portadas de vídeo:', err));
     harvestTrackIsrcs(uid)
-      .then(() => mergeTracksByIdentity())
+      .then(() => { mergeTracksByIdentity(); mergeDuplicateTracksByIsrc(); pruneOrphanSearchIndex(); })
       .catch(err => logMetadata.error('error isrcs:', err));
   }, METADATA_REFRESH_INTERVAL_MS);
 
@@ -537,13 +544,13 @@ export function startPolling() {
   }, RESOLVE_INTERVAL_MS);
 
   fixTrackArtistAssociations(globalUserId)
-    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateLocalAlbums(); })
+    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateEmptyAlbumShells(); deduplicateLocalAlbums(); pruneOrphanSearchIndex(); })
     .catch(err => logResolve.error('error artistas:', err));
   artistFixTimer = setInterval(() => {
     const uid = getAnyActiveUserId();
     if (!uid) return;
     fixTrackArtistAssociations(uid)
-      .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateLocalAlbums(); })
+      .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateEmptyAlbumShells(); deduplicateLocalAlbums(); pruneOrphanSearchIndex(); })
       .catch(err => logResolve.error('error artistas:', err));
   }, ARTIST_FIX_INTERVAL_MS);
 

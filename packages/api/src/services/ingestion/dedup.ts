@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
-import { DEDUP_WINDOW_S, reassignTrackRefs } from './upsert.js';
-import { rewriteMergeRules } from './merge-rules.js';
+import { DEDUP_WINDOW_S, reassignTrackRefs, reassignAlbumRefs } from './upsert.js';
 import { MIN_PLAY_MS } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
@@ -141,9 +140,7 @@ export function deduplicateAlbums() {
 
     try {
       for (const dupe of dupes) {
-        db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE album_id = ${dupe}`);
-        rewriteMergeRules(db, 'album', dupe, canonical);
-        db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
+        reassignAlbumRefs(db, dupe, canonical);
       }
       merged++;
     } catch (err) {
@@ -218,11 +215,7 @@ export function deduplicateAlbumShells() {
 
     try {
       for (const dupe of dupes) {
-        // repuntar cualquier track del dupe al canónico y limpiar sus portadas antes de borrarlo
-        db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE album_id = ${dupe}`);
-        db.run(sql`DELETE FROM album_covers WHERE album_id = ${dupe}`);
-        rewriteMergeRules(db, 'album', dupe, canonical);
-        db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
+        reassignAlbumRefs(db, dupe, canonical);
       }
       merged++;
     } catch (err) {
@@ -231,6 +224,62 @@ export function deduplicateAlbumShells() {
   }
 
   if (merged > 0) logDedup.info(`${merged} grupos de lanzamientos unificados`);
+}
+
+// shells de lanzamiento VACÍOS: la misma entidad duplicada de deduplicateAlbumShells,
+// pero cuando spotify además discrepa en la fecha. "Hurry Up Tomorrow" existe como
+// 6iyZdO… (2025-01-30) y 3Oxfa… (2025-01-31), y release_date forma parte de la clave de
+// agrupación de allí, así que ese par no colapsa nunca. la fecha no puede salir de
+// aquella clave sin fusionar lanzamientos distintos, pero cuando uno de los dos no tiene
+// NINGÚN track ingestado no hay nada que preservar: una deluxe y su estándar tienen
+// tracks las dos, un shell vacío es solo la otra cara del mismo disco. se colapsa sobre
+// la hermana poblada del mismo nombre/tipo/artista, ignorando la fecha.
+export function deduplicateEmptyAlbumShells() {
+  const db = getDb();
+
+  // una sola pasada plana sobre albums y el agrupado en JS. la forma natural —un
+  // subquery correlado que busca la hermana poblada de cada shell— es O(n²): no hay
+  // índice sobre LOWER(name), así que cada uno de los 2.3k shells vacíos escaneaba los
+  // 26k álbumes enteros. 13s de main thread bloqueado contra los 60ms de esto.
+  const keyed = db.all(sql`
+    SELECT a.spotify_id AS id, a.name, LOWER(a.name) AS lname, a.album_type AS atype, a.artist_ids AS aids,
+           (SELECT COUNT(*) FROM tracks t WHERE t.album_id = a.spotify_id) AS ntracks
+    FROM albums a
+    WHERE a.spotify_id NOT LIKE 'import:%'
+      AND a.spotify_id NOT LIKE 'local:%'
+      -- mismas guardas que deduplicateAlbumShells: nombre vacío o artist_ids ausente son
+      -- metadata basura que agruparía lanzamientos distintos solo por compartir huecos
+      AND a.name IS NOT NULL AND a.name != ''
+      AND a.artist_ids IS NOT NULL
+  `) as { id: string; name: string; lname: string; atype: string | null; aids: string; ntracks: number }[];
+
+  const groups = new Map<string, typeof keyed>();
+  for (const a of keyed) {
+    const key = `${a.lname}\u0000${a.atype ?? ''}\u0000${a.aids}`;
+    groups.set(key, [...(groups.get(key) ?? []), a]);
+  }
+
+  // dentro de cada grupo, la hermana poblada con más tracks absorbe a las vacías
+  const pairs = [...groups.values()].flatMap(group => {
+    const populated = group.filter(a => a.ntracks > 0)
+      .sort((a, b) => b.ntracks - a.ntracks || a.id.localeCompare(b.id))[0];
+    return populated ? group.filter(a => a.ntracks === 0).map(empty => ({ empty, populated })) : [];
+  });
+
+  if (pairs.length === 0) return;
+  logDedup.info(`${pairs.length} shells de lanzamiento vacíos con hermana poblada`);
+
+  let merged = 0;
+  for (const { empty, populated } of pairs) {
+    try {
+      reassignAlbumRefs(db, empty.id, populated.id);
+      merged++;
+    } catch (err) {
+      logDedup.error(`error absorbiendo shell vacío "${empty.name}":`, err);
+    }
+  }
+
+  if (merged > 0) logDedup.info(`${merged} shells vacíos absorbidos`);
 }
 
 // deduplicar albums y tracks locales entre sí (no mezclar con Spotify)
@@ -292,8 +341,7 @@ export function deduplicateLocalAlbums() {
             db.run(sql`UPDATE tracks SET album_id = ${canonical} WHERE spotify_id = ${dt.spotify_id}`);
           }
         }
-        rewriteMergeRules(db, 'album', dupe, canonical);
-        db.run(sql`DELETE FROM albums WHERE spotify_id = ${dupe}`);
+        reassignAlbumRefs(db, dupe, canonical);
       }
       merged++;
     } catch (err) {
@@ -395,4 +443,20 @@ export function cleanStaleShortDurations() {
     db.run(sql`UPDATE listening_history SET duration_played_ms = NULL WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
   logCleanup.info(`${ids.length} duraciones fantasma (<${MIN_PLAY_MS / 1000}s en plays completos) puestas a NULL`);
+}
+
+// limpiar del índice FTS las entradas de entidades ya borradas. no se hace dentro de
+// reassignTrackRefs/reassignAlbumRefs porque entity_id es UNINDEXED en la tabla fts5:
+// un DELETE sin MATCH la recorre entera (24ms sobre 89k filas), y por merge eso convertía
+// un barrido de 400 duplicados en 10s de main thread bloqueado. batched sale a una sola
+// pasada por ciclo. la búsqueda parte de la tabla de la entidad, así que una entrada
+// huérfana nunca se vio: esto es higiene, no un bug de cara al usuario.
+export function pruneOrphanSearchIndex() {
+  const db = getDb();
+  const removed = ['track', 'album', 'artist'].reduce((n, type) => n + db.run(sql`
+    DELETE FROM search_index WHERE entity_type = ${type}
+      AND entity_id NOT IN (SELECT spotify_id FROM ${sql.raw(type === 'artist' ? 'artists' : type + 's')})
+  `).changes, 0);
+
+  if (removed > 0) logDedup.info(`${removed} entradas huérfanas purgadas del índice FTS`);
 }

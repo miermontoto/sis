@@ -13,6 +13,7 @@ import type { SpotifyTracksBatchResponse } from '../../types/spotify.js';
 import {
   MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE, MB_SEARCH_LIMIT,
   ISRC_HARVEST_BATCH_SIZE, ISRC_HARVEST_MAX_BATCHES, MB_IDENTITY_MAX_PER_CYCLE,
+  TRACK_DEDUP_DURATION_TOLERANCE_MS, ISRC_DEDUP_MAX_PER_CYCLE,
 } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
@@ -222,4 +223,65 @@ export function mergeTracksByIdentity(): void {
   }
 
   if (merged > 0) log.info(`${merged} tracks sintéticos unificados por identidad`);
+}
+
+// converger tracks REALES que son la misma grabación: mismo isrc y prácticamente la
+// misma duración. spotify publica un id por cada shell de álbum del lanzamiento y el
+// gemelo entra como fila propia; resolveDuplicateTrackId ya redirige los plays nuevos,
+// pero el isrc puede llegar DESPUÉS (harvestTrackIsrcs, tracklists simplified que no
+// traen external_ids) y para entonces el par ya existe. a diferencia de
+// mergeTracksByIdentity —sintético → real— aquí los dos lados son reales, así que el
+// canónico es el más escuchado y el merge es físico en ambos sentidos.
+//
+// el isrc SOLO no vale para borrar una fila: hay isrcs de sello compartidos por temas
+// distintos ("Saint Laurent" / "777", dos movimientos de la misma serenata). la
+// duración es lo que los separa. el nombre no entra en la clave: el mismo máster se
+// publica con créditos distintos ("CARNIVAL" / "CARNIVAL (feat. Rich The Kid, Playboi
+// Carti)") y ese es justo el duplicado que antes había que aprobar a mano en el scan.
+export function mergeDuplicateTracksByIsrc(): void {
+  const db = getDb();
+
+  const rows = db.all(sql`
+    SELECT t.isrc, t.spotify_id AS id, t.name, t.duration_ms AS duration,
+           (SELECT COUNT(*) FROM listening_history lh WHERE lh.track_id = t.spotify_id) AS plays
+    FROM tracks t
+    JOIN (
+      SELECT isrc FROM tracks
+      WHERE isrc IS NOT NULL AND isrc != '' AND duration_ms > 0
+        AND spotify_id NOT LIKE 'import:%' AND spotify_id NOT LIKE 'local:%'
+      GROUP BY isrc HAVING COUNT(*) > 1
+    ) dup ON dup.isrc = t.isrc
+    WHERE t.duration_ms > 0
+      AND t.spotify_id NOT LIKE 'import:%' AND t.spotify_id NOT LIKE 'local:%'
+  `) as { isrc: string; id: string; name: string; duration: number; plays: number }[];
+
+  if (rows.length === 0) return;
+
+  const byIsrc = new Map<string, typeof rows>();
+  for (const row of rows) byIsrc.set(row.isrc, [...(byIsrc.get(row.isrc) ?? []), row]);
+
+  // la tolerancia de duración no es transitiva (100s ~ 104s ~ 108s, pero 100s ≁ 108s):
+  // se compara contra el canónico, no en cadena, igual que autoDedupTracks
+  const pairs = [...byIsrc.values()].flatMap(group => {
+    const [canonical, ...rest] = [...group].sort((a, b) => b.plays - a.plays || a.id.localeCompare(b.id));
+    return rest
+      .filter(t => Math.abs(t.duration - canonical.duration) <= TRACK_DEDUP_DURATION_TOLERANCE_MS)
+      .map(t => ({ dupe: t, canonical }));
+  });
+
+  if (pairs.length === 0) return;
+  const batch = pairs.slice(0, ISRC_DEDUP_MAX_PER_CYCLE);
+  log.info(`${pairs.length} tracks reales duplicados por isrc+duración, unificando ${batch.length}`);
+
+  let merged = 0;
+  for (const { dupe, canonical } of batch) {
+    try {
+      reassignTrackRefs(db, dupe.id, canonical.id);
+      merged++;
+    } catch (err) {
+      log.error(`error unificando "${dupe.name}" en "${canonical.name}":`, err);
+    }
+  }
+
+  if (merged > 0) log.info(`${merged} tracks reales unificados por isrc+duración`);
 }
