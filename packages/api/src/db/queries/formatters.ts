@@ -3,6 +3,7 @@ import type { Db } from './helpers.js';
 import type { FormattedArtist, FormattedAlbum } from '@sis/shared';
 import { artists, albums } from '../schema.js';
 import { enrichTracksBatch } from './track.js';
+import { getAlbumArtists } from './album.js';
 
 // --- formatters para filas de top-* endpoints ---
 
@@ -47,12 +48,15 @@ export function formatTopArtistRow(db: Db, row: { entity_id: string; play_count:
 }
 
 /** Formatear fila de top-albums */
+// los artistas van en la fila: fuera del detalle de un artista, un álbum sin
+// su artista debajo del nombre no se sabe de quién es
 export function formatTopAlbumRow(db: Db, row: { entity_id: string; play_count: number; total_ms: number }) {
   return {
     albumId: row.entity_id,
     playCount: row.play_count,
     totalMs: row.total_ms,
     album: lookupAlbum(db, row.entity_id),
+    artists: getAlbumArtists(db, row.entity_id).map(a => ({ id: a.artist_id, name: a.name })),
   };
 }
 

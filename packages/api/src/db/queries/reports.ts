@@ -182,7 +182,7 @@ function getTops(db: Db, userId: number, granularity: Granularity, period: strin
   return {
     artists: topWithChanges(artistRows, artistRows.map(r => formatTopArtistRow(db, r)), prevIds('artist'), peaks('artist', artistRows)) as TopArtistItem[],
     // los álbumes llevan sus artistas: la fila los muestra bajo el nombre, como los temas
-    albums: topWithChanges(albumRows, albumRows.map(r => ({ ...formatTopAlbumRow(db, r), artists: albumArtistRefs(db, r.entity_id) })), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
+    albums: topWithChanges(albumRows, albumRows.map(r => formatTopAlbumRow(db, r)), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
     tracks: topWithChanges(trackRows, formatTopTrackRows(db, trackRows), prevIds('track'), peaks('track', trackRows)) as TopTrackItem[],
   };
 }

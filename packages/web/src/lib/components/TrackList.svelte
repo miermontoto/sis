@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { TopTrackItem, HistoryItem, RankingMetric } from '$lib/api';
-  import { formatDuration, formatTrackLength, formatDate, formatHistoryStamp } from '$lib/utils/format';
+  import { formatTrackLength, formatDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import TrackItem from './TrackItem.svelte';
+  import MetricMeta from './MetricMeta.svelte';
   import Accolades from './Accolades.svelte';
 
   interface Props {
@@ -42,11 +43,6 @@
 
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
     return 'playCount' in item;
-  }
-
-  function formatMetric(item: TopTrackItem): string {
-    if (metric === 'plays') return `${item.playCount} plays`;
-    return formatDuration(item.totalMs);
   }
 
   function isInSession(item: TopTrackItem | HistoryItem): boolean {
@@ -103,13 +99,7 @@
       {/snippet}
       {#snippet meta()}
         {#if isTopTrack(item)}
-          {@const flash = statFlashStore.isFlashing(trackId)}
-          <div class="track-plays" class:stat-flash={flash}>{formatMetric(item)}</div>
-          {#if metric === 'time'}
-            <div class="track-time" class:stat-flash={flash}>{item.playCount} plays</div>
-          {:else}
-            <div class="track-time" class:stat-flash={flash}>{formatDuration(item.totalMs)}</div>
-          {/if}
+          <MetricMeta playCount={item.playCount} totalMs={item.totalMs} {metric} flash={statFlashStore.isFlashing(trackId)} />
         {/if}
         {#if showTime && 'playedAt' in item}
           <div class="track-time" title={formatDate(item.playedAt)}>{formatHistoryStamp(item.playedAt)}</div>

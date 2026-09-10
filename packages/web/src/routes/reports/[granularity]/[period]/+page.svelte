@@ -7,7 +7,7 @@
   import { isAbortError } from '$lib/utils/errors';
   import { periodLabel } from '$lib/utils/periods';
   import { GRANULARITIES, GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange, siblingPeriod, periodBuckets } from '$lib/utils/report-periods';
-  import { formatNumber, formatDuration, formatHours, formatHistoryStamp, formatShortDateUTC, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
+  import { formatNumber, formatHours, formatHistoryStamp, formatShortDateUTC, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
@@ -16,6 +16,7 @@
   import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
+  import MetricMeta from '$lib/components/MetricMeta.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import ReportBars, { type BarItem } from '$lib/components/reports/ReportBars.svelte';
   import ReportPolar from '$lib/components/reports/ReportPolar.svelte';
@@ -108,7 +109,6 @@
   let monthNames = $derived(getLocalizedMonthNames());
   let dayNames = $derived(getLocalizedDayNames());
 
-  const value = (plays: number, ms: number) => metric === 'plays' ? `${formatNumber(plays)} plays` : formatDuration(ms);
   const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
 
   // serie rellena: un bucket por día (o mes) del periodo, con 0 donde no hubo plays
@@ -242,13 +242,12 @@
       <div class="report-column">
         {#if report.top.artists[0]?.artist}
           {@const a = report.top.artists[0]}
-          <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist?.imageUrl ?? null} round name={a.artist?.name ?? ''} sub={a.artist?.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }} />
+          <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist?.imageUrl ?? null} round name={a.artist?.name ?? ''} playCount={a.playCount} totalMs={a.totalMs} {metric} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }} />
         {/if}
         <div class="track-list">
           {#each report.top.artists.slice(1) as a, i (a.artistId)}
             <TrackItem compact rank={i + 2} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} imageUrl={a.artist?.imageUrl} imageHref="/artist/{a.artistId}" imageRound name={a.artist?.name ?? a.artistId} nameHref="/artist/{a.artistId}" entity={{ type: 'artist', id: a.artistId, name: a.artist?.name ?? '', imageUrl: a.artist?.imageUrl ?? null }}>
-              {#snippet subtitle()}{a.artist?.genres[0] ?? ''}{/snippet}
-              {#snippet meta()}<span class="data-count">{value(a.playCount, a.totalMs)}</span>{/snippet}
+              {#snippet meta()}<MetricMeta playCount={a.playCount} totalMs={a.totalMs} {metric} />{/snippet}
             </TrackItem>
           {/each}
         </div>
@@ -256,7 +255,7 @@
       <div class="report-column">
         {#if report.top.albums[0]?.album}
           {@const al = report.top.albums[0]}
-          <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album?.imageUrl ?? null} name={al.album?.name ?? ''} sub={al.artists?.map(x => x.name).join(', ') ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }} />
+          <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album?.imageUrl ?? null} name={al.album?.name ?? ''} sub={al.artists?.map(x => x.name).join(', ') ?? ''} playCount={al.playCount} totalMs={al.totalMs} {metric} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album?.name ?? '', imageUrl: al.album?.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }} />
         {/if}
         <div class="track-list">
           {#each report.top.albums.slice(1) as al, i (al.albumId)}
@@ -264,7 +263,7 @@
               {#snippet subtitle()}
                 {#each al.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}" class="artist-link">{ar.name}</a>{/each}
               {/snippet}
-              {#snippet meta()}<span class="data-count">{value(al.playCount, al.totalMs)}</span>{/snippet}
+              {#snippet meta()}<MetricMeta playCount={al.playCount} totalMs={al.totalMs} {metric} />{/snippet}
             </TrackItem>
           {/each}
         </div>
@@ -272,7 +271,7 @@
       <div class="report-column">
         {#if report.top.tracks[0]?.track}
           {@const t = report.top.tracks[0]}
-          <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track?.album?.imageUrl ?? null} name={t.track?.name ?? ''} sub={[t.track?.artists.map(x => x.name).join(', '), facts.topTrackShare > 0 ? `${facts.topTrackShare}% of plays` : ''].filter(Boolean).join(' · ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} entity={t.track ? trackEntity(t.track) : undefined} />
+          <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track?.album?.imageUrl ?? null} name={t.track?.name ?? ''} sub={[t.track?.artists.map(x => x.name).join(', '), facts.topTrackShare > 0 ? `${facts.topTrackShare}% of plays` : ''].filter(Boolean).join(' · ')} playCount={t.playCount} totalMs={t.totalMs} {metric} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} entity={t.track ? trackEntity(t.track) : undefined} />
         {/if}
         <div class="track-list">
           {#each report.top.tracks.slice(1) as t, i (t.trackId)}
@@ -280,7 +279,7 @@
               {#snippet subtitle()}
                 {#each t.track?.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}" class="artist-link">{ar.name}</a>{/each}
               {/snippet}
-              {#snippet meta()}<span class="data-count">{value(t.playCount, t.totalMs)}</span>{/snippet}
+              {#snippet meta()}<MetricMeta playCount={t.playCount} totalMs={t.totalMs} {metric} />{/snippet}
             </TrackItem>
           {/each}
         </div>
@@ -398,15 +397,15 @@
         <div class="report-discovery-picks">
           {#if d.topNew.artist}
             {@const n = d.topNew.artist}
-            <ReportTopCard label="New artist" href="/artist/{n.id}" imageUrl={n.imageUrl} round name={n.name} value={value(n.plays, n.totalMs)} entity={{ type: 'artist', id: n.id, name: n.name, imageUrl: n.imageUrl }} />
+            <ReportTopCard label="New artist" href="/artist/{n.id}" imageUrl={n.imageUrl} round name={n.name} playCount={n.plays} totalMs={n.totalMs} {metric} entity={{ type: 'artist', id: n.id, name: n.name, imageUrl: n.imageUrl }} />
           {/if}
           {#if d.topNew.album}
             {@const n = d.topNew.album}
-            <ReportTopCard label="New album" href="/album/{n.id}" imageUrl={n.imageUrl} name={n.name} sub={n.artists?.map(x => x.name).join(', ') ?? ''} value={value(n.plays, n.totalMs)} entity={{ type: 'album', id: n.id, name: n.name, imageUrl: n.imageUrl, parentArtistId: n.artists?.[0]?.id }} />
+            <ReportTopCard label="New album" href="/album/{n.id}" imageUrl={n.imageUrl} name={n.name} sub={n.artists?.map(x => x.name).join(', ') ?? ''} playCount={n.plays} totalMs={n.totalMs} {metric} entity={{ type: 'album', id: n.id, name: n.name, imageUrl: n.imageUrl, parentArtistId: n.artists?.[0]?.id }} />
           {/if}
           {#if d.topNew.track}
             {@const n = d.topNew.track}
-            <ReportTopCard label="New track" href="/track/{n.id}" imageUrl={n.imageUrl} name={n.name} sub={n.artists?.map(x => x.name).join(', ') ?? ''} value={value(n.plays, n.totalMs)} entity={{ type: 'track', id: n.id, name: n.name, imageUrl: n.imageUrl, parentArtistId: n.artists?.[0]?.id }} />
+            <ReportTopCard label="New track" href="/track/{n.id}" imageUrl={n.imageUrl} name={n.name} sub={n.artists?.map(x => x.name).join(', ') ?? ''} playCount={n.plays} totalMs={n.totalMs} {metric} entity={{ type: 'track', id: n.id, name: n.name, imageUrl: n.imageUrl, parentArtistId: n.artists?.[0]?.id }} />
           {/if}
         </div>
       {/if}

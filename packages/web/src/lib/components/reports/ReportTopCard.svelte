@@ -2,6 +2,8 @@
   // tarjeta del nº 1 de cada columna del report (artista / álbum / tema): imagen
   // grande, nombre y valor, con el cambio de puesto respecto al periodo anterior
   import RankChange from '$lib/components/RankChange.svelte';
+  import MetricMeta from '$lib/components/MetricMeta.svelte';
+  import type { RankingMetric } from '$lib/api';
   import { openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
 
   let {
@@ -11,7 +13,9 @@
     round = false,
     name,
     sub = '',
-    value,
+    playCount,
+    totalMs,
+    metric = 'time',
     rankChange = null,
     isNew = false,
     isReentry = false,
@@ -23,7 +27,9 @@
     round?: boolean;
     name: string;
     sub?: string;
-    value: string;
+    playCount: number;
+    totalMs: number;
+    metric?: RankingMetric;
     rankChange?: number | null;
     isNew?: boolean;
     isReentry?: boolean;
@@ -44,7 +50,7 @@
   <!-- siempre en el flujo: sin subtítulo la tarjeta sería más baja que sus vecinas -->
   <span class="report-top-sub">{sub}</span>
   <span class="report-top-value">
-    <span class="data-count">{value}</span>
+    <MetricMeta {playCount} {totalMs} {metric} />
     <RankChange {rankChange} {isNew} {isReentry} />
   </span>
 </a>
@@ -84,10 +90,9 @@
     min-height: 1.3em;
   }
   .report-top-value {
-    display: inline-flex;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    gap: 0.15rem;
   }
 </style>

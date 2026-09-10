@@ -10,6 +10,7 @@
   import WeekStrip, { type WeekStripDay } from '$lib/components/WeekStrip.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import RankChange from '$lib/components/RankChange.svelte';
+  import MetricMeta from '$lib/components/MetricMeta.svelte';
   import ReportBars from '$lib/components/reports/ReportBars.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
@@ -91,15 +92,15 @@
   }));
 
   // los tres nº 1 de un report como filas homogéneas del bloque
-  type ReportPick = { label: string; href: string; imageUrl: string | null; round: boolean; name: string; value: string; rankChange: number | null; isNew: boolean; isReentry: boolean; entity: EntityContext };
+  type ReportPick = { label: string; href: string; imageUrl: string | null; round: boolean; name: string; playCount: number; totalMs: number; rankChange: number | null; isNew: boolean; isReentry: boolean; entity: EntityContext };
   function reportPicks(report: ReportResponse): ReportPick[] {
     const a = report.top.artists[0];
     const al = report.top.albums[0];
     const t = report.top.tracks[0];
     const picks: ReportPick[] = [];
-    if (a?.artist) picks.push({ label: 'Top artist', href: `/artist/${a.artistId}`, imageUrl: a.artist.imageUrl ?? null, round: true, name: a.artist.name, value: value(a.playCount, a.totalMs), rankChange: a.rankChange, isNew: a.isNew, isReentry: a.isReentry ?? false, entity: { type: 'artist', id: a.artistId, name: a.artist.name, imageUrl: a.artist.imageUrl ?? null } });
-    if (al?.album) picks.push({ label: 'Top album', href: `/album/${al.albumId}`, imageUrl: al.album.imageUrl ?? null, round: false, name: al.album.name, value: value(al.playCount, al.totalMs), rankChange: al.rankChange, isNew: al.isNew, isReentry: al.isReentry ?? false, entity: { type: 'album', id: al.albumId, name: al.album.name, imageUrl: al.album.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id } });
-    if (t?.track) picks.push({ label: 'Top track', href: `/track/${t.trackId}`, imageUrl: t.track.album?.imageUrl ?? null, round: false, name: t.track.name, value: value(t.playCount, t.totalMs), rankChange: t.rankChange, isNew: t.isNew, isReentry: t.isReentry ?? false, entity: trackEntity(t.track) });
+    if (a?.artist) picks.push({ label: 'Top artist', href: `/artist/${a.artistId}`, imageUrl: a.artist.imageUrl ?? null, round: true, name: a.artist.name, playCount: a.playCount, totalMs: a.totalMs, rankChange: a.rankChange, isNew: a.isNew, isReentry: a.isReentry ?? false, entity: { type: 'artist', id: a.artistId, name: a.artist.name, imageUrl: a.artist.imageUrl ?? null } });
+    if (al?.album) picks.push({ label: 'Top album', href: `/album/${al.albumId}`, imageUrl: al.album.imageUrl ?? null, round: false, name: al.album.name, playCount: al.playCount, totalMs: al.totalMs, rankChange: al.rankChange, isNew: al.isNew, isReentry: al.isReentry ?? false, entity: { type: 'album', id: al.albumId, name: al.album.name, imageUrl: al.album.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id } });
+    if (t?.track) picks.push({ label: 'Top track', href: `/track/${t.trackId}`, imageUrl: t.track.album?.imageUrl ?? null, round: false, name: t.track.name, playCount: t.playCount, totalMs: t.totalMs, rankChange: t.rankChange, isNew: t.isNew, isReentry: t.isReentry ?? false, entity: trackEntity(t.track) });
     return picks;
   }
 
@@ -460,7 +461,10 @@
                     <span class="report-pick-text">
                       <span class="data-label">{pick.label}</span>
                       <span class="report-pick-name">{pick.name}</span>
-                      <span class="report-pick-value data-count">{pick.value} <RankChange rankChange={pick.rankChange} isNew={pick.isNew} isReentry={pick.isReentry} /></span>
+                      <span class="report-pick-value">
+                        <span><MetricMeta playCount={pick.playCount} totalMs={pick.totalMs} {metric} /></span>
+                        <RankChange rankChange={pick.rankChange} isNew={pick.isNew} isReentry={pick.isReentry} />
+                      </span>
                     </span>
                   </a>
                 {/each}
@@ -491,10 +495,11 @@
               {#each lastYearAlbums as item, i (item.albumId)}
                 {#if item.album}
                   {@const album = item.album}
-                  <!-- /top-albums no trae los artistas (sólo el report): el año, como la lista del artista -->
-                  <TrackItem compact rank={i + 1} imageUrl={album.imageUrl} imageHref="/album/{item.albumId}" name={album.name} nameHref="/album/{item.albumId}" entity={{ type: 'album', id: item.albumId, name: album.name, imageUrl: album.imageUrl ?? null }}>
-                    {#snippet subtitle()}{album.releaseDate?.slice(0, 4) ?? ''}{/snippet}
-                    {#snippet meta()}<span class="data-count">{value(item.playCount, item.totalMs)}</span>{/snippet}
+                  <TrackItem compact rank={i + 1} imageUrl={album.imageUrl} imageHref="/album/{item.albumId}" name={album.name} nameHref="/album/{item.albumId}" entity={{ type: 'album', id: item.albumId, name: album.name, imageUrl: album.imageUrl ?? null, parentArtistId: item.artists?.[0]?.id }}>
+                    {#snippet subtitle()}
+                      {#each item.artists ?? [] as ar, j (ar.id)}{#if j > 0}, {/if}<a href="/artist/{ar.id}" class="artist-link">{ar.name}</a>{/each}
+                    {/snippet}
+                    {#snippet meta()}<MetricMeta playCount={item.playCount} totalMs={item.totalMs} {metric} />{/snippet}
                   </TrackItem>
                 {/if}
               {/each}
@@ -505,8 +510,7 @@
                 {#if item.artist}
                   {@const artist = item.artist}
                   <TrackItem compact rank={i + 1} imageUrl={artist.imageUrl} imageHref="/artist/{item.artistId}" imageRound name={artist.name} nameHref="/artist/{item.artistId}" entity={{ type: 'artist', id: item.artistId, name: artist.name, imageUrl: artist.imageUrl ?? null }}>
-                    {#snippet subtitle()}{artist.genres[0] ?? ''}{/snippet}
-                    {#snippet meta()}<span class="data-count">{value(item.playCount, item.totalMs)}</span>{/snippet}
+                    {#snippet meta()}<MetricMeta playCount={item.playCount} totalMs={item.totalMs} {metric} />{/snippet}
                   </TrackItem>
                 {/if}
               {/each}
@@ -601,6 +605,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--detail-gap);
     align-content: start;
+    /* en una columna el rail va debajo: el hueco entre ambos lo pone la
+       rejilla principal, que no tiene gap tras su última fila */
+    margin-bottom: var(--detail-gap);
   }
   .dash-main > :global(*) {
     grid-column: 1 / -1;
@@ -767,8 +774,8 @@
   .report-pick-value {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    font-size: 0.72rem;
+    gap: 0.5rem;
+    font-size: 0.8rem;
   }
   .report-row--ghost .ghost-line--title {
     margin-bottom: 0;
@@ -778,6 +785,9 @@
      card hereda el estirado de su sección para que el scroll absorba el hueco
      hasta donde acaba la columna principal (ver .detail-rail en app.css) */
   @media (min-width: 1800px) {
+    .dash-main {
+      margin-bottom: 0;
+    }
     :global(.detail-rail > .detail-section > .card:has(.recent-scroll)) {
       display: flex;
       flex-direction: column;
