@@ -10,9 +10,7 @@
   import TrackItem from '$lib/components/TrackItem.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
-  import IconTrack from '$lib/icons/IconTrack.svelte';
-  import IconArtist from '$lib/icons/IconArtist.svelte';
-  import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import EntityTypePicker, { toPlural, toSingular } from '$lib/components/EntityTypePicker.svelte';
   import type { EntityContext } from '$lib/utils/entity-context';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -184,9 +182,7 @@
 </script>
 
 <div class="records-tabs">
-  <button class="rec-tab" class:rec-tab--active={tab.value === 'tracks'} onclick={() => tab.value = 'tracks'}><IconTrack size={14} /> Tracks</button>
-  <button class="rec-tab" class:rec-tab--active={tab.value === 'albums'} onclick={() => tab.value = 'albums'}><IconAlbum size={14} /> Albums</button>
-  <button class="rec-tab" class:rec-tab--active={tab.value === 'artists'} onclick={() => tab.value = 'artists'}><IconArtist size={14} /> Artists</button>
+  <EntityTypePicker value={toSingular(tab.value)} onchange={(t) => tab.value = toPlural(t)} variant="pills" />
 </div>
 
 {#if loading && !currentData}
@@ -612,36 +608,9 @@
 {/if}
 
 <style>
+  /* el hueco bajo el selector lo pone este contenedor */
   .records-tabs {
-    display: flex;
-    gap: 0.25rem;
     margin-bottom: 1.25rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 3px;
-    width: fit-content;
-  }
-  .rec-tab {
-    padding: 0.4rem 1rem;
-    border: none;
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    cursor: pointer;
-    transition: all 0.05s;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-  .rec-tab:hover:not(.rec-tab--active) { color: var(--text); }
-  .rec-tab--active {
-    background: var(--accent);
-    color: #000;
-    font-weight: 500;
   }
 
   .record-group {

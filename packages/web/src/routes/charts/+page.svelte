@@ -20,9 +20,7 @@
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
-  import IconTrack from '$lib/icons/IconTrack.svelte';
-  import IconArtist from '$lib/icons/IconArtist.svelte';
-  import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import EntityTypePicker, { toPlural, toSingular } from '$lib/components/EntityTypePicker.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -372,17 +370,7 @@
   </div>
 {/if}
 
-<div class="tabs">
-  <button class="tab" class:active={activeType === 'tracks'} onclick={() => activeType = 'tracks'}>
-    <IconTrack size={14} /> Tracks
-  </button>
-  <button class="tab" class:active={activeType === 'albums'} onclick={() => activeType = 'albums'}>
-    <IconAlbum size={14} /> Albums
-  </button>
-  <button class="tab" class:active={activeType === 'artists'} onclick={() => activeType = 'artists'}>
-    <IconArtist size={14} /> Artists
-  </button>
-</div>
+<EntityTypePicker value={toSingular(activeType)} onchange={(t) => activeType = toPlural(t)} />
 
 <div class="range-row">
   <button class="range-btn" class:active={granularity === 'week'} onclick={() => granularity = 'week'}>Week</button>

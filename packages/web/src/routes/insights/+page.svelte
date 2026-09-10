@@ -5,6 +5,7 @@
   import { api, createFetchController, getWeekStart, type ListeningTimeItem, type HeatmapItem, type GenreItem, type StreaksData, type DiscoveryItem, type MonthlyDistributionItem, type DateRangeParams } from '$lib/api';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
+  import EntityTypePicker from '$lib/components/EntityTypePicker.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { formatHours, formatDurationAs, DURATION_UNITS, type DurationUnit, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
   import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, PIE_TOOLTIP, PIE_COLORS, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
@@ -279,7 +280,6 @@
     series: polarSeries(monthDistribution, currentMonth),
   });
 
-  const entityLabels = { track: 'Tracks', album: 'Albums', artist: 'Artists' } as const;
   const entityColors = { track: '#1db954', album: '#3498db', artist: '#e74c3c' } as const;
 
   let discoveryOption = $derived<EChartsOption>({
@@ -434,16 +434,7 @@
   <div class="card" style="margin-bottom: 1.5rem;">
     <div class="chart-header">
       <h3>Library growth {#if discovery.length > 1}<span class="r2-badge">R² = {discoveryRegression.r2.toFixed(2)}</span>{/if}</h3>
-      <div class="entity-toggle">
-        {#each (['track', 'album', 'artist'] as const) as type}
-          <button
-            class="toggle-btn"
-            class:active={discoveryEntity === type}
-            style:--btn-color={entityColors[type]}
-            onclick={() => { discoveryEntity = type; loadDiscovery(); }}
-          >{entityLabels[type]}</button>
-        {/each}
-      </div>
+      <EntityTypePicker value={discoveryEntity} onchange={(type) => { discoveryEntity = type; loadDiscovery(); }} variant="pills" />
     </div>
     {#if discoveryLoading}
       <div class="ghost-chart" style="height: 220px;"></div>
@@ -525,32 +516,6 @@
   }
   .chart-header h3 {
     margin: 0;
-  }
-  .entity-toggle {
-    display: flex;
-    gap: 0.25rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius);
-    padding: 2px;
-  }
-  .toggle-btn {
-    padding: 0.25rem 0.75rem;
-    border: none;
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    cursor: pointer;
-    transition: all 0.05s;
-  }
-  .toggle-btn:hover {
-    color: #ccc;
-  }
-  .toggle-btn.active {
-    background: var(--btn-color);
-    color: #fff;
   }
   @media (max-width: 768px) {
     .charts-row {

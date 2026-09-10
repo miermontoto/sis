@@ -23,9 +23,7 @@
   import LiveEq from '$lib/components/LiveEq.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
-  import IconTrack from '$lib/icons/IconTrack.svelte';
-  import IconArtist from '$lib/icons/IconArtist.svelte';
-  import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import EntityTypePicker, { toPlural, toSingular } from '$lib/components/EntityTypePicker.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import type { EChartsOption } from 'echarts';
 
@@ -863,17 +861,7 @@
   }
 </script>
 
-<div class="tabs">
-  <button class="tab" class:active={activeTab === 'tracks'} onclick={() => setTab('tracks')}>
-    <IconTrack size={14} /> Tracks
-  </button>
-  <button class="tab" class:active={activeTab === 'albums'} onclick={() => setTab('albums')}>
-    <IconAlbum size={14} /> Albums
-  </button>
-  <button class="tab" class:active={activeTab === 'artists'} onclick={() => setTab('artists')}>
-    <IconArtist size={14} /> Artists
-  </button>
-</div>
+<EntityTypePicker value={toSingular(activeTab)} onchange={(t) => setTab(toPlural(t))} />
 
 <div class="range-row">
   <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />

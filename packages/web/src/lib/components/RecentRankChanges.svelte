@@ -4,6 +4,8 @@
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import DisplacedTooltip from '$lib/components/DisplacedTooltip.svelte';
+  import EntityTypePicker, { ENTITY_LABELS, isEntityType } from '$lib/components/EntityTypePicker.svelte';
+  import type { EntityType } from '$lib/utils/entity-context';
 
   // "reciente" es una ventana fija de 7 días (coincide con el default del server)
   const WINDOW_DAYS = 7;
@@ -22,28 +24,20 @@
   // palabras), recordado en el navegador como las vistas de las listas del
   // artista (una preferencia de vista, no un ajuste sincronizado). artistas
   // por defecto: es el ranking que más se mueve en una semana
-  type EntityFilter = RecentRankChangeItem['entityType'];
-  const ENTITY_FILTERS: { value: EntityFilter; label: string; icon: typeof IconTrack }[] = [
-    { value: 'track', label: 'Tracks', icon: IconTrack },
-    { value: 'artist', label: 'Artists', icon: IconArtist },
-    { value: 'album', label: 'Albums', icon: IconAlbum },
-  ];
   const ENTITY_FILTER_KEY = 'sis:rankChangesEntity';
-  const ENTITY_FILTER_DEFAULT: EntityFilter = 'artist';
-  const FILTER_ICON_SIZE = 13;
-  const isEntityFilter = (v: string | null): v is EntityFilter => ENTITY_FILTERS.some(f => f.value === v);
+  const ENTITY_FILTER_DEFAULT: EntityType = 'artist';
 
   let items = $state<RecentRankChangeItem[]>([]);
   let loading = $state(true);
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
-  let entityFilter = $state<EntityFilter>(ENTITY_FILTER_DEFAULT);
+  let entityFilter = $state<EntityType>(ENTITY_FILTER_DEFAULT);
 
   $effect(() => {
     const stored = localStorage.getItem(ENTITY_FILTER_KEY);
-    if (isEntityFilter(stored)) entityFilter = stored;
+    if (isEntityType(stored)) entityFilter = stored;
   });
 
-  function setEntityFilter(value: EntityFilter) {
+  function setEntityFilter(value: EntityType) {
     entityFilter = value;
     localStorage.setItem(ENTITY_FILTER_KEY, value);
   }
@@ -114,13 +108,7 @@
   <div class="card changes-card">
     <div class="section-header changes-header">
       <h3 class="section-title"><a href="/top?range=all" class="section-link">Recent ranking changes</a></h3>
-      <div class="changes-filter">
-        {#each ENTITY_FILTERS as f (f.value)}
-          <button class="range-btn range-btn--icon" class:active={entityFilter === f.value} aria-pressed={entityFilter === f.value} aria-label={f.label} title={f.label} onclick={() => setEntityFilter(f.value)}>
-            <f.icon size={FILTER_ICON_SIZE} />
-          </button>
-        {/each}
-      </div>
+      <EntityTypePicker value={entityFilter} onchange={setEntityFilter} variant="pills" iconsOnly />
     </div>
 
     {#if loading}
@@ -130,7 +118,7 @@
         {/each}
       </div>
     {:else if visible.length === 0}
-      <p class="changes-empty">No {ENTITY_FILTERS.find(f => f.value === entityFilter)?.label.toLowerCase()} climbs in the last {WINDOW_DAYS} days.</p>
+      <p class="changes-empty">No {ENTITY_LABELS[entityFilter].toLowerCase()} climbs in the last {WINDOW_DAYS} days.</p>
     {:else}
       <div class="changes-list">
         {#each visible as { item, best } (item.entityType + item.entityId)}
@@ -190,18 +178,6 @@
   .changes-header {
     flex-wrap: wrap;
     row-gap: 0.5rem;
-  }
-  .changes-filter {
-    display: flex;
-    gap: 0.25rem;
-  }
-  /* botón de sólo icono: cuadrado, con el icono centrado */
-  .range-btn--icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.4rem 0.55rem;
-    line-height: 1;
   }
 
   .changes-empty {
