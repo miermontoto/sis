@@ -18,9 +18,32 @@
     'all+ytd': new Set(['all', 'thisYear']),
   };
 
+  // filtro por tipo de entidad, recordado en el navegador como las vistas de
+  // las listas del artista (una preferencia de vista, no un ajuste sincronizado)
+  type EntityFilter = 'all' | RecentRankChangeItem['entityType'];
+  const ENTITY_FILTERS: { value: EntityFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'track', label: 'Tracks' },
+    { value: 'artist', label: 'Artists' },
+    { value: 'album', label: 'Albums' },
+  ];
+  const ENTITY_FILTER_KEY = 'sis:rankChangesEntity';
+  const isEntityFilter = (v: string | null): v is EntityFilter => ENTITY_FILTERS.some(f => f.value === v);
+
   let items = $state<RecentRankChangeItem[]>([]);
   let loading = $state(true);
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
+  let entityFilter = $state<EntityFilter>('all');
+
+  $effect(() => {
+    const stored = localStorage.getItem(ENTITY_FILTER_KEY);
+    if (isEntityFilter(stored)) entityFilter = stored;
+  });
+
+  function setEntityFilter(value: EntityFilter) {
+    entityFilter = value;
+    localStorage.setItem(ENTITY_FILTER_KEY, value);
+  }
 
   $effect(() => {
     return onSessionRankDisplayChange(() => { displayMode = getSessionRankDisplay(); });
@@ -58,6 +81,7 @@
   }
 
   let visible = $derived(items
+    .filter(item => entityFilter === 'all' || item.entityType === entityFilter)
     .map(item => ({ item, best: bestChange(filterChanges(item.changes)) }))
     .filter((v): v is { item: RecentRankChangeItem; best: Change } => v.best !== null));
 
@@ -85,7 +109,14 @@
 
 {#if displayMode !== 'none'}
   <div class="card changes-card">
-    <h3 class="section-title"><a href="/top?range=all" class="section-link">Recent ranking changes</a></h3>
+    <div class="section-header changes-header">
+      <h3 class="section-title"><a href="/top?range=all" class="section-link">Recent ranking changes</a></h3>
+      <div class="changes-filter">
+        {#each ENTITY_FILTERS as f (f.value)}
+          <button class="range-btn" class:active={entityFilter === f.value} aria-pressed={entityFilter === f.value} onclick={() => setEntityFilter(f.value)}>{f.label}</button>
+        {/each}
+      </div>
+    </div>
 
     {#if loading}
       <div class="changes-list">
@@ -94,7 +125,7 @@
         {/each}
       </div>
     {:else if visible.length === 0}
-      <p class="changes-empty">No ranking climbs in the last {WINDOW_DAYS} days.</p>
+      <p class="changes-empty">No {entityFilter === 'all' ? 'ranking' : ENTITY_FILTERS.find(f => f.value === entityFilter)?.label.toLowerCase()} climbs in the last {WINDOW_DAYS} days.</p>
     {:else}
       <div class="changes-list">
         {#each visible as { item, best } (item.entityType + item.entityId)}
@@ -152,6 +183,16 @@
 <style>
   .changes-card {
     margin-bottom: 1.5rem;
+  }
+
+  /* título + filtros: en el rail (400px) los botones bajan de línea */
+  .changes-header {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .changes-filter {
+    display: flex;
+    gap: 0.25rem;
   }
 
   .changes-empty {

@@ -3,7 +3,7 @@
   import { api, invalidateCache, getRankingMetric, getSessionTrackingDisplay, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric, type GenreItem, type ReportResponse, type WeekStartOption } from '$lib/api';
   import { REPORT_GENRES_LIMIT, nextMilestone } from '@sis/shared';
   import TrackList from '$lib/components/TrackList.svelte';
-  import CoverGrid from '$lib/components/CoverGrid.svelte';
+  import TopCollage from '$lib/components/TopCollage.svelte';
   import WeekStrip, { type WeekStripDay } from '$lib/components/WeekStrip.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ReportTopCard from '$lib/components/reports/ReportTopCard.svelte';
@@ -276,14 +276,10 @@
   </div>
 {/snippet}
 
-{#snippet coverGhost(round: boolean)}
-  <div class="cover-row-ghost">
-    {#each Array(LIST_LIMIT) as _}
-      <div class="cover-item-ghost">
-        <div class="cover-img-ghost ghost-shimmer" class:cover-img-ghost--round={round}></div>
-        <div class="ghost-line ghost-line--cover-name"></div>
-        <div class="ghost-line ghost-line--cover-stat"></div>
-      </div>
+{#snippet collageGhost()}
+  <div class="collage-ghost">
+    {#each Array(LIST_LIMIT) as _, i}
+      <div class="collage-ghost-tile ghost-shimmer" class:collage-ghost-tile--lead={i === 0}></div>
     {/each}
   </div>
 {/snippet}
@@ -339,13 +335,15 @@
       </div>
     </section>
   {:else if key === 'topAlbums'}
-    <section class="detail-section">
+    <!-- artistas y álbumes son collages 2:1 (nº 1 grande + cuatro a un cuarto)
+         y, contiguos en la columna principal, se colocan lado a lado -->
+    <section class="detail-section detail-section--half">
       <div class="card">
         <h3 class="section-title"><a href="/top?range=week&tab=albums" class="section-link">Top albums this week</a></h3>
         {#if loadingAlbums}
-          {@render coverGhost(false)}
+          {@render collageGhost()}
         {:else if topAlbums.length > 0}
-          <CoverGrid items={topAlbums.filter(a => a.album).map((item, i) => ({
+          <TopCollage items={topAlbums.filter(a => a.album).map((item, i) => ({
             href: `/album/${item.albumId}`,
             rank: i + 1,
             imageUrl: item.album?.imageUrl,
@@ -360,20 +358,19 @@
       </div>
     </section>
   {:else if key === 'topArtists'}
-    <section class="detail-section">
+    <section class="detail-section detail-section--half">
       <div class="card">
         <h3 class="section-title"><a href="/top?range=week&tab=artists" class="section-link">Top artists this week</a></h3>
         {#if loadingArtists}
-          {@render coverGhost(true)}
+          {@render collageGhost()}
         {:else if topArtists.length > 0}
-          <CoverGrid items={topArtists.filter(a => a.artist).map((item, i) => ({
+          <TopCollage items={topArtists.filter(a => a.artist).map((item, i) => ({
             href: `/artist/${item.artistId}`,
             rank: i + 1,
             imageUrl: item.artist?.imageUrl,
             name: item.artist?.name ?? '',
             stat: value(item.playCount, item.totalMs),
             isLive: nowPlayingStore.artistIds.includes(item.artistId),
-            round: true,
             oncontextmenu: openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist?.name ?? '', imageUrl: item.artist?.imageUrl ?? null }),
           }))} />
         {:else}
@@ -484,7 +481,7 @@
 {#snippet subBestStreak()}best {streaks?.longestStreak ?? 0}d{/snippet}
 {#snippet subMilestone()}{formatNumber(milestone - (health?.totalPlays ?? 0))} to {formatNumber(milestone)}{/snippet}
 
-<div class="detail-main">
+<div class="detail-main dash-main">
   {#if closedChartsStore.charts.length > 0}
     <div class="card closed-charts-card">
       <div class="closed-charts-header">
@@ -518,6 +515,25 @@
 </PullToRefresh>
 
 <style>
+  /* la columna principal es una rejilla de dos: cada sección ocupa las dos
+     celdas salvo dos "medias" contiguas (los collages), que comparten fila.
+     una media sin pareja al lado sigue a ancho completo. el hueco entre
+     secciones lo pone el gap, no el margen de cada sección */
+  .dash-main {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    align-content: start;
+  }
+  .dash-main > :global(*) {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  .dash-main > :global(.detail-section--half:has(+ .detail-section--half)),
+  .dash-main > :global(.detail-section--half + .detail-section--half) {
+    grid-column: auto;
+  }
+
   /* línea de contexto bajo cada cifra: ayer, la semana pasada, el récord… */
   .stat-sub {
     font-family: var(--font-mono);
@@ -674,35 +690,19 @@
     height: 7.5rem;
     border-radius: var(--radius);
   }
-  .cover-row-ghost {
-    display: flex;
-    gap: 0.75rem;
-    padding-bottom: 0.25rem;
+  .collage-ghost {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 0.4rem;
+    aspect-ratio: 2 / 1;
   }
-  .cover-item-ghost {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 1 1 0;
-    min-width: 0;
-  }
-  .cover-img-ghost {
-    width: 100%;
-    aspect-ratio: 1;
+  .collage-ghost-tile {
     border-radius: var(--radius);
   }
-  .cover-img-ghost--round {
-    border-radius: 50%;
-  }
-  .ghost-line--cover-name {
-    width: 70%;
-    height: 0.7rem;
-    margin-top: 0.45rem;
-  }
-  .ghost-line--cover-stat {
-    width: 45%;
-    height: 0.55rem;
-    margin-top: 0.3rem;
+  .collage-ghost-tile--lead {
+    grid-column: span 2;
+    grid-row: span 2;
   }
   .empty-inline {
     color: var(--text-muted);

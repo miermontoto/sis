@@ -529,15 +529,17 @@ a:hover {
    para LLENAR el ancho disponible (no el 1200 normal) y reparte en columna principal
    (1fr, crece) + rail de gráficas auxiliares (fijo, más ancho). por debajo, una sola
    columna con el rail al final. */
+/* dashboard e insights no tienen cap: llenan la pantalla entera a cualquier ancho */
+.main-content--full {
+  max-width: none;
+}
+
 @media (min-width: 1800px) {
   .main-content--detail {
     max-width: 1900px;
   }
-  /* el dashboard no tiene cap: llena la pantalla entera, y el rail crece un
-     poco con ella para que la columna principal no se quede con todo */
-  .main-content--full {
-    max-width: none;
-  }
+  /* en el dashboard el rail crece un poco con la pantalla para que la columna
+     principal no se quede con todo el ancho extra */
   .main-content--full .detail-body {
     grid-template-columns: minmax(0, 1fr) minmax(400px, min(24%, 560px));
   }
