@@ -32,7 +32,7 @@
         <div class="tile-img tile-img--empty"></div>
       {/if}
       <span class="tile-rank" style:color={medalColor(item.rank)}>{item.rank}</span>
-      {#if item.isLive}<span class="tile-live"><LiveEq /></span>{/if}
+      {#if item.isLive}<LiveEq />{/if}
       <span class="tile-caption">
         <span class="tile-name">{item.name}</span>
         <span class="tile-stat">{item.stat}</span>
@@ -91,14 +91,28 @@
   .tile--lead .tile-rank {
     font-size: 1.1rem;
   }
-  .tile-live {
-    position: absolute;
-    top: 0.35rem;
-    right: 0.45rem;
+  /* sonando ahora: el ecualizador en la esquina superior derecha (abajo está
+     la caption y a la izquierda el puesto) y el mismo anillo verde que las
+     listas, pintado en un ::after porque la imagen tapa una sombra inset del
+     propio tile */
+  .tile :global(.live-eq) {
+    top: 0.5rem;
+    right: 0.55rem;
+    bottom: auto;
+    left: auto;
+    height: 14px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
   }
-  /* sonando ahora: el mismo anillo verde que las listas */
-  .tile--live {
-    box-shadow: var(--live-ring);
+  .tile--live::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 2px var(--accent);
+    pointer-events: none;
+  }
+  .tile--live .tile-name {
+    color: var(--accent);
   }
   /* nombre y cifra sobre un degradado en la base de la celda; en las celdas
      pequeñas la cifra se oculta y sólo queda el nombre */
