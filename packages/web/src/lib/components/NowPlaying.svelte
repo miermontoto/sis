@@ -2,6 +2,7 @@
   import { api } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { formatClock } from '$lib/utils/format';
+  import { marquee } from '$lib/utils/marquee';
 
   // salto con las flechas del teclado sobre la barra de progreso
   const SEEK_STEP_MS = 5_000;
@@ -20,8 +21,6 @@
 
   let acting = $state(false);
   let showDevices = $state(false);
-  let trackEl = $state<HTMLElement | null>(null);
-  let overflows = $state(false);
   let showVolume = $state(false);
 
   let data = $derived(nowPlayingStore.data);
@@ -29,6 +28,12 @@
   let volIcon = $derived<0 | 1 | 2>(vol === null || vol === 0 ? 0 : vol < 50 ? 1 : 2);
   // usuarios solo-last.fm: sin token de spotify no hay controles (read-only)
   let controllable = $derived(data?.controllable !== false);
+
+  // la cola se lee una vez por tema, y esa lectura puede haberse medido justo
+  // antes del corte: entonces trae el tema que suena en cabeza y el siguiente
+  // detrás. El primero que no sea el actual es el siguiente de verdad en los
+  // dos casos, así que no hace falta reintentar la petición
+  let upNext = $derived(nowPlayingStore.queue.find(t => t.id !== data?.track?.id) ?? null);
 
   // tick de 1s para animar el progreso extrapolado mientras suena
   let nowMs = $state(Date.now());
@@ -78,15 +83,6 @@
     if (e.key === 'ArrowRight') { e.preventDefault(); nowPlayingStore.seek(progressMs + SEEK_STEP_MS); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); nowPlayingStore.seek(progressMs - SEEK_STEP_MS); }
   }
-
-  $effect(() => {
-    void data?.track?.name;
-    if (!trackEl) { overflows = false; return; }
-    overflows = false;
-    requestAnimationFrame(() => {
-      if (trackEl) overflows = trackEl.scrollWidth > trackEl.clientWidth;
-    });
-  });
 
   async function togglePlay() {
     if (!data || acting) return;
@@ -208,7 +204,7 @@
         <div class="np-art"></div>
       {/if}
       <div class="np-info">
-        <a href="/track/{data.track.id}" class="np-track" bind:this={trackEl} class:np-track--marquee={overflows}><span class="np-track-text">{data.track.name}</span></a>
+        <a href="/track/{data.track.id}" class="np-track marquee-line" use:marquee={data.track.name}><span>{data.track.name}</span></a>
         <div class="np-artist">
           {#each data.track.artists as artist, i}
             <a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
@@ -283,6 +279,14 @@
     </div>
     {/if}
     {@render progressRow()}
+    {#if upNext && !inline}
+      <div class="np-next">
+        <span class="np-next-label">next</span>
+        <span class="np-next-text marquee-line" use:marquee={upNext.id}>
+          <span>{upNext.name}{#if upNext.artists}<span class="np-next-artists">{' · '}{upNext.artists}</span>{/if}</span>
+        </span>
+      </div>
+    {/if}
   </div>
   {/if}
 {/if}
@@ -484,29 +488,37 @@
     font-weight: 600;
     color: var(--text);
     text-decoration: none;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .np-track:hover {
     color: var(--accent);
   }
 
-  .np-track--marquee {
-    text-overflow: clip;
-    mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%);
+  /* siguiente en la cola: una línea al pie de la tarjeta. La etiqueta se queda
+     quieta y solo se desplaza el texto, que es lo que desborda */
+  .np-next {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    font-size: 0.65rem;
+    color: var(--text-muted);
   }
 
-  .np-track--marquee .np-track-text {
-    display: inline-block;
-    padding-left: 100%;
-    animation: marquee 10s linear infinite;
+  .np-next-label {
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
   }
 
-  @keyframes marquee {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-100%); }
+  .np-next-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .np-next-artists {
+    opacity: 0.7;
   }
 
   .np-artist {

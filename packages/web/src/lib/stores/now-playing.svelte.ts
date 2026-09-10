@@ -1,4 +1,4 @@
-import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem } from '$lib/api';
+import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem } from '$lib/api';
 import { MIN_PLAY_MS } from '@sis/shared';
 import { playUpdatesStore } from './play-updates.svelte';
 
@@ -18,6 +18,8 @@ let _volumePercent = $state<number | null>(null);
 // infoAtMs = cuándo se midió la información (updatedAt del server o el seek
 // local): solo se acepta una base nueva si su medición es más reciente
 let _progress = $state<{ baseMs: number; baseAtMs: number; playing: boolean; infoAtMs: number } | null>(null);
+let _queue = $state<PlaybackQueueItem[]>([]);
+let _lastQueueTrackId: string | null = null;
 type NpPlaylist = { id: number; spotifyId: string; name: string; imageUrl: string | null };
 let _playlists = $state<NpPlaylist[]>([]);
 let _lastPlaylistTrackId: string | null = null;
@@ -188,11 +190,28 @@ async function checkPlaylists(trackId: string | undefined) {
   }
 }
 
+// la cola es una llamada en vivo a spotify, así que se pide una vez por tema
+// (mismo guard por trackId que checkLiked/checkPlaylists) y no en cada tick.
+// La respuesta puede venir medida justo antes del corte y traer el tema actual
+// en cabeza; quien la pinta salta esa cabecera en vez de retrasar la petición
+async function checkQueue(trackId: string | undefined) {
+  if (!trackId || _data?.controllable === false) { _queue = []; _lastQueueTrackId = null; return; }
+  if (trackId === _lastQueueTrackId) return;
+  _lastQueueTrackId = trackId;
+  try {
+    const { queue } = await api.playbackQueue();
+    if (_lastQueueTrackId === trackId) _queue = queue;
+  } catch {
+    _queue = [];
+  }
+}
+
 async function poll() {
   try {
     applyNowPlaying(await api.nowPlaying(playUpdatesStore.watermark), 'cached');
     checkLiked(_data?.track?.id);
     checkPlaylists(_data?.track?.id);
+    checkQueue(_data?.track?.id);
   } catch {
     applyNowPlaying(null, 'cached');
   }
@@ -203,6 +222,7 @@ async function pollLive() {
     applyNowPlaying(await api.nowPlayingLive(playUpdatesStore.watermark), 'live');
     checkLiked(_data?.track?.id);
     checkPlaylists(_data?.track?.id);
+    checkQueue(_data?.track?.id);
   } catch {
     await poll();
   }
@@ -240,6 +260,7 @@ async function refreshAfterPlayback() {
       applyNowPlaying(live, 'live');
       checkLiked(_data?.track?.id);
       checkPlaylists(_data?.track?.id);
+      checkQueue(_data?.track?.id);
       return;
     } catch {
       // error puntual: siguiente intento
@@ -316,6 +337,10 @@ export const nowPlayingStore = {
   seek,
   get playlists() { return _playlists; },
   set playlists(v: NpPlaylist[]) { _playlists = v; },
+  get queue() { return _queue; },
+  // encolar mueve la cabeza de la cola (spotify pone lo encolado justo detrás
+  // del tema actual), así que el "next" del sidebar miente hasta releerla
+  refreshQueue: () => { _lastQueueTrackId = null; checkQueue(_data?.track?.id); },
   startPolling,
   stopPolling,
   pollLive,

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w37ah';
+export const VERSION = '26w37ai';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -260,6 +260,12 @@ export const NOW_PLAYING_STALE_MS = 2 * 60_000;
 // cada LASTFM_POLL_INTERVAL_MS, así que la ventana debe cubrir ese intervalo +
 // margen para que la tarjeta no parpadee entre ticks
 export const LASTFM_NOW_PLAYING_STALE_MS = LASTFM_POLL_INTERVAL_MS + 60_000;
+
+// entradas de la cola de reproducción que devuelve /now-playing/queue. el
+// sidebar pinta una sola ("next"), pero la respuesta puede venir medida justo
+// antes del corte de track y traer el tema actual en cabeza: con margen el
+// cliente lo salta y sigue teniendo siguiente
+export const NOW_PLAYING_QUEUE_LIMIT = 3;
 
 // --- cambios de posición recientes (/stats/recent-rank-changes) ---
 

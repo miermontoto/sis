@@ -2,7 +2,7 @@ import type {
   RankingMetric, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
-  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, FriendsActivityResponse,
+  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, PlaybackQueueResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
   AccoladesResponse, Rankings, EntityCard, RankingHistoryPointWithCrossovers, HealthData, EntityType,
@@ -33,6 +33,7 @@ export const api = {
   nowPlaying: (since?: string | null) => apiFetch<NowPlayingResponse>('/now-playing', since ? { since } : undefined),
   nowPlayingLive: (since?: string | null) => apiFetch<NowPlayingResponse>('/now-playing/live', since ? { since } : undefined),
   friendsActivity: () => apiFetch<FriendsActivityResponse>('/now-playing/friends'),
+  playbackQueue: () => apiFetch<PlaybackQueueResponse>('/now-playing/queue'),
 
   topTracks: (range = 'month', limit = 50, sort: RankingMetric = 'time', dates?: DateRangeParams, lookback?: string, signal?: AbortSignal) =>
     apiFetch<TopTrackItem[]>('/stats/top-tracks', { ...rangeParams(range, dates), limit: String(limit), sort, ...(lookback && lookback !== 'disabled' ? { lookback } : {}) }, signal),

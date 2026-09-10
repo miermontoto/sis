@@ -12,7 +12,7 @@ export type {
   RankChangeLookback, AlbumTrackDisplay, SessionTrackingDisplay, SessionRankDisplay,
   NowPlayingDisplay, SocialVisibility, ArtistBackdrop,
   HistoryItem, HistoryResponse,
-  NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse,
+  NowPlayingResponse, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse, PlaybackQueueItem, PlaybackQueueResponse,
   FriendActivity, FriendsActivityResponse,
   ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem,
   HealthData, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,

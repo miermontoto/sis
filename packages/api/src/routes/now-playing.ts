@@ -6,10 +6,10 @@ import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
-import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, HISTORY_TAIL_LIMIT } from '../constants.js';
+import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import type { SpotifyDevice, PlayContextRequest, LandedPlay } from '@sis/shared';
-import type { SpotifyCurrentlyPlayingResponse } from '../types/spotify.js';
+import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
 
@@ -421,6 +421,33 @@ nowPlaying.get('/playlists/:trackId', (c) => {
     ORDER BY sp.name ASC
   `) as Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null }>;
   return c.json({ playlists: rows });
+});
+
+// --- cola de reproducción ---
+
+// spotify no expone la cola en ningún sitio que podamos cachear (no viaja en
+// currently-playing, así que polling_state no la tiene): es una llamada en vivo
+// por petición. Por eso el cliente la pide solo al cambiar de tema (~1 por
+// tema), nunca en el tick de 10s del sidebar
+nowPlaying.get('/queue', async (c) => {
+  const userId = c.get('userId');
+  // usuarios solo-last.fm no tienen token de spotify y getValidAccessToken
+  // lanzaría: misma regla que `controllable` en la lectura cacheada
+  if (!userId || !getStoredTokens(userId)) return c.json({ queue: [] });
+
+  const data = await spotifyFetch<SpotifyQueueResponse>('/me/player/queue', { userId });
+  const queue = (data?.queue ?? [])
+    // episodios de podcast y ficheros locales (sin id) fuera: la fila enseña
+    // tema + artistas y ninguno de los dos los tiene
+    .filter(item => item.type === 'track' && !!item.id)
+    .slice(0, NOW_PLAYING_QUEUE_LIMIT)
+    .map(item => ({
+      id: item.id,
+      name: item.name,
+      artists: (item.artists ?? []).map(a => a.name).join(', '),
+    }));
+
+  return c.json({ queue });
 });
 
 // --- add to queue ---

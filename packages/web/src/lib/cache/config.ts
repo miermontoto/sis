@@ -38,6 +38,10 @@ const NO_CACHE_PATHS = new Set<string>([
   // token de scrobbling: secreto y regenerable, nunca a IndexedDB
   '/listen-token',
   '/now-playing/devices',
+  // la cola es una lectura en vivo de spotify y cambia sin que medie ninguna
+  // mutación nuestra (el usuario encola desde su móvil): un hit devolvería el
+  // "next" de otro tema
+  '/now-playing/queue',
   '/health',
   '/settings',
 ]);

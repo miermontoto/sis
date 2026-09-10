@@ -37,6 +37,20 @@ export interface LandedPlay {
   playedMs: number;
 }
 
+// entrada de la cola de reproducción. Sólo lleva texto: el tema puede no estar
+// todavía en la biblioteca (nunca escuchado), así que no hay página de track ni
+// de artista a la que enlazar
+export interface PlaybackQueueItem {
+  id: string;
+  name: string;
+  // ya unidos por ', ' — la fila es una línea de texto, no una lista de enlaces
+  artists: string;
+}
+
+export interface PlaybackQueueResponse {
+  queue: PlaybackQueueItem[];
+}
+
 export interface SpotifyDevice {
   id: string | null;
   name: string;

@@ -138,7 +138,7 @@
         if (e.key.toLowerCase() === 'q' && isSpotifyId(trackId)) {
           e.preventDefault();
           api.queueTrack(trackId)
-            .then(() => toastStore.show('Added to queue'))
+            .then(() => { nowPlayingStore.refreshQueue(); toastStore.show('Added to queue'); })
             .catch(() => toastStore.show('Failed to add to queue'));
           return true;
         }
@@ -457,7 +457,7 @@
         title="Actions"
         actions={[
           ...(isSpotifyId(trackId) ? [
-            { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack(trackId) },
+            { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack(trackId).then(() => nowPlayingStore.refreshQueue()) },
             { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${trackId}`, '_blank') },
           ] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),

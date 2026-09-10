@@ -72,6 +72,18 @@ export interface SpotifyCurrentlyPlayingResponse {
   device?: { volume_percent: number | null };
 }
 
+// /me/player/queue. La cola mezcla temas y episodios de podcast, y `type` es lo
+// único que los separa (un episodio no trae `artists`), así que hay que filtrar
+// por él antes de tocar nada del track object
+export interface SpotifyQueueItem extends SpotifyTrack {
+  type: string;
+}
+
+export interface SpotifyQueueResponse {
+  currently_playing: SpotifyQueueItem | null;
+  queue: SpotifyQueueItem[];
+}
+
 export interface SpotifyArtistsBatchResponse {
   artists: SpotifyArtistFull[];
 }

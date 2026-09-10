@@ -49,8 +49,12 @@ export function entityContextActions(entity: EntityContext): ContextMenuAction[]
         onClick: async () => {
           const { api } = await import('$lib/api');
           const { toastStore } = await import('$lib/stores/toast.svelte');
+          const { nowPlayingStore } = await import('$lib/stores/now-playing.svelte');
           try {
             await api.queueTrack(entity.id);
+            // spotify pone lo encolado justo detrás del tema actual, así que el
+            // "next" del sidebar acaba de quedarse obsoleto
+            nowPlayingStore.refreshQueue();
             toastStore.show(`Added to queue`);
           } catch {
             toastStore.show('Failed to add to queue');

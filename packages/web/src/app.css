@@ -1704,6 +1704,51 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   }
 }
 
+/* texto de una línea que se recorta con puntos suspensivos y, cuando desborda,
+   va y vuelve para dejarse leer entero. La clase `is-marquee`, el recorrido y
+   la duración los pone `use:marquee` (utils/marquee.ts) tras medir; aquí es
+   global porque svelte renombra los @keyframes scoped y marcaría como sin usar
+   una clase que pone JS */
+.marquee-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* el difuminado va solo a la derecha: el texto arranca pegado al borde
+   izquierdo y ahí es donde se lee en las pausas, así que un degradado a ese
+   lado se comería la primera letra estando parado */
+.marquee-line.is-marquee {
+  text-overflow: clip;
+  mask-image: linear-gradient(to right, #000 0, #000 90%, transparent 100%);
+}
+
+.marquee-line.is-marquee > * {
+  display: inline-block;
+  animation: marquee var(--marquee-ms, 6s) ease-in-out infinite alternate;
+}
+
+/* los tramos parados de cada extremo son el 15% + 15% que descuenta
+   SCROLL_FRACTION en la action: cambiar uno obliga a cambiar el otro */
+@keyframes marquee {
+  0%, 15% { transform: translateX(0); }
+  85%, 100% { transform: translateX(var(--marquee-shift, 0)); }
+}
+
+/* texto en movimiento continuo: de lo más agresivo con sensibilidad al
+   movimiento. Sin animación queda el recorte con puntos suspensivos, que ya es
+   el estado base */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-line.is-marquee {
+    text-overflow: ellipsis;
+    mask-image: none;
+  }
+
+  .marquee-line.is-marquee > * {
+    animation: none;
+  }
+}
+
 /* shimmer ghost loading */
 @keyframes shimmer {
   0% { background-position: 200% 0; }
