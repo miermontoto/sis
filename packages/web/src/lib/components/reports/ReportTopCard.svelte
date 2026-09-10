@@ -16,7 +16,6 @@
     isNew = false,
     isReentry = false,
     entity,
-    flat = false,
   }: {
     label: string;
     href: string;
@@ -29,15 +28,12 @@
     isNew?: boolean;
     isReentry?: boolean;
     entity?: EntityContext;
-    // sin card propia: para ir dentro de otra card (dashboard), donde una card
-    // dentro de una card no tiene sentido
-    flat?: boolean;
   } = $props();
 
   let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
 </script>
 
-<a {href} class="report-top-card" class:card={!flat} class:report-top-card--flat={flat} oncontextmenu={onContextMenu}>
+<a {href} class="card report-top-card" oncontextmenu={onContextMenu}>
   <span class="data-label">{label}</span>
   {#if imageUrl}
     <img class="report-top-img" class:report-top-img--round={round} src={imageUrl} alt="" />
@@ -63,12 +59,6 @@
     color: inherit;
     text-decoration: none;
     transition: border-color 0.05s;
-  }
-  .report-top-card--flat {
-    padding: 0.5rem 0;
-  }
-  .report-top-card--flat:hover .report-top-name {
-    color: var(--accent);
   }
   .report-top-card:hover {
     border-color: var(--accent);

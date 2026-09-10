@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { api, invalidateCache, getRankingMetric, getSessionTrackingDisplay, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric, type GenreItem, type ReportResponse, type WeekStartOption } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, getSessionTrackingDisplay, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric, type GenreItem, type ReportResponse, type WeekStartOption, type Granularity } from '$lib/api';
   import { REPORT_GENRES_LIMIT, nextMilestone } from '@sis/shared';
   import TrackList from '$lib/components/TrackList.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
@@ -9,11 +9,11 @@
   import TopCollage from '$lib/components/TopCollage.svelte';
   import WeekStrip, { type WeekStripDay } from '$lib/components/WeekStrip.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
-  import ReportTopCard from '$lib/components/reports/ReportTopCard.svelte';
+  import RankChange from '$lib/components/RankChange.svelte';
   import ReportBars from '$lib/components/reports/ReportBars.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
-  import { latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
+  import { GRANULARITIES, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -22,7 +22,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
-  import { openEntityContextMenu, trackEntity } from '$lib/utils/entity-context';
+  import { openEntityContextMenu, trackEntity, type EntityContext } from '$lib/utils/entity-context';
   import PullToRefresh from '$lib/components/PullToRefresh.svelte';
   import RecentRankChanges from '$lib/components/RecentRankChanges.svelte';
   import { getDetailLayout } from '$lib/api/settings';
@@ -51,7 +51,8 @@
   // últimos catorce días, del más antiguo a hoy, con los días sin plays a cero
   let dayBuckets = $state<WeekStripDay[]>([]);
   let streaks = $state<StreaksData | null>(null);
-  let lastReport = $state<ReportResponse | null>(null);
+  // último periodo cerrado de cada granularidad (semana / mes / año) y su report
+  let lastReports = $state<Partial<Record<Granularity, ReportResponse>>>({});
   let lastYearType = $state<EntityType>('track');
   let lastYearTracks = $state<TopTrackItem[]>([]);
   let lastYearAlbums = $state<TopAlbumItem[]>([]);
@@ -70,7 +71,7 @@
   let loadingTime = $state(true);
   let loadingHealth = $state(true);
   let loadingStreaks = $state(true);
-  let loadingReport = $state(true);
+  let loadingReports = $state(true);
   let loadingLastYear = $state(true);
   let loadingGenres = $state(true);
 
@@ -82,7 +83,25 @@
   let prevWeekMs = $derived(dayBuckets.slice(0, -STRIP_DAYS).reduce((sum, d) => sum + d.ms, 0));
   let milestone = $derived(nextMilestone(health?.totalPlays ?? 0));
 
-  let lastReportPeriod = $derived(latestClosedPeriod('week', weekStart));
+  let reportPeriods = $derived(GRANULARITIES.map((g) => ({ g, period: latestClosedPeriod(g, weekStart) })));
+  // filas del bloque de reports: sólo los periodos cerrados con plays
+  let reportRows = $derived(reportPeriods.flatMap(({ g, period }) => {
+    const report = lastReports[g];
+    return period && report && report.summary.plays > 0 ? [{ g, period, report }] : [];
+  }));
+
+  // los tres nº 1 de un report como filas homogéneas del bloque
+  type ReportPick = { label: string; href: string; imageUrl: string | null; round: boolean; name: string; value: string; rankChange: number | null; isNew: boolean; isReentry: boolean; entity: EntityContext };
+  function reportPicks(report: ReportResponse): ReportPick[] {
+    const a = report.top.artists[0];
+    const al = report.top.albums[0];
+    const t = report.top.tracks[0];
+    const picks: ReportPick[] = [];
+    if (a?.artist) picks.push({ label: 'Top artist', href: `/artist/${a.artistId}`, imageUrl: a.artist.imageUrl ?? null, round: true, name: a.artist.name, value: value(a.playCount, a.totalMs), rankChange: a.rankChange, isNew: a.isNew, isReentry: a.isReentry ?? false, entity: { type: 'artist', id: a.artistId, name: a.artist.name, imageUrl: a.artist.imageUrl ?? null } });
+    if (al?.album) picks.push({ label: 'Top album', href: `/album/${al.albumId}`, imageUrl: al.album.imageUrl ?? null, round: false, name: al.album.name, value: value(al.playCount, al.totalMs), rankChange: al.rankChange, isNew: al.isNew, isReentry: al.isReentry ?? false, entity: { type: 'album', id: al.albumId, name: al.album.name, imageUrl: al.album.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id } });
+    if (t?.track) picks.push({ label: 'Top track', href: `/track/${t.trackId}`, imageUrl: t.track.album?.imageUrl ?? null, round: false, name: t.track.name, value: value(t.playCount, t.totalMs), rankChange: t.rankChange, isNew: t.isNew, isReentry: t.isReentry ?? false, entity: trackEntity(t.track) });
+    return picks;
+  }
 
   // la misma semana de hace un año, en días UTC como el resto de rangos custom
   let lastYearRange = $derived.by(() => {
@@ -110,7 +129,7 @@
   function loadData() {
     metric = getRankingMetric();
     weekStart = getWeekStart();
-    loadingTracks = loadingArtists = loadingAlbums = loadingHistory = loadingHealth = loadingTime = loadingStreaks = loadingReport = loadingLastYear = loadingGenres = true;
+    loadingTracks = loadingArtists = loadingAlbums = loadingHistory = loadingHealth = loadingTime = loadingStreaks = loadingReports = loadingLastYear = loadingGenres = true;
 
     api.topTracks('week', LIST_LIMIT, metric)
       .then((t) => { topTracks = t; })
@@ -155,16 +174,13 @@
       .catch((e) => console.error('streaks:', e))
       .finally(() => { loadingStreaks = false; });
 
-    // el report está pre-horneado en el servidor: es una lectura de cache
-    const period = lastReportPeriod;
-    if (period) {
-      api.report('week', period, weekStart, metric, TZ_OFFSET_MINUTES)
-        .then((r) => { lastReport = r; })
-        .catch((e) => console.error('report:', e))
-        .finally(() => { loadingReport = false; });
-    } else {
-      loadingReport = false;
-    }
+    // los últimos reports cerrados están pre-horneados en el servidor: son
+    // lecturas de cache. un periodo que falle (o que aún no exista, historial
+    // recién empezado) simplemente no aparece
+    Promise.all(reportPeriods.map(({ g, period }) => period
+      ? api.report(g, period, weekStart, metric, TZ_OFFSET_MINUTES).then((r) => { lastReports = { ...lastReports, [g]: r }; }).catch((e) => console.error(`report ${g}:`, e))
+      : Promise.resolve()))
+      .finally(() => { loadingReports = false; });
 
     loadLastYear();
 
@@ -407,47 +423,50 @@
       </div>
     </section>
   {:else if key === 'lastReport'}
-    <!-- sin semana cerrada (historial recién empezado) o sin plays en ella no hay sección -->
-    {#if lastReportPeriod && (loadingReport || (lastReport && lastReport.summary.plays > 0))}
+    <!-- una fila por periodo cerrado (semana, mes, año) con sus tres nº 1; sin
+         periodos cerrados con plays (historial recién empezado) no hay sección -->
+    {#if reportPeriods.some((r) => r.period) && (loadingReports || reportRows.length > 0)}
       <section class="detail-section">
         <div class="card">
-        <div class="section-header">
-          <h3 class="section-title"><a href="/reports/week/{lastReportPeriod}" class="section-link">Last week's report</a></h3>
-          <span class="data-label">{periodDateRange(lastReportPeriod, 'week', weekStart)}</span>
-        </div>
-        {#if loadingReport || !lastReport}
-          <div class="report-picks">
+          <h3 class="section-title"><a href="/reports" class="section-link">Latest reports</a></h3>
+          {#if loadingReports}
             {#each Array(3) as _}
-              <div class="report-pick-ghost"><div class="report-pick-ghost-img ghost-shimmer"></div><div class="ghost-line ghost-line--title"></div></div>
+              <div class="report-row report-row--ghost">
+                <div class="ghost-line ghost-line--title"></div>
+                {#each Array(3) as _}
+                  <div class="report-pick"><div class="report-pick-img ghost-shimmer"></div><div class="ghost-line ghost-line--title"></div></div>
+                {/each}
+              </div>
             {/each}
-          </div>
-        {:else}
-          {@const s = lastReport.summary}
-          {@const a = lastReport.top.artists[0]}
-          {@const al = lastReport.top.albums[0]}
-          {@const t = lastReport.top.tracks[0]}
-          <p class="report-summary data-count">
-            <span>{formatNumber(s.plays)} plays</span>
-            <span class="report-summary-sep">·</span>
-            <span>{formatHours(s.totalMs)}</span>
-            <ReportDelta value={s.totalMs} previous={lastReport.previous?.totalMs} />
-            <span class="report-summary-sep">·</span>
-            <span>{formatNumber(s.distinctArtists)} artists</span>
-            <span class="report-summary-sep">·</span>
-            <span>{formatNumber(s.distinctTracks)} tracks</span>
-          </p>
-          <div class="report-picks">
-            {#if a?.artist}
-              <ReportTopCard label="Top artist" href="/artist/{a.artistId}" imageUrl={a.artist.imageUrl ?? null} round name={a.artist.name} sub={a.artist.genres[0] ?? ''} value={value(a.playCount, a.totalMs)} rankChange={a.rankChange} isNew={a.isNew} isReentry={a.isReentry ?? false} entity={{ type: 'artist', id: a.artistId, name: a.artist.name, imageUrl: a.artist.imageUrl ?? null }} flat />
-            {/if}
-            {#if al?.album}
-              <ReportTopCard label="Top album" href="/album/{al.albumId}" imageUrl={al.album.imageUrl ?? null} name={al.album.name} sub={al.artists?.map(x => x.name).join(', ') ?? ''} value={value(al.playCount, al.totalMs)} rankChange={al.rankChange} isNew={al.isNew} isReentry={al.isReentry ?? false} entity={{ type: 'album', id: al.albumId, name: al.album.name, imageUrl: al.album.imageUrl ?? null, parentArtistId: al.artists?.[0]?.id }} flat />
-            {/if}
-            {#if t?.track}
-              <ReportTopCard label="Top track" href="/track/{t.trackId}" imageUrl={t.track.album?.imageUrl ?? null} name={t.track.name} sub={t.track.artists.map(x => x.name).join(', ')} value={value(t.playCount, t.totalMs)} rankChange={t.rankChange} isNew={t.isNew} isReentry={t.isReentry ?? false} entity={trackEntity(t.track)} flat />
-            {/if}
-          </div>
-        {/if}
+          {:else}
+            {#each reportRows as { g, period, report } (g)}
+              {@const s = report.summary}
+              <div class="report-row">
+                <a class="report-period" href="/reports/{g}/{period}">
+                  <span class="data-label">Last {GRANULARITY_NOUNS[g].toLowerCase()}</span>
+                  <span class="report-period-range">{periodDateRange(period, g, weekStart)}</span>
+                  <span class="report-period-stats data-count">
+                    {formatNumber(s.plays)} plays · {formatHours(s.totalMs)}
+                    <ReportDelta value={s.totalMs} previous={report.previous?.totalMs} />
+                  </span>
+                </a>
+                {#each reportPicks(report) as pick (pick.label)}
+                  <a class="report-pick" href={pick.href} oncontextmenu={openEntityContextMenu(pick.entity)}>
+                    {#if pick.imageUrl}
+                      <img class="report-pick-img" class:report-pick-img--round={pick.round} src={pick.imageUrl} alt="" loading="lazy" />
+                    {:else}
+                      <div class="report-pick-img report-pick-img--empty" class:report-pick-img--round={pick.round}></div>
+                    {/if}
+                    <span class="report-pick-text">
+                      <span class="data-label">{pick.label}</span>
+                      <span class="report-pick-name">{pick.name}</span>
+                      <span class="report-pick-value data-count">{pick.value} <RankChange rankChange={pick.rankChange} isNew={pick.isNew} isReentry={pick.isReentry} /></span>
+                    </span>
+                  </a>
+                {/each}
+              </div>
+            {/each}
+          {/if}
         </div>
       </section>
     {/if}
@@ -668,32 +687,91 @@
     opacity: 1;
   }
 
-  /* report de la semana pasada: resumen y los tres nº 1, como en el report */
-  .report-summary {
-    margin: 0 0 0.5rem;
+  /* latest reports: una fila por periodo, con el periodo (rango, plays, horas y
+     delta) a la izquierda y sus tres nº 1 como fichas compactas. sin cards
+     dentro de la card: las filas se separan con una línea */
+  .report-row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.1fr) repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border);
+  }
+  .report-row:first-of-type {
+    border-top: none;
+    padding-top: 0.25rem;
+  }
+  .report-row:last-child {
+    padding-bottom: 0;
+  }
+  .report-period {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+  }
+  .report-period-range {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .report-period:hover .report-period-range {
+    color: var(--accent);
+  }
+  .report-period-stats {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.35rem;
+    font-size: 0.75rem;
   }
-  .report-summary-sep {
-    color: var(--text-muted);
+  .report-pick {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
   }
-  .report-picks {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
+  .report-pick-img {
+    width: 3rem;
+    height: 3rem;
+    flex-shrink: 0;
+    border-radius: var(--radius);
+    object-fit: cover;
   }
-  .report-pick-ghost {
+  .report-pick-img--round {
+    border-radius: 50%;
+  }
+  .report-pick-img--empty {
+    background: linear-gradient(135deg, #1e2a2a, #253030);
+  }
+  .report-pick-text {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
+    gap: 0.1rem;
+    min-width: 0;
   }
-  .report-pick-ghost-img {
-    width: 60%;
-    aspect-ratio: 1;
-    border-radius: var(--radius);
+  .report-pick-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .report-pick:hover .report-pick-name {
+    color: var(--accent);
+  }
+  .report-pick-value {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+  }
+  .report-row--ghost .ghost-line--title {
+    margin-bottom: 0;
   }
 
   /* la lista del rail va dentro de una card, como el resto del dashboard: la
@@ -774,10 +852,15 @@
     margin: 0.25rem 0;
   }
 
-  @media (max-width: 600px) {
-    .report-picks {
+  @media (max-width: 768px) {
+    /* en estrecho el periodo va arriba y las tres fichas debajo, una por línea */
+    .report-row {
       grid-template-columns: 1fr;
+      gap: 0.6rem;
     }
+  }
+
+  @media (max-width: 600px) {
     /* cinco cifras en dos columnas: la última ocupa la fila entera en vez de
        quedarse sola a un lado */
     .dash-stats {
