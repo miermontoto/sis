@@ -48,6 +48,10 @@
     grid-auto-rows: minmax(0, 1fr);
     gap: 0.4rem;
     aspect-ratio: 2 / 1;
+    /* el mismo collage vive a media columna en escritorio y a ancho completo
+       en móvil, así que la caption escala con el ancho DEL COLLAGE, no con el
+       de la ventana: una media query no sabe en qué columna ha caído */
+    container: collage / inline-size;
   }
   .tile {
     position: relative;
@@ -149,5 +153,44 @@
   }
   .tile:hover .tile-name {
     color: var(--accent);
+  }
+
+  /* celda pequeña por debajo de ~100px: la cifra sale del mosaico (sigue en
+     la celda grande) y el degradado se estrecha para no comerse la carátula */
+  @container collage (max-width: 420px) {
+    .tile-caption {
+      padding: 0.9rem 0.35rem 0.3rem;
+    }
+    .tile:not(.tile--lead) .tile-stat {
+      display: none;
+    }
+    .tile-name {
+      font-size: 0.68rem;
+    }
+    .tile-rank {
+      font-size: 0.7rem;
+      top: 0.2rem;
+      left: 0.3rem;
+    }
+    .tile--lead .tile-name {
+      font-size: 0.85rem;
+    }
+    .tile--lead .tile-stat {
+      font-size: 0.65rem;
+    }
+    .tile--lead .tile-rank {
+      font-size: 0.95rem;
+    }
+  }
+
+  /* por debajo de ~60px de celda no cabe un nombre: cuatro letras y puntos
+     suspensivos no identifican nada, la carátula sí. queda el puesto */
+  @container collage (max-width: 260px) {
+    .tile:not(.tile--lead) .tile-caption {
+      display: none;
+    }
+    .tile--lead .tile-name {
+      font-size: 0.75rem;
+    }
   }
 </style>

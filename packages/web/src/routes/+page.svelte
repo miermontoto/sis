@@ -633,9 +633,16 @@
     grid-column: 1 / -1;
     margin-bottom: 0;
   }
-  .dash-main > :global(.detail-section--half:has(+ .detail-section--half)),
-  .dash-main > :global(.detail-section--half + .detail-section--half) {
-    grid-column: auto;
+  /* dos medias sólo comparten fila si al collage le quedan celdas del tamaño
+     que ya tiene a ancho completo en un móvil (~75px): por debajo de 1024px
+     (móvil en horizontal, tablet estrecha) salían a 125px de collage y 59px
+     de celda, con carátulas y nombres ilegibles. sin esta regla cada media
+     hereda el `1 / -1` de arriba y va a ancho completo */
+  @media (min-width: 1024px) {
+    .dash-main > :global(.detail-section--half:has(+ .detail-section--half)),
+    .dash-main > :global(.detail-section--half + .detail-section--half) {
+      grid-column: auto;
+    }
   }
 
   /* año + selector de entidad a la derecha del título */
