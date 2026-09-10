@@ -6,7 +6,6 @@
   import { goto, afterNavigate } from '$app/navigation';
   import { api, invalidateCache, createFetchController, getRankingMetric, getRankChangeLookback, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type RankingMetric, type RankChangeLookback, type DateRangeParams } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
-  import { medalColor } from '$lib/utils/medals';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
@@ -17,9 +16,9 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
-  import { applyPlayToTopRows } from '$lib/utils/optimistic-play';
+  import { applyPlayToTopRows, rankMoves } from '$lib/utils/optimistic-play';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
-  import RankChange from '$lib/components/RankChange.svelte';
+  import RankCell from '$lib/components/RankCell.svelte';
   import LiveEq from '$lib/components/LiveEq.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
@@ -754,6 +753,13 @@
     return topAlbums.slice(0, chartCount).map(a => a.albumId).join(',');
   }
 
+  // ids de la pestaña activa en su orden actual, para diffear el reordenamiento
+  function orderedIds(): string[] {
+    if (activeTab === 'tracks') return topTracks.map(t => t.trackId);
+    if (activeTab === 'artists') return topArtists.map(a => a.artistId);
+    return topAlbums.map(a => a.albumId);
+  }
+
   function applyOptimisticPlay(update: PlayUpdate) {
     // una carga en vuelo va a sustituir las filas con la verdad del servidor:
     // parchear ahora sería trabajo tirado (o un doble conteo si la respuesta ya
@@ -762,6 +768,7 @@
 
     const ids = targetIdsFor(update, activeTab);
     const before = headIds();
+    const orderBefore = orderedIds();
     if (activeTab === 'tracks') {
       topTracks = applyPlayToTopRows(topTracks, t => t.trackId, ids, update.playedMs, metric);
     } else if (activeTab === 'artists') {
@@ -769,6 +776,8 @@
     } else {
       topAlbums = applyPlayToTopRows(topAlbums, a => a.albumId, ids, update.playedMs, metric);
     }
+    // flecha en cada fila que ha cambiado de puesto, no sólo en la que sumó
+    statFlashStore.move(rankMoves(orderBefore, orderedIds()));
 
     // los colores de las barras van por posición, así que si el reordenamiento
     // toca la cabeza hay que reextraerlos o la barra i se quedaría con el color
@@ -983,14 +992,12 @@
             data-focus-id={item.artistId}
             oncontextmenu={openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist.name, imageUrl: item.artist.imageUrl })}
           >
-            {#if showRankChanges}
-              <div class="rank-col">
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
-              </div>
-            {:else}
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-            {/if}
+            <RankCell
+              rank={i + 1}
+              id={item.artistId}
+              rankChange={showRankChanges ? item.rankChange : undefined}
+              isNew={showRankChanges && item.isNew}
+            />
             {#if item.artist.imageUrl}
               <span class="track-art-link">
                 <img class="track-art" src={item.artist.imageUrl} alt={item.artist.name} style="border-radius: 50%;" />
@@ -1023,14 +1030,12 @@
             data-focus-id={item.albumId}
             oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl })}
           >
-            {#if showRankChanges}
-              <div class="rank-col">
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                <RankChange rankChange={item.rankChange} isNew={item.isNew} />
-              </div>
-            {:else}
-              <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-            {/if}
+            <RankCell
+              rank={i + 1}
+              id={item.albumId}
+              rankChange={showRankChanges ? item.rankChange : undefined}
+              isNew={showRankChanges && item.isNew}
+            />
             {#if item.album.imageUrl}
               <span class="track-art-link">
                 <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />

@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 // prueban las funciones puras, así que basta con no arrastrar el cliente real
 vi.mock('$lib/api', () => ({ invalidateCache: vi.fn() }));
 
-import { applyPlayToTopRows, applyPlayToChart } from './optimistic-play';
+import { applyPlayToTopRows, applyPlayToChart, rankMoves } from './optimistic-play';
 import type { ChartEntry, ChartResponse } from '$lib/api';
 
 function row(id: string, playCount: number, totalMs: number, previousRank: number | null = null) {
@@ -88,5 +88,28 @@ describe('applyPlayToChart', () => {
   it('devuelve la misma referencia si la entidad no está en el chart', () => {
     const chart: ChartResponse = { period: '2026-W22', entries: [entry('a', 10, 100_000, 1)], dropouts: [] };
     expect(applyPlayToChart(chart, ['z'], 30_000, 'time')).toBe(chart);
+  });
+});
+
+describe('rankMoves', () => {
+  it('marca a la que sube Y a las que adelanta', () => {
+    // el play sube a 'c' dos puestos; 'a' y 'b' bajan uno cada una, y las tres
+    // se han movido de verdad: la flecha va en todas
+    const moves = rankMoves(['a', 'b', 'c', 'd'], ['c', 'a', 'b', 'd']);
+    expect(moves.get('c')).toBe(2);
+    expect(moves.get('a')).toBe(-1);
+    expect(moves.get('b')).toBe(-1);
+    expect(moves.has('d')).toBe(false);
+  });
+
+  it('sin reordenamiento no hay ninguna flecha', () => {
+    expect(rankMoves(['a', 'b', 'c'], ['a', 'b', 'c']).size).toBe(0);
+  });
+
+  it('ignora lo que no tenía puesto previo', () => {
+    // una relectura puede meter filas nuevas: sin puesto anterior no hay delta
+    const moves = rankMoves(['a', 'b'], ['nuevo', 'a', 'b']);
+    expect(moves.has('nuevo')).toBe(false);
+    expect(moves.get('a')).toBe(-1);
   });
 });

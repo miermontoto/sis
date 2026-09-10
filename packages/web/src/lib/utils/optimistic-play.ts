@@ -61,6 +61,23 @@ export function applyPlayToTopRows<T extends RankedRow>(
   ));
 }
 
+// Deltas de puesto entre dos ordenaciones de la MISMA lista: +n = ha subido n
+// puestos. El play sólo sube a una entidad, pero las que adelanta bajan, y todas
+// ellas se han movido de verdad: la flecha va en cada fila que cambió de puesto,
+// no sólo en la que sumó el play.
+//
+// Las entidades que no estaban antes se omiten: sin puesto previo no hay delta
+// que contar (el parche optimista no mete filas nuevas, pero una relectura sí).
+export function rankMoves(before: string[], after: string[]): Map<string, number> {
+  const previous = new Map(before.map((id, i) => [id, i]));
+  const moves = new Map<string, number>();
+  after.forEach((id, i) => {
+    const was = previous.get(id);
+    if (was !== undefined && was !== i) moves.set(id, was - i);
+  });
+  return moves;
+}
+
 // Los charts son agregados POR PERIODO: un periodo cerrado es inmutable y un
 // play nuevo no puede cambiarlo nunca. Sólo tiene sentido parchear el periodo
 // abierto; el llamante decide cuál es (ver computeCurrentPeriod).

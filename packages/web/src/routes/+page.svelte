@@ -20,7 +20,7 @@
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
-  import { applyPlayToTopRows } from '$lib/utils/optimistic-play';
+  import { applyPlayToTopRows, rankMoves } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
@@ -278,9 +278,13 @@
   }
 
   function applyOptimisticPlay(update: PlayUpdate) {
+    // el orden previo de la única lista con puestos a la vista (los collages de
+    // artista y álbum no pintan número, así que ahí no hay flecha que poner)
+    const orderBefore = topTracks.map(t => t.trackId);
     topTracks = applyPlayToTopRows(topTracks, t => t.trackId, targetIdsFor(update, 'tracks'), update.playedMs, metric);
     topArtists = applyPlayToTopRows(topArtists, a => a.artistId, targetIdsFor(update, 'artists'), update.playedMs, metric);
     topAlbums = applyPlayToTopRows(topAlbums, a => a.albumId, targetIdsFor(update, 'albums'), update.playedMs, metric);
+    statFlashStore.move(rankMoves(orderBefore, topTracks.map(t => t.trackId)));
     bumpToday(update.playedMs);
     statFlashStore.flash([FLASH_KEY_TIME]);
   }

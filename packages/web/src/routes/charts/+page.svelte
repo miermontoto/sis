@@ -16,7 +16,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
-  import { applyPlayToChart } from '$lib/utils/optimistic-play';
+  import { applyPlayToChart, rankMoves } from '$lib/utils/optimistic-play';
   import IconChart from '$lib/icons/IconChart.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
@@ -166,6 +166,10 @@
 
   function applyOptimisticPlay(update: PlayUpdate) {
     let next: Map<string, ChartResponse> | null = null;
+    // el badge de movimiento se pinta por id de entidad, sin saber de qué chart
+    // salió, así que sólo se emite el del chart a la vista: el mismo id puede
+    // moverse distinto en la variante por plays y en la de tiempo
+    const visibleKey = cacheKey();
 
     for (const [key, chart] of cache) {
       // clave = `${type}:${granularity}:${period}:${metric}`; ninguna de las
@@ -179,6 +183,9 @@
       const patched = applyPlayToChart(chart, ids, update.playedMs, keyMetric as RankingMetric);
       if (patched === chart) continue;
 
+      if (key === visibleKey) {
+        statFlashStore.move(rankMoves(chart.entries.map(e => e.entityId), patched.entries.map(e => e.entityId)));
+      }
       if (!next) next = new Map(cache);
       next.set(key, patched);
     }
@@ -423,10 +430,16 @@
     {#each currentData.entries as entry}
       {@const live = isEntityLive(entry.entityId)}
       {@const peak = currentPeaks[entry.entityId]}
+      {@const move = statFlashStore.moveOf(entry.entityId)}
       <a href={entityLink(entry.entityId)} class="chart-item" class:chart-item--live={live} oncontextmenu={openEntityContextMenu({ type: singularType(activeType), id: entry.entityId, name: entry.name, imageUrl: entry.imageUrl, parentArtistId: entry.artistId ?? undefined })}>
         <div class="chart-rank-col">
           <span class="chart-rank" style:color={medalColor(entry.rank)}>{entry.rank}</span>
-          <RankChange rankChange={entry.rankChange} isNew={entry.isNew && !peak?.isReentry} isReentry={peak?.isReentry ?? false} />
+          <!-- mientras dura, el movimiento en vivo tapa al delta del periodo: es lo que acaba de pasar -->
+          {#if move !== null}
+            <RankChange rankChange={move} isNew={false} live />
+          {:else}
+            <RankChange rankChange={entry.rankChange} isNew={entry.isNew && !peak?.isReentry} isReentry={peak?.isReentry ?? false} />
+          {/if}
         </div>
         {#if entry.imageUrl}
           <span class="chart-art-wrap">

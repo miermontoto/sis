@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import { medalColor } from '$lib/utils/medals';
   import { openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
-  import RankChange from './RankChange.svelte';
+  import RankCell from './RankCell.svelte';
   import LiveEq from './LiveEq.svelte';
 
   interface Props {
@@ -42,14 +42,7 @@
 
 {#snippet content()}
   {#if rank != null}
-    {#if rankChange !== undefined}
-      <div class="rank-col">
-        <span class="track-rank" style:color={medalColor(rank)}>{rank}</span>
-        <RankChange rankChange={rankChange} {isNew} {isReentry} />
-      </div>
-    {:else}
-      <span class="track-rank" style:color={medalColor(rank)}>{rank}</span>
-    {/if}
+    <RankCell {rank} id={entity?.id} {rankChange} {isNew} {isReentry} />
   {/if}
   {#if imageHref && imageUrl}
     <a href={imageHref} class="track-art-link">{@render art()}</a>
