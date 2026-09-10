@@ -6,7 +6,7 @@
   import { isGranularity, isPeriodKey, isClosedPeriod } from '@sis/shared';
   import { isAbortError } from '$lib/utils/errors';
   import { periodLabel } from '$lib/utils/periods';
-  import { GRANULARITIES, GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange, siblingPeriod, periodBuckets } from '$lib/utils/report-periods';
+  import { GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange, siblingPeriod, periodBuckets } from '$lib/utils/report-periods';
   import { formatNumber, formatHours, formatHistoryStamp, formatShortDateUTC, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
   import { extractColor } from '$lib/utils/color';
   import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
@@ -17,6 +17,7 @@
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
   import MetricMeta from '$lib/components/MetricMeta.svelte';
+  import GranularityPicker from '$lib/components/GranularityPicker.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import ReportBars, { type BarItem } from '$lib/components/reports/ReportBars.svelte';
   import ReportPolar from '$lib/components/reports/ReportPolar.svelte';
@@ -193,12 +194,7 @@
     </div>
     <div class="report-actions">
       <div class="time-range-selector report-gran">
-        {#each GRANULARITIES as g (g)}
-          {@const target = g === gran ? period : siblingPeriod(period, gran, g, weekStart)}
-          {#if target}
-            <a class="range-btn" class:active={g === gran} href="/reports/{g}/{target}">{GRANULARITY_NOUNS[g]}</a>
-          {/if}
-        {/each}
+        <GranularityPicker value={gran} hrefFor={(g) => { const target = g === gran ? period : siblingPeriod(period, gran, g, weekStart); return target ? `/reports/${g}/${target}` : null; }} />
       </div>
       <a class="range-btn report-chart-link" href="/charts?granularity={gran}&period={period}">Chart <IconChevronRight /></a>
     </div>

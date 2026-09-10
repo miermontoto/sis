@@ -65,7 +65,7 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'topTracks', label: 'Top tracks this week', column: 'main' },
     { key: 'topAlbums', label: 'Top albums this week', column: 'main' },
     { key: 'topArtists', label: 'Top artists this week', column: 'main' },
-    { key: 'lastReport', label: 'Latest reports', column: 'main' },
+    { key: 'lastReport', label: 'Latest report', column: 'main' },
     { key: 'lastYear', label: 'This week last year', column: 'main' },
     { key: 'topGenres', label: 'Top genres this week', column: 'rail' },
     { key: 'rankChanges', label: 'Recent ranking changes', column: 'rail' },

@@ -21,6 +21,7 @@
   import IconPlus from '$lib/icons/IconPlus.svelte';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import EntityTypePicker, { toPlural, toSingular } from '$lib/components/EntityTypePicker.svelte';
+  import GranularityPicker from '$lib/components/GranularityPicker.svelte';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -373,9 +374,7 @@
 <EntityTypePicker value={toSingular(activeType)} onchange={(t) => activeType = toPlural(t)} />
 
 <div class="range-row">
-  <button class="range-btn" class:active={granularity === 'week'} onclick={() => granularity = 'week'}>Week</button>
-  <button class="range-btn" class:active={granularity === 'month'} onclick={() => granularity = 'month'}>Month</button>
-  <button class="range-btn" class:active={granularity === 'year'} onclick={() => granularity = 'year'}>Year</button>
+  <GranularityPicker value={granularity} onchange={(g) => granularity = g} />
 
   <div class="period-nav">
     <button class="range-btn period-arrow" disabled={!hasPrev || periodsLoading} onclick={goPrev} title="Previous period">&lsaquo;</button>
