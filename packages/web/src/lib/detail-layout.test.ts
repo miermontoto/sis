@@ -9,11 +9,13 @@ describe('defaultLayout', () => {
     expect(layout.hidden).toEqual([]);
   });
 
-  it('el dashboard es de columna única: todo en main, rail vacío', () => {
+  it('el dashboard también reparte en dos columnas: listas y report en main, géneros, cambios y recent plays en el rail', () => {
     const layout = defaultLayout('dashboard');
-    expect(layout.main).toEqual(DETAIL_SECTIONS.dashboard.map(d => d.key));
-    expect(layout.rail).toEqual([]);
+    expect(layout.main).toEqual(['statsBar', 'weekStrip', 'topTracks', 'topAlbums', 'topArtists', 'lastReport', 'lastYear']);
+    expect(layout.rail).toEqual(['topGenres', 'rankChanges', 'recentPlays']);
     expect(layout.hidden).toEqual([]);
+    const all = [...layout.main, ...layout.rail].sort();
+    expect(all).toEqual(DETAIL_SECTIONS.dashboard.map(d => d.key).sort());
   });
 });
 

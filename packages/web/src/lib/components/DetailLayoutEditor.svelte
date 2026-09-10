@@ -1,9 +1,8 @@
 <script lang="ts">
   // editor de disposición del dashboard y las vistas de detalle: tablero
-  // drag-and-drop con zonas (main / rail / oculto) por tipo de vista — el
-  // dashboard es de columna única y no ofrece rail. reordena y mueve secciones
-  // arrastrando; el ojo oculta/muestra. persiste en settings (sync server +
-  // localStorage) tras cada cambio.
+  // drag-and-drop con zonas (main / rail / oculto) por tipo de vista. reordena
+  // y mueve secciones arrastrando; el ojo oculta/muestra. persiste en settings
+  // (sync server + localStorage) tras cada cambio.
   import { getDetailLayout, setDetailLayout } from '$lib/api/settings';
   import {
     defaultLayout, sectionLabel, moveSection, toggleSectionHidden,
@@ -19,8 +18,8 @@
   let board = $state<DetailLayout>(getDetailLayout('dashboard'));
   let dragKey = $state<string | null>(null);
 
-  // zonas de columna visibles según la vista (el dashboard no tiene rail)
-  let columnZones = $derived<Zone[]>(kind === 'dashboard' ? ['main'] : ['main', 'rail']);
+  // las dos columnas: el dashboard se parte en main + rail igual que los detalles
+  const columnZones: Zone[] = ['main', 'rail'];
 
   // contenedor raíz: las zonas se localizan por [data-zone] para hit-testing
   // durante el arrastre (bind:this no admite expresiones dinámicas)
@@ -99,8 +98,6 @@
   }
 
   const ZONE_LABEL: Record<Zone, string> = { main: 'Main column', rail: 'Side column', hidden: 'Hidden' };
-  // en columna única "main column" no significa nada: es simplemente el orden
-  let mainLabel = $derived(kind === 'dashboard' ? 'Sections' : ZONE_LABEL.main);
 </script>
 
 <div class="dl" bind:this={rootEl}>
@@ -113,10 +110,10 @@
     <button class="dl-reset" onclick={reset} title="Reset to default order">Reset</button>
   </div>
 
-  <div class="dl-columns" class:dl-columns--single={columnZones.length === 1} class:dl-columns--dragging={dragKey !== null}>
+  <div class="dl-columns" class:dl-columns--dragging={dragKey !== null}>
     {#each columnZones as z}
       <div class="dl-zone">
-        <div class="dl-zone-title">{z === 'main' ? mainLabel : ZONE_LABEL[z]}</div>
+        <div class="dl-zone-title">{ZONE_LABEL[z]}</div>
         <div class="dl-list" data-zone={z}>
           {#each board[z] as key (key)}
             <div class="dl-chip" class:dl-chip--dragging={dragKey === key} data-key={key}>
@@ -190,7 +187,6 @@
   .dl-reset:hover { color: var(--accent); border-color: var(--accent); }
 
   .dl-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-  .dl-columns--single { grid-template-columns: 1fr; }
   .dl-columns--dragging { user-select: none; }
   @media (max-width: 560px) { .dl-columns { grid-template-columns: 1fr; } }
 

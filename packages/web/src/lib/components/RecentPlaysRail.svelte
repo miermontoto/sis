@@ -1,18 +1,26 @@
 <script lang="ts">
-  // recent plays en el rail de detalle: siembra con los plays iniciales del
-  // endpoint detail (los 10 más recientes) y pagina el resto vía /stats/history
-  // con scroll infinito. dedupe por id porque el seed y la primera página del
+  // recent plays en el rail: siembra con los plays iniciales (los 10 más
+  // recientes) y pagina el resto vía /stats/history con scroll infinito. con
+  // entidad filtra el historial por ella; sin entidad (dashboard) pagina el
+  // historial completo. dedupe por id porque el seed y la primera página del
   // history se solapan (y el filtro por artista puede repetir un play por cada
   // artista coincidente). el contenedor tiene scroll propio y, en dos columnas,
   // crece para terminar justo donde acaba la columna principal (nunca la sobrepasa).
+  //
+  // cuando el seed cambia sin cambiar de entidad (el padre antepone un play que
+  // acaba de terminar) se funde por delante en vez de resetear: resetear
+  // tiraría las páginas ya cargadas y el scroll cada vez que termina una canción.
   import { api, type HistoryItem } from '$lib/api';
   import TrackList from './TrackList.svelte';
 
-  let { entityType, entityId, initial, historyHref }: {
-    entityType: 'artist' | 'album' | 'track';
-    entityId: string;
+  let { entityType = null, entityId = '', initial, historyHref, compact = false, sessionStartedAt = null, sessionTotalTracks = 0 }: {
+    entityType?: 'artist' | 'album' | 'track' | null;
+    entityId?: string;
     initial: HistoryItem[];
     historyHref: string;
+    compact?: boolean;
+    sessionStartedAt?: string | null;
+    sessionTotalTracks?: number;
   } = $props();
 
   // el detail devuelve los 10 más recientes; si llegan menos, no hay más que paginar
@@ -33,13 +41,23 @@
   let scrollEl = $state<HTMLElement | null>(null);
   let sentinel = $state<HTMLElement | null>(null);
   let firstRun = true;
+  // svelte-ignore state_referenced_locally
+  let lastEntity = entityId;
 
-  // reset al cambiar de entidad (o al recargarse el detail por cambio de métrica).
-  // el primer disparo del efecto ya está cubierto por la inicialización de arriba.
+  // reset al cambiar de entidad; con la misma entidad, los plays nuevos del seed
+  // se anteponen. el primer disparo del efecto ya está cubierto por la
+  // inicialización de arriba.
   $effect(() => {
     const seed = initial;
-    void entityId;
+    const entity = entityId;
     if (firstRun) { firstRun = false; return; }
+    if (entity === lastEntity) {
+      const fresh = seed.filter((i) => !seen.has(i.id));
+      for (const i of fresh) seen.add(i.id);
+      if (fresh.length) items = [...fresh, ...items];
+      return;
+    }
+    lastEntity = entity;
     items = [...seed];
     seen = new Set(seed.map((i) => i.id));
     nextPage = 1;
@@ -54,7 +72,8 @@
       const filters =
         entityType === 'artist' ? { artist: entityId }
         : entityType === 'album' ? { album: entityId }
-        : { track: entityId };
+        : entityType === 'track' ? { track: entityId }
+        : undefined;
       const res = await api.history(nextPage, PAGE_LIMIT, filters);
       const fresh = res.items.filter((i) => !seen.has(i.id));
       for (const i of fresh) seen.add(i.id);
@@ -85,7 +104,7 @@
 
 <h2 class="section-title"><a href={historyHref} class="section-link">Recent plays</a></h2>
 <div class="recent-scroll" bind:this={scrollEl}>
-  <TrackList {items} showTime />
+  <TrackList {items} showTime {compact} {sessionStartedAt} {sessionTotalTracks} />
   {#if hasMore}
     <div class="recent-sentinel" bind:this={sentinel}>
       {#if loadingMore}<div class="spinner spinner--inline"></div>{/if}

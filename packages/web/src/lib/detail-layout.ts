@@ -4,8 +4,8 @@
 // ciclos de import.
 
 export type EntityKind = 'artist' | 'album' | 'track';
-// el dashboard reutiliza toda la maquinaria de layouts; su "columna" es única
-// (todo en main) y el editor no le ofrece rail
+// el dashboard reutiliza toda la maquinaria de layouts, rail incluido: en
+// pantallas anchas se parte en dos columnas igual que las vistas de detalle
 export type LayoutKind = EntityKind | 'dashboard';
 export type LayoutColumn = 'main' | 'rail';
 
@@ -60,12 +60,16 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
   dashboard: [
-    { key: 'statsBar', label: 'Stats bar', column: 'main' },
+    { key: 'statsBar', label: 'Stats', column: 'main' },
+    { key: 'weekStrip', label: 'Week strip', column: 'main' },
     { key: 'topTracks', label: 'Top tracks this week', column: 'main' },
     { key: 'topAlbums', label: 'Top albums this week', column: 'main' },
     { key: 'topArtists', label: 'Top artists this week', column: 'main' },
-    { key: 'rankChanges', label: 'Recent ranking changes', column: 'main' },
-    { key: 'recentPlays', label: 'Recent plays', column: 'main' },
+    { key: 'lastReport', label: "Last week's report", column: 'main' },
+    { key: 'lastYear', label: 'This week last year', column: 'main' },
+    { key: 'topGenres', label: 'Top genres this week', column: 'rail' },
+    { key: 'rankChanges', label: 'Recent ranking changes', column: 'rail' },
+    { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
 };
 

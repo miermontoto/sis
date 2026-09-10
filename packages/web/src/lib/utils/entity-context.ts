@@ -23,6 +23,11 @@ export interface EntityContext {
 
 // acciones del menú contextual de una entidad. Exportado para las filas que
 // añaden acciones propias al mismo menú (la atribución de un setlist)
+// contexto de un tema a partir de su TrackInfo (menú contextual de listas y
+// tarjetas): la carátula del álbum como imagen y el primer artista como padre
+export const trackEntity = (t: { id: string; name: string; album: { imageUrl: string | null } | null; artists: { id: string }[] }): EntityContext =>
+  ({ type: 'track', id: t.id, name: t.name, imageUrl: t.album?.imageUrl ?? null, parentArtistId: t.artists[0]?.id });
+
 export function entityContextActions(entity: EntityContext): ContextMenuAction[] {
   const actions: ContextMenuAction[] = [];
   if (isSpotifyId(entity.id)) {

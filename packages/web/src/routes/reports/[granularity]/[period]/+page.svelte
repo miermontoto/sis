@@ -11,7 +11,7 @@
   import { extractColor } from '$lib/utils/color';
   import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
-  import type { EntityContext } from '$lib/utils/entity-context';
+  import { trackEntity } from '$lib/utils/entity-context';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -148,9 +148,6 @@
   })));
 
   let avgPlaysPerDay = $derived(report ? Math.round(report.summary.plays / Math.max(1, report.summary.days)) : 0);
-
-  const trackEntity = (t: { id: string; name: string; album: { imageUrl: string | null } | null; artists: { id: string }[] }): EntityContext =>
-    ({ type: 'track', id: t.id, name: t.name, imageUrl: t.album?.imageUrl ?? null, parentArtistId: t.artists[0]?.id });
 
   // primer y último play del periodo, como dos tarjetas iguales
   const edgePlays = (f: ReportFacts) => [{ label: 'First play', play: f.firstPlay }, { label: 'Last play', play: f.lastPlay }];

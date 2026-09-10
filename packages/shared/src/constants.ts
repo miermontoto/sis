@@ -107,3 +107,15 @@ export const REPORT_GENRES_PREV_LIMIT = 50;
 
 // periodos cerrados que lista el índice de reports por granularidad
 export const REPORT_INDEX_HISTORY = 12;
+
+// escalera de umbrales de reproducciones acumuladas: la cruzan el pipeline de
+// notificaciones (al cruzar varios a la vez solo se notifica el más alto) y el
+// report anual, y el dashboard enseña cuánto falta para el siguiente
+export const MILESTONE_THRESHOLDS = [100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000] as const;
+
+// siguiente hito por encima de `total`: el primer peldaño que lo supere y, más
+// allá del último, múltiplos de ese peldaño (349k plays → 400k)
+export function nextMilestone(total: number): number {
+  const last = MILESTONE_THRESHOLDS[MILESTONE_THRESHOLDS.length - 1];
+  return MILESTONE_THRESHOLDS.find(t => t > total) ?? (Math.floor(total / last) + 1) * last;
+}

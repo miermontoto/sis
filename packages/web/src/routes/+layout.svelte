@@ -251,10 +251,11 @@
     return pathname === '/login' || pathname === '/privacy' || pathname.startsWith('/s/');
   }
 
-  // páginas de detalle de entidad: en pantallas anchas ensanchan el contenido más allá
-  // del cap de 1200px para llenar el ancho disponible y dar sitio al rail de gráficas.
+  // páginas con rail (detalles de entidad y el dashboard): en pantallas anchas
+  // ensanchan el contenido más allá del cap de 1200px para llenar el ancho
+  // disponible y dar sitio a la segunda columna.
   function isDetailRoute(pathname: string): boolean {
-    return /^\/(artist|album|track|concert)\//.test(pathname);
+    return pathname === '/' || /^\/(artist|album|track|concert)\//.test(pathname);
   }
 
   $effect(() => {
