@@ -51,15 +51,16 @@
     {#each ENTITY_TYPES as t (t)}
       {@const Icon = ICONS[t]}
       <button
-        class="range-btn"
-        class:range-btn--icon={iconsOnly}
+        class="range-btn entity-pill"
+        class:entity-pill--icon={iconsOnly}
         class:active={value === t}
         aria-pressed={value === t}
         aria-label={iconsOnly ? ENTITY_LABELS[t] : undefined}
         title={iconsOnly ? ENTITY_LABELS[t] : undefined}
         onclick={() => onchange(t)}
       >
-        {#if iconsOnly}<Icon size={ICON_SIZE_COMPACT} />{:else}{ENTITY_LABELS[t]}{/if}
+        <Icon size={iconsOnly ? ICON_SIZE_COMPACT : ICON_SIZE} />
+        {#if !iconsOnly}{ENTITY_LABELS[t]}{/if}
       </button>
     {/each}
   </div>
@@ -70,12 +71,15 @@
     display: flex;
     gap: 0.25rem;
   }
-  /* botón de sólo icono: cuadrado, con el icono centrado */
-  .range-btn--icon {
+  /* el icono va siempre, con la palabra al lado o solo (cuadrado y centrado) */
+  .entity-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.4rem 0.55rem;
+    gap: 0.35rem;
     line-height: 1;
+  }
+  .entity-pill--icon {
+    padding: 0.4rem 0.55rem;
   }
 </style>

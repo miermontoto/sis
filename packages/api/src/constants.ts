@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w37y';
+export const VERSION = '26w37z';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -296,8 +296,17 @@ export const TRACK_NAME_MATCH_THRESHOLD = 0.4;
 
 // tolerancia de duración al deduplicar dos tracks con el mismo título base: si
 // ambos declaran duración y difieren más que esto, son grabaciones distintas
-// (una versión extendida que comparte base no debe colapsar con la original)
+// (una versión extendida que comparte base no debe colapsar con la original).
+// también es la mitad "exacta" de la clave del merge duro por isrc (ver
+// resolveDuplicateTrackId): el isrc suelto no identifica una grabación, hay isrcs
+// de sello compartidos por temas distintos
 export const TRACK_DEDUP_DURATION_TOLERANCE_MS = 5_000;
+
+// tope de merges duros por isrc en cada ciclo de mergeDuplicateTracksByIsrc. cada
+// merge cuesta ~27ms —el trigger fts_track_artists_ad borra del índice FTS con un
+// WHERE sin MATCH, que lo recorre entero— y el atraso inicial era de 400: sin tope,
+// 11s de main thread bloqueado en el arranque. drena en unos pocos ciclos
+export const ISRC_DEDUP_MAX_PER_CYCLE = 100;
 
 // alcance del barrido masivo de candidatos: cuántos álbumes del top all-time se
 // escanean. 'all' es un tope alto, no ilimitado, para acotar el peor caso
