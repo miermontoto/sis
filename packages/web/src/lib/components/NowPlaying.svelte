@@ -6,6 +6,8 @@
 
   // salto con las flechas del teclado sobre la barra de progreso
   const SEEK_STEP_MS = 5_000;
+  // antelación con la que asoma el siguiente tema: el tramo final del actual
+  const UP_NEXT_LEAD_MS = 20_000;
   import DevicePicker from './DevicePicker.svelte';
   import IconPrev from '$lib/icons/IconPrev.svelte';
   import IconPause from '$lib/icons/IconPause.svelte';
@@ -29,12 +31,6 @@
   // usuarios solo-last.fm: sin token de spotify no hay controles (read-only)
   let controllable = $derived(data?.controllable !== false);
 
-  // la cola se lee una vez por tema, y esa lectura puede haberse medido justo
-  // antes del corte: entonces trae el tema que suena en cabeza y el siguiente
-  // detrás. El primero que no sea el actual es el siguiente de verdad en los
-  // dos casos, así que no hace falta reintentar la petición
-  let upNext = $derived(nowPlayingStore.queue.find(t => t.id !== data?.track?.id) ?? null);
-
   // tick de 1s para animar el progreso extrapolado mientras suena
   let nowMs = $state(Date.now());
   $effect(() => {
@@ -46,6 +42,18 @@
   let progressMs = $derived(nowPlayingStore.progressMsAt(nowMs));
   let progressPct = $derived(
     progressMs != null && data?.track?.durationMs ? Math.min(100, (progressMs / data.track.durationMs) * 100) : null
+  );
+
+  // la cola se lee una vez por tema, y esa lectura puede haberse medido justo
+  // antes del corte: entonces trae el tema que suena en cabeza y el siguiente
+  // detrás. El primero que no sea el actual es el siguiente de verdad en los
+  // dos casos, así que no hace falta reintentar la petición
+  let upNext = $derived(nowPlayingStore.queue.find(t => t.id !== data?.track?.id) ?? null);
+  // y solo se asoma cuando el tema actual está acabando: en pausa no está a
+  // punto de empezar nada
+  let upNextDue = $derived(
+    !!data?.isPlaying && progressMs != null && !!data.track?.durationMs &&
+    data.track.durationMs - progressMs <= UP_NEXT_LEAD_MS
   );
 
   // scrubbing: mientras se arrastra, la barra y el tiempo siguen al puntero;
@@ -193,16 +201,35 @@
   {:else}
   <div class="np" class:np--compact={compact} class:np--inline={inline}>
     <div class="np-row-info">
-      {#if data.track.album?.imageUrl}
-        <a href="/album/{data.track.album.id}" class="np-art-link">
-          <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
-          {#if data.isPlaying}
-            <LiveEq />
-          {/if}
-        </a>
-      {:else}
-        <div class="np-art"></div>
-      {/if}
+      <div class="np-art-wrap">
+        {#if data.track.album?.imageUrl}
+          <a href="/album/{data.track.album.id}" class="np-art-link">
+            <img class="np-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
+            {#if data.isPlaying}
+              <LiveEq />
+            {/if}
+          </a>
+        {:else}
+          <div class="np-art"></div>
+        {/if}
+        <!-- siguiente tema: se superpone al filo de la carátula, nunca en el
+             flujo — asomarse no puede recolocar el resto del sidebar -->
+        {#if upNext && upNextDue && !inline}
+          <div class="np-next">
+            <span class="np-next-label">next</span>
+            {#if upNext.album?.imageUrl}
+              {#if upNext.album.known}
+                <a href="/album/{upNext.album.id}" class="np-next-art-link"><img class="np-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} /></a>
+              {:else}
+                <img class="np-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} />
+              {/if}
+            {/if}
+            <span class="np-next-text marquee-line" use:marquee={upNext.id}>
+              <span>{#if upNext.known}<a class="np-next-link" href="/track/{upNext.id}">{upNext.name}</a>{:else}{upNext.name}{/if}{#if upNext.artists.length}<span class="np-next-artists">{' · '}{#each upNext.artists as artist, i}{#if artist.known}<a class="np-next-link" href="/artist/{artist.id}">{artist.name}</a>{:else}{artist.name}{/if}{#if i < upNext.artists.length - 1}{', '}{/if}{/each}</span>{/if}</span>
+            </span>
+          </div>
+        {/if}
+      </div>
       <div class="np-info">
         <a href="/track/{data.track.id}" class="np-track marquee-line" use:marquee={data.track.name}><span>{data.track.name}</span></a>
         <div class="np-artist">
@@ -279,14 +306,6 @@
     </div>
     {/if}
     {@render progressRow()}
-    {#if upNext && !inline}
-      <div class="np-next">
-        <span class="np-next-label">next</span>
-        <span class="np-next-text marquee-line" use:marquee={upNext.id}>
-          <span>{upNext.name}{#if upNext.artists}<span class="np-next-artists">{' · '}{upNext.artists}</span>{/if}</span>
-        </span>
-      </div>
-    {/if}
   </div>
   {/if}
 {/if}
@@ -463,9 +482,16 @@
     min-width: 0;
   }
 
-  .np-art-link {
+  /* ancla de la superposición del siguiente tema; en la fila inline es además
+     quien no encoge */
+  .np-art-wrap {
     position: relative;
     flex-shrink: 0;
+  }
+
+  .np-art-link {
+    display: block;
+    position: relative;
   }
 
   .np-art {
@@ -494,22 +520,64 @@
     color: var(--accent);
   }
 
-  /* siguiente en la cola: una línea al pie de la tarjeta. La etiqueta se queda
-     quieta y solo se desplaza el texto, que es lo que desborda */
+  /* siguiente en la cola: una línea sobre el filo inferior de la carátula, en
+     los últimos UP_NEXT_LEAD_MS del tema. Absoluta a propósito: aparecer y
+     desaparecer no puede mover ni un píxel del resto del sidebar (y el ajuste
+     vertical mide la tarjeta, así que el hueco reservado le cambiaría el modo).
+     La etiqueta y la miniatura se quedan quietas; solo se desplaza el texto,
+     que es lo que desborda */
   .np-next {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    width: 100%;
-    font-size: 0.65rem;
-    color: var(--text-muted);
+    gap: 0.25rem;
+    padding: 0.2rem 0.3rem;
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: rgba(8, 10, 12, 0.85);
+    font-size: 0.62rem;
+    color: var(--text);
+    animation: np-next-in 0.2s ease-out;
+  }
+
+  @keyframes np-next-in {
+    from { opacity: 0; transform: translateY(100%); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .np-next-label {
     flex-shrink: 0;
+    font-size: 0.55rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    opacity: 0.7;
+    color: var(--text-muted);
+  }
+
+  .np-next-art-link {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .np-next-art {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    object-fit: cover;
+    flex-shrink: 0;
+    display: block;
+  }
+
+  /* mismo trato que los artistas del tema actual: el enlace hereda el color y
+     solo se distingue al pasar por encima */
+  .np-next-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .np-next-link:hover {
+    color: var(--accent);
   }
 
   .np-next-text {
@@ -518,7 +586,7 @@
   }
 
   .np-next-artists {
-    opacity: 0.7;
+    color: var(--text-muted);
   }
 
   .np-artist {

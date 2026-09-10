@@ -1728,6 +1728,12 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   animation: marquee var(--marquee-ms, 6s) ease-in-out infinite alternate;
 }
 
+/* con el ratón encima se para: si el texto lleva enlaces, no se puede pinchar
+   un blanco en movimiento */
+.marquee-line.is-marquee:hover > * {
+  animation-play-state: paused;
+}
+
 /* los tramos parados de cada extremo son el 15% + 15% que descuenta
    SCROLL_FRACTION en la action: cambiar uno obliga a cambiar el otro */
 @keyframes marquee {

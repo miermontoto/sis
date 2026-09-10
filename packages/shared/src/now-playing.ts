@@ -37,14 +37,20 @@ export interface LandedPlay {
   playedMs: number;
 }
 
-// entrada de la cola de reproducción. Sólo lleva texto: el tema puede no estar
-// todavía en la biblioteca (nunca escuchado), así que no hay página de track ni
-// de artista a la que enlazar
-export interface PlaybackQueueItem {
+// referencia a una entidad de la cola. `known` = el id existe en la biblioteca:
+// los PK de la app son spotify ids, pero un tema que el usuario no ha escuchado
+// nunca no tiene fila, y su ficha respondería 404. Sin fila se pinta el nombre
+// sin enlace, como los temas sin atribuir de un setlist
+export interface PlaybackQueueRef {
   id: string;
   name: string;
-  // ya unidos por ', ' — la fila es una línea de texto, no una lista de enlaces
-  artists: string;
+  known: boolean;
+}
+
+// entrada de la cola de reproducción
+export interface PlaybackQueueItem extends PlaybackQueueRef {
+  artists: PlaybackQueueRef[];
+  album: (PlaybackQueueRef & { imageUrl: string | null }) | null;
 }
 
 export interface PlaybackQueueResponse {

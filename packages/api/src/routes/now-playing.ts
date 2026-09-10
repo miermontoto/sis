@@ -425,6 +425,20 @@ nowPlaying.get('/playlists/:trackId', (c) => {
 
 // --- cola de reproducción ---
 
+// ids de un lote que existen en la tabla. Los PK de la app son spotify ids, así
+// que esto es todo lo que hace falta para saber si hay ficha a la que enlazar:
+// un tema de la cola que el usuario no ha escuchado nunca no tiene fila y su
+// página respondería 404
+function presentIds(table: 'tracks' | 'albums' | 'artists', ids: string[]): Set<string> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Set();
+  const rows = getDb().all(sql`
+    SELECT spotify_id AS id FROM ${sql.raw(table)}
+    WHERE spotify_id IN (${sql.join(unique.map(id => sql`${id}`), sql`, `)})
+  `) as Array<{ id: string }>;
+  return new Set(rows.map(r => r.id));
+}
+
 // spotify no expone la cola en ningún sitio que podamos cachear (no viaja en
 // currently-playing, así que polling_state no la tiene): es una llamada en vivo
 // por petición. Por eso el cliente la pide solo al cambiar de tema (~1 por
@@ -436,16 +450,30 @@ nowPlaying.get('/queue', async (c) => {
   if (!userId || !getStoredTokens(userId)) return c.json({ queue: [] });
 
   const data = await spotifyFetch<SpotifyQueueResponse>('/me/player/queue', { userId });
-  const queue = (data?.queue ?? [])
+  const items = (data?.queue ?? [])
     // episodios de podcast y ficheros locales (sin id) fuera: la fila enseña
-    // tema + artistas y ninguno de los dos los tiene
+    // tema, artistas y carátula, y un episodio no trae ninguno de los tres
     .filter(item => item.type === 'track' && !!item.id)
-    .slice(0, NOW_PLAYING_QUEUE_LIMIT)
-    .map(item => ({
-      id: item.id,
-      name: item.name,
-      artists: (item.artists ?? []).map(a => a.name).join(', '),
-    }));
+    .slice(0, NOW_PLAYING_QUEUE_LIMIT);
+
+  const knownTracks = presentIds('tracks', items.map(i => i.id));
+  const knownAlbums = presentIds('albums', items.flatMap(i => i.album?.id ? [i.album.id] : []));
+  const knownArtists = presentIds('artists', items.flatMap(i => (i.artists ?? []).map(a => a.id)));
+
+  const queue = items.map(item => ({
+    id: item.id,
+    name: item.name,
+    known: knownTracks.has(item.id),
+    artists: (item.artists ?? []).map(a => ({ id: a.id, name: a.name, known: knownArtists.has(a.id) })),
+    album: item.album ? {
+      id: item.album.id,
+      name: item.album.name,
+      known: knownAlbums.has(item.album.id),
+      // la más pequeña que publique spotify (64px): es una miniatura, no vale
+      // la pena bajar la de 640
+      imageUrl: item.album.images?.at(-1)?.url ?? null,
+    } : null,
+  }));
 
   return c.json({ queue });
 });
