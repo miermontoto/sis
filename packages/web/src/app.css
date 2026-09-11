@@ -519,6 +519,33 @@ a:hover {
   margin-bottom: 0;
 }
 
+/* Rejilla de secciones a dos columnas: cada sección ocupa las dos celdas salvo
+   dos "medias" contiguas (los collages de tops), que comparten fila; una media
+   sin pareja al lado sigue a ancho completo. El hueco lo pone el gap, no el
+   margen de cada sección. La usan el dashboard y el perfil: un collage es un
+   rectángulo 2:1 y a ancho de pantalla completa saldría enorme. */
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--detail-gap);
+  align-content: start;
+}
+
+.section-grid > * {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+/* dos medias sólo comparten fila si al collage le quedan celdas del tamaño que
+   ya tiene a ancho completo en un móvil (~75px): por debajo de 1024px salían a
+   125px de collage y 59px de celda, con carátulas y nombres ilegibles */
+@media (min-width: 1024px) {
+  .section-grid > .detail-section--half:has(+ .detail-section--half),
+  .section-grid > .detail-section--half + .detail-section--half {
+    grid-column: auto;
+  }
+}
+
 /* recent plays en el rail: contenedor con scroll propio para el infinite scroll.
    en móvil/estrecho, altura acotada (evita un bloque enorme al final de la página). */
 .recent-scroll {

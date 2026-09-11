@@ -586,7 +586,7 @@
 {#snippet subBestStreak()}best {streaks?.longestStreak ?? 0}d{/snippet}
 {#snippet subMilestone()}{formatNumber(milestone - (health?.totalPlays ?? 0))} to {formatNumber(milestone)}{/snippet}
 
-<div class="detail-main dash-main">
+<div class="detail-main dash-main section-grid">
   {#if closedChartsStore.charts.length > 0}
     <div class="card closed-charts-card">
       <div class="closed-charts-header">
@@ -620,33 +620,12 @@
 </PullToRefresh>
 
 <style>
-  /* la columna principal es una rejilla de dos: cada sección ocupa las dos
-     celdas salvo dos "medias" contiguas (los collages), que comparten fila.
-     una media sin pareja al lado sigue a ancho completo. el hueco entre
-     secciones lo pone el gap, no el margen de cada sección */
+  /* la rejilla de dos columnas es `.section-grid` (app.css), compartida con el
+     perfil; aquí sólo el hueco hasta el rail */
   .dash-main {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--detail-gap);
-    align-content: start;
     /* en una columna el rail va debajo: el hueco entre ambos lo pone la
        rejilla principal, que no tiene gap tras su última fila */
     margin-bottom: var(--detail-gap);
-  }
-  .dash-main > :global(*) {
-    grid-column: 1 / -1;
-    margin-bottom: 0;
-  }
-  /* dos medias sólo comparten fila si al collage le quedan celdas del tamaño
-     que ya tiene a ancho completo en un móvil (~75px): por debajo de 1024px
-     (móvil en horizontal, tablet estrecha) salían a 125px de collage y 59px
-     de celda, con carátulas y nombres ilegibles. sin esta regla cada media
-     hereda el `1 / -1` de arriba y va a ancho completo */
-  @media (min-width: 1024px) {
-    .dash-main > :global(.detail-section--half:has(+ .detail-section--half)),
-    .dash-main > :global(.detail-section--half + .detail-section--half) {
-      grid-column: auto;
-    }
   }
 
   /* año + selector de entidad a la derecha del título */

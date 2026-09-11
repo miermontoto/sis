@@ -5,7 +5,7 @@
   import { api, createFetchController, type ProfileResponse, type TimeRange } from '$lib/api';
   import { formatDuration, formatNumber, formatSmartDate } from '$lib/utils/format';
   import TrackList from '$lib/components/TrackList.svelte';
-  import CoverGrid from '$lib/components/CoverGrid.svelte';
+  import TopCollage from '$lib/components/TopCollage.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import IconShare from '$lib/icons/IconShare.svelte';
@@ -165,39 +165,48 @@
     {/each}
   </div>
 
-  {#if profile.topArtists.length > 0}
-    <section class="profile-section">
-      <h2>Top artists</h2>
-      <CoverGrid items={profile.topArtists.slice(0, 5).map((a, i) => ({
-        href: `/artist/${a.artistId}`,
-        rank: i + 1,
-        imageUrl: a.artist?.imageUrl,
-        name: a.artist?.name ?? a.artistId,
-        stat: formatDuration(a.totalMs),
-        round: true,
-      }))} />
-    </section>
-  {/if}
+  <!-- mismos contenedores y collages que el dashboard: artistas y álbumes son
+       dos rectángulos 2:1 que comparten fila, y los temas van a lo ancho -->
+  <div class="section-grid">
+    {#if profile.topArtists.length > 0}
+      <section class="detail-section detail-section--half">
+        <div class="card">
+          <h3 class="section-title">Top artists</h3>
+          <TopCollage items={profile.topArtists.slice(0, 5).map((a, i) => ({
+            href: `/artist/${a.artistId}`,
+            rank: i + 1,
+            imageUrl: a.artist?.imageUrl,
+            name: a.artist?.name ?? a.artistId,
+            stat: formatDuration(a.totalMs),
+          }))} />
+        </div>
+      </section>
+    {/if}
 
-  {#if profile.topAlbums.length > 0}
-    <section class="profile-section">
-      <h2>Top albums</h2>
-      <CoverGrid items={profile.topAlbums.slice(0, 5).map((a, i) => ({
-        href: `/album/${a.albumId}`,
-        rank: i + 1,
-        imageUrl: a.album?.imageUrl,
-        name: a.album?.name ?? a.albumId,
-        stat: formatDuration(a.totalMs),
-      }))} />
-    </section>
-  {/if}
+    {#if profile.topAlbums.length > 0}
+      <section class="detail-section detail-section--half">
+        <div class="card">
+          <h3 class="section-title">Top albums</h3>
+          <TopCollage items={profile.topAlbums.slice(0, 5).map((a, i) => ({
+            href: `/album/${a.albumId}`,
+            rank: i + 1,
+            imageUrl: a.album?.imageUrl,
+            name: a.album?.name ?? a.albumId,
+            stat: formatDuration(a.totalMs),
+          }))} />
+        </div>
+      </section>
+    {/if}
 
-  {#if profile.topTracks.length > 0}
-    <section class="profile-section">
-      <h2>Top tracks</h2>
-      <TrackList items={profile.topTracks} showRank />
-    </section>
-  {/if}
+    {#if profile.topTracks.length > 0}
+      <section class="detail-section">
+        <div class="card">
+          <h3 class="section-title">Top tracks</h3>
+          <TrackList items={profile.topTracks} showRank />
+        </div>
+      </section>
+    {/if}
+  </div>
 
   {#if profile.topArtists.length === 0 && profile.topTracks.length === 0 && profile.topAlbums.length === 0}
     <div class="empty-state">
@@ -263,15 +272,4 @@
     margin-bottom: 1.5rem;
   }
 
-  .profile-section {
-    margin-bottom: 1.75rem;
-  }
-
-  .profile-section h2 {
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    margin-bottom: 0.75rem;
-  }
 </style>
