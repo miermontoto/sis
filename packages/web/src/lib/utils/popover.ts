@@ -3,13 +3,15 @@
 // overflow de un ancestro. por defecto (`above`) prefiere colocarse encima del
 // ancla y cae debajo si no hay hueco, alineando el borde derecho del popover con
 // el del ancla; `right` lo pone a la derecha del ancla alineado arriba
-// (desplegables laterales del nav compacto). en ambos casos clampa al viewport,
-// y reposiciona en scroll/resize y ante cambios de tamaño del propio popover
+// (desplegables laterales del nav compacto); `below` es el espejo de `above`
+// para los desplegables de formulario (el calendario del DatePicker): debajo del
+// ancla alineado a su borde izquierdo, y encima si no cabe. en todos los casos
+// clampa al viewport, y reposiciona en scroll/resize y ante cambios de tamaño del propio popover
 // (contenido asíncrono, filtrado de búsqueda) mientras esté montado.
 const GAP = 4; // separación entre ancla y popover
 const PAD = 8; // margen mínimo a los bordes del viewport
 
-export type PopoverSide = 'above' | 'right';
+export type PopoverSide = 'above' | 'below' | 'right';
 
 export function positionPopover(node: HTMLElement, side: PopoverSide = 'above') {
   const anchor = node.parentElement;
@@ -30,6 +32,14 @@ export function positionPopover(node: HTMLElement, side: PopoverSide = 'above') 
       // hubiera un hueco real el puntero saldría del ancla al cruzarlo)
       top = Math.max(PAD, Math.min(a.top, vh - h - PAD));
       left = Math.min(a.right, vw - w - PAD);
+    } else if (side === 'below') {
+      // vertical: debajo si cabe, si no encima; horizontal: al borde izquierdo
+      top = a.bottom + GAP;
+      if (top + h > vh - PAD) {
+        const above = a.top - GAP - h;
+        top = above >= PAD ? above : Math.max(PAD, vh - h - PAD);
+      }
+      left = Math.max(PAD, Math.min(a.left, vw - w - PAD));
     } else {
       // vertical: encima si cabe, si no debajo, clampado al viewport
       top = a.top - GAP - h;

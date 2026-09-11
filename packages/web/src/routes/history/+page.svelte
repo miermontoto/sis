@@ -10,6 +10,7 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import LiveEq from '$lib/components/LiveEq.svelte';
   import AddScrobbleModal from '$lib/components/AddScrobbleModal.svelte';
+  import DatePicker from '$lib/components/DatePicker.svelte';
 
   let items = $state<HistoryItem[]>([]);
   let currentPage = $state(1);
@@ -295,15 +296,12 @@
 
 <div class="history-controls">
   <div class="controls-left">
-    <input
-      type="date"
-      class="date-picker"
+    <DatePicker
       value={dateFilter ?? ''}
-      onchange={(e) => {
-        const v = e.currentTarget.value;
-        if (v) setDate(v);
-        else clearDate();
-      }}
+      placeholder="Any date"
+      label="Filter by day"
+      clearable
+      onchange={(v) => (v ? setDate(v) : clearDate())}
     />
     <button class="edit-toggle" class:edit-toggle--active={editMode} onclick={toggleEdit}>
       {editMode ? 'Done' : 'Edit'}
@@ -442,21 +440,6 @@
     gap: 0.5rem;
     flex-wrap: wrap;
   }
-  .date-picker {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 0.8rem;
-    padding: 0.3rem 0.6rem;
-    border-radius: var(--radius);
-    cursor: pointer;
-    outline: none;
-    color-scheme: dark;
-  }
-  .date-picker:focus {
-    border-color: var(--accent);
-  }
-
   .filter-bar {
     display: flex;
     align-items: center;

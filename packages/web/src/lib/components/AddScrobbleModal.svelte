@@ -3,6 +3,8 @@
   import { api, type SearchResults } from '$lib/api';
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import DatePicker from '$lib/components/DatePicker.svelte';
+  import { nowLocalValue } from '$lib/utils/calendar';
 
   let { show = $bindable(false), onAdded }: { show: boolean; onAdded?: () => void } = $props();
 
@@ -28,18 +30,11 @@
   let albumLoading = $state(false);
 
   // formulario
-  let playedAtLocal = $state(nowLocal());
+  let playedAtLocal = $state(nowLocalValue());
   let plays = $state(1);
   let submitting = $state(false);
   let error = $state('');
   let resultMsg = $state('');
-
-  // valor para <input type="datetime-local"> (hora local, sin zona)
-  function nowLocal(): string {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
 
   function fmtDuration(ms: number): string {
     const min = Math.round(ms / 60_000);
@@ -62,7 +57,7 @@
     plays = 1;
     error = '';
     resultMsg = '';
-    playedAtLocal = nowLocal();
+    playedAtLocal = nowLocalValue();
   }
 
   function close() {
@@ -105,7 +100,7 @@
   function pickTrack(t: SearchResults['tracks'][number]) {
     pickedTrack = t;
     mode = 'track';
-    playedAtLocal = nowLocal();
+    playedAtLocal = nowLocalValue();
     plays = 1;
     error = '';
   }
@@ -113,7 +108,7 @@
   async function pickAlbum(a: SearchResults['albums'][number]) {
     pickedAlbum = a;
     mode = 'album';
-    playedAtLocal = nowLocal();
+    playedAtLocal = nowLocalValue();
     error = '';
     albumLoading = true;
     albumTracks = [];
@@ -285,10 +280,10 @@
             {/if}
           </div>
 
-          <label class="field">
+          <div class="field">
             <span class="field-label">{mode === 'album' ? 'Album started at' : 'Played at'}</span>
-            <input type="datetime-local" class="field-input" bind:value={playedAtLocal} />
-          </label>
+            <DatePicker mode="datetime" bind:value={playedAtLocal} label="Played at" />
+          </div>
 
           {#if mode === 'track'}
             <label class="field">

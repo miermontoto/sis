@@ -10,6 +10,7 @@
   import { searchSetlists, billedAs } from '$lib/utils/setlist-search';
   import { formatCalendarDate } from '$lib/utils/format';
   import IconTicket from '$lib/icons/IconTicket.svelte';
+  import DatePicker from '$lib/components/DatePicker.svelte';
 
   let {
     show = $bindable(false),
@@ -325,10 +326,10 @@
         {/if}
       {:else}
         <form class="concert-form" onsubmit={submitManual}>
-          <label>
+          <div class="concert-field">
             <span>Date</span>
-            <input type="date" bind:value={date} required />
-          </label>
+            <DatePicker bind:value={date} label="Concert date" />
+          </div>
           <label>
             <span>Venue</span>
             <input type="text" bind:value={venue} placeholder="Wizink Center" />
@@ -596,7 +597,8 @@
     flex-direction: column;
     gap: 0.7rem;
   }
-  .concert-form label {
+  .concert-form label,
+  .concert-field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;

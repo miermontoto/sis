@@ -1,4 +1,7 @@
 <script lang="ts">
+  import DatePicker from './DatePicker.svelte';
+  import { todayKey } from '$lib/utils/calendar';
+
   interface Props {
     value: string;
     onchange: (range: string) => void;
@@ -19,10 +22,9 @@
     { key: 'all', label: 'All' },
   ];
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayKey();
 
-  function handleDateInput(which: 'start' | 'end', e: Event) {
-    const val = (e.target as HTMLInputElement).value;
+  function handleDate(which: 'start' | 'end', val: string) {
     const s = which === 'start' ? val : startDate;
     const en = which === 'end' ? val : endDate;
     if (s && en && s <= en) ondatechange?.(s, en);
@@ -48,22 +50,9 @@
   </button>
   {#if value === 'custom'}
     <div class="custom-dates">
-      <input
-        type="date"
-        class="date-input"
-        value={startDate}
-        max={endDate || today}
-        oninput={(e) => handleDateInput('start', e)}
-      />
+      <DatePicker value={startDate} label="Start date" placeholder="Start" max={endDate || today} onchange={(v) => handleDate('start', v)} />
       <span class="date-sep">—</span>
-      <input
-        type="date"
-        class="date-input"
-        value={endDate}
-        min={startDate}
-        max={today}
-        oninput={(e) => handleDateInput('end', e)}
-      />
+      <DatePicker value={endDate} label="End date" placeholder="End" min={startDate} max={today} onchange={(v) => handleDate('end', v)} />
     </div>
   {/if}
 </div>
@@ -74,26 +63,6 @@
     align-items: center;
     gap: 0.5rem;
     margin-left: 0.25rem;
-  }
-
-  .date-input {
-    background: var(--bg-hover);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
-    outline: none;
-    transition: border-color 0.05s;
-  }
-
-  .date-input:focus {
-    border-color: #1db954;
-  }
-
-  .date-input::-webkit-calendar-picker-indicator {
-    filter: invert(0.7);
-    cursor: pointer;
   }
 
   .date-sep {
