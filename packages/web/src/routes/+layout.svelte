@@ -23,6 +23,8 @@
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import FriendsActivity from '$lib/components/FriendsActivity.svelte';
+  import UserMenu from '$lib/components/UserMenu.svelte';
+  import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -69,6 +71,9 @@
   let user = $state<MeResponse | null>(null);
   let appVersion = $state('');
   let showUserMenu = $state(false);
+  // el menú de usuario lo abrió el hover (no un click): no hace falta que sea
+  // reactivo, solo lo lee el click para no cerrar lo que el ratón acaba de abrir
+  let userMenuFromHover = false;
   let expandedGroup = $state<string | null>(null);
   let userMenuRef = $state<HTMLElement | null>(null);
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
@@ -110,9 +115,30 @@
     if (sidebarCollapsed) {
       setSidebarCollapsed(false);
       showUserMenu = true;
-    } else {
-      showUserMenu = !showUserMenu;
+      return;
     }
+    // si lo abrió el hover, el click no lo cierra: sería cerrarlo justo al ir a
+    // pulsarlo. El segundo click ya sí alterna, y salirse con el ratón lo cierra
+    if (userMenuFromHover) {
+      userMenuFromHover = false;
+      return;
+    }
+    showUserMenu = !showUserMenu;
+  }
+
+  // ...y también al pasar el ratón, como el resto de popovers de la app
+  // (HoverPopover). Solo con puntero real: en táctil el primer tap dispara
+  // pointerenter + click y el menú se abriría y cerraría de una. Con el rail
+  // colapsado no se abre en hover: ahí el badge es un botón que expande.
+  function handleUserBadgeEnter(e: PointerEvent) {
+    if (e.pointerType === 'touch' || sidebarCollapsed) return;
+    userMenuFromHover = !showUserMenu;
+    showUserMenu = true;
+  }
+  function handleUserBadgeLeave(e: PointerEvent) {
+    if (e.pointerType === 'touch') return;
+    userMenuFromHover = false;
+    showUserMenu = false;
   }
 
   onMount(async () => {
@@ -226,7 +252,9 @@
   }
 
   function handleEscape(e: KeyboardEvent) {
-    if (e.key === 'Escape') expandedGroup = null;
+    if (e.key !== 'Escape') return;
+    expandedGroup = null;
+    showUserMenu = false;
   }
 
   $effect(() => {
@@ -684,27 +712,40 @@
         </div>
       {/if}
       {#if user?.authenticated}
-        <div class="sidebar-user-wrap" bind:this={userMenuRef}>
-          <button class="sidebar-user" onclick={handleUserBadgeClick}>
-            {#if user.imageUrl}
-              <img class="sidebar-user-avatar" src={user.imageUrl} alt="" />
-            {:else}
-              <div class="sidebar-user-avatar sidebar-user-avatar--empty"></div>
+        <!-- el control accesible es el botón; el div solo capta el hover del ratón -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="sidebar-user-wrap"
+          bind:this={userMenuRef}
+          onpointerenter={handleUserBadgeEnter}
+          onpointerleave={handleUserBadgeLeave}
+        >
+          <!-- ancla del menú: el hueco lateral lo pone el wrap, así que el panel
+               se posiciona contra esta caja (la del badge) y no contra el gutter -->
+          <div class="sidebar-user-anchor">
+            <button
+              class="sidebar-user"
+              class:sidebar-user--open={showUserMenu}
+              aria-expanded={showUserMenu}
+              aria-haspopup="true"
+              onclick={handleUserBadgeClick}
+            >
+              {#if user.imageUrl}
+                <img class="sidebar-user-avatar" src={user.imageUrl} alt="" />
+              {:else}
+                <div class="sidebar-user-avatar sidebar-user-avatar--empty"><IconArtist size={16} /></div>
+              {/if}
+              <div class="sidebar-user-info">
+                <span class="sidebar-user-name">{user.displayName ?? user.spotifyId}</span>
+                <span class="sidebar-user-id">{user.spotifyId}</span>
+              </div>
+              <span class="sidebar-user-dots"><IconMenuDots size={16} /></span>
+              {#if user.isAdmin}<span class="sidebar-admin-badge">admin</span>{/if}
+            </button>
+            {#if showUserMenu}
+              <UserMenu {user} onnavigate={() => showUserMenu = false} />
             {/if}
-            <div class="sidebar-user-info">
-              <span class="sidebar-user-name">{user.displayName ?? user.spotifyId}</span>
-              <span class="sidebar-user-id">{user.spotifyId}</span>
-            </div>
-            <span class="sidebar-user-dots">...</span>
-            {#if user.isAdmin}<span class="sidebar-admin-badge">admin</span>{/if}
-          </button>
-          {#if showUserMenu}
-            <div class="user-menu">
-              <a href="/u/{encodeURIComponent(user.spotifyId ?? '')}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
-              <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
-              <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
-            </div>
-          {/if}
+          </div>
         </div>
       {/if}
       <div class="sidebar-footer">{#if appVersion}<span class="sidebar-version">{appVersion}</span> · {/if}made by <a href="https://mier.info" target="_blank" rel="noopener">mier.info</a></div>
@@ -718,23 +759,15 @@
           </button>
           {#if user?.authenticated}
             <div class="mobile-user-wrap" bind:this={mobileUserMenuRef}>
-              <button class="mobile-user-btn" onclick={() => showUserMenu = !showUserMenu}>
+              <button class="mobile-user-btn" class:mobile-user-btn--open={showUserMenu} onclick={() => showUserMenu = !showUserMenu}>
                 {#if user.imageUrl}
                   <img class="mobile-user-avatar" src={user.imageUrl} alt="" />
                 {:else}
-                  <div class="mobile-user-avatar mobile-user-avatar--empty"></div>
+                  <div class="mobile-user-avatar mobile-user-avatar--empty"><IconArtist size={15} /></div>
                 {/if}
               </button>
               {#if showUserMenu}
-                <div class="mobile-user-menu">
-                  <div class="mobile-user-menu-header">
-                    <span class="mobile-user-menu-name">{user.displayName ?? user.spotifyId}</span>
-                    <span class="mobile-user-menu-id">{user.spotifyId}</span>
-                  </div>
-                  <a href="/u/{encodeURIComponent(user.spotifyId ?? '')}" class="user-menu-item" onclick={() => showUserMenu = false}>Profile</a>
-                  <a href="/settings" class="user-menu-item" onclick={() => showUserMenu = false}>Settings</a>
-                  <a href="/auth/logout" class="user-menu-item user-menu-item--danger">Log out</a>
-                </div>
+                <UserMenu {user} placement="down" header onnavigate={() => showUserMenu = false} />
               {/if}
             </div>
           {/if}

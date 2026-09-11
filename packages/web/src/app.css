@@ -989,8 +989,11 @@ a.track-item {
 
 /* sidebar user badge */
 .sidebar-user-wrap {
-  position: relative;
   padding: 0 0.5rem 0.5rem;
+}
+
+.sidebar-user-anchor {
+  position: relative;
 }
 
 .sidebar-user {
@@ -1010,53 +1013,24 @@ a.track-item {
   transition: border-color 0.05s;
 }
 
-.sidebar-user:hover {
+.sidebar-user:hover,
+.sidebar-user--open {
   border-color: var(--text-muted);
-}
-
-.sidebar-user-dots {
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  line-height: 1;
-  flex-shrink: 0;
-  margin-left: auto;
-  align-self: center;
-}
-
-.user-menu {
-  position: absolute;
-  bottom: calc(100% + 0.35rem);
-  left: 0;
-  right: 0;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.25rem;
-  z-index: 50;
-}
-
-.user-menu-item {
-  display: block;
-  padding: 0.45rem 0.6rem;
-  border-radius: var(--radius);
-  font-size: 0.8rem;
-  color: var(--text);
-  text-decoration: none;
-  transition: background 0.05s;
-}
-
-.user-menu-item:hover {
   background: var(--bg-hover);
 }
 
-.user-menu-item--danger {
-  color: var(--danger);
+.sidebar-user-dots {
+  display: flex;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+  align-self: center;
+  transition: color 0.05s;
 }
 
-.user-menu-item--danger:hover {
-  background: rgba(231, 76, 60, 0.1);
+.sidebar-user:hover .sidebar-user-dots,
+.sidebar-user--open .sidebar-user-dots {
+  color: var(--text);
 }
 
 .sidebar-user-avatar {
@@ -1066,6 +1040,15 @@ a.track-item {
   object-fit: cover;
   flex-shrink: 0;
   background: var(--border);
+}
+
+/* sin foto de spotify: silueta en vez de un círculo liso, como en el menú */
+.sidebar-user-avatar--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-hover);
+  color: var(--text-muted);
 }
 
 .sidebar-user-info {
@@ -2180,42 +2163,20 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     height: 30px;
     border-radius: 50%;
     object-fit: cover;
+    transition: box-shadow 0.05s;
+  }
+
+  /* el avatar es el trigger: al abrir el menú se anilla en acento */
+  .mobile-user-btn--open .mobile-user-avatar {
+    box-shadow: 0 0 0 2px var(--accent);
   }
 
   .mobile-user-avatar--empty {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-  }
-
-  .mobile-user-menu {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    right: 0;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    min-width: 180px;
-    z-index: 200;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
-  }
-
-  .mobile-user-menu-header {
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--border);
     display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-
-  .mobile-user-menu-name {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .mobile-user-menu-id {
-    font-size: 0.7rem;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     color: var(--text-muted);
   }
 
