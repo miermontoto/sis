@@ -543,32 +543,38 @@
             </div>
           </div>
         </div>
-        <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
-          <div class="pref-info">
-            <div class="pref-label">Rank limit (ALL)</div>
-            <div class="pref-desc">Only show all-time ranking changes for entities within this rank</div>
-          </div>
-          <div class="pref-control">
-            <div class="segmented">
-              {#each ['25', '50', '100', '200'] as v}
-                <button class="segmented-btn" class:segmented-active={sessionRankLimitAllPref === v} onclick={() => { sessionRankLimitAllPref = v; setSessionRankLimitAll(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
-              {/each}
+        <!-- los límites dependen del valor de rankings: sin rankings no hay límite que ajustar,
+             y el de YTD sólo existe cuando se muestran también los cambios del año -->
+        {#if sessionRankDisplayPref !== 'none'}
+          <div class="pref-row row-border pref-row--child" class:pref-row--disabled={sessionTrackingDisplayPref === 'off'}>
+            <div class="pref-info">
+              <div class="pref-label">Rank limit (ALL)</div>
+              <div class="pref-desc">Only show all-time ranking changes for entities within this rank</div>
+            </div>
+            <div class="pref-control">
+              <div class="segmented">
+                {#each ['25', '50', '100', '200'] as v}
+                  <button class="segmented-btn" class:segmented-active={sessionRankLimitAllPref === v} onclick={() => { sessionRankLimitAllPref = v; setSessionRankLimitAll(v); }} disabled={sessionTrackingDisplayPref === 'off'}>#{v}</button>
+                {/each}
+              </div>
             </div>
           </div>
-        </div>
-        <div class="pref-row row-border" class:pref-row--disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>
-          <div class="pref-info">
-            <div class="pref-label">Rank limit (YTD)</div>
-            <div class="pref-desc">Only show year-to-date ranking changes for entities within this rank</div>
-          </div>
-          <div class="pref-control">
-            <div class="segmented">
-              {#each ['25', '50', '100', '200'] as v}
-                <button class="segmented-btn" class:segmented-active={sessionRankLimitYearPref === v} onclick={() => { sessionRankLimitYearPref = v; setSessionRankLimitYear(v); }} disabled={sessionTrackingDisplayPref === 'off' || sessionRankDisplayPref === 'none'}>#{v}</button>
-              {/each}
+        {/if}
+        {#if sessionRankDisplayPref === 'all+ytd'}
+          <div class="pref-row row-border pref-row--child" class:pref-row--disabled={sessionTrackingDisplayPref === 'off'}>
+            <div class="pref-info">
+              <div class="pref-label">Rank limit (YTD)</div>
+              <div class="pref-desc">Only show year-to-date ranking changes for entities within this rank</div>
+            </div>
+            <div class="pref-control">
+              <div class="segmented">
+                {#each ['25', '50', '100', '200'] as v}
+                  <button class="segmented-btn" class:segmented-active={sessionRankLimitYearPref === v} onclick={() => { sessionRankLimitYearPref = v; setSessionRankLimitYear(v); }} disabled={sessionTrackingDisplayPref === 'off'}>#{v}</button>
+                {/each}
+              </div>
             </div>
           </div>
-        </div>
+        {/if}
       </div>
 
       <div class="prefs-subtitle">Social</div>
@@ -1271,6 +1277,14 @@
   .pref-row--disabled {
     opacity: 0.4;
     pointer-events: none;
+  }
+
+  /* fila hija: sangrada y con un filete a la izquierda para leerse como
+     dependiente de la fila anterior */
+  .pref-row--child {
+    margin-left: 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--border);
   }
 
   /* fila que apila el control debajo del label (controles anchos, p.ej. el
