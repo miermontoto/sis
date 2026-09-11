@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -176,6 +176,7 @@
   let sessionRankLimitAllPref = $state('200');
   let sessionTrackingDisplayPref = $state<SessionTrackingDisplay>('all');
   let nowPlayingDisplayPref = $state<NowPlayingDisplay>('auto');
+  let nowPlayingUpNextPref = $state(true);
   let socialVisibilityPref = $state<SocialVisibility>('visible');
 
   // notificaciones push: master switch + toggles por tipo
@@ -404,6 +405,7 @@
     sessionRankLimitAllPref = getSessionRankLimitAll();
     sessionTrackingDisplayPref = getSessionTrackingDisplay();
     nowPlayingDisplayPref = getNowPlayingDisplay();
+    nowPlayingUpNextPref = getNowPlayingUpNext();
     socialVisibilityPref = getSocialVisibility();
     notifEnabledPref = getNotificationsEnabled();
     notifRecordsPref = getNotifyRecords();
@@ -479,6 +481,19 @@
         </div>
         <div class="pref-row row-border">
           <div class="pref-info">
+            <div class="pref-label">Chart week start</div>
+            <div class="pref-desc">Defines the day weekly charts, reports and records start on</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={weekStartPref === 'monday'} onclick={() => { weekStartPref = 'monday'; setWeekStart('monday'); }}>Mon</button>
+              <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
+              <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
             <div class="pref-label">Locale</div>
             <div class="pref-desc">Affects date and number formatting across the app</div>
           </div>
@@ -513,6 +528,22 @@
             </div>
           </div>
         </div>
+        <!-- la fila del siguiente tema depende de la tarjeta entera: apagada no
+             hay dónde asomarla y la variante compacta no la pinta nunca -->
+        {#if nowPlayingDisplayPref === 'auto' || nowPlayingDisplayPref === 'normal'}
+          <div class="pref-row row-border pref-row--child">
+            <div class="pref-info">
+              <div class="pref-label">Up next</div>
+              <div class="pref-desc">Peek the next queued track over the cover while the current one ends</div>
+            </div>
+            <div class="pref-control">
+              <div class="segmented">
+                <button class="segmented-btn" class:segmented-active={!nowPlayingUpNextPref} onclick={() => { nowPlayingUpNextPref = false; setNowPlayingUpNext(false); }}>Off</button>
+                <button class="segmented-btn" class:segmented-active={nowPlayingUpNextPref} onclick={() => { nowPlayingUpNextPref = true; setNowPlayingUpNext(true); }}>On</button>
+              </div>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <div class="prefs-subtitle">Session</div>
@@ -593,7 +624,7 @@
         </div>
       </div>
 
-      <div class="prefs-subtitle">Rankings & Records</div>
+      <div class="prefs-subtitle">Rankings</div>
       <div class="prefs-list">
         <div class="pref-row">
           <div class="pref-info">
@@ -608,20 +639,11 @@
             </div>
           </div>
         </div>
-        <div class="pref-row row-border">
-          <div class="pref-info">
-            <div class="pref-label">Chart week start</div>
-            <div class="pref-desc">Defines how weekly charts are calculated in the Records page</div>
-          </div>
-          <div class="pref-control">
-            <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={weekStartPref === 'monday'} onclick={() => { weekStartPref = 'monday'; setWeekStart('monday'); }}>Mon</button>
-              <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
-              <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
-            </div>
-          </div>
-        </div>
-        <div class="pref-row row-border">
+      </div>
+
+      <div class="prefs-subtitle">Records</div>
+      <div class="prefs-list">
+        <div class="pref-row">
           <div class="pref-info">
             <div class="pref-label">Record entries</div>
             <div class="pref-desc">Unique keeps one entry per song, album or artist; All lets the same one appear several times (e.g. its biggest weeks in Peak week and each run in Longest chart run)</div>

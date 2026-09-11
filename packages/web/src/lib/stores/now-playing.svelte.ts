@@ -1,4 +1,4 @@
-import { api, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem } from '$lib/api';
+import { api, getNowPlayingUpNext, onNowPlayingUpNextChange, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem } from '$lib/api';
 import { MIN_PLAY_MS } from '@sis/shared';
 import { playUpdatesStore } from './play-updates.svelte';
 
@@ -193,9 +193,12 @@ async function checkPlaylists(trackId: string | undefined) {
 // la cola es una llamada en vivo a spotify, así que se pide una vez por tema
 // (mismo guard por trackId que checkLiked/checkPlaylists) y no en cada tick.
 // La respuesta puede venir medida justo antes del corte y traer el tema actual
-// en cabeza; quien la pinta salta esa cabecera en vez de retrasar la petición
+// en cabeza; quien la pinta salta esa cabecera en vez de retrasar la petición.
+// El ajuste nowPlayingUpNext se comprueba aquí y no al pintar: su única
+// consumidora es la fila del siguiente tema, así que apagado no hay nada que
+// pedir y la llamada se ahorra entera
 async function checkQueue(trackId: string | undefined) {
-  if (!trackId || _data?.controllable === false) { _queue = []; _lastQueueTrackId = null; return; }
+  if (!trackId || _data?.controllable === false || !getNowPlayingUpNext()) { _queue = []; _lastQueueTrackId = null; return; }
   if (trackId === _lastQueueTrackId) return;
   _lastQueueTrackId = trackId;
   try {
@@ -205,6 +208,11 @@ async function checkQueue(trackId: string | undefined) {
     _queue = [];
   }
 }
+
+// el guard por trackId haría que encender el ajuste a mitad de tema no pidiera
+// nada hasta el siguiente corte; apagarlo entra por la misma puerta y checkQueue
+// vacía la cola
+onNowPlayingUpNextChange(() => { _lastQueueTrackId = null; checkQueue(_data?.track?.id); });
 
 async function poll() {
   try {

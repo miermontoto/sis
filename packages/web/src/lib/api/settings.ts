@@ -25,6 +25,7 @@ interface SettingsData {
   sessionRankLimitAll: string;
   sessionTrackingDisplay: SessionTrackingDisplay;
   nowPlayingDisplay: NowPlayingDisplay;
+  nowPlayingUpNext: boolean;
   socialVisibility: SocialVisibility;
   sidebarCollapsed: boolean;
   notificationsEnabled: boolean;
@@ -67,6 +68,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   sessionRankLimitAll: '200',
   sessionTrackingDisplay: 'all',
   nowPlayingDisplay: 'auto',
+  // fila del siguiente tema de la cola, asomada al final del actual
+  nowPlayingUpNext: true,
   socialVisibility: 'visible',
   // rail izquierdo colapsado (solo iconos): off por defecto
   sidebarCollapsed: false,
@@ -235,6 +238,14 @@ const _npd = withNotify<NowPlayingDisplay>(_setNowPlayingDisplay);
 export const getNowPlayingDisplay = _getNowPlayingDisplay;
 export const setNowPlayingDisplay = _npd.set;
 export const onNowPlayingDisplayChange = _npd.onChange;
+
+// la cola del siguiente tema se pide en vivo a spotify, así que el store se
+// suscribe para cortar la petición al apagarlo y pedirla al encenderlo
+const [_getNowPlayingUpNext, _setNowPlayingUpNext] = boolSetting('nowPlayingUpNext');
+const _npun = withNotify<boolean>(_setNowPlayingUpNext);
+export const getNowPlayingUpNext = _getNowPlayingUpNext;
+export const setNowPlayingUpNext = _npun.set;
+export const onNowPlayingUpNextChange = _npun.onChange;
 
 // disposición de vistas de detalle: JSON por tipo de entidad. get* reconcilia
 // lo guardado contra el registro actual (secciones nuevas aparecen, keys
