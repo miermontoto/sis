@@ -464,17 +464,25 @@
 {/if}
 
 <style>
+  /* las columnas se cuentan solas por el ancho que haya, sin breakpoint, como
+     la .stats-grid global. la pista es minmax(<ancho mínimo>, 1fr) y NO 1fr a
+     secas: `1fr` es minmax(auto, 1fr) y ese auto es el min-content del item,
+     que aquí es el canvas de echarts con su ancho en px. la gráfica sólo podía
+     crecer — al estrechar la ventana la pista se quedaba clavada en el ancho
+     anterior y la página se desbordaba a lo ancho */
   .charts-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(var(--chart-min), 100%), 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
+    --chart-min: 20rem;
   }
   .chart-half h3, .chart-third h3 {
     margin-bottom: 0.5rem;
   }
+  /* los tres relojes polares aguantan más estrechos que una gráfica de ejes */
   .charts-row--triple {
-    grid-template-columns: 1fr 1fr 1fr;
+    --chart-min: 16rem;
   }
   .r2-badge {
     font-size: 0.7rem;
@@ -494,19 +502,17 @@
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
+  /* el selector de entidad baja a su propia línea cuando no cabe junto al
+     título, en vez de empujar la card fuera de la pantalla */
   .chart-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     margin-bottom: 0.5rem;
     gap: 0.5rem;
   }
   .chart-header h3 {
     margin: 0;
-  }
-  @media (max-width: 768px) {
-    .charts-row {
-      grid-template-columns: 1fr;
-    }
   }
 </style>
