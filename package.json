@@ -2,6 +2,7 @@
   "name": "sis",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.26.0",
   "scripts": {
     "dev": "pnpm --filter @sis/api dev & pnpm --filter @sis/web dev & wait",
     "build": "pnpm --filter @sis/web build && pnpm run copy-static && pnpm --filter @sis/api build",
