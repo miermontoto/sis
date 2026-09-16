@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveDuplicateTrackId, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveDuplicateTrackId, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanCrossTrackDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings, checkDailyEvents } from './notification-events.js';
@@ -200,6 +200,7 @@ function startTokenlessEnrichment() {
     try {
       cleanDuplicatePlays();
       cleanBasicExtendedDuplicates();
+      cleanCrossTrackDuplicates();
     } catch (err) {
       logMetadata.error('error dedup de plays:', err);
     }
@@ -507,6 +508,7 @@ export function startPolling() {
   cleanStaleShortDurations();
   cleanDuplicatePlays();
   cleanBasicExtendedDuplicates();
+  cleanCrossTrackDuplicates();
   mergeImportTracks();
   cleanNonMusicImports();
 

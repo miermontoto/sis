@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, reassignTrackRefs, reassignAlbumRefs } from './upsert.js';
-import { MIN_PLAY_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
+import { MIN_PLAY_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS, PLAY_OVERLAP_PROOF_S, CROSS_TRACK_TWIN_RADIUS_S } from '../../constants.js';
 import { syntheticIdPredicate } from '../ids.js';
 import { createLogger } from '../logger.js';
 
@@ -493,6 +493,84 @@ export function cleanBasicExtendedDuplicates() {
     db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
   logCleanup.info(`eliminados ${ids.length} duplicados Basic/Extended`);
+}
+
+// nombre base sin los calificativos de edición que Spotify cuelga del título ("- Live",
+// "(Remastered 2011)", "(feat. X)"). Mismo criterio que el matcher de setlists: sólo vale
+// como señal de APOYO, nunca como prueba por sí solo.
+const playBaseName = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s*[([][^)\]]*[)\]]\s*$/g, '').replace(/\s+-\s+.*$/, '').replace(/\s+/g, ' ').trim();
+
+// El mismo play importado dos veces cuando cada entrada del export resolvió a una FILA
+// DISTINTA: el export Basic trae el título pelado y el Extended el de la edición real,
+// así que "Enter Sandman" (estudio) y "Enter Sandman - Live" (S&M2) se llevan una copia
+// cada uno. cleanDuplicatePlays y cleanBasicExtendedDuplicates no los ven porque las dos
+// cruzan por track_id idéntico, y por eso sobrevivían a todos los barridos.
+//
+// Borrar por parecido de nombre sería la operación más destructiva del proyecto (ver
+// deduplicateTracks), así que el nombre NO decide: sólo acota. Quien decide es el reloj.
+// Una fila sin duración medida, si fuese una escucha real, ocuparía [marca - duración del
+// track, marca]; si ese intervalo pisa PLAY_OVERLAP_PROOF_S segundos el de un play MEDIDO,
+// las dos no pudieron sonar a la vez y la que sobra es la que no trae medición. Esa prueba
+// no mira títulos. El gemelo por nombre se exige ADEMÁS, para no tocar filas cuyo solape
+// venga de otra cosa (un scrobble de otro aparato, un import solapado).
+export function cleanCrossTrackDuplicates() {
+  const db = getDb();
+
+  const trackMeta = new Map<string, { base: string; artist: string | null; durMs: number }>();
+  for (const t of db.all(sql`
+    SELECT t.spotify_id, t.name, t.duration_ms,
+           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) AS artist_id
+    FROM tracks t
+  `) as { spotify_id: string; name: string; duration_ms: number | null; artist_id: string | null }[]) {
+    trackMeta.set(t.spotify_id, { base: playBaseName(t.name ?? ''), artist: t.artist_id, durMs: t.duration_ms ?? 0 });
+  }
+
+  const rows = db.all(sql`
+    SELECT id, user_id, track_id, played_at, duration_played_ms,
+           CAST(strftime('%s', played_at) AS INTEGER) AS ts
+    FROM listening_history ORDER BY user_id, played_at
+  `) as { id: number; user_id: number; track_id: string; played_at: string; duration_played_ms: number | null; ts: number }[];
+
+  // ventana de vecinos: los plays van ordenados por tiempo, así que basta mirar hacia los
+  // lados hasta salirse del radio. Sin este corte sería un self-join O(n²) sobre 370k filas
+  const doomed: number[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const a = rows[i];
+    if (a.duration_played_ms !== null) continue;
+    const am = trackMeta.get(a.track_id);
+    if (!am || !am.artist || am.durMs <= 0) continue;
+    const aStart = a.ts - am.durMs / 1000;
+
+    let impossible = false, twin = false;
+    for (let dir = -1; dir <= 1 && !(impossible && twin); dir += 2) {
+      for (let j = i + dir; j >= 0 && j < rows.length; j += dir) {
+        const b = rows[j];
+        if (b.user_id !== a.user_id || Math.abs(b.ts - a.ts) > CROSS_TRACK_TWIN_RADIUS_S) break;
+        if (b.duration_played_ms === null || b.id === a.id) continue;
+        if (Math.min(a.ts, b.ts) - Math.max(aStart, b.ts - b.duration_played_ms / 1000) >= PLAY_OVERLAP_PROOF_S) impossible = true;
+        if (!twin && b.track_id !== a.track_id) {
+          const bm = trackMeta.get(b.track_id);
+          if (bm && bm.artist === am.artist && bm.base === am.base) {
+            // mismo instante, o la fila Basic justo una duración del gemelo por delante
+            if (Math.abs(b.ts - a.ts) <= 2) twin = true;
+            else if (b.ts > a.ts && Math.abs((b.ts - a.ts) - b.duration_played_ms / 1000) <= 3) twin = true;
+          }
+        }
+        if (impossible && twin) break;
+      }
+    }
+    if (impossible && twin) doomed.push(a.id);
+  }
+
+  if (doomed.length === 0) return;
+
+  for (let i = 0; i < doomed.length; i += 500) {
+    const batch = doomed.slice(i, i + 500);
+    db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+  }
+  logCleanup.info(`eliminados ${doomed.length} plays duplicados entre filas de track distintas`);
 }
 
 // ventana de tolerancia al comparar el hueco entre plays con la duración del track

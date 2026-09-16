@@ -14,4 +14,4 @@ export {
   fixTrackAlbumAssignments, fixTrackArtistAssociations,
   mergeImportTracks,
 } from './ingestion/imports.js';
-export { deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanStaleShortDurations } from './ingestion/dedup.js';
+export { deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanCrossTrackDuplicates, cleanStaleShortDurations } from './ingestion/dedup.js';

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w38q';
+export const VERSION = '26w38r';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -319,6 +319,15 @@ export const TRACK_DEDUP_DURATION_TOLERANCE_MS = 5_000;
 // WHERE sin MATCH, que lo recorre entero— y el atraso inicial era de 400: sin tope,
 // 11s de main thread bloqueado en el arranque. drena en unos pocos ciclos
 export const ISRC_DEDUP_MAX_PER_CYCLE = 100;
+
+// solape mínimo (s) entre la ventana implícita de un play SIN duración medida y la de
+// un play medido para dar el primero por imposible. Con 30s no lo dispara ni un borde
+// redondeado al segundo ni dos plays consecutivos: hace falta que se pisen de verdad.
+export const PLAY_OVERLAP_PROOF_S = 30;
+
+// radio (s) en el que buscar el gemelo del mismo tema en otra fila de track. Cubre la
+// duración de un tema largo, que es lo que separa la entrada Basic de la Extended.
+export const CROSS_TRACK_TWIN_RADIUS_S = 700;
 
 // alcance del barrido masivo de candidatos: cuántos álbumes del top all-time se
 // escanean. 'all' es un tope alto, no ilimitado, para acotar el peor caso
