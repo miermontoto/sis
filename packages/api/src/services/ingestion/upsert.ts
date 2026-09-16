@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { artists, albums, tracks, trackArtists, listeningHistory } from '../../db/schema.js';
-import { syntheticId } from '../ids.js';
+import { syntheticId, syntheticIdPredicate, syntheticPreference } from '../ids.js';
 import { rewriteMergeRules } from './merge-rules.js';
 import { TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
 import type { SpotifyTrack, SpotifyPlayHistoryItem, SpotifyImage } from '../../types/spotify.js';
@@ -55,25 +55,41 @@ export function resolveLocalFileIds(track: SpotifyTrack) {
     artist.id = existing?.spotify_id ?? syntheticId(LOCAL_PREFIX, artist.name, artist.name);
   }
 
-  // álbum: busca por nombre + artista en DB para reusar IDs existentes
+  // álbum: busca por nombre + artista en DB para reusar IDs existentes.
+  // el lookup barre TODO el espacio sintético (local: e import:), no sólo local:.
+  // los dos caminos acuñan el álbum como syntheticId(prefix, artista, álbum), así que
+  // el cuerpo del hash es idéntico y sólo cambia el prefijo: en prod había 8 álbumes
+  // partidos en import:<h> y local:<h> con el MISMO <h> ("2008 - Louis Vuitton Runway
+  // Show Mix" = 65c4c03f7adeaab7 por duplicado) sólo porque cada lookup miraba el suyo.
   const albumName = track.album.name || 'Unknown Album';
   const primaryArtistId = track.artists[0]?.id;
   const existingAlbum = primaryArtistId ? db.get(
     sql`SELECT a.spotify_id FROM albums a
-        WHERE LOWER(a.name) = LOWER(${albumName}) AND a.spotify_id LIKE 'local:%'
+        WHERE LOWER(a.name) = LOWER(${albumName}) AND ${syntheticIdPredicate('a.spotify_id')}
           AND EXISTS (
             SELECT 1 FROM tracks t
             JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
             WHERE t.album_id = a.spotify_id AND ta.artist_id = ${primaryArtistId}
           )
+        ORDER BY ${syntheticPreference('a.spotify_id')}
         LIMIT 1`
   ) as { spotify_id: string } | undefined : undefined;
   track.album.id = existingAlbum?.spotify_id ?? syntheticId(LOCAL_PREFIX, primaryArtist, albumName);
 
   // track: busca por nombre+álbum en DB; fallback incluye álbum en el hash
-  // para que tracks homónimos en álbumes distintos no colisionen
+  // para que tracks homónimos en álbumes distintos no colisionen.
+  // mismo barrido sintético que el álbum, y con guard de duración: mismo título en el
+  // mismo álbum puede ser otra grabación (una reprise, un corte alternativo), así que
+  // sólo se reusa la fila si la duración cuadra. duración desconocida (<= 0, sintético
+  // sin enriquecer) no bloquea — el nombre + artista + álbum ya son tres componentes.
   const existingTrack = db.get(
-    sql`SELECT spotify_id FROM tracks WHERE LOWER(name) = LOWER(${track.name}) AND album_id = ${track.album.id} AND spotify_id LIKE 'local:%'`
+    sql`SELECT spotify_id FROM tracks
+        WHERE LOWER(name) = LOWER(${track.name}) AND album_id = ${track.album.id}
+          AND ${syntheticIdPredicate('spotify_id')}
+          AND (duration_ms <= 0 OR ${track.duration_ms} <= 0
+               OR ABS(duration_ms - ${track.duration_ms}) <= ${TRACK_DEDUP_DURATION_TOLERANCE_MS})
+        ORDER BY ${syntheticPreference('spotify_id')}
+        LIMIT 1`
   ) as { spotify_id: string } | undefined;
   track.id = existingTrack?.spotify_id ?? syntheticId(LOCAL_PREFIX, `${primaryArtist}\0${albumName}`, track.name);
 }

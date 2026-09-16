@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, reassignTrackRefs, reassignAlbumRefs } from './upsert.js';
 import { MIN_PLAY_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
+import { syntheticIdPredicate } from '../ids.js';
 import { createLogger } from '../logger.js';
 
 const logDedup = createLogger('dedup');
@@ -306,11 +307,13 @@ export function deduplicateEmptyAlbumShells() {
   if (merged > 0) logDedup.info(`${merged} shells vacíos absorbidos`);
 }
 
-// deduplicar albums y tracks locales entre sí (no mezclar con Spotify)
+// deduplicar albums y tracks sintéticos entre sí (no mezclar con Spotify)
 export function deduplicateLocalAlbums() {
   const db = getDb();
 
-  // agrupar álbumes local:% con mismo nombre y artista
+  // agrupar álbumes SINTÉTICOS (local: e import:) con mismo nombre y artista. Antes
+  // sólo miraba local:%, y como los dos caminos acuñan el álbum con el mismo hash y
+  // distinto prefijo, el mismo disco vivía partido en dos (ver syntheticIdPredicate)
   const groups = db.all(sql`
     SELECT LOWER(al.name) as album_name,
            MIN(ta.artist_id) as artist_id,
@@ -319,26 +322,26 @@ export function deduplicateLocalAlbums() {
     FROM albums al
     JOIN tracks t ON t.album_id = al.spotify_id
     JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
-    WHERE al.spotify_id LIKE 'local:%'
+    WHERE ${syntheticIdPredicate('al.spotify_id')}
     GROUP BY album_name, ta.artist_id
     HAVING cnt > 1
   `) as { album_name: string; artist_id: string | null; ids: string }[];
 
   if (groups.length === 0) return;
-  logDedup.info(`${groups.length} grupos de álbumes locales duplicados`);
+  logDedup.info(`${groups.length} grupos de álbumes sintéticos duplicados`);
 
   let merged = 0;
   for (const group of groups) {
     const ids = group.ids.split(',');
-    // canónico: el que tenga más tracks
+    // canónico: el que tenga más tracks; a igualdad, el import: (ver syntheticPreference)
     let best: { id: string; trackCount: number } | null = null;
     for (const id of ids) {
       const row = db.get(sql`
         SELECT count(*) as cnt FROM tracks WHERE album_id = ${id}
       `) as { cnt: number };
-      if (!best || row.cnt > best.trackCount) {
-        best = { id, trackCount: row.cnt };
-      }
+      const beats = !best || row.cnt > best.trackCount
+        || (row.cnt === best.trackCount && id.startsWith('import:') && !best.id.startsWith('import:'));
+      if (beats) best = { id, trackCount: row.cnt };
     }
     if (!best) continue;
     const canonical = best.id;
@@ -349,12 +352,18 @@ export function deduplicateLocalAlbums() {
       for (const dupe of dupes) {
         // mover tracks al álbum canónico, deduplicando por nombre
         const dupeTracks = db.all(sql`
-          SELECT spotify_id, LOWER(name) as lname FROM tracks WHERE album_id = ${dupe}
-        `) as { spotify_id: string; lname: string }[];
+          SELECT spotify_id, LOWER(name) as lname, duration_ms FROM tracks WHERE album_id = ${dupe}
+        `) as { spotify_id: string; lname: string; duration_ms: number }[];
 
         for (const dt of dupeTracks) {
+          // mismo título dentro del mismo álbum todavía puede ser otra grabación (una
+          // reprise, un corte alternativo): sin el guard de duración, "Kitchen Sink" de
+          // 334s se comía la de 331s. Si no cuadra, el track se mueve pero no se fusiona
           const existing = db.get(sql`
-            SELECT spotify_id FROM tracks WHERE album_id = ${canonical} AND LOWER(name) = ${dt.lname}
+            SELECT spotify_id FROM tracks
+            WHERE album_id = ${canonical} AND LOWER(name) = ${dt.lname}
+              AND (duration_ms <= 0 OR ${dt.duration_ms} <= 0
+                   OR ABS(duration_ms - ${dt.duration_ms}) <= ${TRACK_DEDUP_DURATION_TOLERANCE_MS})
           `) as { spotify_id: string } | undefined;
 
           if (existing) {
@@ -373,7 +382,62 @@ export function deduplicateLocalAlbums() {
     }
   }
 
-  if (merged > 0) logDedup.info(`${merged} grupos de álbumes locales unificados`);
+  if (merged > 0) logDedup.info(`${merged} grupos de álbumes sintéticos unificados`);
+}
+
+// deduplicar tracks SINTÉTICOS entre sí, cuando viven en álbumes distintos y por eso
+// deduplicateLocalAlbums no los ve (el mismo tema en el álbum real y en su gemelo local).
+// Nunca toca ids de spotify: fusionar un sintético dentro de un track real es lo que
+// vació álbumes local: en agosto de 2026, y para import: → real ya está mergeImportTracks.
+//
+// La clave es nombre + artista de posición 0 + NOMBRE DEL ÁLBUM + duración ±tolerancia.
+// El álbum no es opcional: sin él la clave se come grabaciones distintas que comparten
+// título ("Kitchen Sink" de *Regional At Best* 334s contra la de *Vessel* 331s,
+// "Shy Away / I'm Not Okay (Live)" de *Hometown Show* 247s contra la de 242s).
+export function deduplicateSyntheticTracks() {
+  const db = getDb();
+
+  const rows = db.all(sql`
+    SELECT t.spotify_id, t.name, t.duration_ms,
+           LOWER(t.name) as lname,
+           LOWER(COALESCE(al.name, '')) as lalbum,
+           (SELECT MIN(artist_id) FROM track_artists WHERE track_id = t.spotify_id AND position = 0) as artist_id,
+           COALESCE((SELECT count(*) FROM listening_history WHERE track_id = t.spotify_id), 0) as play_count
+    FROM tracks t
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    WHERE ${syntheticIdPredicate('t.spotify_id')} AND t.duration_ms > 0
+  `) as { spotify_id: string; name: string; duration_ms: number; lname: string; lalbum: string; artist_id: string | null; play_count: number }[];
+
+  // agrupar en JS: el GROUP BY equivalente necesita el nombre del álbum unido, y son
+  // ~1.5k filas sintéticas contra 46k tracks (un subquery correlado aquí sería O(n²))
+  const groups = new Map<string, typeof rows>();
+  for (const row of rows) {
+    if (!row.artist_id) continue;
+    const key = `${row.lname}\0${row.artist_id}\0${row.lalbum}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  let merged = 0;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    // canónico: import: antes que local:, luego más plays (ver syntheticPreference)
+    const [canonical, ...rest] = [...group].sort((a, b) =>
+      Number(b.spotify_id.startsWith('import:')) - Number(a.spotify_id.startsWith('import:'))
+      || b.play_count - a.play_count
+      || a.spotify_id.localeCompare(b.spotify_id));
+    // la tolerancia no es transitiva: se compara contra el canónico, no en cadena
+    const dupes = rest.filter(t => Math.abs(t.duration_ms - canonical.duration_ms) <= TRACK_DEDUP_DURATION_TOLERANCE_MS);
+    if (dupes.length === 0) continue;
+
+    try {
+      for (const dupe of dupes) reassignTrackRefs(db, dupe.spotify_id, canonical.spotify_id);
+      merged++;
+    } catch (err) {
+      logDedup.error(`error deduplicando sintético "${canonical.name}":`, err);
+    }
+  }
+
+  if (merged > 0) logDedup.info(`${merged} grupos de tracks sintéticos unificados`);
 }
 
 export function cleanDuplicatePlays() {
