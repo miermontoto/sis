@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, reassignTrackRefs, reassignAlbumRefs } from './upsert.js';
-import { MIN_PLAY_MS } from '../../constants.js';
+import { MIN_PLAY_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
 import { createLogger } from '../logger.js';
 
 const logDedup = createLogger('dedup');
@@ -12,7 +12,27 @@ interface TrackCandidate {
   is_merge_target: number;
   type_score: number;
   play_count: number;
+  duration_ms: number;
+  isrc: string | null;
 }
+
+// nombre + artista de posición 0 es la señal de identidad MÁS FLOJA que maneja el
+// proyecto, y aquí cuelga del merge más destructivo (borra la fila). Sin este guard
+// cualquier otra versión del mismo título se comía a la del álbum: el single de
+// "Runaway" (50HCj9kEXIonBwRLXFWCr8, 5:39, isrc USUM71024424) desapareció dentro del
+// corte de MBDTF (3DK6m7It6Pw857FcQftMds, 9:07, isrc USUM71027402) con sus 73 plays,
+// y lo mismo con TRON: Legacy vs TRON: Legacy Reconfigured, o los skits de Eminem en
+// su versión limpia. Se pide lo mismo que mergeDuplicateTracksByIsrc, que ya era
+// estricto con una señal MÁS fuerte: duración dentro de tolerancia contra el canónico
+// (no en cadena, la tolerancia no es transitiva) y, si ambos tienen isrc y difieren,
+// son dos grabaciones registradas distintas y no se tocan. Duración desconocida
+// (<= 0, pendiente de enrichment) se aplaza al siguiente ciclo en vez de mergear a
+// ciegas, que es justo como se colaban estos.
+const isSameRecording = (dupe: TrackCandidate, canonical: TrackCandidate) => {
+  if (dupe.duration_ms <= 0 || canonical.duration_ms <= 0) return false;
+  if (Math.abs(dupe.duration_ms - canonical.duration_ms) > TRACK_DEDUP_DURATION_TOLERANCE_MS) return false;
+  return !(dupe.isrc && canonical.isrc && dupe.isrc !== canonical.isrc);
+};
 
 // orden de preferencia del canónico entre duplicados de un mismo tema, igual que el
 // canonicalFirst de la UI de admin. is_merge_target va primero porque las merge rules
@@ -50,10 +70,11 @@ export function deduplicateTracks() {
 
     // elegir canónico: preferir el que el usuario ya marcó como target, luego album >
     // single, luego más plays (ver beatsCanonical)
+    const candidates: TrackCandidate[] = [];
     let best: TrackCandidate | null = null;
     for (const id of ids) {
       const row = db.get(sql`
-        SELECT t.spotify_id,
+        SELECT t.spotify_id, t.duration_ms, t.isrc,
                EXISTS(SELECT 1 FROM merge_rules
                  WHERE entity_type = 'track' AND target_id = t.spotify_id) as is_merge_target,
                CASE WHEN a.album_type = 'album' THEN 0 WHEN a.album_type IS NULL THEN 1
@@ -64,19 +85,22 @@ export function deduplicateTracks() {
         WHERE t.spotify_id = ${id}
       `) as TrackCandidate | undefined;
       if (!row) continue;
+      candidates.push(row);
       if (!best || beatsCanonical(row, best)) best = row;
     }
 
     if (!best) continue;
-    const canonical = best.spotify_id;
-    const dupes = ids.filter(id => id !== canonical);
+    const canonical = best;
+    // mismo título y mismo artista NO es la misma grabación: sólo se absorbe lo que
+    // además cuadra en duración e isrc (ver isSameRecording)
+    const dupes = candidates.filter(c => c.spotify_id !== canonical.spotify_id && isSameRecording(c, canonical));
     if (dupes.length === 0) continue;
 
     try {
       // reassignTrackRefs re-apunta historial/créditos/playlists al canónico y
       // hereda la evidencia isrc/mbid del duplicado antes de borrarlo
       for (const dupe of dupes) {
-        reassignTrackRefs(db, dupe, canonical);
+        reassignTrackRefs(db, dupe.spotify_id, canonical.spotify_id);
       }
       merged++;
     } catch (err) {
