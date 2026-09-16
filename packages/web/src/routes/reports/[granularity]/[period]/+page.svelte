@@ -544,14 +544,20 @@
   .report-column :global(.track-item) {
     min-height: 3.1rem;
   }
+  /* las pistas van con minmax(0, …) y no con `2fr 1fr` a secas: `<n>fr` es
+     minmax(auto, <n>fr) y ese auto es el min-content del item, que aquí es el
+     canvas de echarts con su ancho en px. la gráfica sólo podía crecer — al
+     estrechar la ventana la pista se quedaba clavada en el ancho anterior y la
+     página se desbordaba a lo ancho. la proporción 2:1 se mantiene: la serie
+     temporal manda y los relojes polares acompañan */
   .report-charts {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 1rem;
     margin-bottom: 1.5rem;
   }
   .report-charts--triple {
-    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
   }
   .report-of {
     color: var(--text-muted);
@@ -660,7 +666,7 @@
   @media (max-width: 1024px) {
     .report-columns { grid-template-columns: 1fr; grid-template-rows: none; }
     .report-column { grid-row: auto; grid-template-rows: auto auto; }
-    .report-charts, .report-charts--triple { grid-template-columns: 1fr; }
+    .report-charts, .report-charts--triple { grid-template-columns: minmax(0, 1fr); }
     .report-months { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 768px) {
