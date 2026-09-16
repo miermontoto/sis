@@ -11,42 +11,42 @@
     height?: string;
     /** unidad de la cifra en el tooltip ('plays'); vacío = sólo el número */
     unit?: string;
-    /** en el rail no caben las etiquetas fuera de la dona: los nombres a la leyenda */
-    compact?: boolean;
   }
 
-  let { genres, height = '220px', unit = '', compact = false }: Props = $props();
+  let { genres, height = '220px', unit = '' }: Props = $props();
 
   // el borde entre porciones es del color del fondo de la card, no una línea
   const CARD_BG = '#0f1214';
-  const RADIUS = ['40%', '70%'];
-  // en compacto la dona sube para dejarle la banda de abajo a la leyenda
-  const COMPACT_CENTER = ['50%', '36%'];
-  const COMPACT_RADIUS = ['42%', '70%'];
-  const LEGEND_ICON_SIZE = 8;
+  // el radio en % es sobre el lado menor, que en estas cards siempre es el alto:
+  // el anillo salía igual de gordo en el rail (400px) que en insights (800px) y
+  // echarts recortaba los nombres con puntos suspensivos. se mide el ancho y el
+  // anillo cede lo que haga falta, así que la banda de etiquetas no se estrecha
+  const HEIGHT_FRACTION = 0.35;
+  const WIDTH_FRACTION = 0.13;
+  // proporción del agujero, la de los radios originales (40% / 70%)
+  const INNER_RATIO = 0.57;
+  const FALLBACK_RADIUS = ['40%', '70%'];
+  // por debajo de este ancho un género largo ("alternative metal", 17 caracteres)
+  // no cabe a 11px y echarts lo recorta con puntos suspensivos; a 10px entra
+  const NARROW_WIDTH = 520;
+  const NARROW_LABEL_SIZE = 10;
+
+  let width = $state(0);
+
+  let radius = $derived.by(() => {
+    if (!width) return FALLBACK_RADIUS; // antes del primer layout
+    const outer = Math.min(parseFloat(height) * HEIGHT_FRACTION, width * WIDTH_FRACTION);
+    return [outer * INNER_RATIO, outer];
+  });
 
   let option = $derived<EChartsOption>({
     tooltip: { ...PIE_TOOLTIP, formatter: `{b}: {c}${unit ? ` ${unit}` : ''} ({d}%)` },
-    ...(compact
-      ? {
-          legend: {
-            bottom: 0,
-            left: 'center',
-            icon: 'circle',
-            itemWidth: LEGEND_ICON_SIZE,
-            itemHeight: LEGEND_ICON_SIZE,
-            itemGap: LEGEND_ICON_SIZE,
-            textStyle: { ...AXIS_LABEL, fontSize: 10 },
-          },
-        }
-      : {}),
     series: [{
       type: 'pie',
-      // en compacto la dona sube y engorda: sin etiquetas fuera sobra sitio
-      radius: compact ? COMPACT_RADIUS : RADIUS,
-      ...(compact ? { center: COMPACT_CENTER, label: { show: false }, labelLine: { show: false } } : { label: { ...AXIS_LABEL } }),
+      radius,
       avoidLabelOverlap: true,
       itemStyle: { borderRadius: 2, borderColor: CARD_BG, borderWidth: 2 },
+      label: { ...AXIS_LABEL, ...(width && width < NARROW_WIDTH ? { fontSize: NARROW_LABEL_SIZE } : {}) },
       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },
       data: genres.map((g, i) => ({
         name: g.genre,
@@ -57,4 +57,6 @@
   });
 </script>
 
-<BaseChart {option} {height} />
+<div bind:clientWidth={width}>
+  <BaseChart {option} {height} />
+</div>

@@ -43,8 +43,8 @@
   const LAST_YEAR_TYPE_KEY = 'sis:lastYearEntity';
   // granularidad del bloque de latest reports (semana por defecto), preferencia de vista
   const REPORT_GRANULARITY_KEY = 'sis:latestReportGranularity';
-  // alto de la dona de géneros en el rail: la dona arriba y la leyenda debajo
-  const GENRE_PIE_HEIGHT = '240px';
+  // alto de la dona de géneros del rail, el mismo que la de insights
+  const GENRE_PIE_HEIGHT = '220px';
 
   // los buckets diarios de /listening-time son UTC: las claves se calculan igual
   const utcDayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -554,7 +554,7 @@
           {#if loadingGenres}
             <div class="ghost-line ghost-line--chart"></div>
           {:else}
-            <GenrePie {genres} unit="plays" compact height={GENRE_PIE_HEIGHT} />
+            <GenrePie {genres} unit="plays" height={GENRE_PIE_HEIGHT} />
           {/if}
         </div>
       </section>
@@ -817,7 +817,7 @@
     margin-left: auto;
   }
   .ghost-line--chart {
-    height: 15rem;
+    height: 13.75rem;
   }
   .week-ghost {
     height: 7.5rem;
