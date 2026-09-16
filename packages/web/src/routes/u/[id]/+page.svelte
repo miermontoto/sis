@@ -4,11 +4,15 @@
   import { goto } from '$app/navigation';
   import { api, createFetchController, type ProfileResponse, type TimeRange } from '$lib/api';
   import { formatDuration, formatNumber, formatSmartDate } from '$lib/utils/format';
+  import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import TopCollage from '$lib/components/TopCollage.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import IconShare from '$lib/icons/IconShare.svelte';
+
+  // la cifra de tiempo se pulsa y cambia de unidad (misma tarjeta que en insights)
+  const listening = createDurationUnit('minutes');
 
   let profile = $state<ProfileResponse | null>(null);
   let loading = $state(true);
@@ -130,10 +134,10 @@
       <div class="stat-value">{formatNumber(profile.summary.totalPlays)}</div>
       <div class="stat-label">Plays</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatDuration(profile.summary.totalMs)}</div>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+      <div class="stat-value">{listening.format(profile.summary.totalMs)}</div>
       <div class="stat-label">Listening time</div>
-    </div>
+    </button>
     <div class="card stat-card">
       <div class="stat-value">{formatNumber(profile.summary.distinctArtists)}</div>
       <div class="stat-label">Artists</div>

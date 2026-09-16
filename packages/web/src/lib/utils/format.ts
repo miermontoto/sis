@@ -30,7 +30,10 @@ export function formatHours(ms: number): string {
 }
 
 export type DurationUnit = 'hours' | 'minutes' | 'days' | 'weeks' | 'months' | 'years';
-export const DURATION_UNITS: DurationUnit[] = ['hours', 'minutes', 'days', 'weeks', 'months', 'years'];
+// escalera ascendente: la tarjeta que se pulsa va a la unidad siguiente, así que
+// el orden es el del ciclo. antes 'hours' abría la lista (era la unidad inicial
+// de insights) y desde 'minutes' el salto siguiente era 'days', saltándose horas
+export const DURATION_UNITS: DurationUnit[] = ['minutes', 'hours', 'days', 'weeks', 'months', 'years'];
 
 export function formatDurationAs(ms: number, unit: DurationUnit): string {
   switch (unit) {

@@ -8,7 +8,8 @@
   import EntityTypePicker from '$lib/components/EntityTypePicker.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import GenrePie from '$lib/components/charts/GenrePie.svelte';
-  import { formatHours, formatDurationAs, DURATION_UNITS, type DurationUnit, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
+  import { getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
+  import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -23,7 +24,10 @@
   let discovery = $state<DiscoveryItem[]>([]);
   let monthlyDist = $state<MonthlyDistributionItem[]>([]);
   let discoveryEntity = $state<'track' | 'album' | 'artist'>('track');
-  let listeningUnit = $state<DurationUnit>('hours');
+  // cada tarjeta de tiempo lleva su unidad: total y media diaria son órdenes de
+  // magnitud distintos y compartirla dejaría a una de las dos en 0.0
+  const listening = createDurationUnit('hours');
+  const dailyAvg = createDurationUnit('hours');
   let loading = $state(true);
   let discoveryLoading = $state(false);
   const fetchCtrl = createFetchController();
@@ -370,18 +374,18 @@
   </div>
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
-    <button type="button" class="card stat-card stat-card--clickable" onclick={() => { listeningUnit = DURATION_UNITS[(DURATION_UNITS.indexOf(listeningUnit) + 1) % DURATION_UNITS.length]; }}>
-      <div class="stat-value">{formatDurationAs(totalMs, listeningUnit)}</div>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+      <div class="stat-value">{listening.format(totalMs)}</div>
       <div class="stat-label">Total listening</div>
     </button>
     <div class="card stat-card">
       <div class="stat-value">{totalPlays}</div>
       <div class="stat-label">Total plays</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-value">{formatHours(avgDailyMs)}</div>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={dailyAvg.next}>
+      <div class="stat-value">{dailyAvg.format(avgDailyMs)}</div>
       <div class="stat-label">Daily average</div>
-    </div>
+    </button>
     {#if streaks}
       <div class="card stat-card">
         <div class="stat-value">{streaks.currentStreak}</div>
@@ -460,14 +464,6 @@
 {/if}
 
 <style>
-  .stat-card--clickable {
-    cursor: pointer;
-    user-select: none;
-    /* es un <button>: reset para conservar el look de .card/.stat-card */
-    font: inherit;
-    color: inherit;
-    width: 100%;
-  }
   .charts-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -13,6 +13,7 @@
   import MetricMeta from '$lib/components/MetricMeta.svelte';
   import GranularityPicker from '$lib/components/GranularityPicker.svelte';
   import GenrePie from '$lib/components/charts/GenrePie.svelte';
+  import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
@@ -29,6 +30,10 @@
   import RecentRankChanges from '$lib/components/RecentRankChanges.svelte';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
+
+  // una unidad por tarjeta: pulsar una cifra cambia esa cifra y nada más
+  const todayTime = createDurationUnit('hours');
+  const weekTime = createDurationUnit('hours');
 
   const DAY_MS = 86_400_000;
   // la tira enseña siete días; se piden catorce para tener la semana anterior
@@ -356,16 +361,28 @@
 
 <!-- una cifra de la rejilla de stats: valor, etiqueta y una línea de contexto
      (ayer, la semana anterior, el récord, el siguiente hito) -->
-{#snippet stat(loading: boolean, flashKey: string, valueText: string, label: string, sub: import('svelte').Snippet)}
-  <div class="card stat-card">
-    {#if loading}
-      <div class="stat-value"><span class="ghost-text ghost-stat"></span></div>
-    {:else}
-      <div class="stat-value" class:stat-flash={statFlashStore.isFlashing(flashKey)}>{valueText}</div>
-    {/if}
-    <div class="stat-label">{label}</div>
-    <div class="stat-sub">{#if !loading}{@render sub()}{/if}</div>
-  </div>
+{#snippet statBody(loading: boolean, flashKey: string, valueText: string, label: string, sub: import('svelte').Snippet)}
+  {#if loading}
+    <div class="stat-value"><span class="ghost-text ghost-stat"></span></div>
+  {:else}
+    <div class="stat-value" class:stat-flash={statFlashStore.isFlashing(flashKey)}>{valueText}</div>
+  {/if}
+  <div class="stat-label">{label}</div>
+  <div class="stat-sub">{#if !loading}{@render sub()}{/if}</div>
+{/snippet}
+
+<!-- con `cycle` la tarjeta es el botón que cambia la unidad de la cifra de
+     tiempo; las demás cifras no tienen unidad que cambiar y siguen siendo divs -->
+{#snippet stat(loading: boolean, flashKey: string, valueText: string, label: string, sub: import('svelte').Snippet, cycle?: () => void)}
+  {#if cycle}
+    <button type="button" class="card stat-card stat-card--clickable" onclick={cycle}>
+      {@render statBody(loading, flashKey, valueText, label, sub)}
+    </button>
+  {:else}
+    <div class="card stat-card">
+      {@render statBody(loading, flashKey, valueText, label, sub)}
+    </div>
+  {/if}
 {/snippet}
 
 <!-- despacha cada sección configurable del dashboard por su key (ver detail-layout.ts) -->
@@ -374,8 +391,8 @@
     <section class="detail-section">
       <div class="stats-grid dash-stats">
         {@render stat(loadingTime, FLASH_KEY_TIME, formatNumber(today?.plays ?? 0), 'plays today', subYesterdayPlays)}
-        {@render stat(loadingTime, FLASH_KEY_TIME, formatHours(today?.ms ?? 0), 'listened today', subYesterdayTime)}
-        {@render stat(loadingTime, FLASH_KEY_TIME, formatHours(weekMs), 'this week', subPrevWeek)}
+        {@render stat(loadingTime, FLASH_KEY_TIME, todayTime.format(today?.ms ?? 0), 'listened today', subYesterdayTime, todayTime.next)}
+        {@render stat(loadingTime, FLASH_KEY_TIME, weekTime.format(weekMs), 'this week', subPrevWeek, weekTime.next)}
         {@render stat(loadingStreaks, FLASH_KEY_TOTALS, `${streaks?.currentStreak ?? 0}d`, 'streak', subBestStreak)}
         {@render stat(loadingHealth, FLASH_KEY_TOTALS, formatNumber(health?.totalPlays ?? 0), 'total plays', subMilestone)}
       </div>
@@ -581,7 +598,7 @@
 {/snippet}
 
 {#snippet subYesterdayPlays()}{formatNumber(yesterday?.plays ?? 0)} yesterday{/snippet}
-{#snippet subYesterdayTime()}{formatHours(yesterday?.ms ?? 0)} yesterday{/snippet}
+{#snippet subYesterdayTime()}{todayTime.format(yesterday?.ms ?? 0)} yesterday{/snippet}
 {#snippet subPrevWeek()}<ReportDelta value={weekMs} previous={prevWeekMs} /> vs last week{/snippet}
 {#snippet subBestStreak()}best {streaks?.longestStreak ?? 0}d{/snippet}
 {#snippet subMilestone()}{formatNumber(milestone - (health?.totalPlays ?? 0))} to {formatNumber(milestone)}{/snippet}

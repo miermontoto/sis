@@ -8,6 +8,7 @@
   import { periodLabel } from '$lib/utils/periods';
   import { GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange, siblingPeriod, periodBuckets } from '$lib/utils/report-periods';
   import { formatNumber, formatHours, formatHistoryStamp, formatShortDateUTC, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
+  import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import { extractColor } from '$lib/utils/color';
   import { GRID, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, barSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
@@ -26,6 +27,9 @@
 
   // desfase local en minutos: solo mueve el reloj por horas; el resto del report va
   // en UTC, como los límites del periodo y los charts
+  // la cifra de tiempo se pulsa y cambia de unidad (misma tarjeta que en insights)
+  const listening = createDurationUnit('hours');
+
   const TZ_OFFSET_MINUTES = -new Date().getTimezoneOffset();
   const HOURS_PER_DAY = 24;
   const DAYS_PER_WEEK = 7;
@@ -215,10 +219,10 @@
         <div class="stat-value">{formatNumber(s.plays)}</div>
         <div class="stat-label">Plays <ReportDelta value={s.plays} previous={prev?.plays} /></div>
       </div>
-      <div class="card stat-card">
-        <div class="stat-value">{formatHours(s.totalMs)}</div>
+      <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+        <div class="stat-value">{listening.format(s.totalMs)}</div>
         <div class="stat-label">Listening time <ReportDelta value={s.totalMs} previous={prev?.totalMs} /></div>
-      </div>
+      </button>
       <div class="card stat-card">
         <div class="stat-value">{formatNumber(s.distinctArtists)}</div>
         <div class="stat-label">Artists <ReportDelta value={s.distinctArtists} previous={prev?.distinctArtists} /></div>

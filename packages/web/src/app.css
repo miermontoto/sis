@@ -668,6 +668,22 @@ a.stat-card--link:hover {
   border-color: var(--accent);
 }
 
+/* tarjeta de una cifra de tiempo: se pulsa y la cifra cambia de unidad
+   (`createDurationUnit`). es un <button>, así que hay que resetearlo para que
+   conserve el aspecto de .card/.stat-card */
+.stat-card--clickable {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.05s;
+}
+
+.stat-card--clickable:hover {
+  border-color: var(--accent);
+}
+
 /* listas de tracks */
 .track-list {
   display: flex;

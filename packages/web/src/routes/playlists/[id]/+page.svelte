@@ -5,11 +5,15 @@
   import { formatDuration, formatNumber } from '$lib/utils/format';
   import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, AXIS_LABEL, PIE_MAX_SLICES, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import GenrePie from '$lib/components/charts/GenrePie.svelte';
   import type { EChartsOption } from 'echarts';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
+
+  // la cifra de tiempo se pulsa y cambia de unidad (misma tarjeta que en insights)
+  const listening = createDurationUnit('minutes');
 
   let data = $state<LibraryPlaylistDetail | null>(null);
   let loading = $state(true);
@@ -114,10 +118,10 @@
       <div class="stat-value">{formatNumber(data.stats.totalPlays)}</div>
       <div class="stat-label">plays</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-value">{formatDuration(data.stats.totalMs)}</div>
+    <button type="button" class="stat-card stat-card--clickable" onclick={listening.next}>
+      <div class="stat-value">{listening.format(data.stats.totalMs)}</div>
       <div class="stat-label">listening time</div>
-    </div>
+    </button>
     <div class="stat-card">
       <div class="stat-value">{cov.tracksPlayed}/{cov.totalTracks}</div>
       <div class="stat-label">tracks played</div>

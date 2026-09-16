@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { formatDuration, formatNumber, formatSmartDate, isToday, localDateKey } from '$lib/utils/format';
+  import { formatNumber, formatSmartDate, isToday, localDateKey } from '$lib/utils/format';
+  import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
 
   let {
     stats,
@@ -10,6 +11,10 @@
     // ese play mueve. "First played" no es una de ellas
     flash?: boolean;
   } = $props();
+
+  // la cifra de tiempo se pulsa y cambia de unidad; 'minutes' es lo que pintaba
+  // `formatDuration`, así que de entrada se ve igual que antes
+  const listening = createDurationUnit('minutes');
 
   // partes alrededor de los ":" para poder animarlos como un reloj digital
   function timeParts(dateStr: string): string[] {
@@ -22,10 +27,10 @@
     <div class="stat-value" class:stat-flash={flash}>{formatNumber(stats.play_count)}</div>
     <div class="stat-label">Plays</div>
   </div>
-  <div class="card stat-card">
-    <div class="stat-value" class:stat-flash={flash}>{formatDuration(stats.total_ms)}</div>
+  <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+    <div class="stat-value" class:stat-flash={flash}>{listening.format(stats.total_ms)}</div>
     <div class="stat-label">Listening time</div>
-  </div>
+  </button>
   {#if stats.first_played}
     <a href="/history?date={localDateKey(stats.first_played)}&focus={encodeURIComponent(stats.first_played)}" class="card stat-card stat-card--link">
       <div class="stat-value">
