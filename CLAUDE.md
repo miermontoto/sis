@@ -137,6 +137,15 @@ El índice FTS se purga **en batch** (`pruneOrphanSearchIndex`), nunca por merge
 
 **Tracks on `local:` albums are excluded from identity entirely** (`identityCandidate` in identity.ts: no MB query, no merge). A local album is a user container (setlist, bootleg, compilation) whose tracks carry the studio title and the real artist, so identity evidence drains it into the studio tracks. It happened in Aug 2026: 23 tracks across 8 local albums (a festival recording went 20 → 9), restored from the weekly backup on 2026-09-03 with `isrc`/`mbid` set to `''` on purpose.
 
+### Qué álbumes son "del artista" (`artistCreditedAlbums`, helpers.ts)
+La lista de álbumes del detalle de artista y sus marcadores de release (`getArtistTopAlbums` / `getArtistReleases`) salen los dos de este helper: **el álbum tiene que acreditar al artista a nivel de álbum** (`albums.artist_ids`, en cualquier posición — un disco a dos nombres es de los dos, así que OASIS sale en la página de Bad Bunny y Watch The Throne en la de Kanye). El crédito a nivel de track **no vale**: bastaba un tema suyo para que se colara la recopilación entera (8 Mile y SHADYXV en Eminem, ED REC Vol.X en Justice, Black Panther en The Weeknd, y *Curtain Call* en la de JAŸ-Z porque lidera un bonus track).
+
+`artist_ids` tiene **tres** estados, no dos: un array real, `NULL` (sin enriquecer — 8386 álbumes con plays siguen así, `enrichAlbumMetadata` no los ha alcanzado) y `'[]'` (los sintéticos `local:`/`import:`, acuñados sin créditos). El test de "primario desconocido" es `json_extract(artist_ids,'$[0]') IS NULL`, que cubre los dos últimos de una vez; escrito como `artist_ids IS NULL` se dejaba fuera justo los mixtapes del usuario.
+
+Sin créditos conocidos sólo queda el artista de posición 0 de los temas, y se exige **mayoría** (`SUM(mine) * 2 > COUNT(*)`): un invitado liderando un corte es normal en un disco propio (*Detroit 2*, Big Sean en 20 de 21; *The Great Electronic Swindle*, 18 de 19), pero en una banda sonora nadie pasa de la mitad (*8 Mile*, Eminem en 3 de 13; *Southpaw*, 2 de 7). Con "nadie más lidera" se caían discos propios; sin umbral vuelve a colarse la banda sonora. Lo que la mayoría no puede distinguir es una recopilación de la que sólo se ingestó **un** tema, el suyo (*Next Friday*, *Soundbombing II*): sin más temas no hay evidencia, y se arregla solo cuando el enrichment rellena `artist_ids`. Excluir `album_type='compilation'` en el respaldo NO es la respuesta — tiraría *Master Of Puppets (Deluxe Box Set)*, *Best Of 50 Cent* y *The Very Best Of Supertramp 2*, que son de su artista.
+
+El arm de respaldo **ancla primero en el artista** (subquery por `idx_ta_artist_position`) y agrupa después. Agrupando de entrada todos los álbumes sin primario conocido son ~11k álbumes por página y cuesta 80ms en vez de 22ms — trabajo que ni siquiera depende del artista.
+
 ### Stats endpoints (`routes/stats.ts`)
 All top-* endpoints accept `?range=` (from `TIME_RANGES` in constants.ts), `?limit=`, and `?sort=time|plays`. The `sort` param controls SQL ORDER BY (sum of duration vs count). All return both `playCount` and `totalMs`.
 

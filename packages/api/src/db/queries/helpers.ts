@@ -309,3 +309,39 @@ export function albumIdIn(ids: string[], tableAlias = 't'): SqlChunk {
   const placeholders = sql.join(ids.map(id => sql`${id}`), sql`, `);
   return sql`${col} IN (${placeholders})`;
 }
+
+/** Álbumes que son DEL artista: los que lo acreditan a nivel de álbum (artist_ids de
+ *  spotify, en cualquier posición — un disco a dos nombres es de los dos). El crédito a
+ *  nivel de track no vale: basta un tema suyo en una recopilación o una banda sonora para
+ *  que el disco entero se colara en su página (8 Mile, SHADYXV, ED REC Vol.X, Black Panther).
+ *
+ *  Los álbumes sin créditos conocidos —artist_ids NULL (sin enriquecer todavía) o '[]' (los
+ *  sintéticos local:/import:, acuñados sin créditos)— caen a la única señal que queda, el
+ *  artista de posición 0 de sus temas, y se exige MAYORÍA: un invitado liderando un corte es
+ *  normal en un disco propio (Detroit 2, Big Sean en 20 de 21), pero en una recopilación nadie
+ *  pasa de la mitad (8 Mile, Eminem en 3 de 13). Sin el umbral vuelve a colarse la banda sonora;
+ *  con "nadie más lidera" se caen discos propios. `json_extract(...,'$[0]') IS NULL` cubre los
+ *  dos estados de "primario desconocido" de una vez.
+ *
+ *  El arm de respaldo ancla primero en el artista (subquery por idx_ta_artist_position) y sólo
+ *  después agrupa: agrupar de entrada todos los álbumes sin primario conocido son ~11k álbumes
+ *  por página de artista y cuesta 80ms en vez de 22ms. */
+export function artistCreditedAlbums(artistIds: string[]): SqlChunk {
+  const cmp = idCmp(artistIds);
+  return sql`(
+    SELECT a_cr.spotify_id FROM albums a_cr, json_each(a_cr.artist_ids) je_cr
+    WHERE je_cr.value ${cmp}
+    UNION
+    SELECT t_cr.album_id FROM tracks t_cr
+    JOIN track_artists ta_cr ON ta_cr.track_id = t_cr.spotify_id AND ta_cr.position = 0
+    WHERE t_cr.album_id IN (
+      SELECT t_s.album_id FROM track_artists ta_s
+      JOIN tracks t_s ON t_s.spotify_id = ta_s.track_id
+      JOIN albums a_s ON a_s.spotify_id = t_s.album_id
+      WHERE ta_s.artist_id ${cmp} AND ta_s.position = 0
+        AND json_extract(a_s.artist_ids, '$[0]') IS NULL
+    )
+    GROUP BY t_cr.album_id
+    HAVING SUM(CASE WHEN ta_cr.artist_id ${cmp} THEN 1 ELSE 0 END) * 2 > COUNT(*)
+  )`;
+}
