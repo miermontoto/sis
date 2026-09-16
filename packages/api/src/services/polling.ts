@@ -394,6 +394,15 @@ async function pollRecentlyPlayed(userId: number) {
     let inserted = 0;
     let discarded = 0;
     for (const item of data.items) {
+      // redirigir al gemelo canónico ANTES de correlacionar. pollCurrentlyPlaying ya
+      // llamó a resolveDuplicateTrackId, así que la medición está guardada bajo el id
+      // canónico; buscarla con el id crudo que devuelve recently-played (otra edición
+      // del mismo máster: "Take My Breath" vive en Dawn FM y en Dawn FM (Alternate
+      // World) con un id por shell) fallaba siempre y el play aterrizaba con
+      // duration_played_ms NULL. playDuration() cae entonces a t.duration_ms, así que
+      // una escucha parcial contaba como completa. La llamada es idempotente, de modo
+      // que la de upsertTrack más abajo no deshace nada
+      resolveDuplicateTrackId(item.track);
       const estimatedMs = getCompletedPlayDuration(userId, item.track.id);
       // solo se descarta con medición propia: sin correlacionar no sabemos cuánto
       // sonó y vale la regla de spotify (recently-played ya filtra por debajo de 30s)
