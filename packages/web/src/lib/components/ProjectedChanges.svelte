@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { formatDuration } from '$lib/utils/format';
+  import { marquee } from '$lib/utils/marquee';
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
@@ -67,30 +67,6 @@
     if (closeTimer) clearTimeout(closeTimer);
     closeTimer = setTimeout(() => { displacedHover = null; closeTimer = null; }, TOOLTIP_CLOSE_MS);
   }
-
-  let nameEls = new Map<string, HTMLElement>();
-  let overflowing = $state<Set<string>>(new Set());
-
-  function trackOverflow(el: HTMLElement, id: string) {
-    nameEls.set(id, el);
-    checkOverflows();
-    return { destroy() { nameEls.delete(id); } };
-  }
-
-  function checkOverflows() {
-    tick().then(() => {
-      const next = new Set<string>();
-      for (const [id, el] of nameEls) {
-        if (el.scrollWidth > el.clientWidth) next.add(id);
-      }
-      overflowing = next;
-    });
-  }
-
-  $effect(() => {
-    void data;
-    checkOverflows();
-  });
 </script>
 
 {#if data && data.sessionTrackCount > 0}
@@ -101,7 +77,12 @@
     </a>
     {#if displayMode !== 'none' && data.session.some(r => bestChange(filterChanges(r.changes)) !== null)}
       <div class="session-list">
-        {#each data.session as r}
+        <!-- keyado a propósito: la respuesta llega reordenada (artista → álbum → tema,
+             luego por puesto proyectado), así que sin clave svelte reaprovecha la fila
+             por índice y le reescribe el texto. El marquee del nombre heredaba entonces
+             la animación a medio recorrido de la fila anterior y el título entraba ya
+             desplazado, a veces fuera de vista -->
+        {#each data.session as r (`${r.entityType}:${r.entityId}`)}
           {@const best = bestChange(filterChanges(r.changes))}
           {#if best}
             <div class="session-row">
@@ -119,7 +100,7 @@
                 {:else}<IconAlbum size={12} />
                 {/if}
               </span>
-              <a href="/{r.entityType}/{r.entityId}" class="session-name" class:session-name--marquee={overflowing.has(r.entityId)} use:trackOverflow={r.entityId}><span class="session-name-text">{r.entityName}</span></a>
+              <a href="/{r.entityType}/{r.entityId}" class="session-name marquee-line" use:marquee={r.entityName}><span>{r.entityName}</span></a>
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <span class="session-change-wrap" onmouseenter={(e) => openDisplaced(e, r, best)} onmouseleave={scheduleClose}>
                 <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
@@ -272,34 +253,18 @@
     box-shadow: 0 0 0 1.5px var(--bg-card, #0f1214);
   }
 
+  /* el recorte, el difuminado y el vaivén los pone `.marquee-line` (app.css) con
+     `use:marquee`. `flex: 1` no es solo reparto: blockifica el <a>, y sin eso la
+     action mide clientWidth 0 y nunca detecta el desborde */
   .session-name {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
     text-decoration: none;
     color: inherit;
-    text-overflow: ellipsis;
   }
 
   .session-name:hover {
     color: var(--text-primary, #fff);
-  }
-
-  .session-name--marquee {
-    text-overflow: clip;
-    mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%);
-  }
-
-  .session-name--marquee .session-name-text {
-    display: inline-block;
-    padding-left: 100%;
-    animation: session-marquee 8s linear infinite;
-  }
-
-  @keyframes session-marquee {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-100%); }
   }
 
   .session-change-wrap {
