@@ -680,8 +680,14 @@ a.stat-card--link:hover {
   transition: border-color 0.05s;
 }
 
-.stat-card--clickable:hover {
+/* sin otra unidad que decir algo (una cifra que se queda en 0.0 en todas) el
+   botón va `disabled`: ni borde al pasar por encima ni cursor de mano */
+.stat-card--clickable:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.stat-card--clickable:disabled {
+  cursor: default;
 }
 
 /* listas de tracks */

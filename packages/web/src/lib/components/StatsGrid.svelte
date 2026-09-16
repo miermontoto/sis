@@ -27,7 +27,7 @@
     <div class="stat-value" class:stat-flash={flash}>{formatNumber(stats.play_count)}</div>
     <div class="stat-label">Plays</div>
   </div>
-  <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+  <button type="button" class="card stat-card stat-card--clickable" onclick={() => listening.next(stats.total_ms)} disabled={!listening.canCycle(stats.total_ms)}>
     <div class="stat-value" class:stat-flash={flash}>{listening.format(stats.total_ms)}</div>
     <div class="stat-label">Listening time</div>
   </button>

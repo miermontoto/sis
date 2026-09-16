@@ -15,6 +15,7 @@
   const listening = createDurationUnit('minutes');
 
   let profile = $state<ProfileResponse | null>(null);
+  let listenedMs = $derived(profile?.summary.totalMs ?? 0);
   let loading = $state(true);
   let notFound = $state(false);
   let range = $state<TimeRange>('month');
@@ -134,8 +135,8 @@
       <div class="stat-value">{formatNumber(profile.summary.totalPlays)}</div>
       <div class="stat-label">Plays</div>
     </div>
-    <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
-      <div class="stat-value">{listening.format(profile.summary.totalMs)}</div>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={() => listening.next(listenedMs)} disabled={!listening.canCycle(listenedMs)}>
+      <div class="stat-value">{listening.format(listenedMs)}</div>
       <div class="stat-label">Listening time</div>
     </button>
     <div class="card stat-card">

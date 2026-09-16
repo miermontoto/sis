@@ -35,15 +35,32 @@ export type DurationUnit = 'hours' | 'minutes' | 'days' | 'weeks' | 'months' | '
 // de insights) y desde 'minutes' el salto siguiente era 'days', saltándose horas
 export const DURATION_UNITS: DurationUnit[] = ['minutes', 'hours', 'days', 'weeks', 'months', 'years'];
 
+// ms, decimales y sufijo de cada unidad. la tabla la comparten el formato y
+// `durationRoundsToZero`, así que lo que se pinta y lo que el ciclo considera
+// cero no pueden desalinearse
+const DURATION_UNIT_SPEC: Record<DurationUnit, { ms: number; decimals: number; suffix: string }> = {
+  minutes: { ms: 60_000, decimals: 0, suffix: ' min' },
+  hours: { ms: 3_600_000, decimals: 1, suffix: 'h' },
+  days: { ms: 86_400_000, decimals: 1, suffix: 'd' },
+  weeks: { ms: 604_800_000, decimals: 1, suffix: 'w' },
+  months: { ms: 2_629_746_000, decimals: 1, suffix: 'mo' },
+  years: { ms: 31_556_952_000, decimals: 2, suffix: 'y' },
+};
+
 export function formatDurationAs(ms: number, unit: DurationUnit): string {
-  switch (unit) {
-    case 'minutes': return `${formatNumber(Math.round(ms / 60_000))} min`;
-    case 'hours': return `${(ms / 3_600_000).toFixed(1)}h`;
-    case 'days': return `${(ms / 86_400_000).toFixed(1)}d`;
-    case 'weeks': return `${(ms / 604_800_000).toFixed(1)}w`;
-    case 'months': return `${(ms / 2_629_746_000).toFixed(1)}mo`;
-    case 'years': return `${(ms / 31_556_952_000).toFixed(2)}y`;
-  }
+  const { ms: unitMs, decimals, suffix } = DURATION_UNIT_SPEC[unit];
+  const value = ms / unitMs;
+  // los minutos van como entero con separador de miles; el resto, decimales fijos
+  return decimals === 0
+    ? `${formatNumber(Math.round(value))}${suffix}`
+    : `${value.toFixed(decimals)}${suffix}`;
+}
+
+// ¿la cifra se queda en cero al redondearla a esta unidad? ("0.00y" en una media
+// diaria). una unidad así no dice nada, así que el ciclo de la tarjeta la salta
+export function durationRoundsToZero(ms: number, unit: DurationUnit): boolean {
+  const { ms: unitMs, decimals } = DURATION_UNIT_SPEC[unit];
+  return Number((ms / unitMs).toFixed(decimals)) === 0;
 }
 
 // formatear número con separador de miles

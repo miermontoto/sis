@@ -374,7 +374,7 @@
   </div>
 {:else}
   <div class="stats-grid" style="margin-bottom: 1.5rem;">
-    <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={() => listening.next(totalMs)} disabled={!listening.canCycle(totalMs)}>
       <div class="stat-value">{listening.format(totalMs)}</div>
       <div class="stat-label">Total listening</div>
     </button>
@@ -382,7 +382,7 @@
       <div class="stat-value">{totalPlays}</div>
       <div class="stat-label">Total plays</div>
     </div>
-    <button type="button" class="card stat-card stat-card--clickable" onclick={dailyAvg.next}>
+    <button type="button" class="card stat-card stat-card--clickable" onclick={() => dailyAvg.next(avgDailyMs)} disabled={!dailyAvg.canCycle(avgDailyMs)}>
       <div class="stat-value">{dailyAvg.format(avgDailyMs)}</div>
       <div class="stat-label">Daily average</div>
     </button>

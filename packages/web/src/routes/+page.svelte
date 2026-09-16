@@ -391,8 +391,8 @@
     <section class="detail-section">
       <div class="stats-grid dash-stats">
         {@render stat(loadingTime, FLASH_KEY_TIME, formatNumber(today?.plays ?? 0), 'plays today', subYesterdayPlays)}
-        {@render stat(loadingTime, FLASH_KEY_TIME, todayTime.format(today?.ms ?? 0), 'listened today', subYesterdayTime, todayTime.next)}
-        {@render stat(loadingTime, FLASH_KEY_TIME, weekTime.format(weekMs), 'this week', subPrevWeek, weekTime.next)}
+        {@render stat(loadingTime, FLASH_KEY_TIME, todayTime.format(today?.ms ?? 0), 'listened today', subYesterdayTime, todayTime.canCycle(today?.ms ?? 0) ? () => todayTime.next(today?.ms ?? 0) : undefined)}
+        {@render stat(loadingTime, FLASH_KEY_TIME, weekTime.format(weekMs), 'this week', subPrevWeek, weekTime.canCycle(weekMs) ? () => weekTime.next(weekMs) : undefined)}
         {@render stat(loadingStreaks, FLASH_KEY_TOTALS, `${streaks?.currentStreak ?? 0}d`, 'streak', subBestStreak)}
         {@render stat(loadingHealth, FLASH_KEY_TOTALS, formatNumber(health?.totalPlays ?? 0), 'total plays', subMilestone)}
       </div>

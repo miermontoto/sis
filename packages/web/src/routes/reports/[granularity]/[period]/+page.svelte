@@ -219,7 +219,7 @@
         <div class="stat-value">{formatNumber(s.plays)}</div>
         <div class="stat-label">Plays <ReportDelta value={s.plays} previous={prev?.plays} /></div>
       </div>
-      <button type="button" class="card stat-card stat-card--clickable" onclick={listening.next}>
+      <button type="button" class="card stat-card stat-card--clickable" onclick={() => listening.next(s.totalMs)} disabled={!listening.canCycle(s.totalMs)}>
         <div class="stat-value">{listening.format(s.totalMs)}</div>
         <div class="stat-label">Listening time <ReportDelta value={s.totalMs} previous={prev?.totalMs} /></div>
       </button>

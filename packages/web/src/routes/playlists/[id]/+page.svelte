@@ -16,6 +16,7 @@
   const listening = createDurationUnit('minutes');
 
   let data = $state<LibraryPlaylistDetail | null>(null);
+  let listenedMs = $derived(data?.stats.totalMs ?? 0);
   let loading = $state(true);
   let metric = $state<RankingMetric>('time');
   let playActing = $state(false);
@@ -118,8 +119,8 @@
       <div class="stat-value">{formatNumber(data.stats.totalPlays)}</div>
       <div class="stat-label">plays</div>
     </div>
-    <button type="button" class="stat-card stat-card--clickable" onclick={listening.next}>
-      <div class="stat-value">{listening.format(data.stats.totalMs)}</div>
+    <button type="button" class="stat-card stat-card--clickable" onclick={() => listening.next(listenedMs)} disabled={!listening.canCycle(listenedMs)}>
+      <div class="stat-value">{listening.format(listenedMs)}</div>
       <div class="stat-label">listening time</div>
     </button>
     <div class="stat-card">
