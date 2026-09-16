@@ -310,38 +310,50 @@ export function albumIdIn(ids: string[], tableAlias = 't'): SqlChunk {
   return sql`${col} IN (${placeholders})`;
 }
 
-/** Álbumes que son DEL artista: los que lo acreditan a nivel de álbum (artist_ids de
- *  spotify, en cualquier posición — un disco a dos nombres es de los dos). El crédito a
- *  nivel de track no vale: basta un tema suyo en una recopilación o una banda sonora para
- *  que el disco entero se colara en su página (8 Mile, SHADYXV, ED REC Vol.X, Black Panther).
+/** Álbumes que son DEL artista, por tres vías que se unen:
  *
- *  Los álbumes sin créditos conocidos —artist_ids NULL (sin enriquecer todavía) o '[]' (los
- *  sintéticos local:/import:, acuñados sin créditos)— caen a la única señal que queda, el
- *  artista de posición 0 de sus temas, y se exige MAYORÍA: un invitado liderando un corte es
- *  normal en un disco propio (Detroit 2, Big Sean en 20 de 21), pero en una recopilación nadie
- *  pasa de la mitad (8 Mile, Eminem en 3 de 13). Sin el umbral vuelve a colarse la banda sonora;
- *  con "nadie más lidera" se caen discos propios. `json_extract(...,'$[0]') IS NULL` cubre los
- *  dos estados de "primario desconocido" de una vez.
+ *  1. **Crédito a nivel de álbum** (`albums.artist_ids`, en cualquier posición): un disco a
+ *     dos nombres es de los dos, así que OASIS sale en la página de Bad Bunny y Watch The
+ *     Throne en la de Kanye. El crédito a nivel de track NO vale por sí solo: bastaba un tema
+ *     suyo para que se colara la recopilación entera (8 Mile, SHADYXV, ED REC Vol.X, Black
+ *     Panther, y Curtain Call en la de JAŸ-Z porque lidera un bonus track).
+ *  2. **Primario desconocido + mayoría de lo ingestado.** `artist_ids` tiene tres estados: un
+ *     array real, `NULL` (sin enriquecer) y `'[]'` (los sintéticos local:/import:, acuñados sin
+ *     créditos); `json_extract(...,'$[0]') IS NULL` cubre los dos últimos de una vez —escrito
+ *     como `artist_ids IS NULL` se dejaba fuera justo los mixtapes del usuario—. Sin créditos
+ *     sólo queda el artista de posición 0, y se exige mayoría: un invitado liderando un corte es
+ *     normal en un disco propio (Detroit 2, Big Sean en 20 de 21), pero en una banda sonora
+ *     nadie pasa de la mitad (8 Mile, Eminem en 3 de 13).
+ *  3. **Créditos conocidos que NO lo nombran, pero lidera la mayoría de los temas PUBLICADOS.**
+ *     Spotify acredita el álbum a otra entidad y aun así el artista firma casi todo el disco:
+ *     los dos álbumes de Token (12 de 17 y 15 de 17, 2631 plays), los de Kavinsky, las OST de
+ *     juegos (Masakazu Sugimori, 24 de 34). Aquí se contradice el dato de Spotify, así que la
+ *     prueba es más dura que en (2): la mayoría se mide contra `total_tracks` —los temas que
+ *     el disco publicó—, no contra los ingestados. Con los ingestados, un único tema nuestro
+ *     de un recopilatorio da un "1 de 1" que pasa como mayoría y vuelven a colarse el DJ mix
+ *     (Kitsuné Boombox), la banda sonora (The Harder They Fall) y el disco de tributo.
  *
- *  El arm de respaldo ancla primero en el artista (subquery por idx_ta_artist_position) y sólo
- *  después agrupa: agrupar de entrada todos los álbumes sin primario conocido son ~11k álbumes
- *  por página de artista y cuesta 80ms en vez de 22ms. */
+ *  El arm de respaldo ancla primero en el artista (subquery por `idx_ta_artist_position`) y
+ *  agrupa después: agrupar de entrada todos los álbumes candidatos son ~11k por página de
+ *  artista y cuesta 80ms en vez de 22ms, trabajo que ni depende del artista. */
 export function artistCreditedAlbums(artistIds: string[]): SqlChunk {
   const cmp = idCmp(artistIds);
+  // conjunto motor común a (2) y (3): álbumes donde el artista lidera algún tema
+  const ledAlbums = sql`
+    SELECT t_s.album_id FROM track_artists ta_s
+    JOIN tracks t_s ON t_s.spotify_id = ta_s.track_id
+    WHERE ta_s.artist_id ${cmp} AND ta_s.position = 0 AND t_s.album_id IS NOT NULL`;
   return sql`(
     SELECT a_cr.spotify_id FROM albums a_cr, json_each(a_cr.artist_ids) je_cr
     WHERE je_cr.value ${cmp}
     UNION
     SELECT t_cr.album_id FROM tracks t_cr
     JOIN track_artists ta_cr ON ta_cr.track_id = t_cr.spotify_id AND ta_cr.position = 0
-    WHERE t_cr.album_id IN (
-      SELECT t_s.album_id FROM track_artists ta_s
-      JOIN tracks t_s ON t_s.spotify_id = ta_s.track_id
-      JOIN albums a_s ON a_s.spotify_id = t_s.album_id
-      WHERE ta_s.artist_id ${cmp} AND ta_s.position = 0
-        AND json_extract(a_s.artist_ids, '$[0]') IS NULL
-    )
+    JOIN albums a_nc ON a_nc.spotify_id = t_cr.album_id
+    WHERE t_cr.album_id IN (${ledAlbums})
     GROUP BY t_cr.album_id
-    HAVING SUM(CASE WHEN ta_cr.artist_id ${cmp} THEN 1 ELSE 0 END) * 2 > COUNT(*)
+    HAVING SUM(CASE WHEN ta_cr.artist_id ${cmp} THEN 1 ELSE 0 END) * 2 >
+      CASE WHEN MAX(json_extract(a_nc.artist_ids, '$[0]')) IS NULL THEN COUNT(*)
+           ELSE COALESCE(MAX(a_nc.total_tracks), COUNT(*)) END
   )`;
 }

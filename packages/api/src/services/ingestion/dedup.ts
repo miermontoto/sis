@@ -509,12 +509,28 @@ const playBaseName = (s: string) =>
 // cruzan por track_id idéntico, y por eso sobrevivían a todos los barridos.
 //
 // Borrar por parecido de nombre sería la operación más destructiva del proyecto (ver
-// deduplicateTracks), así que el nombre NO decide: sólo acota. Quien decide es el reloj.
-// Una fila sin duración medida, si fuese una escucha real, ocuparía [marca - duración del
-// track, marca]; si ese intervalo pisa PLAY_OVERLAP_PROOF_S segundos el de un play MEDIDO,
-// las dos no pudieron sonar a la vez y la que sobra es la que no trae medición. Esa prueba
-// no mira títulos. El gemelo por nombre se exige ADEMÁS, para no tocar filas cuyo solape
-// venga de otra cosa (un scrobble de otro aparato, un import solapado).
+// deduplicateTracks), así que el nombre NO decide: sólo acota. Quien decide es el reloj,
+// por dos vías independientes, y basta con una:
+//
+//   1. MISMO INSTANTE. Dos filas del mismo tema a menos de 2s no pueden ser escuchas
+//      distintas: no se arrancan dos reproducciones a la vez. No depende de ninguna
+//      interpretación de la marca de tiempo, así que es la prueba más fuerte que hay.
+//   2. SOLAPE. La fila sin medición, si fuese real, ocuparía su ventana; si ésta pisa
+//      PLAY_OVERLAP_PROOF_S segundos la de un play MEDIDO, las dos no pudieron sonar a la vez.
+//
+// Ojo con la ventana: `played_at` NO significa lo mismo en todas las fuentes. Medido sobre
+// el historial (pares consecutivos con duración en los dos), las filas `spotify` y las del
+// import antiguo (source NULL) marcan el FIN —183.339 pares contra 1.314—, pero las
+// etiquetadas `source='import'` marcan el INICIO —85 contra 6—. Asumir el fin para todas
+// invalidaba la prueba en 24 filas del barrido de 2026-09-16 (que se sostenían igual por la
+// vía 1). `playWindow` es quien lo resuelve: no vuelvas a asumir una única semántica.
+// ventana [inicio, fin] que ocupó un play. `source='import'` marca el INICIO; el resto
+// (spotify y el import antiguo, source NULL) marca el FIN. Medido, no supuesto: ver el
+// comentario de cleanCrossTrackDuplicates.
+function playWindow(ts: number, durationS: number, source: string | null): [number, number] {
+  return source === 'import' ? [ts, ts + durationS] : [ts - durationS, ts];
+}
+
 export function cleanCrossTrackDuplicates() {
   const db = getDb();
 
@@ -528,10 +544,10 @@ export function cleanCrossTrackDuplicates() {
   }
 
   const rows = db.all(sql`
-    SELECT id, user_id, track_id, played_at, duration_played_ms,
+    SELECT id, user_id, track_id, played_at, duration_played_ms, source,
            CAST(strftime('%s', played_at) AS INTEGER) AS ts
     FROM listening_history ORDER BY user_id, played_at
-  `) as { id: number; user_id: number; track_id: string; played_at: string; duration_played_ms: number | null; ts: number }[];
+  `) as { id: number; user_id: number; track_id: string; played_at: string; duration_played_ms: number | null; source: string | null; ts: number }[];
 
   // ventana de vecinos: los plays van ordenados por tiempo, así que basta mirar hacia los
   // lados hasta salirse del radio. Sin este corte sería un self-join O(n²) sobre 370k filas
@@ -541,27 +557,29 @@ export function cleanCrossTrackDuplicates() {
     if (a.duration_played_ms !== null) continue;
     const am = trackMeta.get(a.track_id);
     if (!am || !am.artist || am.durMs <= 0) continue;
-    const aStart = a.ts - am.durMs / 1000;
+    const aWin = playWindow(a.ts, am.durMs / 1000, a.source);
 
-    let impossible = false, twin = false;
-    for (let dir = -1; dir <= 1 && !(impossible && twin); dir += 2) {
+    let overlapped = false, twinInstant = false, twinOffset = false;
+    for (let dir = -1; dir <= 1; dir += 2) {
       for (let j = i + dir; j >= 0 && j < rows.length; j += dir) {
         const b = rows[j];
         if (b.user_id !== a.user_id || Math.abs(b.ts - a.ts) > CROSS_TRACK_TWIN_RADIUS_S) break;
         if (b.duration_played_ms === null || b.id === a.id) continue;
-        if (Math.min(a.ts, b.ts) - Math.max(aStart, b.ts - b.duration_played_ms / 1000) >= PLAY_OVERLAP_PROOF_S) impossible = true;
-        if (!twin && b.track_id !== a.track_id) {
+        const bWin = playWindow(b.ts, b.duration_played_ms / 1000, b.source);
+        if (Math.min(aWin[1], bWin[1]) - Math.max(aWin[0], bWin[0]) >= PLAY_OVERLAP_PROOF_S) overlapped = true;
+        if (b.track_id !== a.track_id) {
           const bm = trackMeta.get(b.track_id);
           if (bm && bm.artist === am.artist && bm.base === am.base) {
-            // mismo instante, o la fila Basic justo una duración del gemelo por delante
-            if (Math.abs(b.ts - a.ts) <= 2) twin = true;
-            else if (b.ts > a.ts && Math.abs((b.ts - a.ts) - b.duration_played_ms / 1000) <= 3) twin = true;
+            if (Math.abs(b.ts - a.ts) <= 2) twinInstant = true;
+            // la fila Basic justo una duración del gemelo por delante
+            else if (b.ts > a.ts && Math.abs((b.ts - a.ts) - b.duration_played_ms / 1000) <= 3) twinOffset = true;
           }
         }
-        if (impossible && twin) break;
+        if (twinInstant && overlapped) break;
       }
+      if (twinInstant && overlapped) break;
     }
-    if (impossible && twin) doomed.push(a.id);
+    if (twinInstant || (twinOffset && overlapped)) doomed.push(a.id);
   }
 
   if (doomed.length === 0) return;
