@@ -3,8 +3,9 @@
   import { onMount } from 'svelte';
   import { api, type LibraryPlaylistDetail, type RankingMetric, getRankingMetric } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, PIE_TOOLTIP, PIE_COLORS, AXIS_LABEL, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, AXIS_LABEL, PIE_MAX_SLICES, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import GenrePie from '$lib/components/charts/GenrePie.svelte';
   import type { EChartsOption } from 'echarts';
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
@@ -54,23 +55,6 @@
     };
   });
 
-  let genreChart = $derived.by<EChartsOption>(() => {
-    if (!data?.genres.length) return {};
-    return {
-      tooltip: { ...PIE_TOOLTIP, formatter: '{b}: {c} plays ({d}%)' },
-      series: [{
-        type: 'pie',
-        radius: ['40%', '70%'],
-        data: data.genres.slice(0, 10).map((g, i) => ({
-          name: g.genre,
-          value: g.play_count,
-          itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] },
-        })),
-        label: { ...AXIS_LABEL },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },
-      }],
-    };
-  });
 </script>
 
 {#if loading && !data}
@@ -163,7 +147,7 @@
   {#if data.genres.length > 0}
     <div class="card">
       <h2>Genres</h2>
-      <BaseChart option={genreChart} height="300px" />
+      <GenrePie genres={data.genres.slice(0, PIE_MAX_SLICES)} unit="plays" height="300px" />
     </div>
   {/if}
 

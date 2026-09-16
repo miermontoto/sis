@@ -7,8 +7,9 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import EntityTypePicker from '$lib/components/EntityTypePicker.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
+  import GenrePie from '$lib/components/charts/GenrePie.svelte';
   import { formatHours, formatDurationAs, DURATION_UNITS, type DurationUnit, getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
-  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, PIE_TOOLTIP, PIE_COLORS, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -310,16 +311,6 @@
     ],
   });
 
-  let pieOption = $derived<EChartsOption>({
-    tooltip: { ...PIE_TOOLTIP },
-    series: [{
-      type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 2, borderColor: '#0f1214', borderWidth: 2 },
-      label: { ...AXIS_LABEL },
-      data: genres.map((g, i) => ({ name: g.genre, value: g.play_count, itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] } })),
-    }],
-  });
-
 </script>
 
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
@@ -410,7 +401,7 @@
       {#if genres.length > 0}
         <div class="card chart-half">
           <h3 style="margin-bottom: 0.5rem;">Genre distribution</h3>
-          <BaseChart option={pieOption} height="220px" />
+          <GenrePie {genres} height="220px" />
         </div>
       {/if}
     </div>

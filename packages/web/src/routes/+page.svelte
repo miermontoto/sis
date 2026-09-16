@@ -12,7 +12,7 @@
   import RankChange from '$lib/components/RankChange.svelte';
   import MetricMeta from '$lib/components/MetricMeta.svelte';
   import GranularityPicker from '$lib/components/GranularityPicker.svelte';
-  import ReportBars from '$lib/components/reports/ReportBars.svelte';
+  import GenrePie from '$lib/components/charts/GenrePie.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
@@ -43,6 +43,8 @@
   const LAST_YEAR_TYPE_KEY = 'sis:lastYearEntity';
   // granularidad del bloque de latest reports (semana por defecto), preferencia de vista
   const REPORT_GRANULARITY_KEY = 'sis:latestReportGranularity';
+  // alto de la dona de géneros en el rail: la dona arriba y la leyenda debajo
+  const GENRE_PIE_HEIGHT = '240px';
 
   // los buckets diarios de /listening-time son UTC: las claves se calculan igual
   const utcDayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -550,11 +552,9 @@
         <div class="card">
           <h3 class="section-title"><a href="/insights" class="section-link">Top genres this week</a></h3>
           {#if loadingGenres}
-            {#each Array(4) as _}
-              <div class="ghost-line ghost-line--bar"></div>
-            {/each}
+            <div class="ghost-line ghost-line--chart"></div>
           {:else}
-            <ReportBars items={genres.map(g => ({ key: g.genre, label: g.genre, value: g.play_count, valueLabel: `${formatNumber(g.play_count)} plays` }))} />
+            <GenrePie {genres} unit="plays" compact height={GENRE_PIE_HEIGHT} />
           {/if}
         </div>
       </section>
@@ -816,9 +816,8 @@
     height: 0.75rem;
     margin-left: auto;
   }
-  .ghost-line--bar {
-    height: 1.4rem;
-    margin-bottom: 0.5rem;
+  .ghost-line--chart {
+    height: 15rem;
   }
   .week-ghost {
     height: 7.5rem;

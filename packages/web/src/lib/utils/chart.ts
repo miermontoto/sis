@@ -472,3 +472,6 @@ export function trendSeries(line: number[], overrides?: Record<string, any>) {
 export const PIE_TOOLTIP = { trigger: 'item' as const, formatter: '{b}: {c} ({d}%)' };
 
 export const PIE_COLORS = ['#1db954', '#1ed760', '#2ecc71', '#27ae60', '#16a085', '#1abc9c', '#3498db', '#2980b9', '#9b59b6', '#8e44ad'] as const;
+
+// más porciones que colores y dos del mismo tono compiten en la misma dona
+export const PIE_MAX_SLICES = PIE_COLORS.length;
