@@ -1,6 +1,5 @@
 import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
 import { mergeModal } from '$lib/stores/merge-modal.svelte';
-import { relateModal } from '$lib/stores/relate-modal.svelte';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
 import IconLink from '$lib/icons/IconLink.svelte';
@@ -66,27 +65,20 @@ export function entityContextActions(entity: EntityContext, { relations = true }
     }
   }
   // UNA sola entrada para merges y relaciones: son la misma sección del detalle, y dos
-  // entradas seguidas eran dos nombres para el mismo concepto. Un álbum o un tema no se
-  // "relaciona" (eso es cosa de artistas), así que ahí la puerta es la de merges.
+  // entradas seguidas eran dos nombres para el mismo concepto. Abre el modal de merges,
+  // que en artistas trae pestaña hacia el de relaciones (ver ModalTabs); un álbum o un
+  // tema no se "relaciona", así que ahí es la única cara.
   if (relations) {
-    actions.push(entity.type === 'artist'
-      ? {
-        label: 'Relations',
-        icon: IconLink,
-        onClick: () => relateModal.open({
-          target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
-        }),
-      }
-      : {
-        label: 'Relations',
-        icon: IconLink,
-        disabled: !entity.parentArtistId,
-        onClick: () => mergeModal.open({
-          entityType: entity.type,
-          target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
-          parentId: entity.parentArtistId,
-        }),
-      });
+    actions.push({
+      label: 'Relations',
+      icon: IconLink,
+      disabled: entity.type !== 'artist' && !entity.parentArtistId,
+      onClick: () => mergeModal.open({
+        entityType: entity.type,
+        target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
+        parentId: entity.parentArtistId,
+      }),
+    });
   }
   return actions;
 }

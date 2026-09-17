@@ -790,6 +790,9 @@
       existingMerges={mergeModal.target.existingMerges}
       initialStep={mergeModal.target.initialStep}
       onMerged={() => { mergeModal.refresh(); mergeModal.notifyChange(); }}
+      onRelate={mergeModal.target.entityType === 'artist'
+        ? () => { const t = mergeModal.target!.target; mergeModal.close(); relateModal.open({ target: t }); }
+        : undefined}
     />
   {/if}
   {#if relateModal.target}
@@ -798,6 +801,7 @@
       target={relateModal.target.target}
       existing={relateModal.target.existing}
       onChanged={() => { relateModal.refresh(); relateModal.notifyChange(); }}
+      onMerge={() => { const t = relateModal.target!.target; relateModal.close(); mergeModal.open({ entityType: 'artist', target: t }); }}
     />
   {/if}
 {/if}

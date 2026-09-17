@@ -4,17 +4,22 @@
   // ←→ The Strokes) sin tocar el tracking. Para absorber un artista dentro de otro
   // ("Ye" en "Kanye West") el sitio es MergeEntityModal: eso es un merge.
   import { api, type MergeSuggestion, type RelatedArtist } from '$lib/api';
+  import ModalTabs from '$lib/components/ModalTabs.svelte';
+  import { RELATION_TABS } from '$lib/utils/relation-tabs';
 
   let {
     show = $bindable(false),
     target,
     existing = [],
     onChanged = () => {},
+    onMerge,
   }: {
     show: boolean;
     target: { id: string; name: string; imageUrl: string | null };
     existing?: RelatedArtist[];
     onChanged?: () => void;
+    /** salta al modal de merges con el mismo target; ver onRelate en MergeEntityModal */
+    onMerge?: () => void;
   } = $props();
 
   // tope de filas pintadas: el pool son todos los artistas con escuchas y sin él la
@@ -108,9 +113,12 @@
   <div class="relate-overlay" onmousedown={(e) => { if (e.target === e.currentTarget) close(); }}>
     <div class="relate-modal">
       <div class="relate-header">
-        <h3>Related artists</h3>
+        <h3>{onMerge ? 'Relations' : 'Related artists'}</h3>
         <button class="relate-close" onclick={close}>&times;</button>
       </div>
+      {#if onMerge}
+        <ModalTabs tabs={RELATION_TABS} active="relate" onselect={() => onMerge()} />
+      {/if}
 
       <div class="relate-target">
         {#if target.imageUrl}

@@ -2,6 +2,8 @@
   import { errorMessage } from '$lib/utils/errors';
   import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair, type RemergeConfidence } from '$lib/api';
   import MergeImpactBar from '$lib/components/MergeImpactBar.svelte';
+  import ModalTabs from '$lib/components/ModalTabs.svelte';
+  import { RELATION_TABS } from '$lib/utils/relation-tabs';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -13,6 +15,7 @@
     existingMerges = [],
     initialStep,
     onMerged = () => {},
+    onRelate,
   }: {
     show: boolean;
     entityType: EntityType;
@@ -21,6 +24,10 @@
     existingMerges?: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
     initialStep?: 'select' | 'remerge';
     onMerged?: () => void;
+    /** salta al modal de relaciones soft con el mismo target. Dado, la cabecera crece
+     *  una tira de pestañas y los dos modales se leen como uno (sólo artistas: un
+     *  álbum o un tema no se "relaciona"). */
+    onRelate?: () => void;
   } = $props();
 
   const LABELS: Record<EntityType, { title: string; canonical: string; placeholder: string; verb: string; empty: string; noSuggested: string; round: boolean }> = {
@@ -350,9 +357,12 @@
   <div class="merge-overlay" onmousedown={(e) => { if (e.target === e.currentTarget) close(); }}>
     <div class="merge-modal" class:merge-modal--wide={step === 'tracks' || step === 'remerge'}>
       <div class="merge-header">
-        <h3>{step === 'tracks' ? 'Match tracks' : step === 'remerge' ? 'Auto-merge tracks' : labels.title}</h3>
+        <h3>{step === 'tracks' ? 'Match tracks' : step === 'remerge' ? 'Auto-merge tracks' : onRelate ? 'Relations' : labels.title}</h3>
         <button class="merge-close" onclick={close}>&times;</button>
       </div>
+      {#if onRelate && step === 'select'}
+        <ModalTabs tabs={RELATION_TABS} active="merge" onselect={() => onRelate()} />
+      {/if}
 
       {#if step === 'select'}
         <!-- STEP 1: seleccionar source(s) -->

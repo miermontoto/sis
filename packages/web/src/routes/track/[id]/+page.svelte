@@ -483,7 +483,7 @@
             { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${trackId}`, '_blank') },
           ] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
-          { label: 'Manage merges', icon: IconMerge, onClick: () => { showMergeModal = true; } },
+          { label: 'Relations', icon: IconMerge, onClick: () => { showMergeModal = true; } },
         ]}
       />
     </div>

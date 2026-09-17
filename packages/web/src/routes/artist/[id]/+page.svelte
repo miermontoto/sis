@@ -395,10 +395,10 @@
           actions={[
             ...(isSpotifyId(artistId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${artistId}`, '_blank') }] : []),
             ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.artist?.name ?? 'Artist', publicHref()) }] : []),
-            { label: hasMultipleImages ? 'Change picture' : 'Upload picture', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
-            { label: 'Change background', icon: IconImage, onClick: () => { pickerMode = 'background'; showImagePicker = true; } },
-            { label: 'Manage merges', icon: IconMerge, onClick: () => { showArtistMergeModal = true; } },
-            { label: 'Related artists', icon: IconLink, onClick: () => { showRelateModal = true; } },
+            // una entrada por modal, no por pestaña: el picker ya trae foto/fondo y el
+            // de merges la pestaña de relaciones (ver ModalTabs)
+            { label: 'Picture & background', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
+            { label: 'Relations', icon: IconLink, onClick: () => { showArtistMergeModal = true; } },
             { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
           ]}
         />
@@ -586,12 +586,14 @@
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
     existingMerges={mergedFrom}
     onMerged={() => loadData(artistId)}
+    onRelate={() => { showArtistMergeModal = false; showRelateModal = true; }}
   />
   <RelateArtistModal
     bind:show={showRelateModal}
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
     existing={relatedArtists}
     onChanged={() => loadData(artistId)}
+    onMerge={() => { showRelateModal = false; showArtistMergeModal = true; }}
   />
   <ConcertModal
     bind:show={showConcertModal}

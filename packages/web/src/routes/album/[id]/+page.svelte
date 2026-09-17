@@ -413,10 +413,10 @@
         actions={[
           ...(isSpotifyId(albumId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') }] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
-          { label: hasMultipleCovers ? 'Change cover' : 'Upload cover', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
-          { label: 'Change color', icon: IconPalette, onClick: () => { pickerMode = 'color'; showCoverPicker = true; } },
-          { label: 'Manage merges', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
-          { label: 'Auto-merge tracks', icon: IconMerge, onClick: () => { mergeInitialStep = 'remerge'; showMergeModal = true; } },
+          // una entrada por modal, no por pestaña ni por paso: el picker ya trae
+          // portada/color y el modal de merges su botón de auto-merge
+          { label: 'Cover & color', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
+          { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
         ]}
       />
     </div>
