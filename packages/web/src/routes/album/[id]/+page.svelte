@@ -16,7 +16,8 @@
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
-  import MergeBanners from '$lib/components/MergeBanners.svelte';
+  import EntityRelations from '$lib/components/EntityRelations.svelte';
+  import AliasBadge from '$lib/components/AliasBadge.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
@@ -41,6 +42,13 @@
   const albumId = $derived($page.params.id ?? '');
 
   let data = $state<AlbumDetail | null>(null);
+
+  // merges en la misma lista que las relaciones del artista (ver shared/relations.ts):
+  // lo que sigue hablando de merges se deriva de ahí por `kind`
+  let mergedInto = $derived(data?.relations.find(r => r.kind === 'alias') ?? null);
+  let mergedFrom = $derived((data?.relations ?? [])
+    .filter(r => r.kind === 'absorbed')
+    .map(r => ({ id: r.id, ruleId: r.ruleIds[0], name: r.name, imageUrl: r.imageUrl })));
   let loading = $state(true);
   // color extraído de la portada activa: es el valor por defecto del tinte y el "auto"
   // del picker de color, así que se calcula aunque haya un pick manual
@@ -249,13 +257,13 @@
         <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(albumId)} />
       </section>
     {:else if key === 'rankingBadges'}
-      {#if !d.mergedInto}
+      {#if !mergedInto}
         <section class="detail-section">
           <RankingBadges entityType="album" entityId={albumId} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
-      {#if !d.mergedInto}
+      {#if !mergedInto}
         <section class="detail-section">
           <ChartStats entityType="album" entityId={albumId} bind:chartData={chartHistoryData} bind:highlightedMonth />
         </section>
@@ -322,6 +330,20 @@
           </div>
         </section>
       {/if}
+    {:else if key === 'relations'}
+      {#if d.relations.length > 0}
+        <section class="detail-section">
+          <EntityRelations
+            entityType="album"
+            entity={{ id: d.album.id, name: d.album.name, imageUrl: d.album.imageUrl }}
+            relations={d.relations}
+            {metric}
+            parentArtistId={d.artists[0]?.id}
+            onManageMerges={() => { mergeInitialStep = undefined; showMergeModal = true; }}
+            onChanged={() => loadData(albumId)}
+          />
+        </section>
+      {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
         <section class="detail-section">
@@ -350,7 +372,7 @@
         onPreviewColor={(c) => { colorPreview = c; }}
       />
       <div class="detail-header-info">
-        <h1>{data.album.name}{#if albumId === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+        <h1>{data.album.name}{#if albumId === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="album" target={mergedInto} />{/if}</h1>
         <p class="detail-subtitle">
           {#each data.artists as artist, i}
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
@@ -383,7 +405,7 @@
           <IconPlay />
         </button>
       {/if}
-      {#if !data.mergedInto}
+      {#if !mergedInto}
         <Accolades entityType="album" entityId={albumId} />
       {/if}
       <EntityActionsMenu
@@ -400,7 +422,6 @@
     </div>
   </div>
 
-  <MergeBanners entityType="album" entityId={d.album.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData(albumId)} />
   {#each layout.main as key (key)}
     {@render sec(key)}
   {/each}
@@ -421,7 +442,7 @@
     entityType="album"
     target={{ id: data.album.id, name: data.album.name, imageUrl: data.album.imageUrl }}
     parentId={data.artists[0]?.id ?? ''}
-    existingMerges={data.mergedFrom}
+    existingMerges={mergedFrom}
     initialStep={mergeInitialStep}
     onMerged={() => { mergeInitialStep = undefined; loadData(albumId); }}
   />

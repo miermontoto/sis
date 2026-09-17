@@ -17,7 +17,8 @@
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
-  import MergeBanners from '$lib/components/MergeBanners.svelte';
+  import EntityRelations from '$lib/components/EntityRelations.svelte';
+  import AliasBadge from '$lib/components/AliasBadge.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
@@ -41,6 +42,13 @@
   const trackId = $derived($page.params.id ?? '');
 
   let data = $state<TrackDetail | null>(null);
+
+  // merges en la misma lista que las relaciones del artista (ver shared/relations.ts):
+  // lo que sigue hablando de merges se deriva de ahí por `kind`
+  let mergedInto = $derived(data?.relations.find(r => r.kind === 'alias') ?? null);
+  let mergedFrom = $derived((data?.relations ?? [])
+    .filter(r => r.kind === 'absorbed')
+    .map(r => ({ id: r.id, ruleId: r.ruleIds[0], name: r.name, imageUrl: r.imageUrl })));
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let loading = $state(true);
   let heroColor = $state('');
@@ -244,13 +252,13 @@
         <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(trackId)} />
       </section>
     {:else if key === 'rankingBadges'}
-      {#if !d.mergedInto}
+      {#if !mergedInto}
         <section class="detail-section">
           <RankingBadges entityType="track" entityId={trackId} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
-      {#if !d.mergedInto}
+      {#if !mergedInto}
         <section class="detail-section">
           <ChartStats entityType="track" entityId={trackId} bind:chartData={chartHistoryData} bind:highlightedMonth />
         </section>
@@ -327,6 +335,20 @@
           </div>
         </section>
       {/if}
+    {:else if key === 'relations'}
+      {#if d.relations.length > 0}
+        <section class="detail-section">
+          <EntityRelations
+            entityType="track"
+            entity={{ id: d.track.id, name: d.track.name, imageUrl: d.track.album?.imageUrl ?? null }}
+            relations={d.relations}
+            {metric}
+            parentArtistId={d.track.artists[0]?.id}
+            onManageMerges={() => { showMergeModal = true; }}
+            onChanged={() => loadData(trackId)}
+          />
+        </section>
+      {/if}
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
         <section class="detail-section">
@@ -352,7 +374,7 @@
         <div class="detail-image detail-image--placeholder"></div>
       {/if}
       <div class="detail-header-info">
-        <h1>{data.track.name}{#if trackId === nowPlayingStore.trackId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+        <h1>{data.track.name}{#if trackId === nowPlayingStore.trackId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="track" target={mergedInto} />{/if}</h1>
         <p class="detail-subtitle">
           {#each data.track.artists as artist, i}
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
@@ -450,7 +472,7 @@
       <Accolades
         entityType="track"
         entityId={trackId}
-        showRecords={!data.mergedInto}
+        showRecords={!mergedInto}
         concerts={data.liveConcerts ?? []}
       />
       <EntityActionsMenu
@@ -467,7 +489,6 @@
     </div>
   </div>
 
-  <MergeBanners entityType="track" entityId={d.track.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData(trackId)} />
   {#each layout.main as key (key)}
     {@render sec(key)}
   {/each}
@@ -488,7 +509,7 @@
     entityType="track"
     target={{ id: data.track.id, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null }}
     parentId={data.track.artists[0]?.id ?? ''}
-    existingMerges={data.mergedFrom}
+    existingMerges={mergedFrom}
     onMerged={() => loadData(trackId)}
   />
 {/if}

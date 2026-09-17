@@ -28,8 +28,9 @@ describe('resolveLayout', () => {
     const stored = { main: ['activity', 'stats'], rail: ['recentPlays', 'historyByYear'], hidden: ['tracks'] };
     const resolved = resolveLayout('album', stored);
     expect(resolved.main).toEqual(['activity', 'stats', 'rankingBadges', 'chartStats']);
-    // 'singles' no está en lo guardado → se añade al final de su columna por defecto
-    expect(resolved.rail).toEqual(['recentPlays', 'historyByYear', 'singles']);
+    // 'singles' y 'relations' no están en lo guardado → se añaden al final de su
+    // columna por defecto, en el orden del registro
+    expect(resolved.rail).toEqual(['recentPlays', 'historyByYear', 'singles', 'relations']);
     expect(resolved.hidden).toEqual(['tracks']);
   });
 

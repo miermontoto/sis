@@ -2,7 +2,7 @@ import type { TopTrackItem, TopAlbumItem } from './top.js';
 import type { HistoryItem } from './history.js';
 import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
-import type { RelatedArtist } from './relations.js';
+import type { EntityRelation } from './relations.js';
 import type { Concert, ConcertRef } from './concerts.js';
 
 export interface Rankings {
@@ -39,10 +39,10 @@ export interface ArtistDetail {
   topTracks: TopTrackItem[];
   topAlbums: TopAlbumItem[];
   recentPlays: HistoryItem[];
-  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
-  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
-  // vínculos declarados que no alteran el tracking (ver relations.ts)
-  relatedArtists: RelatedArtist[];
+  // merges (hard) + vínculos declarados (soft) en una sola lista: los pinta la misma
+  // sección, y separarlos hacía que una página renderizara unos y se olvidara de otros.
+  // mergedInto/mergedFrom se derivan de aquí por `kind` (ver relations.ts)
+  relations: EntityRelation[];
   // conciertos del usuario para este artista (resueltos sobre el grupo de merge);
   // doblan como marcadores de las gráficas junto a los releases
   concerts?: Concert[];
@@ -79,8 +79,9 @@ export interface AlbumDetail {
   recentPlays: HistoryItem[];
   // singles del mismo artista ligados al álbum (adelantos): marcadores de las gráficas + sección propia
   relatedSingles: AlbumSingle[];
-  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
-  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
+  // merges de esta entidad, en la misma lista que las relaciones del artista (ver
+  // relations.ts). Un álbum o un tema no tiene relaciones soft: aquí sólo hay hard.
+  relations: EntityRelation[];
   covers?: AlbumCover[];
   // valoración del usuario (null = sin valorar); se resuelve sobre el grupo de merge entero
   rating?: AlbumRating | null;
@@ -97,8 +98,9 @@ export interface TrackDetail {
   dailySeries: { day: string; play_count: number; total_ms: number }[];
   albumBreakdown: { albumId: string; playCount: number; totalMs: number; album: { id: string; name: string; imageUrl: string | null; releaseDate: string | null; albumType?: string | null } }[];
   recentPlays: HistoryItem[];
-  mergedFrom: { id: string; ruleId: number; name: string; imageUrl: string | null }[];
-  mergedInto: { id: string; ruleId: number; name: string; imageUrl: string | null } | null;
+  // merges de esta entidad, en la misma lista que las relaciones del artista (ver
+  // relations.ts). Un álbum o un tema no tiene relaciones soft: aquí sólo hay hard.
+  relations: EntityRelation[];
   playlists: PlaylistPresenceItem[];
   // conciertos asistidos en cuyo setlist figura este tema: "lo escuchaste en
   // directo". Vacío no es lo mismo que no haber ido — puede que el setlist no

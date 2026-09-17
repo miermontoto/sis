@@ -3,22 +3,43 @@ import { ensureFullAlbumTracks } from '../../services/ingestion.js';
 import { isSyntheticId } from '../../services/ids.js';
 import { hydrateConcerts } from '../../services/concerts.js';
 import { getRangeStart } from '../../db/queries/index.js';
-import type { MergeInfo } from '../../db/queries/index.js';
-import type { EntityCard } from '@sis/shared';
+import type { MergeInfo, RelatedArtistRow, EntityType } from '../../db/queries/index.js';
+import type { EntityCard, EntityRelation } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS, SERIES_BATCH_LIMIT } from '../../constants.js';
 import { statsRouter, parseParams } from './_shared.js';
 
 const detail = statsRouter();
 
-// Formatea MergeInfo del worker al shape que consumen las páginas detail.
-function formatMerge(info: MergeInfo) {
-  return {
-    mergedFrom: info.mergedFrom.map(r => ({ id: r.source_id, ruleId: r.rule_id, name: r.name, imageUrl: r.image_url })),
-    mergedInto: info.mergedInto
-      ? { id: info.mergedInto.target_id, ruleId: info.mergedInto.rule_id, name: info.mergedInto.name, imageUrl: info.mergedInto.image_url }
-      : null,
-  };
+// Merges (hard) + relaciones soft del artista en una sola lista, con las escuchas de
+// cada punta. Las pinta la misma sección del detalle, así que se resuelven juntas: una
+// query de stats para todas las filas en vez de una por fila.
+async function buildRelations(
+  type: EntityType,
+  info: MergeInfo,
+  userId: number,
+  related: RelatedArtistRow[] = [],
+): Promise<EntityRelation[]> {
+  // el orden es el de la sección: primero dónde vive esta página, luego lo que absorbe,
+  // luego lo declarado a mano
+  const links = [
+    ...(info.mergedInto
+      ? [{ kind: 'alias' as const, id: info.mergedInto.target_id, name: info.mergedInto.name, imageUrl: info.mergedInto.image_url, ruleIds: [info.mergedInto.rule_id] }]
+      : []),
+    ...info.mergedFrom.map(r => ({ kind: 'absorbed' as const, id: r.source_id, name: r.name, imageUrl: r.image_url, ruleIds: [r.rule_id] })),
+    // ruleIds viene como group_concat: una misma relación puede resolver a este artista
+    // por varias filas (aliases mergeados a posteriori) y deshacerla las borra todas
+    ...related.map(r => ({ kind: 'related' as const, id: r.artist_id, name: r.name, imageUrl: r.image_url, ruleIds: String(r.rule_ids).split(',').map(Number) })),
+  ];
+  if (links.length === 0) return [];
+
+  const stats = await dbRead('getRelationStats', type, links.map(l => l.id), userId);
+  const byId = new Map(stats.map(row => [row.entity_id, row]));
+  return links.map(l => ({
+    ...l,
+    playCount: byId.get(l.id)?.play_count ?? 0,
+    totalMs: byId.get(l.id)?.total_ms ?? 0,
+  }));
 }
 
 detail.get('/artist/:id', async (c) => {
@@ -51,11 +72,12 @@ detail.get('/artist/:id', async (c) => {
     dbRead('getConcerts', userId, artistIds),
   ]);
 
-  const [topTracks, topAlbums, recentPlays, concerts] = await Promise.all([
+  const [topTracks, topAlbums, recentPlays, concerts, relations] = await Promise.all([
     dbRead('formatArtistTrackRows', topTracksRaw),
     Promise.all(topAlbumsRaw.map((row) => dbRead('formatArtistAlbumRow', row))),
     dbRead('formatRecentPlays', recentRaw),
     hydrateConcerts(userId, concertRows),
+    buildRelations('artist', mergeInfo, userId, relatedRaw),
   ]);
 
   return c.json({
@@ -67,15 +89,7 @@ detail.get('/artist/:id', async (c) => {
     topTracks,
     topAlbums,
     recentPlays,
-    ...formatMerge(mergeInfo),
-    // relaciones soft: ruleIds viene como group_concat porque una misma relación puede
-    // resolver a este artista por varias filas (aliases mergeados a posteriori)
-    relatedArtists: relatedRaw.map((r) => ({
-      id: r.artist_id,
-      ruleIds: String(r.rule_ids).split(',').map(Number),
-      name: r.name,
-      imageUrl: r.image_url,
-    })),
+    relations,
     playlists,
     concerts,
   });
@@ -143,9 +157,10 @@ detail.get('/album/:id', async (c) => {
 
   // artistas reales por track (incluye secundarios/featured) — el álbum comparte cover pero cada track
   // tiene sus propios artistas; enrichTracksBatch los devuelve ordenados por position (0 = principal)
-  const [recentPlays, trackArtistMap] = await Promise.all([
+  const [recentPlays, trackArtistMap, relations] = await Promise.all([
     dbRead('formatRecentPlays', recentRaw),
     dbRead('enrichTracksBatch', albumTracks.map((r) => r.track_id)),
+    buildRelations('album', mergeInfo, userId),
   ]);
 
   // fallback a los artistas del álbum si un track no tiene artistas propios (data quality)
@@ -182,7 +197,7 @@ detail.get('/album/:id', async (c) => {
       playCount: r.play_count, totalMs: r.total_ms,
     })),
     recentPlays,
-    ...formatMerge(mergeInfo),
+    relations,
     playlists,
     covers: coversRaw.map((r) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
     rating: ratingRow ? { rating: ratingRow.rating, review: ratingRow.review, updatedAt: ratingRow.updated_at } : null,
@@ -214,7 +229,7 @@ detail.get('/track/:id', async (c) => {
     dbRead('getTrackLiveConcerts', userId, trackIds),
   ]);
 
-  const [recentPlays, albumBreakdowns] = await Promise.all([
+  const [recentPlays, albumBreakdowns, relations] = await Promise.all([
     dbRead('formatRecentPlays', recentRaw),
     Promise.all(albumBreakdownRaw.map((row) => dbRead('lookupAlbum', row.album_id).then(ab => ({
       albumId: row.album_id,
@@ -222,6 +237,7 @@ detail.get('/track/:id', async (c) => {
       totalMs: row.total_ms,
       album: ab ? { id: row.album_id, ...ab } : null,
     })))),
+    buildRelations('track', mergeInfo, userId),
   ]);
 
   return c.json({
@@ -236,7 +252,7 @@ detail.get('/track/:id', async (c) => {
     dailySeries: series.map((s) => ({ day: s.period, play_count: s.play_count, total_ms: s.total_ms })),
     albumBreakdown: albumBreakdowns.filter((r) => r.album),
     recentPlays,
-    ...formatMerge(mergeInfo),
+    relations,
     playlists,
     versions,
     liveConcerts: liveConcertRows.map((r) => ({

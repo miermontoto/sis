@@ -25,7 +25,7 @@ export type {
   RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
   Accolade, AccoladesResponse,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeMatch, AlbumMergeTrack, AlbumMergeResult, MergeImpact, MergeImpactItem, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MakeCanonicalResult, BatchMergeResult,
-  RelatedArtist, ArtistRelationRule,
+  RelatedArtist, ArtistRelationRule, EntityRelation, RelationKind,
   ProjectedRankingsResponse, ProjectionResult, RankProjection,
   RecentRankChange, RecentRankChangeItem, RecentRankChangesResponse,
   ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedItem, StreaksSummary, CompareResponse,

@@ -59,7 +59,7 @@ export type { PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistL
 export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 
 // relaciones soft entre artistas
-export type { RelatedArtist, ArtistRelationRule } from './relations.js';
+export type { RelatedArtist, ArtistRelationRule, EntityRelation, RelationKind } from './relations.js';
 
 // proyecciones de ranking
 export type { RankProjection, ProjectionResult, ProjectedRankingsResponse, RecentRankChange, RecentRankChangeItem, RecentRankChangesResponse } from './projections.js';

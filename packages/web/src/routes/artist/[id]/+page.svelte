@@ -18,8 +18,8 @@
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
   import RankingChart, { type RankingChartItem, type RankingChartMode } from '$lib/components/charts/RankingChart.svelte';
-  import MergeBanners from '$lib/components/MergeBanners.svelte';
-  import RelatedArtists from '$lib/components/RelatedArtists.svelte';
+  import EntityRelations from '$lib/components/EntityRelations.svelte';
+  import AliasBadge from '$lib/components/AliasBadge.svelte';
   import ConcertList from '$lib/components/ConcertList.svelte';
   import ConcertModal from '$lib/components/ConcertModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
@@ -67,6 +67,15 @@
   const artistId = $derived($page.params.id ?? '');
 
   let data = $state<ArtistDetail | null>(null);
+
+  // merges y relaciones soft viajan en una sola lista (ver shared/relations.ts); los
+  // consumidores que siguen hablando de merges se derivan de ahí por `kind`
+  let mergedInto = $derived(data?.relations.find(r => r.kind === 'alias') ?? null);
+  let mergedFrom = $derived((data?.relations ?? [])
+    .filter(r => r.kind === 'absorbed')
+    .map(r => ({ id: r.id, ruleId: r.ruleIds[0], name: r.name, imageUrl: r.imageUrl })));
+  let relatedArtists = $derived((data?.relations ?? []).filter(r => r.kind === 'related'));
+
   let loading = $state(true);
   let heroColor = $state('');
   let highlightedMonth = $state('');
@@ -355,7 +364,7 @@
           onUploadBackground={handleBackgroundUpload}
         />
         <div class="detail-header-info">
-          <h1>{d.artist.name}{#if nowPlayingStore.artistIds.includes(artistId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}</h1>
+          <h1>{d.artist.name}{#if nowPlayingStore.artistIds.includes(artistId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="artist" target={mergedInto} />{/if}</h1>
         </div>
       </div>
       <div class="hero-actions">
@@ -376,7 +385,7 @@
         <Accolades
           entityType="artist"
           entityId={artistId}
-          showRecords={!d.mergedInto}
+          showRecords={!mergedInto}
           concerts={(d.concerts ?? []).map(c => ({
             id: c.id, artistId: c.artistId, artistName: c.artistName, date: c.date, venue: c.venue, city: c.city,
           }))}
@@ -419,13 +428,13 @@
         <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(artistId)} />
       </section>
     {:else if key === 'rankingBadges'}
-      {#if !d.mergedInto}
+      {#if !mergedInto}
         <section class="detail-section">
           <RankingBadges entityType="artist" entityId={artistId} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
-      {#if !d.mergedInto}
+      {#if !mergedInto}
         <section class="detail-section">
           <ChartStats entityType="artist" entityId={artistId} bind:chartData={chartHistoryData} bind:highlightedMonth />
         </section>
@@ -532,9 +541,17 @@
         </section>
       {/if}
     {:else if key === 'relations'}
-      {#if d.relatedArtists.length > 0}
+      {#if d.relations.length > 0}
         <section class="detail-section">
-          <RelatedArtists artists={d.relatedArtists} onManage={() => { showRelateModal = true; }} />
+          <EntityRelations
+            entityType="artist"
+            entity={{ id: d.artist.id, name: d.artist.name, imageUrl: d.artist.imageUrl }}
+            relations={d.relations}
+            {metric}
+            onManageMerges={() => { showArtistMergeModal = true; }}
+            onManageRelated={() => { showRelateModal = true; }}
+            onChanged={() => loadData(artistId)}
+          />
         </section>
       {/if}
     {:else if key === 'recentPlays'}
@@ -549,7 +566,6 @@
   <div class="detail-body">
     <div class="detail-main">
       {@render heroRow()}
-      <MergeBanners entityType="artist" entityId={d.artist.id} mergedInto={d.mergedInto} mergedFrom={d.mergedFrom} onUnmerge={() => loadData(artistId)} />
       {#each layout.main as key (key)}
         {@render sec(key)}
       {/each}
@@ -568,13 +584,13 @@
     bind:show={showArtistMergeModal}
     entityType="artist"
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
-    existingMerges={data.mergedFrom}
+    existingMerges={mergedFrom}
     onMerged={() => loadData(artistId)}
   />
   <RelateArtistModal
     bind:show={showRelateModal}
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
-    existing={data.relatedArtists}
+    existing={relatedArtists}
     onChanged={() => loadData(artistId)}
   />
   <ConcertModal

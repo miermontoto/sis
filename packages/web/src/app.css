@@ -1278,6 +1278,10 @@ a.track-item {
   margin-left: 0.5rem;
 }
 
+.detail-header-info h1 > .alias-badge {
+  margin-left: 0.5rem;
+}
+
 .detail-subtitle {
   color: var(--text-muted);
   margin-top: 0.25rem;
@@ -1699,6 +1703,40 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
 .live-badge .live-dot {
   width: 5px;
   height: 5px;
+}
+
+/* "esta página es un alias": misma geometría que el badge de live, pero neutro —
+   es un hecho sobre la página, no una alarma, así que no estrena color propio */
+.alias-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: middle;
+  position: relative;
+  top: -0.2em;
+  transition: color 0.05s, border-color 0.05s;
+}
+.alias-badge:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* la etiqueta dice la relación; el nombre va tal cual, que mayusculizarlo
+   destroza cómo se escribe un artista */
+.alias-badge-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
 }
 
 @keyframes live-pulse {

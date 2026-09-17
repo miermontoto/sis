@@ -23,9 +23,10 @@ export interface DetailLayout {
   hidden: string[];
 }
 
-// orden y columna por defecto de cada sección, por tipo de vista. el hero y
-// los merge banners son estructurales (no configurables) y no aparecen aquí;
-// en el dashboard, tampoco el aviso de charts cerrados (es descartable).
+// orden y columna por defecto de cada sección, por tipo de vista. el hero es
+// estructural (no configurable) y no aparece aquí; en el dashboard, tampoco el
+// aviso de charts cerrados (es descartable). Los merges ya no son un banner
+// aparte: viven en la sección 'relations', que por eso existe en los tres detalles.
 export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
   artist: [
     { key: 'stats', label: 'Stats', column: 'main' },
@@ -36,7 +37,7 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'topAlbums', label: 'Top albums', column: 'main' },
     { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'concerts', label: 'Concerts', column: 'rail' },
-    { key: 'relations', label: 'Related artists', column: 'rail' },
+    { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
   album: [
@@ -47,6 +48,7 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'tracks', label: 'Tracks', column: 'main' },
     { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'singles', label: 'Singles', column: 'rail' },
+    { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
   track: [
@@ -57,6 +59,7 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'activity', label: 'Listening history', column: 'main' },
     { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'versions', label: 'Versions', column: 'rail' },
+    { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
   dashboard: [
