@@ -253,7 +253,7 @@
     box-shadow: 0 0 0 1.5px var(--bg-card, #0f1214);
   }
 
-  /* el recorte, el difuminado y el vaivén los pone `.marquee-line` (app.css) con
+  /* el recorte, el difuminado y el marquee los pone `.marquee-line` (app.css) con
      `use:marquee`. `flex: 1` no es solo reparto: blockifica el <a>, y sin eso la
      action mide clientWidth 0 y nunca detecta el desborde */
   .session-name {
