@@ -62,7 +62,7 @@ detail.get('/artist/:id', async (c) => {
     dbRead('getArtistTopAlbums', id, rangeStart, sort, albumLimit, rangeEnd, userId, artistIds),
     dbRead('getRecentPlays', 'artist', id, 10, artistIds, userId),
     dbRead('getArtistPlaylistPresence', id, userId),
-    dbRead('getEntityMergeInfo', 'artist', id),
+    dbRead('getEntityMergeInfo', 'artist', id, userId),
     dbRead('getArtistReleases', id, artistIds),
     dbRead('getArtistRelations', id, userId),
     dbRead('getArtistImages', id),
@@ -139,7 +139,7 @@ detail.get('/album/:id', async (c) => {
     dbRead('getAlbumTracks', id, rangeStart, sort, albumIds, rangeEnd, userId),
     dbRead('getRecentPlays', 'album', id, 10, albumIds, userId),
     dbRead('getAlbumPlaylistPresence', id, userId),
-    dbRead('getEntityMergeInfo', 'album', id),
+    dbRead('getEntityMergeInfo', 'album', id, userId),
     dbRead('getAlbumCovers', id),
     dbRead('getAlbumRating', albumIds, userId),
     // los "singles de adelanto" son un concepto de álbum: un single no los tiene.
@@ -223,7 +223,7 @@ detail.get('/track/:id', async (c) => {
     dbRead('getRecentPlays', 'track', id, 10, trackIds, userId),
     dbRead('getTrackAlbumBreakdown', id, rangeStart, rangeEnd, userId, trackIds),
     dbRead('getTrackPlaylistPresence', id, userId),
-    dbRead('getEntityMergeInfo', 'track', id),
+    dbRead('getEntityMergeInfo', 'track', id, userId),
     dbRead('getTrackVersions', id, userId),
     // conciertos donde este tema sonó: alimenta el badge de "escuchado en directo"
     dbRead('getTrackLiveConcerts', userId, trackIds),

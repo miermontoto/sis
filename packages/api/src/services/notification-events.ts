@@ -362,7 +362,7 @@ function emitReleaseAnniversaries(db: Db, userId: number, locale: NotifyLocale, 
 
   const rows = db.all(sql`
     WITH album_plays AS (
-      SELECT ${entityGroupCol('album', userId)} as eid, count(*) as plays
+      SELECT ${entityGroupCol('album')} as eid, count(*) as plays
       FROM listening_history lh
       ${resolvedPlayJoins('album', userId)}
       WHERE 1=1 ${uf} ${albumNullFilter('album')}
@@ -409,7 +409,7 @@ function emitFirstListenAnniversaries(db: Db, userId: number, locale: NotifyLoca
 
   const rows = db.all(sql`
     WITH plays_dedup AS (
-      SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at
+      SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at
       FROM listening_history lh
       JOIN track_artists ta ON ta.track_id = lh.track_id
       ${entityMergeJoin('artist', userId)}
@@ -462,7 +462,7 @@ function emitMilestones(db: Db, userId: number, locale: NotifyLocale, cutoff: st
     if (entityType === 'artist') {
       rows = db.all(sql`
         WITH plays_dedup AS (
-          SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at
+          SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at
           FROM listening_history lh
           JOIN track_artists ta ON ta.track_id = lh.track_id
           ${entityMergeJoin('artist', userId)}
@@ -477,7 +477,7 @@ function emitMilestones(db: Db, userId: number, locale: NotifyLocale, cutoff: st
     } else {
       // alias 'eid' (no 'id'): un alias 'id' sería ambiguo con lh.id en el GROUP BY
       rows = db.all(sql`
-        SELECT ${entityGroupCol(entityType, userId)} as eid, count(*) as playsNow,
+        SELECT ${entityGroupCol(entityType)} as eid, count(*) as playsNow,
                sum(CASE WHEN lh.played_at < ${cutoff} THEN 1 ELSE 0 END) as playsBefore
         FROM listening_history lh
         ${resolvedPlayJoins(entityType, userId)}

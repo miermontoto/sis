@@ -24,7 +24,7 @@ export type Ent = 'track' | 'album' | 'artist';
 export function entityCtx(entity: Ent, userId: number) {
   if (entity === 'track') {
     return {
-      eidExpr: resolvedEntityId('track', userId),
+      eidExpr: resolvedEntityId('track'),
       extraJoins: entityMergeJoin('track', userId),
       filter: sql``,
       finalJoin: sql`
@@ -39,7 +39,7 @@ export function entityCtx(entity: Ent, userId: number) {
   }
   if (entity === 'album') {
     return {
-      eidExpr: resolvedEntityId('album', userId),
+      eidExpr: resolvedEntityId('album'),
       extraJoins: resolvedPlayJoins('album', userId),
       filter: sql`AND t.album_id IS NOT NULL`,
       finalJoin: sql`JOIN albums al ON al.spotify_id = eid`,
@@ -51,7 +51,7 @@ export function entityCtx(entity: Ent, userId: number) {
   }
   // artist
   return {
-    eidExpr: resolvedEntityId('artist', userId),
+    eidExpr: resolvedEntityId('artist'),
     extraJoins: sql`JOIN track_artists ta ON ta.track_id = lh.track_id ${entityMergeJoin('artist', userId)}`,
     filter: sql``,
     finalJoin: sql`JOIN artists a ON a.spotify_id = eid`,

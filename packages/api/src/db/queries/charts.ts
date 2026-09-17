@@ -39,7 +39,7 @@ export function getRawRanking(db: Db, entityType: EntityType, granularity: Granu
     return db.all(sql`
       SELECT entity_id, count(*) as plays, sum(duration_ms) as total_ms
       FROM (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms, ${pExpr} as p
+        SELECT DISTINCT ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms, ${pExpr} as p
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -53,7 +53,7 @@ export function getRawRanking(db: Db, entityType: EntityType, granularity: Granu
   }
 
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
-  const groupCol = resolvedEntityId(entityType, userId);
+  const groupCol = resolvedEntityId(entityType);
 
   return db.all(sql`
     SELECT ${groupCol} as entity_id, count(*) as plays, sum(${playDuration()}) as total_ms
@@ -77,7 +77,7 @@ export function getChartFirstPeriods(db: Db, entityType: EntityType, granularity
 
   const rows = entityType === 'artist'
     ? db.all(sql`
-      SELECT ${resolvedEntityId('artist', userId)} as entity_id, min(${pExpr}) as first_period
+      SELECT ${resolvedEntityId('artist')} as entity_id, min(${pExpr}) as first_period
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -86,7 +86,7 @@ export function getChartFirstPeriods(db: Db, entityType: EntityType, granularity
       GROUP BY entity_id
     `) as { entity_id: string; first_period: string }[]
     : db.all(sql`
-      SELECT ${resolvedEntityId(entityType, userId)} as entity_id, min(${pExpr}) as first_period
+      SELECT ${resolvedEntityId(entityType)} as entity_id, min(${pExpr}) as first_period
       FROM listening_history lh
       ${resolvedPlayJoins(entityType, userId)}
       WHERE 1=1 ${userFilter(userId)}
@@ -124,7 +124,7 @@ export function getChartRankSlice(db: Db, entityType: EntityType, granularity: G
         SELECT period, entity_id,
                ROW_NUMBER() OVER (PARTITION BY period ORDER BY ${metricDedup} DESC) as rank
         FROM (
-          SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms
+          SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms
           FROM listening_history lh
           JOIN tracks t ON t.spotify_id = lh.track_id
           JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -140,7 +140,7 @@ export function getChartRankSlice(db: Db, entityType: EntityType, granularity: G
     const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
     ranked = db.all(sql`
       SELECT period, entity_id, rank FROM (
-        SELECT ${pExpr} as period, ${resolvedEntityId(entityType, userId)} as entity_id,
+        SELECT ${pExpr} as period, ${resolvedEntityId(entityType)} as entity_id,
                ROW_NUMBER() OVER (PARTITION BY ${pExpr} ORDER BY ${metric} DESC) as rank
         FROM listening_history lh
         ${resolvedPlayJoins(entityType, userId)}
@@ -341,7 +341,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     myData = db.all(sql`
       SELECT period, ${metricDedup} as val
       FROM (
-        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as entity_id, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
+        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -361,7 +361,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     allScores = db.all(sql`
       SELECT period, eid, ${metricDedup} as val
       FROM (
-        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, ${playDuration()} as duration_ms
+        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as eid, lh.id as play_id, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -376,12 +376,12 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
     let joinClause: ReturnType<typeof sql>;
     let entityFilter: ReturnType<typeof sql>;
     if (entityType === 'track') {
-      groupCol = resolvedEntityId('track', userId);
+      groupCol = resolvedEntityId('track');
       joinClause = entityMergeJoin('track', userId);
       entityFilter = sql`AND COALESCE(mr_track.target_id, lh.track_id) = ${entityId}`;
     } else {
       // album
-      groupCol = resolvedEntityId('album', userId);
+      groupCol = resolvedEntityId('album');
       joinClause = entityMergeJoin('album', userId);
       entityFilter = sql`AND COALESCE(mr_album.target_id, t.album_id) = ${entityId}`;
     }

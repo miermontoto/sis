@@ -19,7 +19,7 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
 
     const result = db.all(sql`
       WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
+        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -61,7 +61,7 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
   }
 
   // album ó track: resolvedPlayJoins maneja toda la cadena de merges
-  const groupCol = entityGroupCol(entityType, userId);
+  const groupCol = entityGroupCol(entityType);
   const valExpr = sort === 'plays' ? sql`1` : playDuration();
 
   const result = db.all(sql`
@@ -110,7 +110,7 @@ export function computeRankingsBatch(db: Db, entityType: 'track' | 'album', enti
   if (entityIds.length === 0) return {};
 
   const uf = userFilter(userId);
-  const groupCol = entityGroupCol(entityType, userId);
+  const groupCol = entityGroupCol(entityType);
   const valExpr = sort === 'plays' ? sql`1` : playDuration();
   const idList = sql.join(entityIds.map(id => sql`${id}`), sql`, `);
 
@@ -155,7 +155,7 @@ function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: n
     const preYearExpr = cutoff ? sql`sum(CASE WHEN played_at >= ${yearStart} AND played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
     return db.all(sql`
       WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
+        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -172,7 +172,7 @@ function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: n
     `) as ScoreRow[];
   }
 
-  const groupCol = entityGroupCol(entityType, userId);
+  const groupCol = entityGroupCol(entityType);
   const valExpr = sort === 'plays' ? sql`1` : playDuration();
   const preAllExpr = cutoff ? sql`sum(CASE WHEN lh.played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
   const preYearExpr = cutoff ? sql`sum(CASE WHEN lh.played_at >= ${yearStart} AND lh.played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
@@ -378,7 +378,7 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
 
     rows = db.all(sql`
       WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
+        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -391,7 +391,7 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
       ORDER BY period
     `) as { period: string; eid: string; val: number }[];
   } else {
-    const groupCol = entityGroupCol(entityType, userId);
+    const groupCol = entityGroupCol(entityType);
     const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
 
     rows = db.all(sql`
@@ -447,7 +447,7 @@ export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, 
 
     rows = db.all(sql`
       WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
+        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -460,7 +460,7 @@ export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, 
       ORDER BY period
     `) as { period: string; eid: string; val: number }[];
   } else {
-    const groupCol = entityGroupCol(entityType, userId);
+    const groupCol = entityGroupCol(entityType);
     const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
 
     rows = db.all(sql`

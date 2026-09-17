@@ -133,18 +133,20 @@ export function trackJoinResolvingMerges(userId: number): SqlChunk {
     JOIN tracks t ON t.spotify_id = COALESCE(mr_track.target_id, lh.track_id)`;
 }
 
-/** LEFT JOIN a merge_rules para un tipo de entidad, filtrado por usuario. */
-export function entityMergeJoin(type: EntityType, userId?: number): SqlChunk {
+/** LEFT JOIN a merge_rules para un tipo de entidad, filtrado por usuario. `userId` es
+ *  OBLIGATORIO: un merge es una decisión privada, y la variante sin filtro plegaba las
+ *  escuchas de uno sobre el canónico que había elegido otro. No la reintroduzcas. */
+export function entityMergeJoin(type: EntityType, userId: number): SqlChunk {
   const alias = sql.raw(MERGE_ALIAS[type]);
   const src = sourceCol(type);
-  if (userId != null) {
-    return sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src} AND ${alias}.user_id = ${userId}`;
-  }
-  return sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src}`;
+  return sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src} AND ${alias}.user_id = ${userId}`;
 }
 
-/** COALESCE(mr_X.target_id, <source_col>) — expresa el ID canónico tras merges. */
-export function resolvedEntityId(type: EntityType, _userId?: number): SqlChunk {
+/** COALESCE(mr_X.target_id, <source_col>) — expresa el ID canónico tras merges.
+ *  OJO: sólo nombra el alias, **no filtra nada**. El `userId` que aceptaba era puro
+ *  decorado y hacía creer que la query quedaba acotada: quien acota es el
+ *  entityMergeJoin() del mismo query, y sin él esto resuelve merges de cualquiera. */
+export function resolvedEntityId(type: EntityType): SqlChunk {
   const alias = sql.raw(MERGE_ALIAS[type]);
   return sql`COALESCE(${alias}.target_id, ${sourceCol(type)})`;
 }
@@ -187,16 +189,8 @@ export function albumNullFilter(entityType: EntityType): SqlChunk {
   return entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 }
 
-/** @deprecated Usar resolvedPlayJoins() que incluye todos los joins necesarios. */
-export function entityJoins(entityType: EntityType, userId?: number): SqlChunk {
-  if (entityType === 'artist') {
-    return sql`JOIN track_artists ta ON ta.track_id = lh.track_id ${entityMergeJoin('artist', userId)}`;
-  }
-  return sql``;
-}
-
-export function entityGroupCol(entityType: EntityType, userId?: number): SqlChunk {
-  return resolvedEntityId(entityType, userId);
+export function entityGroupCol(entityType: EntityType): SqlChunk {
+  return resolvedEntityId(entityType);
 }
 
 export function entityWhereCol(entityType: EntityType, id: string, ids?: string[]): SqlChunk {

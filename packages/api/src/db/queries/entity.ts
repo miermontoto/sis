@@ -49,7 +49,7 @@ function topArtistsAggregate(db: Db, playsWhere: SqlChunk, ob: SqlChunk, limit: 
       GROUP BY lh.track_id
     ) pt
     JOIN (
-      SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist', userId)} as entity_id
+      SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist')} as entity_id
       FROM track_artists ta
       ${entityMergeJoin('artist', userId)}
     ) am ON am.track_id = pt.track_id
@@ -61,7 +61,7 @@ function topArtistsAggregate(db: Db, playsWhere: SqlChunk, ob: SqlChunk, limit: 
 
 /** Top entidades con agregados de reproducciones */
 export function getTopEntities(db: Db, entityType: EntityType, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number): AggregateRow[] {
-  const groupCol = entityGroupCol(entityType, userId);
+  const groupCol = entityGroupCol(entityType);
   const ob = orderByCol(sort);
   const uf = userFilter(userId);
 
@@ -84,7 +84,7 @@ export function getTopEntities(db: Db, entityType: EntityType, rangeStart: strin
 
 /** Top entidades del periodo anterior */
 export function getPrevPeriodEntities(db: Db, entityType: EntityType, prevStart: string, prevEnd: string, sort: Sort, userId: number): AggregateRow[] {
-  const groupCol = entityGroupCol(entityType, userId);
+  const groupCol = entityGroupCol(entityType);
   const ob = orderByCol(sort);
   const uf = userFilter(userId);
 

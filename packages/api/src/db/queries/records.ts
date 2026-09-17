@@ -67,7 +67,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
 
   const ranked = db.all(sql`
     WITH weekly AS (
-      SELECT ${week} as w, ${resolvedEntityId('track', userId)} as eid, ${metric} as val,
+      SELECT ${week} as w, ${resolvedEntityId('track')} as eid, ${metric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${week} ORDER BY ${metric} DESC) as rank
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
@@ -130,7 +130,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
 
   const ranked = db.all(sql`
     WITH weekly AS (
-      SELECT ${week} as w, ${resolvedEntityId('album', userId)} as eid, ${metric} as val,
+      SELECT ${week} as w, ${resolvedEntityId('album')} as eid, ${metric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${week} ORDER BY ${metric} DESC) as rank
       FROM listening_history lh
       ${resolvedPlayJoins('album', userId)}
@@ -158,7 +158,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
   // nombre/artista se toman del target (join por el eid resuelto).
   base.inMostPlaylists = db.all(sql`
     WITH album_playlists AS (
-      SELECT ${resolvedEntityId('album', userId)} as eid,
+      SELECT ${resolvedEntityId('album')} as eid,
              COUNT(DISTINCT spt.playlist_id) as value
       FROM spotify_playlist_tracks spt
       JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
@@ -205,7 +205,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
   // de una track acaban mergeados al mismo target
   const ranked = db.all(sql`
     WITH plays_dedup AS (
-      SELECT DISTINCT ${week} as w, ${resolvedEntityId('artist', userId)} as eid, lh.id as play_id, ${playDuration()} as duration_ms
+      SELECT DISTINCT ${week} as w, ${resolvedEntityId('artist')} as eid, lh.id as play_id, ${playDuration()} as duration_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       JOIN track_artists ta ON ta.track_id = lh.track_id
@@ -260,7 +260,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 
   const mostNo1Albums = db.all(sql`
     WITH weekly_albums AS (
-      SELECT ${trackWeek} as w, ${resolvedEntityId('album', userId)} as aid, ${trackMetric} as val,
+      SELECT ${trackWeek} as w, ${resolvedEntityId('album')} as aid, ${trackMetric} as val,
              ROW_NUMBER() OVER (PARTITION BY ${trackWeek} ORDER BY ${trackMetric} DESC) as rank
       FROM listening_history lh
       ${resolvedPlayJoins('album', userId)}

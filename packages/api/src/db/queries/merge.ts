@@ -48,8 +48,11 @@ export function getEntityMergeGroup(db: Db, type: EntityType, entityId: string, 
   return [...ids];
 }
 
-/** mergedFrom (sources que apuntan a este ID) + mergedInto (target si este ID es un source). */
-export function getEntityMergeInfo(db: Db, type: EntityType, entityId: string): MergeInfo {
+/** mergedFrom (sources que apuntan a este ID) + mergedInto (target si este ID es un source).
+ *  **Filtra por usuario, como el resto del módulo**: una regla de merge es una decisión
+ *  privada de quien la crea. Sin el filtro, el detalle enseñaba (y dejaba deshacer) los
+ *  merges de los demás usuarios de la instancia. */
+export function getEntityMergeInfo(db: Db, type: EntityType, entityId: string, userId: number): MergeInfo {
   // tracks no tienen image_url propia — la toman del álbum
   if (type === 'track') {
     const mergedFrom = db.all(sql`
@@ -57,7 +60,7 @@ export function getEntityMergeInfo(db: Db, type: EntityType, entityId: string): 
       FROM merge_rules mr
       JOIN tracks e ON e.spotify_id = mr.source_id
       LEFT JOIN albums al ON al.spotify_id = e.album_id
-      WHERE mr.entity_type = 'track' AND mr.target_id = ${entityId}
+      WHERE mr.entity_type = 'track' AND mr.target_id = ${entityId} AND mr.user_id = ${userId}
     `) as MergeInfo['mergedFrom'];
 
     const mergedInto = db.all(sql`
@@ -65,7 +68,7 @@ export function getEntityMergeInfo(db: Db, type: EntityType, entityId: string): 
       FROM merge_rules mr
       JOIN tracks e ON e.spotify_id = mr.target_id
       LEFT JOIN albums al ON al.spotify_id = e.album_id
-      WHERE mr.entity_type = 'track' AND mr.source_id = ${entityId}
+      WHERE mr.entity_type = 'track' AND mr.source_id = ${entityId} AND mr.user_id = ${userId}
     `)[0] as MergeInfo['mergedInto'] | undefined;
 
     return { mergedFrom, mergedInto: mergedInto ?? null };
@@ -77,14 +80,14 @@ export function getEntityMergeInfo(db: Db, type: EntityType, entityId: string): 
     SELECT mr.id as rule_id, mr.source_id, e.name, e.image_url
     FROM merge_rules mr
     JOIN ${table} e ON e.spotify_id = mr.source_id
-    WHERE mr.entity_type = ${type} AND mr.target_id = ${entityId}
+    WHERE mr.entity_type = ${type} AND mr.target_id = ${entityId} AND mr.user_id = ${userId}
   `) as MergeInfo['mergedFrom'];
 
   const mergedInto = db.all(sql`
     SELECT mr.id as rule_id, mr.target_id, e.name, e.image_url
     FROM merge_rules mr
     JOIN ${table} e ON e.spotify_id = mr.target_id
-    WHERE mr.entity_type = ${type} AND mr.source_id = ${entityId}
+    WHERE mr.entity_type = ${type} AND mr.source_id = ${entityId} AND mr.user_id = ${userId}
   `)[0] as MergeInfo['mergedInto'] | undefined;
 
   return { mergedFrom, mergedInto: mergedInto ?? null };

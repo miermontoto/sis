@@ -70,7 +70,10 @@ export function deduplicateTracks() {
     const ids = group.ids.split(',');
 
     // elegir canónico: preferir el que el usuario ya marcó como target, luego album >
-    // single, luego más plays (ver beatsCanonical)
+    // single, luego más plays (ver beatsCanonical).
+    // `is_merge_target` NO filtra por usuario a propósito: el merge físico borra la fila
+    // para todos, así que la pregunta es si el track es canónico para ALGUIEN. Filtrar
+    // por el usuario del barrido escogería como víctima el canónico de otro.
     const candidates: TrackCandidate[] = [];
     let best: TrackCandidate | null = null;
     for (const id of ids) {

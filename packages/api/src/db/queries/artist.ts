@@ -11,11 +11,11 @@ export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string 
   const tracksFilter = tracksWithArtistIn(ids);
 
   return db.all(sql`
-    SELECT ${resolvedEntityId('track', userId)} as track_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+    SELECT ${resolvedEntityId('track')} as track_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     ${resolvedPlayJoins('track', userId)}
     WHERE ${tracksFilter} ${wr} ${uf}
-    GROUP BY ${resolvedEntityId('track', userId)}
+    GROUP BY ${resolvedEntityId('track')}
     ORDER BY ${ob} DESC
     LIMIT ${limit}
   `) as { track_id: string; play_count: number; total_ms: number }[];
@@ -34,7 +34,7 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
   return db.all(sql`
     SELECT album_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
     FROM (
-      SELECT ${resolvedEntityId('album', userId)} as album_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+      SELECT ${resolvedEntityId('album')} as album_id, count(*) as play_count, sum(${playDuration()}) as total_ms
       FROM listening_history lh
       ${resolvedPlayJoins('album', userId)}
       WHERE t.spotify_id IN (
@@ -42,7 +42,7 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
       ) AND t.album_id IS NOT NULL ${wr} ${uf}
         ${artistPlaysPredicate(ids, userId)}
         AND t.album_id IN ${artistCreditedAlbums(ids)}
-      GROUP BY ${resolvedEntityId('album', userId)}
+      GROUP BY ${resolvedEntityId('album')}
     )
     GROUP BY album_id
     ORDER BY ${ob} DESC

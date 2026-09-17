@@ -9,6 +9,11 @@
 // invisibles en la UI (que las une con INNER JOIN sobre la tabla de la entidad) pero
 // aún activas en validateMergeRule, que bloquea volver a mergear la entidad; y si el
 // muerto era el target de un grupo, sus sources dejaban de agruparse entre sí.
+//
+// Es el ÚNICO sitio donde merge_rules se toca sin filtrar por usuario, y a propósito:
+// la fila de la entidad desaparece para todos, así que repuntar el id muerto y barrer
+// reglas huérfanas o reflexivas vale para todos. Lo que NO puede cruzar usuarios es
+// elegir a quién se pliega un grupo — eso va correlacionado por user_id (ver abajo).
 import { sql } from 'drizzle-orm';
 import type { getDb } from '../../db/connection.js';
 import { entityTableName } from '../../db/queries/helpers.js';
@@ -33,15 +38,24 @@ export function rewriteMergeRules(db: Db, type: EntityType, deletedId: string, s
   dropReflexive(db, type);
 
   // si el superviviente ya era source de otra regla, lo reescrito formaría cadena
-  // (A→superviviente→C) y resolveEntityIds no la recorre: colapsar al canónico real
-  const canonical = db.get(sql`SELECT target_id FROM merge_rules
-    WHERE entity_type = ${type} AND source_id = ${survivorId}
-    ORDER BY id LIMIT 1`) as { target_id: string } | undefined;
-  if (canonical) {
-    db.run(sql`UPDATE merge_rules SET target_id = ${canonical.target_id}
-      WHERE entity_type = ${type} AND target_id = ${survivorId}`);
-    dropReflexive(db, type);
-  }
+  // (A→superviviente→C) y resolveEntityIds no la recorre: colapsar al canónico real.
+  // El canónico se busca POR USUARIO, correlacionado con la fila que se actualiza: a
+  // quién se pliega un grupo es una decisión privada, y coger el de cualquiera (un
+  // `ORDER BY id LIMIT 1` global) metía el grupo de B dentro del target elegido por A.
+  // Los usuarios sin regla propia sobre el superviviente no se tocan.
+  const collapsed = db.run(sql`
+    UPDATE merge_rules SET target_id = (
+      SELECT mr_c.target_id FROM merge_rules mr_c
+      WHERE mr_c.entity_type = ${type} AND mr_c.source_id = ${survivorId}
+        AND mr_c.user_id = merge_rules.user_id
+      ORDER BY mr_c.id LIMIT 1)
+    WHERE entity_type = ${type} AND target_id = ${survivorId}
+      AND EXISTS (
+        SELECT 1 FROM merge_rules mr_e
+        WHERE mr_e.entity_type = ${type} AND mr_e.source_id = ${survivorId}
+          AND mr_e.user_id = merge_rules.user_id)
+  `).changes;
+  if (collapsed > 0) dropReflexive(db, type);
 
   // el superviviente no puede acabar con dos targets ni con el par duplicado:
   // conservar por usuario la regla más antigua, que es la que ya existía
