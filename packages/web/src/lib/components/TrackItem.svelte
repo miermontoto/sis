@@ -19,6 +19,10 @@
     nameHref?: string;
     isLive?: boolean;
     compact?: boolean;
+    /** reserva la línea de subtítulo aunque no haya. Ver el comentario del markup:
+     *  se apaga sólo en listas donde NINGUNA fila lleva subtítulo (la sección de
+     *  relaciones), que si no el nombre queda arriba en vez de centrado con la foto. */
+    reserveSubtitle?: boolean;
     focusId?: string;
     highlighted?: boolean;
     dimmed?: boolean;
@@ -30,7 +34,7 @@
     cover?: Snippet;
   }
 
-  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
+  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, reserveSubtitle = true, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
 
   let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
 </script>
@@ -62,10 +66,14 @@
       {/if}
     </div>
     <!-- la línea de subtítulo se reserva aunque no haya (artistas): sin ella la
-         fila mide unos px menos y una lista que alterna tipos de entidad salta -->
-    <div class="track-artist">
-      {#if subtitle}{@render subtitle()}{:else}&nbsp;{/if}
-    </div>
+         fila mide unos px menos y una lista que alterna tipos de entidad salta.
+         Con reserveSubtitle=false desaparece, para las listas donde NINGUNA fila
+         la lleva y el hueco sólo descuadraba el nombre respecto a la carátula. -->
+    {#if subtitle || reserveSubtitle}
+      <div class="track-artist">
+        {#if subtitle}{@render subtitle()}{:else}&nbsp;{/if}
+      </div>
+    {/if}
   </div>
   {#if extra}
     {@render extra()}

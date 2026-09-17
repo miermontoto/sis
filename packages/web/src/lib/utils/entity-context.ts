@@ -3,7 +3,6 @@ import { mergeModal } from '$lib/stores/merge-modal.svelte';
 import { relateModal } from '$lib/stores/relate-modal.svelte';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
-import IconMerge from '$lib/icons/IconMerge.svelte';
 import IconLink from '$lib/icons/IconLink.svelte';
 
 export function isSpotifyId(id: string): boolean {
@@ -28,7 +27,10 @@ export interface EntityContext {
 export const trackEntity = (t: { id: string; name: string; album: { imageUrl: string | null } | null; artists: { id: string }[] }): EntityContext =>
   ({ type: 'track', id: t.id, name: t.name, imageUrl: t.album?.imageUrl ?? null, parentArtistId: t.artists[0]?.id });
 
-export function entityContextActions(entity: EntityContext): ContextMenuAction[] {
+/** Acciones del menú contextual de una entidad.
+ *  `relations: false` las omite para quien ya pinta las suyas (las filas de la sección
+ *  de relaciones), que si no acaban con dos puertas al mismo sitio. */
+export function entityContextActions(entity: EntityContext, { relations = true }: { relations?: boolean } = {}): ContextMenuAction[] {
   const actions: ContextMenuAction[] = [];
   if (isSpotifyId(entity.id)) {
     actions.push({
@@ -63,26 +65,28 @@ export function entityContextActions(entity: EntityContext): ContextMenuAction[]
       });
     }
   }
-  actions.push({
-      label: 'Manage merges',
-      icon: IconMerge,
-      disabled: entity.type !== 'artist' && !entity.parentArtistId,
-      onClick: () => mergeModal.open({
-        entityType: entity.type,
-        target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
-        parentId: entity.parentArtistId,
-      }),
-    },
-  );
-  // las relaciones soft son cosa de artistas: un álbum o un track no se "relaciona"
-  if (entity.type === 'artist') {
-    actions.push({
-      label: 'Related artists',
-      icon: IconLink,
-      onClick: () => relateModal.open({
-        target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
-      }),
-    });
+  // UNA sola entrada para merges y relaciones: son la misma sección del detalle, y dos
+  // entradas seguidas eran dos nombres para el mismo concepto. Un álbum o un tema no se
+  // "relaciona" (eso es cosa de artistas), así que ahí la puerta es la de merges.
+  if (relations) {
+    actions.push(entity.type === 'artist'
+      ? {
+        label: 'Relations',
+        icon: IconLink,
+        onClick: () => relateModal.open({
+          target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
+        }),
+      }
+      : {
+        label: 'Relations',
+        icon: IconLink,
+        disabled: !entity.parentArtistId,
+        onClick: () => mergeModal.open({
+          entityType: entity.type,
+          target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
+          parentId: entity.parentArtistId,
+        }),
+      });
   }
   return actions;
 }

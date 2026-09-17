@@ -113,9 +113,11 @@
   }
 
   function openMenu(e: MouseEvent, r: EntityRelation) {
+    // sin la entrada genérica de relaciones: la fila ya trae las suyas, y las dos juntas
+    // eran dos puertas al mismo concepto (una apuntando además a la OTRA entidad)
     const actions: ContextMenuAction[] = entityContextActions({
       type: entityType, id: r.id, name: r.name, imageUrl: r.imageUrl, parentArtistId,
-    });
+    }, { relations: false });
     if (r.kind === 'related') {
       actions.push(
         { label: `Merge into ${entity.name}`, icon: IconMerge, onClick: () => mergeInto(r) },
@@ -153,6 +155,7 @@
         <div class="relation-row" oncontextmenu={(e) => openMenu(e, r)}>
           <TrackItem
             compact
+            reserveSubtitle={false}
             imageUrl={r.imageUrl}
             imageHref={href(r)}
             imageRound={entityType === 'artist'}
