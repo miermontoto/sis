@@ -155,7 +155,6 @@
         <div class="relation-row" oncontextmenu={(e) => openMenu(e, r)}>
           <TrackItem
             compact
-            reserveSubtitle={false}
             imageUrl={r.imageUrl}
             imageHref={href(r)}
             imageRound={entityType === 'artist'}
