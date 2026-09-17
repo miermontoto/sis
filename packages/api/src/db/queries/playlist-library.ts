@@ -25,7 +25,11 @@ export function getLibraryPlaylists(db: Db, userId: number, limit: number, offse
     FROM spotify_playlists sp
     WHERE sp.user_id = ${userId}
       AND EXISTS (SELECT 1 FROM spotify_playlist_tracks spt WHERE spt.playlist_id = sp.id)
-    ORDER BY sp.created_at ASC
+    -- lo recién refrescado primero: updated_at sólo se escribe cuando el snapshot
+    -- de spotify cambió de verdad (last_synced_at se toca en cada sync para TODAS
+    -- las filas, así que no distingue nada). el id desempata para que la paginación
+    -- por offset no baraje filas entre páginas
+    ORDER BY sp.updated_at DESC, sp.id DESC
     LIMIT ${limit} OFFSET ${offset}
   `) as LibraryPlaylistRow[];
 

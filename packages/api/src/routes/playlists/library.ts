@@ -80,7 +80,13 @@ library.post('/library/:id/tracks', async (c) => {
     VALUES (${playlistId}, ${trackId}, ${maxPos.maxPos + 1}, ${new Date().toISOString()})
   `);
 
-  db.run(sql`UPDATE spotify_playlists SET track_count = track_count + 1 WHERE id = ${playlistId}`);
+  // editar desde aquí también es "refrescar" la playlist: sin tocar updated_at se
+  // quedaría en el orden viejo hasta que el próximo sync notara el cambio de snapshot
+  db.run(sql`
+    UPDATE spotify_playlists
+    SET track_count = track_count + 1, updated_at = ${new Date().toISOString()}
+    WHERE id = ${playlistId}
+  `);
 
   return c.json({ success: true });
 });
@@ -118,7 +124,11 @@ library.delete('/library/:id/tracks', async (c) => {
     DELETE FROM spotify_playlist_tracks WHERE playlist_id = ${playlistId} AND track_id = ${trackId}
   `);
 
-  db.run(sql`UPDATE spotify_playlists SET track_count = MAX(track_count - 1, 0) WHERE id = ${playlistId}`);
+  db.run(sql`
+    UPDATE spotify_playlists
+    SET track_count = MAX(track_count - 1, 0), updated_at = ${new Date().toISOString()}
+    WHERE id = ${playlistId}
+  `);
 
   return c.json({ success: true });
 });
