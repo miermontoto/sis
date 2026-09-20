@@ -5,7 +5,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, untrack } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getArtistBackdrop } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -93,6 +93,8 @@
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
   let artistShowGlobalRanks = $state(true);
+  // la duración sale del ajuste de detalle de álbum: es la misma preferencia sobre la misma fila
+  let showTrackDuration = $state(true);
   let trackGlobalRanks = $state<Record<string, number> | null>(null);
   let albumGlobalRanks = $state<Record<string, number> | null>(null);
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
@@ -311,6 +313,7 @@
     artistShowAlbumAccolades = getArtistShowAlbumAccolades();
     artistShowTrackAccolades = getArtistShowTrackAccolades();
     artistShowGlobalRanks = getArtistShowGlobalRanks();
+    showTrackDuration = getAlbumShowDuration();
     backdropMode = getArtistBackdrop();
     layout = getDetailLayout('artist');
     topView = { tracks: loadTopView('tracks'), albums: loadTopView('albums') };
@@ -460,7 +463,7 @@
             </div>
           </div>
           {#if view === 'list'}
-            <TrackList items={d.topTracks} showRank {metric} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
+            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
           {:else}
             <div class="card chart-card">
               <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />
