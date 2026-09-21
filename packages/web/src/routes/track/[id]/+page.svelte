@@ -57,8 +57,10 @@
   let metric = $state<RankingMetric>('time');
   let showMergeModal = $state(false);
   let playActing = $state(false);
-  let isLiked = $state(false);
-  let likeLoading = $state(false);
+  // el corazón del hero sale del store compartido: darle aquí o en una fila de
+  // una lista es la misma acción sobre el mismo dato
+  let isLiked = $derived(playlistMembershipStore.isLiked(trackId) === true);
+  let likeLoading = $derived(isSpotifyId(trackId) && playlistMembershipStore.isLiked(trackId) === undefined);
   let likeActing = $state(false);
   let editingDuration = $state(false);
   let durationInput = $state('');
@@ -172,27 +174,18 @@
       prevId = id;
     }
     loadData(id);
-    if (isSpotifyId(id)) {
-      likeLoading = true;
-      api.checkTrackLiked(id).then(r => { isLiked = r.isLiked; }).catch(() => { isLiked = false; }).finally(() => { likeLoading = false; });
-    } else {
-      isLiked = false;
-      likeLoading = false;
-    }
+    // `untrack`: ensure() LEE la pertenencia de este tema y loadData() la ESCRIBE
+    // (seed con las playlists del DTO), así que sin él la respuesta reejecuta el
+    // efecto, que vuelve a cargar, que vuelve a sembrar... y la página se cuelga
+    if (isSpotifyId(id)) untrack(() => playlistMembershipStore.ensure([id]));
   });
 
   async function toggleLike() {
     const id = trackId;
     if (!id || likeActing) return;
     likeActing = true;
-    const wasLiked = isLiked;
-    isLiked = !wasLiked;
     try {
-      if (wasLiked) await api.unlikeTrack(id);
-      else await api.likeTrack(id);
-      nowPlayingStore.isLiked = isLiked;
-    } catch {
-      isLiked = wasLiked;
+      await playlistMembershipStore.toggleLiked(id);
     } finally {
       likeActing = false;
     }

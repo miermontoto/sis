@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => ({
   nowPlayingLive: vi.fn(),
   nowPlaying: vi.fn(),
   playbackSeek: vi.fn(async () => ({ success: true })),
-  checkTrackLiked: vi.fn(async () => ({ isLiked: false })),
   trackPlaylists: vi.fn(async () => ({})),
+  trackLiked: vi.fn(async () => ({ liked: [] })),
 }));
 
 // el store también importa los accessors del ajuste de "up next": el mock del

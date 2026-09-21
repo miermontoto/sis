@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w39c';
+export const VERSION = '26w39d';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -222,6 +222,9 @@ export const PLAYLIST_SYNC_INTERVAL_MS = 6 * 60 * 60_000;
 export const LIKED_SYNC_INTERVAL_MS = 6 * 60 * 60_000;
 // página de /me/tracks (máximo que acepta spotify)
 export const LIKED_SYNC_PAGE_SIZE = 50;
+// ids por llamada a /me/tracks/contains (máximo que acepta spotify). Sólo se usa
+// mientras el espejo no existe todavía para ese usuario
+export const LIKED_CONTAINS_MAX_IDS = 50;
 
 // --- auto-regeneración de playlists generadas ---
 

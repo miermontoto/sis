@@ -26,20 +26,20 @@
     percentLabels?: number[];
     showDuration?: boolean;
     showAccolades?: boolean;
-    showPlaylists?: boolean;
+    showLibraryBadges?: boolean;
     sessionStartedAt?: string | null;
     sessionTotalTracks?: number;
   }
 
-  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, globalRanks = null, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false, showPlaylists = false, sessionStartedAt = null, sessionTotalTracks = 0 }: Props = $props();
+  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, globalRanks = null, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false, showLibraryBadges = false, sessionStartedAt = null, sessionTotalTracks = 0 }: Props = $props();
 
   let sessionStartMs = $derived(sessionStartedAt ? new Date(sessionStartedAt).getTime() : null);
 
-  // pertenencia a playlists de toda la lista en una sola petición. `untrack`
+  // pertenencia (playlists + liked) de toda la lista en un solo lote. `untrack`
   // porque ensure() lee el mismo estado que escribe: sin él, cada respuesta
   // reejecuta el efecto
   $effect(() => {
-    if (!showPlaylists) return;
+    if (!showLibraryBadges) return;
     const ids = items.map(getTrackId).filter((id): id is string => !!id);
     if (ids.length > 0) untrack(() => playlistMembershipStore.ensure(ids));
   });
@@ -109,14 +109,16 @@
         {#if showAccolades && trackId}
           <Accolades entityType="track" entityId={trackId} />
         {/if}
-        <!-- el badge afirma pertenencia, así que sólo existe cuando hay alguna:
-             montar el popover en cada fila sería un listener de documento por
-             fila para no pintar nada -->
-        {#if showPlaylists && trackId && (playlistMembershipStore.get(trackId)?.length ?? 0) > 0}
+        <!-- las marcas afirman pertenencia, así que sólo existen cuando hay
+             alguna: montar el popover en cada fila sería un listener de documento
+             por fila para no pintar nada -->
+        {#if showLibraryBadges && trackId && ((playlistMembershipStore.get(trackId)?.length ?? 0) > 0 || playlistMembershipStore.isLiked(trackId))}
           <PlaylistPopover
             inline
             {trackId}
             inPlaylists={playlistMembershipStore.get(trackId) ?? []}
+            liked={playlistMembershipStore.isLiked(trackId)}
+            onToggleLiked={() => playlistMembershipStore.toggleLiked(trackId)}
             onAdd={(pl) => playlistMembershipStore.add(trackId, pl)}
             onRemove={(id) => playlistMembershipStore.remove(trackId, id)}
           />

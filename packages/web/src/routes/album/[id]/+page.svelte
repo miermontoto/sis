@@ -290,9 +290,9 @@
           {#if trackSort === 'natural' && loadingNatural}
             <div class="loading"><div class="spinner"></div></div>
           {:else if trackSort === 'natural'}
-            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showPlaylists={showPlaylistBadges} globalRanks={trackGlobalRanks} />
+            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {:else}
-            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showPlaylists={showPlaylistBadges} globalRanks={trackGlobalRanks} />
+            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {/if}
         </section>
       {/if}

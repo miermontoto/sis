@@ -158,8 +158,10 @@ export const api = {
   // incluidos). Una sola petición por lista, contra las playlists ya sincronizadas
   trackPlaylists: (trackIds: string[]) =>
     apiFetch<Record<string, PlaylistPresenceItem[]>>('/now-playing/playlists', { ids: trackIds.join(',') }),
-  checkTrackLiked: (trackId: string) =>
-    apiFetch<{ isLiked: boolean }>(`/now-playing/like/${encodeURIComponent(trackId)}`),
+
+  // pertenencia a liked songs de un lote de temas (subconjunto de los preguntados)
+  trackLiked: (trackIds: string[]) =>
+    apiFetch<{ liked: string[] }>('/now-playing/liked', { ids: trackIds.join(',') }),
   likeTrack: (trackId: string) =>
     apiMutate<{ success: boolean }>('PUT', `/now-playing/like/${encodeURIComponent(trackId)}`),
   unlikeTrack: (trackId: string) =>

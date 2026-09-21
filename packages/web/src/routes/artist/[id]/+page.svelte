@@ -465,7 +465,7 @@
             </div>
           </div>
           {#if view === 'list'}
-            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={artistShowTrackAccolades} showPlaylists={showPlaylistBadges} globalRanks={trackGlobalRanks} />
+            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={artistShowTrackAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {:else}
             <div class="card chart-card">
               <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />

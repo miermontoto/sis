@@ -263,8 +263,9 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   // van antes porque applyMutationInvalidation para en la primera regla que casa
   { method: 'POST',   prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
   { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/covers/'] },
-  { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
-  { method: 'DELETE', prefix: '/now-playing/like/',         clear: ['/now-playing/like/'] },
+  // sin barra final: limpia tanto /like/<id> como el lote /liked?ids=
+  { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like'] },
+  { method: 'DELETE', prefix: '/now-playing/like/',         clear: ['/now-playing/like'] },
   { method: 'POST',   prefix: '/now-playing/queue',         clear: [] },
   { method: 'PUT',    prefix: '/now-playing/',              clear: [] },
   { method: 'POST',   prefix: '/now-playing/',              clear: [] },

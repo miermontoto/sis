@@ -4,6 +4,7 @@
   import { positionPopover } from '$lib/utils/popover';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
+  import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
 
   let {
     trackId,
@@ -11,6 +12,8 @@
     onAdd,
     onRemove,
     likeButton,
+    liked,
+    onToggleLiked,
     inline = false,
   }: {
     // spotify id del track para las mutaciones (null = sin track editable)
@@ -22,6 +25,12 @@
     onRemove: (playlistId: number) => void;
     // botón de like: lo inyecta el padre porque su estado/estilo difiere
     likeButton?: Snippet;
+    // pertenencia a liked songs (undefined = aún no se sabe). Los liked son otra
+    // playlist más en spotify, así que viven en la misma lista
+    liked?: boolean;
+    // sin `likeButton` el consumidor no ofrece corazón propio, así que el popover
+    // pone la fila de Liked Songs y ésta es su acción
+    onToggleLiked?: (() => void);
     // variante de fila de lista: el badge va en flujo (no hay corazón del que
     // colgarse) y sólo afirma pertenencia, así que sin playlists no se pinta —
     // una columna de "+" por cada tema de un disco es ruido, no afordancia
@@ -42,6 +51,10 @@
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   let open = $derived(hover || pinned);
+  // la marca sólo se pinta cuando SABEMOS que está (undefined = aún cargando)
+  let likedMark = $derived(inline && liked === true);
+  // el corazón lo pone el popover sólo si el consumidor no trae el suyo
+  let showLikedRow = $derived(!!onToggleLiked && !likeButton);
   let ownedIds = $derived(new Set(ownedPlaylists.map(p => p.id)));
   let inIds = $derived(new Set(inPlaylists.map(p => p.id)));
   // añadibles = propias que aún no contienen el track
@@ -127,17 +140,44 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="like-wrap" class:like-wrap--inline={inline} onmouseenter={openHover} onmouseleave={closeHover}>
   {@render likeButton?.()}
-  {#if inPlaylists.length > 0 || (!inline && trackId && ownedPlaylists.length > 0)}
-    <button
-      type="button"
-      class="like-badge"
-      class:like-badge--empty={inPlaylists.length === 0}
-      title={inPlaylists.length > 0 ? `In ${inPlaylists.length} playlist${inPlaylists.length > 1 ? 's' : ''}` : 'Add to playlist'}
-      onclick={togglePin}
-    >+{#if inPlaylists.length > 0}{inPlaylists.length}{/if}</button>
+  {#if inPlaylists.length > 0 || likedMark || (!inline && trackId && ownedPlaylists.length > 0)}
+    <!-- el corazón afirma un hecho distinto de la cifra (estar en los liked no es
+         estar en N playlists), así que son dos marcas, no una suma. Click en
+         cualquiera abre el popover, que es donde se quita y se pone -->
+    {#if likedMark}
+      <button type="button" class="like-badge like-badge--heart" title="In Liked Songs" onclick={togglePin}>
+        <IconHeartFilled size={10} />
+      </button>
+    {/if}
+    {#if inPlaylists.length > 0 || !inline}
+      <button
+        type="button"
+        class="like-badge"
+        class:like-badge--empty={inPlaylists.length === 0}
+        title={inPlaylists.length > 0 ? `In ${inPlaylists.length} playlist${inPlaylists.length > 1 ? 's' : ''}` : 'Add to playlist'}
+        onclick={togglePin}
+      >+{#if inPlaylists.length > 0}{inPlaylists.length}{/if}</button>
+    {/if}
     {#if open}
       <div class="like-popover" use:positionPopover>
         <div class="like-popover-inner">
+          {#if showLikedRow}
+            <div class="like-popover-item like-popover-item--owned">
+              <span class="like-popover-item-link">
+                <span class="like-popover-art like-popover-art--liked"><IconHeartFilled size={12} /></span>
+                <span>Liked Songs</span>
+              </span>
+              <button
+                class="like-popover-action"
+                class:like-popover-action--remove={liked}
+                class:like-popover-action--add={!liked}
+                title={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                onclick={onToggleLiked}
+              >
+                {#if liked}<IconCheckSmall />{:else}<IconPlus />{/if}
+              </button>
+            </div>
+          {/if}
           {#if inPlaylists.length > 0}
             <div class="like-popover-title">In playlists</div>
           {/if}

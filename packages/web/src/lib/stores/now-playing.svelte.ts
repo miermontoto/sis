@@ -5,7 +5,6 @@ import { playlistMembershipStore } from './playlist-membership.svelte';
 
 let _data = $state<NowPlayingResponse | null>(null);
 let _intervalId: ReturnType<typeof setInterval> | null = null;
-let _isLiked = $state(false);
 let _likeLoading = $state(false);
 let _lastCheckedTrackId: string | null = null;
 // marca de servidor (updatedAt) de la última lectura en vivo aplicada: las
@@ -161,30 +160,19 @@ function scheduleBoundaryRefresh() {
   }, remaining + BOUNDARY_MARGIN_MS);
 }
 
+// el estado del corazón también sale de playlistMembershipStore: el guard por
+// tema es sólo para el spinner, que es de esta tarjeta
 async function checkLiked(trackId: string | undefined) {
-  if (!trackId) { _isLiked = false; _likeLoading = false; _lastCheckedTrackId = null; return; }
+  if (!trackId) { _likeLoading = false; _lastCheckedTrackId = null; return; }
   if (trackId === _lastCheckedTrackId) return;
   _lastCheckedTrackId = trackId;
-  _likeLoading = true;
-  try {
-    const { isLiked } = await api.checkTrackLiked(trackId);
-    if (_lastCheckedTrackId === trackId) _isLiked = isLiked;
-  } catch {
-    _isLiked = false;
-  } finally {
-    if (_lastCheckedTrackId === trackId) _likeLoading = false;
-  }
-}
-
-// la pertenencia vive en playlistMembershipStore, compartida con las filas de
-// las listas: añadir un tema a una playlist desde cualquiera de las dos se ve en
-// la otra. El store ya ignora lo que conoce, así que no hace falta guard por tema
-function checkPlaylists(trackId: string | undefined) {
-  if (trackId) playlistMembershipStore.ensure([trackId]);
+  _likeLoading = playlistMembershipStore.isLiked(trackId) === undefined;
+  await playlistMembershipStore.ensure([trackId]);
+  if (_lastCheckedTrackId === trackId) _likeLoading = false;
 }
 
 // la cola es una llamada en vivo a spotify, así que se pide una vez por tema
-// (mismo guard por trackId que checkLiked/checkPlaylists) y no en cada tick.
+// (mismo guard por trackId que checkLiked) y no en cada tick.
 // La respuesta puede venir medida justo antes del corte y traer el tema actual
 // en cabeza; quien la pinta salta esa cabecera en vez de retrasar la petición.
 // El ajuste nowPlayingUpNext se comprueba aquí y no al pintar: su única
@@ -211,7 +199,6 @@ async function poll() {
   try {
     applyNowPlaying(await api.nowPlaying(playUpdatesStore.watermark), 'cached');
     checkLiked(_data?.track?.id);
-    checkPlaylists(_data?.track?.id);
     checkQueue(_data?.track?.id);
   } catch {
     applyNowPlaying(null, 'cached');
@@ -222,7 +209,6 @@ async function pollLive() {
   try {
     applyNowPlaying(await api.nowPlayingLive(playUpdatesStore.watermark), 'live');
     checkLiked(_data?.track?.id);
-    checkPlaylists(_data?.track?.id);
     checkQueue(_data?.track?.id);
   } catch {
     await poll();
@@ -260,7 +246,6 @@ async function refreshAfterPlayback() {
       if (!changed) continue;
       applyNowPlaying(live, 'live');
       checkLiked(_data?.track?.id);
-      checkPlaylists(_data?.track?.id);
       checkQueue(_data?.track?.id);
       return;
     } catch {
@@ -283,18 +268,7 @@ async function playContext(opts: PlayContextRequest): Promise<PlayContextRespons
 
 async function toggleLike() {
   const trackId = _data?.track?.id;
-  if (!trackId) return;
-  const wasLiked = _isLiked;
-  _isLiked = !wasLiked;
-  try {
-    if (wasLiked) {
-      await api.unlikeTrack(trackId);
-    } else {
-      await api.likeTrack(trackId);
-    }
-  } catch {
-    _isLiked = wasLiked;
-  }
+  if (trackId) await playlistMembershipStore.toggleLiked(trackId);
 }
 
 let _seekTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -329,8 +303,7 @@ export const nowPlayingStore = {
   get albumId() { return _data?.playing && _data.isPlaying ? _data.track?.album?.id ?? null : null; },
   get artistIds() { return _data?.playing && _data.isPlaying ? _data.track?.artists?.map(a => a.id) ?? [] : []; },
   get isPlaying() { return !!(_data?.playing && _data.isPlaying); },
-  get isLiked() { return _isLiked; },
-  set isLiked(v: boolean) { _isLiked = v; },
+  get isLiked() { return playlistMembershipStore.isLiked(_data?.track?.id) === true; },
   get likeLoading() { return _likeLoading; },
   get lastFinishedPlay() { return _lastFinishedPlay; },
   get volumePercent() { return _volumePercent; },

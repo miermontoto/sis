@@ -7,8 +7,8 @@ import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
-import { isLikedSynced, isTrackLiked, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
-import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT } from '../constants.js';
+import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
+import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import { PLAYLIST_MEMBERSHIP_MAX_IDS } from '@sis/shared';
 import type { SpotifyDevice, PlayContextRequest, LandedPlay } from '@sis/shared';
@@ -370,7 +370,8 @@ nowPlaying.put('/device', async (c) => {
 
 // la pertenencia sale del espejo local (services/liked-sync.ts). Mientras no
 // exista para este usuario —primer arranque, sync caído— se responde en vivo y
-// se lanza el sync, que es exactamente lo que hacía esta ruta siempre
+// se lanza el sync, que es exactamente lo que hacía esta ruta siempre.
+// La web pregunta por lote (/liked); esta queda para los apks publicados
 nowPlaying.get('/like/:trackId', async (c) => {
   const userId = c.get('userId');
   const trackId = c.req.param('trackId');
@@ -383,6 +384,29 @@ nowPlaying.get('/like/:trackId', async (c) => {
     params: { ids: trackId },
   });
   return c.json({ isLiked: data?.[0] ?? false });
+});
+
+// pertenencia a liked songs de un LOTE de temas: el corazón de cada fila de las
+// listas, sin una llamada por fila. Del espejo local; mientras no exista para
+// este usuario se pregunta a spotify en tandas (el tope de /me/tracks/contains)
+// y se lanza el sync, igual que la ruta de un tema suelto
+nowPlaying.get('/liked', async (c) => {
+  const userId = c.get('userId');
+  const ids = (c.req.query('ids') ?? '').split(',').filter(Boolean).slice(0, PLAYLIST_MEMBERSHIP_MAX_IDS);
+  if (ids.length === 0) return c.json({ liked: [] });
+  if (isLikedSynced(userId)) return c.json({ liked: likedTrackIds(userId, ids) });
+  // usuarios solo-last.fm: sin token no hay biblioteca que consultar (misma
+  // regla que `controllable` y que la cola)
+  if (!getStoredTokens(userId)) return c.json({ liked: [] });
+
+  syncUserLikedTracks(userId).catch(() => { /* se reintenta en el ciclo de 6h */ });
+  const liked: string[] = [];
+  for (let i = 0; i < ids.length; i += LIKED_CONTAINS_MAX_IDS) {
+    const chunk = ids.slice(i, i + LIKED_CONTAINS_MAX_IDS);
+    const flags = await spotifyFetch<boolean[]>('/me/tracks/contains', { userId, params: { ids: chunk.join(',') } });
+    chunk.forEach((id, idx) => { if (flags?.[idx]) liked.push(id); });
+  }
+  return c.json({ liked });
 });
 
 nowPlaying.put('/like/:trackId', async (c) => {

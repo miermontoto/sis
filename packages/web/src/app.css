@@ -1411,10 +1411,28 @@ a.track-item {
 .like-wrap--inline {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
 }
 .like-wrap--inline .like-badge {
   position: static;
   padding: 0 4px;
+}
+/* el corazón de una fila es una marca, no una cifra: sin caja ni borde, que
+   compite con el badge de playlists que lleva al lado */
+.like-badge--heart {
+  display: inline-flex;
+  align-items: center;
+  border-color: transparent;
+  background: none;
+  padding: 0;
+}
+/* hueco de carátula de la fila de Liked Songs del popover: no hay imagen que
+   poner, así que el propio corazón hace de portada */
+.like-popover-art--liked {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff4b7a;
 }
 
 .like-popover {

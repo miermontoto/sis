@@ -663,8 +663,8 @@
       <div class="prefs-list">
         <div class="pref-row">
           <div class="pref-info">
-            <div class="pref-label">Playlist badges</div>
-            <div class="pref-desc">Mark tracks that are in one of your playlists in the artist and album track lists</div>
+            <div class="pref-label">Playlist &amp; liked badges</div>
+            <div class="pref-desc">Mark tracks that are in your Liked Songs or in one of your playlists, in the artist and album track lists</div>
           </div>
           <div class="pref-control">
             <div class="segmented">
