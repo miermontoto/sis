@@ -5,10 +5,9 @@ services:
       - "3004:3000"
     volumes:
       - sis-data:/app/data
-      # service-account JSON de firebase para push FCM. montado read-only desde su
-      # ubicación actual (gitignored por *firebase-adminsdk*.json) al path que apunta
-      # FIREBASE_SERVICE_ACCOUNT dentro del contenedor.
-      - ./packages/web/android/app/laravel10-567da-firebase-adminsdk-fbsvc-9d7625bcd8.json:/app/secrets/firebase-service-account.json:ro
+      # el service-account JSON de firebase (push FCM) se monta desde
+      # docker-compose.override.yml (gitignored): es un secreto de cada instancia,
+      # y un bind-mount a un fichero que no existe rompe el arranque
     env_file: .env
     environment:
       - DATABASE_PATH=/app/data/sis.db

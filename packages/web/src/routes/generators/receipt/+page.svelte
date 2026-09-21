@@ -5,6 +5,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import { downloadCanvasPng } from '$lib/canvas-export';
   import { formatNumber } from '$lib/utils/format';
+  import { instanceLabel } from '$lib/instance';
 
   // tasa aproximada de royalty por stream (Spotify paga ~$0.003–$0.005)
   const ROYALTY_PER_STREAM = 0.004;
@@ -322,7 +323,7 @@
     // footer url
     ctx.font = `500 14px ${MONO_FONT}`;
     ctx.fillStyle = '#000';
-    ctx.fillText('sis.mier.info', WIDTH / 2, y);
+    ctx.fillText(instanceLabel(), WIDTH / 2, y);
 
     // sierra decorativa arriba y abajo
     drawZigzag(ctx, 0, false);

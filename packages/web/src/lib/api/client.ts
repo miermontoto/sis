@@ -5,9 +5,15 @@ import type { DateRangeParams } from '@sis/shared';
 import * as cache from '../cache/cache';
 import { isNoCache } from '../cache/config';
 
-// VITE_API_BASE: vacía en web (same-origin); dominio público en builds móviles
-const API_ORIGIN = import.meta.env.VITE_API_BASE ?? '';
-const BASE = `${API_ORIGIN}/api`;
+import { instanceOrigin } from '../instance';
+
+// origen de la api en runtime: '' en web (same-origin), la instancia elegida
+// en /connect en el apk. son funciones y no constantes a propósito: el apk
+// cambia de instancia sin reinstalar
+const apiOrigin = instanceOrigin;
+export function apiBase(): string {
+  return `${apiOrigin()}/api`;
+}
 
 const responseCache = new Map<string, cache.L1Entry>();
 const inflightRequests = new Map<string, Promise<unknown>>();
@@ -23,7 +29,7 @@ function buildKey(path: string, params?: Record<string, string>): string {
 }
 
 function buildUrl(path: string, params?: Record<string, string>): string {
-  const url = new URL(`${BASE}${path}`, window.location.origin);
+  const url = new URL(`${apiBase()}${path}`, window.location.origin);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   return url.toString();
 }
@@ -32,29 +38,30 @@ function buildUrl(path: string, params?: Record<string, string>): string {
 // se sirven como rutas relativas `/api/covers/...`. En web resuelven same-origin,
 // pero en el apk el webview corre en https://localhost y resolverían contra ese
 // origen → 404 → se ve el alt en vez de la imagen. Reescribimos esas rutas al
-// dominio público (API_ORIGIN). En web API_ORIGIN es '' → no-op.
+// dominio de la instancia (apiOrigin). En web es '' → no-op.
 const COVERS_PREFIX = '/api/covers/';
 function resolveAssets<T>(data: T): T {
-  if (API_ORIGIN) walkAssets(data);
+  const origin = apiOrigin();
+  if (origin) walkAssets(data, origin);
   return data;
 }
 
 // muta en sitio el JSON ya parseado (lo poseemos): prefija las rutas de portada.
-function walkAssets(value: unknown): void {
+function walkAssets(value: unknown, origin: string): void {
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i++) {
       const v = value[i];
       if (typeof v === 'string') {
-        if (v.startsWith(COVERS_PREFIX)) value[i] = API_ORIGIN + v;
-      } else walkAssets(v);
+        if (v.startsWith(COVERS_PREFIX)) value[i] = origin + v;
+      } else walkAssets(v, origin);
     }
   } else if (value && typeof value === 'object') {
     const obj = value as Record<string, unknown>;
     for (const k in obj) {
       const v = obj[k];
       if (typeof v === 'string') {
-        if (v.startsWith(COVERS_PREFIX)) obj[k] = API_ORIGIN + v;
-      } else walkAssets(v);
+        if (v.startsWith(COVERS_PREFIX)) obj[k] = origin + v;
+      } else walkAssets(v, origin);
     }
   }
 }
@@ -181,7 +188,7 @@ export class PublicShareError extends Error {
 // fetch para rutas públicas (/public/*, sin sesión): nunca redirige a /login
 // y no toca el cache namespaced por usuario. El HTTP cache del navegador basta.
 export async function publicFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(`${API_ORIGIN}/public${path}`, window.location.origin);
+  const url = new URL(`${apiOrigin()}/public${path}`, window.location.origin);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString());
   if (res.status === 404 || res.status === 410) throw new PublicShareError(res.status);
@@ -319,7 +326,7 @@ export async function applyMutationInvalidation(method: string, path: string): P
 // `opts.invalidate: false` para endpoints POST que en realidad LEEN (el cuerpo es la
 // consulta, no una mutación): sin esto invalidarían el cache de /stats/ en cada llamada
 export async function apiMutate<T>(method: string, path: string, body?: unknown, opts?: { invalidate?: boolean }): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${apiBase()}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
@@ -344,6 +351,3 @@ export function rangeParams(range: string, dates?: DateRangeParams): Record<stri
   if (dates) return { startDate: dates.startDate, endDate: dates.endDate };
   return { range };
 }
-
-// `BASE` y otros helpers usados por endpoints que hacen fetch directo (FormData).
-export const API_BASE = BASE;

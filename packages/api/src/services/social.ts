@@ -2,7 +2,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
-import { SOCIAL_NOW_PLAYING_STALE_MS, PROFILE_TOP_LIMIT, PROFILE_CARD_CACHE_MS, TIME_RANGES } from '../constants.js';
+import { SOCIAL_NOW_PLAYING_STALE_MS, PROFILE_TOP_LIMIT, PROFILE_CARD_CACHE_MS, TIME_RANGES, DEFAULT_SPOTIFY_REDIRECT_URI } from '../constants.js';
 import type { TimeRange } from '../constants.js';
 import type { ProfileSummaryRow, StreaksRow } from '../db/queries/index.js';
 import type { SocialNowPlaying, ProfileResponse } from '@sis/shared';
@@ -67,7 +67,7 @@ export function parseTimeRange(raw: string | undefined | null, fallback: TimeRan
 
 // base pública para construir URLs absolutas (origen del redirect URI de spotify)
 export function publicBase(): string {
-  const redirect = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+  const redirect = process.env.SPOTIFY_REDIRECT_URI || DEFAULT_SPOTIFY_REDIRECT_URI;
   return new URL(redirect).origin;
 }
 

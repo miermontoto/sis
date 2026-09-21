@@ -57,11 +57,18 @@ Last.fm integration (optional — credential-gated, no-ops if unset; enables Las
 setlist.fm (optional — credential-gated, no-ops if unset; enables setlist search + import in the concert log — see Concert attendance log):
 - `SETLISTFM_API_KEY` — free key from https://www.setlist.fm/settings/api
 
-id.mier.info SSO (optional — credential-gated, no-ops if unset; enables "Sign in with mier.info" via OIDC authorization code + PKCE; identity-only, no data sync):
+id.mier.info SSO (**main instance only** — credential-gated, no-ops if unset; enables "Sign in with mier.info" via OIDC authorization code + PKCE; identity-only, no data sync. Not in `.env.example` or the README on purpose: the OIDC client is registered for sis.mier.info and the store app hides the button on any other instance — the real gate is client registration at the IdP, not this code):
 - `MIERID_CLIENT_ID`, `MIERID_CLIENT_SECRET` — OAuth client registered at id.mier.info
 - `MIERID_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/mierid/callback`
 
 ## Key patterns
+
+### Instancia en runtime (apk) — `lib/instance.ts`
+El servidor es agnóstico de instancia (cada una con sus claves de spotify, el primer login es admin, el oauth móvil redirige al scheme `info.mier.sis://` que es de la **app**, no de la instancia). Lo que sí estaba atado era el cliente: el apk fijaba `VITE_API_BASE=https://sis.mier.info` en el build. Ya no existe: **todo origen de la api sale de `instanceOrigin()`** (`''` en web = mismo origen; en el apk la instancia elegida, en localStorage `sis:instance`) y `apiBase()` en `api/client.ts` es una función por lo mismo. No vuelvas a leer `import.meta.env.VITE_API_BASE` ni a exportar una constante con el origen.
+
+El apk arranca **sin instancia** (decisión de Juan: picker en el primer arranque, la oficial es un atajo, no un default) y el layout manda a `/connect` (ruta bare) hasta que hay una; se cambia desde login y desde Settings → Connections. `normalizeInstanceUrl` (`utils/instance-url.ts`, con tests) **sólo acepta https**: spotify exige redirect https salvo loopback y la cookie lleva `secure`, así que una instancia http nunca completaría el login móvil. `probeInstance` valida contra `/api/version` (pública) y `switchInstance` **borra el cache entero**: las claves no llevan el origen y el mismo `user_id` existe en cualquier instancia.
+
+`isForeignInstance()` (apk en una instancia que no es `OFFICIAL_INSTANCE`) apaga dos cosas: el **push** (los tokens fcm van atados al proyecto firebase del apk y ese server no puede firmar; el master queda deshabilitado con la explicación) y el **login con mier.info** (ver env vars). Los app links https siguen siendo sólo del dominio oficial (host en el manifest + assetlinks con la firma): los links de otra instancia abren en el browser. **No hay handshake de versión** (best effort, decisión de Juan): el bundle del apk sobrevive a la api, así que quitar un endpoint necesita una ventana de deprecación. Del lado de la api, lo que nombraba a sis.mier.info (user-agents de musicbrainz y setlist.fm) sale de `services/public-origin.ts`, derivado de `SPOTIFY_REDIRECT_URI`.
 
 ### API data flow
 - `services/polling.ts` — setInterval-based polling (currently-playing 30s, recently-played 5m, artist metadata 24h)
@@ -244,6 +251,7 @@ Una preferencia nueva se declara en **cuatro** sitios y los cuatro tienen que co
 
 Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse proxy → `https://sis.mier.info`
 - Data: Docker volume `sis-data` mounted at `/app/data`
+- The Firebase service-account bind-mount lives in `docker-compose.override.yml` (gitignored, picked up automatically by `docker compose`): it is this instance's secret, and a bind-mount to a missing file would break a self-hoster's first `docker compose up`
 - Callback URL in production: `https://sis.mier.info/auth/callback`
 - Docker WORKDIR is `/app/packages/api` so Hono's serveStatic finds `./static`
 - Deploy: `ssh fa "cd ~/dev/sis && docker compose up --build -d"`

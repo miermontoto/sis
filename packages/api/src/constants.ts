@@ -1,9 +1,12 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w39f';
+export const VERSION = '26w39g';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
 export const MOBILE_SCHEME = 'info.mier.sis';
+// redirect de spotify si el .env no lo fija (dev local); de él sale también el
+// origen público de la instancia (utils/public-origin.ts)
+export const DEFAULT_SPOTIFY_REDIRECT_URI = 'http://localhost:3000/auth/callback';
 
 // re-exportar desde shared (single source of truth)
 export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS, DEFAULT_TIME_RANGE, isTimeRange, MILESTONE_THRESHOLDS } from '@sis/shared';
@@ -170,9 +173,9 @@ export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 // --- identidad multi-fuente (isrc/mbid) ---
 
-// musicbrainz: base, user-agent y espaciado (~1 req/s que pide su API)
+// musicbrainz: base y espaciado (~1 req/s que pide su API). el user-agent lo
+// da serviceUserAgent(): lleva el dominio de la instancia, no uno fijo
 export const MB_API_BASE = 'https://musicbrainz.org/ws/2';
-export const MB_USER_AGENT = 'SIS/1.0 (https://sis.mier.info)';
 export const MB_DELAY_MS = 1100;
 // score mínimo de una búsqueda musicbrainz para dar el match por bueno
 export const MB_MIN_SCORE = 80;

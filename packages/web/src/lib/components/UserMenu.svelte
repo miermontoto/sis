@@ -5,6 +5,18 @@
   import IconLogout from '$lib/icons/IconLogout.svelte';
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
+  import { instanceOrigin, isNativeApp } from '$lib/instance';
+
+  // apk: el webview corre en https://localhost, así que un href relativo a
+  // /auth/logout no llega a la api. se llama a la instancia por CapacitorHttp
+  // (borra la cookie del jar nativo) y se vuelve al login de la spa
+  function nativeLogout(e: MouseEvent) {
+    if (!isNativeApp()) return;
+    e.preventDefault();
+    void fetch(`${instanceOrigin()}/auth/logout`).finally(() => {
+      window.location.href = '/login';
+    });
+  }
 
   // menú de cuenta compartido por el badge del sidebar y el de la cabecera móvil.
   // `header` sólo en móvil: en el sidebar el nombre ya está en el propio badge
@@ -65,7 +77,7 @@
     <span class="user-menu-chevron"><IconChevronRight size={CHEVRON_SIZE} /></span>
   </a>
   <div class="user-menu-sep"></div>
-  <a href="/auth/logout" class="user-menu-item user-menu-item--danger" role="menuitem">
+  <a href="/auth/logout" class="user-menu-item user-menu-item--danger" role="menuitem" onclick={nativeLogout}>
     <span class="user-menu-icon"><IconLogout size={ICON_SIZE} /></span>
     Log out
   </a>

@@ -4,7 +4,7 @@ import type {
   NowPlayingDisplay, SocialVisibility, ArtistBackdrop,
 } from '@sis/shared';
 import { type LayoutKind, type DetailLayout, resolveLayout, parseLayout } from '../detail-layout.js';
-import { apiFetch, API_BASE } from './client.js';
+import { apiFetch, apiBase } from './client.js';
 
 interface SettingsData {
   rankingMetric: RankingMetric;
@@ -155,11 +155,11 @@ export async function loadSettings(): Promise<void> {
 }
 
 function updateSetting(patch: Partial<Record<string, string>>) {
-  // API_BASE, no window.location.origin: en el apk el webview corre en
+  // apiBase(), no window.location.origin: en el apk el webview corre en
   // https://localhost y el PUT iría a un origen sin api → el ajuste no persiste
   // en el server (y loadSettings lo revertiría al valor viejo en el siguiente
-  // arranque). API_BASE apunta al dominio público (CapacitorHttp mete la cookie).
-  fetch(`${API_BASE}/settings`, {
+  // arranque). apiBase() apunta a la instancia (CapacitorHttp mete la cookie).
+  fetch(`${apiBase()}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),

@@ -1,17 +1,17 @@
 import type { DeviceTokenRecord, DevicePlatform } from '@sis/shared';
-import { apiFetch, API_BASE, invalidateCache } from './client.js';
+import { apiFetch, apiBase, invalidateCache } from './client.js';
 
 // cliente tipado para el registro de tokens de dispositivo y la clave VAPID.
-// API_BASE (no rutas relativas): en el apk el webview corre en https://localhost
+// apiBase() (no rutas relativas): en el apk el webview corre en https://localhost
 // y las mutaciones deben ir al dominio público (mismo criterio que settings.ts).
 
-// mutación directa contra API_BASE. se evita apiMutate a propósito: registrar o
+// mutación directa contra apiBase(). se evita apiMutate a propósito: registrar o
 // borrar un token no debe invalidar todo el cache de la app (apiMutate haría un
 // clear total al no existir regla de path para /device-tokens). Sí se invalida
 // el propio prefijo: sin esto la lista de dispositivos seguía sirviéndose del
 // cache y el token recién dado de alta (o de baja) no aparecía hasta el TTL.
 async function mutate<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${apiBase()}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
@@ -46,7 +46,7 @@ export function deleteDeviceToken(id: number) {
 // clave pública VAPID para suscribir el push web. fetch directo (sin cache) para
 // no fijar un '' obsoleto si el server aún no tiene la clave configurada.
 export async function getVapidPublicKey(): Promise<{ publicKey: string }> {
-  const res = await fetch(`${API_BASE}/push/vapid-public-key`);
+  const res = await fetch(`${apiBase()}/push/vapid-public-key`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }

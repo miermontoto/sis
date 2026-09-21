@@ -6,8 +6,9 @@ import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
-import { MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE } from '../../constants.js';
+import { MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE } from '../../constants.js';
 import { createLogger } from '../logger.js';
+import { serviceUserAgent } from '../public-origin.js';
 
 const log = createLogger('metadata');
 const now = () => new Date().toISOString();
@@ -350,7 +351,7 @@ async function fetchMusicBrainzCover(artistName: string, albumName: string, albu
   const url = `${MB_API_BASE}/release?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
 
   const res = await fetch(url, {
-    headers: { 'User-Agent': MB_USER_AGENT, 'Accept': 'application/json' },
+    headers: { 'User-Agent': serviceUserAgent(), 'Accept': 'application/json' },
   });
 
   if (!res.ok) return null;
@@ -441,7 +442,7 @@ export async function enrichImportTrackDurations() {
 
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': MB_USER_AGENT, 'Accept': 'application/json' },
+        headers: { 'User-Agent': serviceUserAgent(), 'Accept': 'application/json' },
       });
 
       if (res.ok) {

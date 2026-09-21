@@ -16,6 +16,7 @@
   import IconDownload from '$lib/icons/IconDownload.svelte';
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
   import { listLoginSessions, logoutOtherSessions, type SessionInfo, type UserRecord } from '$lib/api';
+  import { isForeignInstance, isNativeApp, instanceLabel } from '$lib/instance';
 
   let health = $state<HealthData | null>(null);
   let me = $state<MeResponse | null>(null);
@@ -189,12 +190,17 @@
   let notifMilestonesPref = $state(true);
   // bloquea el master mientras se pide permiso al SO/navegador (evita doble click)
   let notifBusy = $state(false);
+  // apk en una instancia que no es la oficial: los tokens fcm van atados al
+  // proyecto firebase del apk y ese server no puede firmar envíos, así que el
+  // master queda apagado con la explicación en vez de fallar en silencio
+  const pushUnavailable = isForeignInstance();
+  const native = isNativeApp();
 
   // master switch: al activar pide permiso + registra el token; si se deniega o
   // no hay soporte, revierte el toggle (no persiste true). al desactivar solo
   // persiste la preferencia (el server deja de enviar; el token sigue registrado).
   async function toggleNotificationsEnabled(next: boolean) {
-    if (notifBusy) return;
+    if (notifBusy || (next && pushUnavailable)) return;
     if (!next) {
       notifEnabledPref = false;
       setNotificationsEnabled(false);
@@ -798,12 +804,18 @@
         <div class="pref-row">
           <div class="pref-info">
             <div class="pref-label">Push notifications</div>
-            <div class="pref-desc">Get notified about new records, chart-toppers, weekly recaps and big debuts</div>
+            <div class="pref-desc">
+              {#if pushUnavailable}
+                Not available on self-hosted instances from the store app — push tokens are tied to the official instance
+              {:else}
+                Get notified about new records, chart-toppers, weekly recaps and big debuts
+              {/if}
+            </div>
           </div>
           <div class="pref-control">
             <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={!notifEnabledPref} onclick={() => toggleNotificationsEnabled(false)} disabled={notifBusy}>Off</button>
-              <button class="segmented-btn" class:segmented-active={notifEnabledPref} onclick={() => toggleNotificationsEnabled(true)} disabled={notifBusy}>On</button>
+              <button class="segmented-btn" class:segmented-active={!notifEnabledPref} onclick={() => toggleNotificationsEnabled(false)} disabled={notifBusy || pushUnavailable}>Off</button>
+              <button class="segmented-btn" class:segmented-active={notifEnabledPref} onclick={() => toggleNotificationsEnabled(true)} disabled={notifBusy || pushUnavailable}>On</button>
             </div>
           </div>
         </div>
@@ -873,7 +885,18 @@
     <div class="card prefs-card">
       <div class="prefs-subtitle">Connections</div>
       <div class="section-list">
-        <div class="pref-row">
+        {#if native}
+          <div class="pref-row">
+            <div class="pref-info">
+              <div class="pref-label lastfm-label"><IconWifi size={16} /> Instance</div>
+              <div class="pref-desc">Connected to <strong>{instanceLabel()}</strong> — the server this app reads and writes</div>
+            </div>
+            <div class="pref-control lastfm-control">
+              <a href="/connect" class="action-btn">Change</a>
+            </div>
+          </div>
+        {/if}
+        <div class="pref-row" class:row-border={native}>
           <div class="pref-info">
             <div class="pref-label lastfm-label"><IconSpotify size={16} /> Spotify</div>
             <div class="pref-desc">

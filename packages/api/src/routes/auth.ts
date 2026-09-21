@@ -12,7 +12,7 @@ import { findLastfmAccountByUsername, upsertLastfmAccount } from '../services/la
 import { isMieridConfigured, createPkcePair, buildAuthorizeUrl, exchangeCode, fetchIdentity, findMieridAccountBySub, upsertMieridAccount, type MieridIdentity } from '../services/mierid-client.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
 import crypto from 'crypto';
-import { MOBILE_SCHEME } from '../constants.js';
+import { MOBILE_SCHEME, DEFAULT_SPOTIFY_REDIRECT_URI } from '../constants.js';
 import { createLogger } from '../services/logger.js';
 
 const log = createLogger('auth');
@@ -210,7 +210,7 @@ auth.get('/callback', async (c) => {
 // url del callback: derivada del redirect de spotify (mismo host), overridable
 function lastfmCallbackUrl(): string {
   if (process.env.LASTFM_REDIRECT_URI) return process.env.LASTFM_REDIRECT_URI;
-  const spotifyCb = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+  const spotifyCb = process.env.SPOTIFY_REDIRECT_URI || DEFAULT_SPOTIFY_REDIRECT_URI;
   return new URL('/auth/lastfm/callback', spotifyCb).toString();
 }
 
@@ -299,7 +299,7 @@ auth.get('/lastfm/callback', async (c) => {
 // url del callback: derivada del redirect de spotify (mismo host), overridable
 function mieridCallbackUrl(): string {
   if (process.env.MIERID_REDIRECT_URI) return process.env.MIERID_REDIRECT_URI;
-  const spotifyCb = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/callback';
+  const spotifyCb = process.env.SPOTIFY_REDIRECT_URI || DEFAULT_SPOTIFY_REDIRECT_URI;
   return new URL('/auth/mierid/callback', spotifyCb).toString();
 }
 

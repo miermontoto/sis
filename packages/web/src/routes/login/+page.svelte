@@ -6,17 +6,24 @@
   import IconLastfm from '$lib/icons/IconLastfm.svelte';
   import IconMier from '$lib/icons/IconMier.svelte';
   import IconLock from '$lib/icons/IconLock.svelte';
+  import { instanceOrigin, isForeignInstance, isNativeApp, instanceLabel } from '$lib/instance';
 
   let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
   let lastfmHref = $derived('/auth/lastfm/login?returnTo=' + encodeURIComponent(returnTo));
   let mieridHref = $derived('/auth/mierid/login?returnTo=' + encodeURIComponent(returnTo));
 
-  // los botones de sso alternativos solo aparecen si el server tiene credenciales
+  // los botones de sso alternativos solo aparecen si el server tiene credenciales.
+  // mier.info además sólo en la instancia principal: el cliente oidc existe para
+  // ella, así que en el apk conectado a otra instancia no se ofrece aunque el
+  // server diga que sí
   let lastfmEnabled = $state(false);
   let mieridEnabled = $state(false);
+  // apk: instancia a la que se va a entrar, con enlace para cambiarla
+  const native = isNativeApp();
+  const instance = native ? instanceLabel() : '';
   onMount(() => {
-    const base = import.meta.env.VITE_API_BASE ?? '';
+    const base = instanceOrigin();
     const check = async (path: string, set: (v: boolean) => void) => {
       try {
         const res = await fetch(`${base}${path}`);
@@ -24,7 +31,7 @@
       } catch {}
     };
     void check('/auth/lastfm/enabled', (v) => (lastfmEnabled = v));
-    void check('/auth/mierid/enabled', (v) => (mieridEnabled = v));
+    if (!isForeignInstance()) void check('/auth/mierid/enabled', (v) => (mieridEnabled = v));
   });
 
   // oauth móvil (apk): el login va al browser del sistema (custom tab) con
@@ -35,7 +42,7 @@
     e.preventDefault();
     void (async () => {
       const { openExternalLogin } = await import('@platform/mobile/deep-link');
-      const base = import.meta.env.VITE_API_BASE ?? '';
+      const base = instanceOrigin();
       await openExternalLogin(`${base}${path}?mobile=1&returnTo=${encodeURIComponent(returnTo)}`);
     })();
   }
@@ -94,6 +101,12 @@
         <IconLock />
         Invite-only access
       </div>
+
+      {#if native}
+        <div class="instance-line">
+          {instance} · <a href="/connect">Change instance</a>
+        </div>
+      {/if}
     </div>
 
     <footer class="login-footer">
@@ -204,6 +217,17 @@
     margin-top: 1.25rem;
     font-size: 0.8rem;
     color: var(--text-muted);
+  }
+
+  .instance-line {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .instance-line a {
+    color: var(--text);
+    text-decoration: none;
   }
 
   .login-footer {

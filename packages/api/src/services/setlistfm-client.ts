@@ -7,6 +7,7 @@
 // gira co-cabecera incluida) es otra. artists.mbid sólo desempata homónimos.
 import { SETLISTFM_API_BASE, SETLISTFM_REQUEST_SPACING_MS, SETLISTFM_PAGE_SIZE, SETLISTFM_TIMEOUT_MS, SETLISTFM_MAX_ATTEMPTS, SETLISTFM_RETRY_BACKOFF_MS, SETLISTFM_MAX_RETRY_WAIT_MS } from '../constants.js';
 import { createLogger } from './logger.js';
+import { serviceUserAgent } from './public-origin.js';
 import { acceptedSetlistfmArtists } from '@sis/shared';
 import type { SetlistfmShow } from '@sis/shared';
 
@@ -74,7 +75,7 @@ async function setlistfmRequest<T>(path: string, params: Record<string, string> 
         'x-api-key': process.env.SETLISTFM_API_KEY!,
         // sin Accept explícito la api responde XML
         Accept: 'application/json',
-        'User-Agent': 'sis (https://sis.mier.info)',
+        'User-Agent': serviceUserAgent(),
       },
       signal: AbortSignal.timeout(SETLISTFM_TIMEOUT_MS),
     });

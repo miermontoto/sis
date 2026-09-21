@@ -16,3 +16,5 @@ packages/web/.svelte-kit/
 
 # firebase service-account keys (secretos del backend FCM, nunca commitear)
 *firebase-adminsdk*.json
+# montajes propios de cada instancia (service account de firebase, etc.)
+docker-compose.override.yml

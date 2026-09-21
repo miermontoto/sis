@@ -16,7 +16,7 @@ import type {
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
 } from '@sis/shared';
-import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, API_BASE } from './client.js';
+import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
 
 // params comunes de las listas top del detalle de artista (mismo contrato que artistDetail:
 // con range='custom' la ventana viaja en startDate/endDate)
@@ -317,7 +317,7 @@ export const api = {
     for (const file of files) {
       formData.append('files', file);
     }
-    const res = await fetch(`${API_BASE}/import`, { method: 'POST', body: formData });
+    const res = await fetch(`${apiBase()}/import`, { method: 'POST', body: formData });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
       throw new Error(err.error || `API error: ${res.status}`);
@@ -425,7 +425,7 @@ export const api = {
 async function uploadImage(path: string, file: File): Promise<{ imageUrl: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: formData });
+  const res = await fetch(`${apiBase()}${path}`, { method: 'POST', body: formData });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `API error: ${res.status}`);

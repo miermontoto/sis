@@ -11,7 +11,7 @@
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
-  import { API_BASE, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
+  import { apiBase, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -29,6 +29,7 @@
   import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { prewarmer, setUser, hydrateUser, bootCleanup } from '$lib/cache';
+  import { hasInstance, instanceOrigin, OFFICIAL_INSTANCE } from '$lib/instance';
 
   // hidrata el namespace del cache antes de cualquier apiFetch para que
   // /me, /settings, /version hagan hit cuando vuelves al app.
@@ -63,6 +64,8 @@
   $effect(() => {
     if (!relateModalShow && relateModal.target) relateModal.close();
   });
+
+  const CONNECT_ROUTE = '/connect';
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);
@@ -151,7 +154,9 @@
   // oauth móvil (apk): el deep link info.mier.sis://auth/callback?code=... llega
   // tras el login en el browser del sistema; canjear el código por la cookie de
   // sesión (CapacitorHttp → cookie jar nativo) y recargar la spa autenticada.
-  // el scheme replica MOBILE_SCHEME de la api (copia mínima, sin lib compartida).
+  // el scheme replica MOBILE_SCHEME de la api (copia mínima, sin lib compartida);
+  // es de la app, no de la instancia: cualquier instancia redirige a él y el
+  // canje va contra la que esté elegida.
   onMount(async () => {
     const { Capacitor } = await import('@capacitor/core');
     if (!Capacitor.isNativePlatform()) return;
@@ -159,12 +164,14 @@
     const { observeSystemBars } = await import('@platform/mobile/system-bars');
     observeSystemBars({ backgroundVar: '--bg' });
     const { onAppLink, onAuthDeepLink } = await import('@platform/mobile/deep-link');
-    // app links https: navegar a la ruta del link (compartidos /s /u /artist...)
-    await onAppLink('sis.mier.info', (path) => goto(path));
+    // app links https: navegar a la ruta del link (compartidos /s /u /artist...).
+    // sólo el dominio oficial: el host va en el manifest y el assetlinks lleva
+    // la firma del apk, así que los links de otra instancia abren en el browser
+    await onAppLink(new URL(OFFICIAL_INSTANCE).host, (path) => goto(path));
     await onAuthDeepLink('info.mier.sis', async (url) => {
       const code = url.searchParams.get('code');
       if (!code) return;
-      const res = await fetch(`${import.meta.env.VITE_API_BASE ?? ''}/auth/mobile/exchange`, {
+      const res = await fetch(`${instanceOrigin()}/auth/mobile/exchange`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code }),
@@ -273,20 +280,27 @@
     if (!navCompact) expandedGroup = null;
   });
 
-  // rutas sin chrome ni auth gate: login + vistas públicas de share links +
-  // política de privacidad (debe ser accesible sin sesión, p.ej. revisión de stores)
+  // rutas sin chrome ni auth gate: login + picker de instancia (apk) + vistas
+  // públicas de share links + política de privacidad (debe ser accesible sin
+  // sesión, p.ej. revisión de stores)
   function isBareRoute(pathname: string): boolean {
-    return pathname === '/login' || pathname === '/privacy' || pathname.startsWith('/s/');
+    return pathname === '/login' || pathname === CONNECT_ROUTE || pathname === '/privacy' || pathname.startsWith('/s/');
   }
 
   $effect(() => {
+    // apk sin instancia elegida: nada tiene a quién preguntar, ni el login.
+    // va antes que el gate de auth porque /login también es bare
+    if (!hasInstance() && page.url.pathname !== CONNECT_ROUTE) {
+      goto(CONNECT_ROUTE);
+      return;
+    }
     if (isBareRoute(page.url.pathname)) {
       authChecked = true;
       return;
     }
     if (authCheckDone) return;
     authCheckDone = true;
-    fetch(`${API_BASE}/health`)
+    fetch(`${apiBase()}/health`)
       .then((res) => {
         if (res.status === 401) goto('/login?returnTo=' + encodeURIComponent(page.url.pathname + page.url.search));
         else {

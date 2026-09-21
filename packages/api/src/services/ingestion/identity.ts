@@ -11,11 +11,12 @@ import { spotifyFetch } from '../spotify-client.js';
 import { mbRecordingQuery, sameTitle } from '@sis/shared';
 import type { SpotifyTracksBatchResponse } from '../../types/spotify.js';
 import {
-  MB_API_BASE, MB_USER_AGENT, MB_DELAY_MS, MB_MIN_SCORE, MB_SEARCH_LIMIT,
+  MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, MB_SEARCH_LIMIT,
   ISRC_HARVEST_BATCH_SIZE, ISRC_HARVEST_MAX_BATCHES, MB_IDENTITY_MAX_PER_CYCLE,
   TRACK_DEDUP_DURATION_TOLERANCE_MS, ISRC_DEDUP_MAX_PER_CYCLE,
 } from '../../constants.js';
 import { createLogger } from '../logger.js';
+import { serviceUserAgent } from '../public-origin.js';
 
 const log = createLogger('identity');
 const now = () => new Date().toISOString();
@@ -80,7 +81,7 @@ interface MbRecordingSearch {
 
 async function mbFetch<T>(path: string): Promise<T | null> {
   const res = await fetch(`${MB_API_BASE}${path}`, {
-    headers: { 'User-Agent': MB_USER_AGENT, 'Accept': 'application/json' },
+    headers: { 'User-Agent': serviceUserAgent(), 'Accept': 'application/json' },
   });
   if (!res.ok) return null;
   return await res.json() as T;
