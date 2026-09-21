@@ -70,6 +70,15 @@ id.mier.info SSO (optional — credential-gated, no-ops if unset; enables "Sign 
 - `services/token-manager.ts` — stores tokens in DB, auto-refreshes before expiry
 - `services/logger.ts` — `createLogger(scope)` for all API logging; no raw `console.*` in `packages/api` (the linter would let one through, so keep it by convention). Output is `[scope] message`, and `log.child(userId)` gives `[scope:12]` for per-user cycles. Chatty per-cycle lines belong at `debug`.
 
+### Liked songs y pertenencia a playlists
+`liked_tracks` + `liked_sync_state` son un **espejo local** de los liked songs de spotify (`services/liked-sync.ts`, 6h + lazy en el arranque diferido): `GET /now-playing/like/:id` se responde en local (~1ms) en vez de con `/me/tracks/contains` (~100ms y una llamada a spotify por corazón pintado). Sin espejo para ese usuario se cae a spotify y se lanza el sync. `track_id` va **sin FK** a propósito: la biblioteca guardada incluye temas nunca ingestados y `foreign_keys = ON` obligaría a upsertear ese catálogo entero.
+
+El sync explota que `/me/tracks` viene por fecha de guardado descendente: toda alta cae en la página 1 y toda baja mueve `total`, así que **el ciclo sin cambios cuesta UNA petición** en vez de paginar entero (36 páginas para 1780 temas). `liked_sync_state.total` es el que reportó **spotify**, no nuestro recuento: los temas que saltamos (ficheros locales) dejarían una discrepancia permanente y repaginaría cada ciclo. Por eso un like/unlike propio mueve el total ±1 además de la fila.
+
+La pertenencia a playlists ya era local (`spotify_playlist_tracks`). `GET /now-playing/playlists?ids=` la devuelve **por lote** (`getTracksPlaylistPresence`, 3.6ms para 50 ids), con TODOS los ids preguntados —los vacíos incluidos— porque el cliente distingue "en ninguna" de "aún no lo sé". `idx_spt_track` es lo que la hace sargable: el único índice era `(playlist_id, track_id)` y preguntar por tema escaneaba la tabla. La ruta por id suelto sigue viva sólo para los apks publicados.
+
+En el cliente hay **un solo store** (`stores/playlist-membership.svelte.ts`): lo comparten la tarjeta de now playing, el detalle de tema (que lo siembra con lo que ya trae su DTO) y las filas de las listas, así que añadir desde cualquiera se ve en los demás. `TrackList` pide el lote de toda la lista en un `$effect` con `untrack` (ensure lee el mismo estado que escribe) y pinta `PlaylistPopover` en variante `inline` **sólo en las filas con alguna playlist**: el badge afirma pertenencia, y montarlo en todas sería un listener de documento por fila para no pintar nada. Lo gobierna el ajuste `showPlaylistBadges` (Detail lists → Playlist badges, on por defecto), honrado por los detalles de artista y álbum.
+
 ### Artwork history (`album_covers` / `artist_images`)
 Both tables are `(entity_id, image_url, source, observed_at)` with `UNIQUE(entity_id, image_url)` doing the dedup; `albums.image_url` / `artists.image_url` hold the *active* pick. Served on the detail endpoints (`covers` / `images`), edited through `PUT|POST /api/covers/album/:id` and `/api/covers/artist/:id`, rendered by the shared `ImagePicker.svelte`.
 
