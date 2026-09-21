@@ -19,6 +19,7 @@ interface SettingsData {
   artistShowTrackAccolades: boolean;
   artistShowGlobalRanks: boolean;
   albumShowGlobalRanks: boolean;
+  showPlaylistBadges: boolean;
   artistBackdrop: ArtistBackdrop;
   sessionRankDisplay: SessionRankDisplay;
   sessionRankLimitYear: string;
@@ -60,6 +61,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   // chip de posición all-time en los listados de las vistas de detalle
   artistShowGlobalRanks: true,
   albumShowGlobalRanks: true,
+  // badge de playlists en las filas de las listas de los detalles
+  showPlaylistBadges: true,
   // fondo del detalle de artista: difuminado por defecto (la foto de spotify es
   // cuadrada, estirarla nítida a lo ancho recorta demasiado)
   artistBackdrop: 'blur',
@@ -202,6 +205,7 @@ export const [getArtistShowAlbumAccolades, setArtistShowAlbumAccolades] = boolSe
 export const [getArtistShowTrackAccolades, setArtistShowTrackAccolades] = boolSetting('artistShowTrackAccolades');
 export const [getArtistShowGlobalRanks, setArtistShowGlobalRanks] = boolSetting('artistShowGlobalRanks');
 export const [getAlbumShowGlobalRanks, setAlbumShowGlobalRanks] = boolSetting('albumShowGlobalRanks');
+export const [getShowPlaylistBadges, setShowPlaylistBadges] = boolSetting('showPlaylistBadges');
 export const [getArtistBackdrop, setArtistBackdrop] = stringSetting<ArtistBackdrop>('artistBackdrop', 'blur');
 export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');
 

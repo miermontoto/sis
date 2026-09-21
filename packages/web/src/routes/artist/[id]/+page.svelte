@@ -5,7 +5,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, untrack } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getShowPlaylistBadges, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -92,6 +92,7 @@
   let playActing = $state(false);
   let artistShowAlbumAccolades = $state(true);
   let artistShowTrackAccolades = $state(true);
+  let showPlaylistBadges = $state(true);
   let artistShowGlobalRanks = $state(true);
   // la duración sale del ajuste de detalle de álbum: es la misma preferencia sobre la misma fila
   let showTrackDuration = $state(true);
@@ -312,6 +313,7 @@
     metric = getRankingMetric();
     artistShowAlbumAccolades = getArtistShowAlbumAccolades();
     artistShowTrackAccolades = getArtistShowTrackAccolades();
+    showPlaylistBadges = getShowPlaylistBadges();
     artistShowGlobalRanks = getArtistShowGlobalRanks();
     showTrackDuration = getAlbumShowDuration();
     backdropMode = getArtistBackdrop();
@@ -463,7 +465,7 @@
             </div>
           </div>
           {#if view === 'list'}
-            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={artistShowTrackAccolades} globalRanks={trackGlobalRanks} />
+            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={artistShowTrackAccolades} showPlaylists={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {:else}
             <div class="card chart-card">
               <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />

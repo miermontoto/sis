@@ -17,6 +17,7 @@
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import IconVolume from '$lib/icons/IconVolume.svelte';
   import PlaylistPopover from './PlaylistPopover.svelte';
+import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
   import LiveEq from './LiveEq.svelte';
 
   let { compact = false, inline = false, rail = false }: { compact?: boolean; inline?: boolean; rail?: boolean } = $props();
@@ -282,8 +283,8 @@
       <PlaylistPopover
         trackId={data?.track?.id ?? null}
         inPlaylists={nowPlayingStore.playlists}
-        onAdd={(pl) => { nowPlayingStore.playlists = [...nowPlayingStore.playlists, pl]; }}
-        onRemove={(id) => { nowPlayingStore.playlists = nowPlayingStore.playlists.filter(p => p.id !== id); }}
+        onAdd={(pl) => { if (data?.track) playlistMembershipStore.add(data.track.id, pl); }}
+        onRemove={(id) => { if (data?.track) playlistMembershipStore.remove(data.track.id, id); }}
       >
         {#snippet likeButton()}
           <button

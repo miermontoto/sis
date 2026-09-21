@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -166,6 +166,7 @@
   let albumTrackDisplayPref = $state<AlbumTrackDisplay>('fill');
   let albumShowDurationPref = $state(true);
   let albumShowAccoladesPref = $state(true);
+  let showPlaylistBadgesPref = $state(true);
   let artistShowAlbumAccoladesPref = $state(true);
   let artistShowTrackAccoladesPref = $state(true);
   let artistShowGlobalRanksPref = $state(true);
@@ -395,6 +396,7 @@
     albumTrackDisplayPref = getAlbumTrackDisplay();
     albumShowDurationPref = getAlbumShowDuration();
     albumShowAccoladesPref = getAlbumShowAccolades();
+    showPlaylistBadgesPref = getShowPlaylistBadges();
     artistShowAlbumAccoladesPref = getArtistShowAlbumAccolades();
     artistShowTrackAccoladesPref = getArtistShowTrackAccolades();
     artistShowGlobalRanksPref = getArtistShowGlobalRanks();
@@ -652,6 +654,22 @@
             <div class="segmented">
               <button class="segmented-btn" class:segmented-active={recordsUniquePref} onclick={() => { recordsUniquePref = true; setRecordsUnique(true); }}>Unique</button>
               <button class="segmented-btn" class:segmented-active={!recordsUniquePref} onclick={() => { recordsUniquePref = false; setRecordsUnique(false); }}>All</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prefs-subtitle">Detail lists</div>
+      <div class="prefs-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Playlist badges</div>
+            <div class="pref-desc">Mark tracks that are in one of your playlists in the artist and album track lists</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!showPlaylistBadgesPref} onclick={() => { showPlaylistBadgesPref = false; setShowPlaylistBadges(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={showPlaylistBadgesPref} onclick={() => { showPlaylistBadgesPref = true; setShowPlaylistBadges(true); }}>On</button>
             </div>
           </div>
         </div>

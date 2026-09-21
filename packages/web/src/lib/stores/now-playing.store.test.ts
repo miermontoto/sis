@@ -8,10 +8,17 @@ const mocks = vi.hoisted(() => ({
   nowPlaying: vi.fn(),
   playbackSeek: vi.fn(async () => ({ success: true })),
   checkTrackLiked: vi.fn(async () => ({ isLiked: false })),
-  trackPlaylists: vi.fn(async () => ({ playlists: [] })),
+  trackPlaylists: vi.fn(async () => ({})),
 }));
 
-vi.mock('$lib/api', () => ({ api: mocks }));
+// el store también importa los accessors del ajuste de "up next": el mock del
+// módulo tiene que traerlos o la importación entera revienta. Apagado, checkQueue
+// no pide la cola, que es lo que interesa aquí
+vi.mock('$lib/api', () => ({
+  api: mocks,
+  getNowPlayingUpNext: () => false,
+  onNowPlayingUpNextChange: () => () => {},
+}));
 
 import { nowPlayingStore } from './now-playing.svelte';
 

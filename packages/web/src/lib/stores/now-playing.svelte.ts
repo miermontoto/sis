@@ -1,6 +1,7 @@
 import { api, getNowPlayingUpNext, onNowPlayingUpNextChange, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem } from '$lib/api';
 import { MIN_PLAY_MS } from '@sis/shared';
 import { playUpdatesStore } from './play-updates.svelte';
+import { playlistMembershipStore } from './playlist-membership.svelte';
 
 let _data = $state<NowPlayingResponse | null>(null);
 let _intervalId: ReturnType<typeof setInterval> | null = null;
@@ -20,9 +21,6 @@ let _volumePercent = $state<number | null>(null);
 let _progress = $state<{ baseMs: number; baseAtMs: number; playing: boolean; infoAtMs: number } | null>(null);
 let _queue = $state<PlaybackQueueItem[]>([]);
 let _lastQueueTrackId: string | null = null;
-type NpPlaylist = { id: number; spotifyId: string; name: string; imageUrl: string | null };
-let _playlists = $state<NpPlaylist[]>([]);
-let _lastPlaylistTrackId: string | null = null;
 let _boundaryTimeout: ReturnType<typeof setTimeout> | null = null;
 let _boundaryAttempts = 0;
 
@@ -178,16 +176,11 @@ async function checkLiked(trackId: string | undefined) {
   }
 }
 
-async function checkPlaylists(trackId: string | undefined) {
-  if (!trackId) { _playlists = []; _lastPlaylistTrackId = null; return; }
-  if (trackId === _lastPlaylistTrackId) return;
-  _lastPlaylistTrackId = trackId;
-  try {
-    const { playlists } = await api.trackPlaylists(trackId);
-    if (_lastPlaylistTrackId === trackId) _playlists = playlists;
-  } catch {
-    _playlists = [];
-  }
+// la pertenencia vive en playlistMembershipStore, compartida con las filas de
+// las listas: añadir un tema a una playlist desde cualquiera de las dos se ve en
+// la otra. El store ya ignora lo que conoce, así que no hace falta guard por tema
+function checkPlaylists(trackId: string | undefined) {
+  if (trackId) playlistMembershipStore.ensure([trackId]);
 }
 
 // la cola es una llamada en vivo a spotify, así que se pide una vez por tema
@@ -343,8 +336,7 @@ export const nowPlayingStore = {
   get volumePercent() { return _volumePercent; },
   progressMsAt,
   seek,
-  get playlists() { return _playlists; },
-  set playlists(v: NpPlaylist[]) { _playlists = v; },
+  get playlists() { return playlistMembershipStore.get(_data?.track?.id) ?? []; },
   get queue() { return _queue; },
   // encolar mueve la cabeza de la cola (spotify pone lo encolado justo detrás
   // del tema actual), así que el "next" del sidebar miente hasta releerla

@@ -135,6 +135,26 @@ export function getTrackPlaylistPresence(db: Db, trackId: string, userId: number
   `) as PlaylistPresenceItem[];
 }
 
+/** Pertenencia de un LOTE de temas, para pintar un badge por fila de lista sin
+ *  una consulta por fila. La respuesta trae TODOS los ids preguntados —los
+ *  vacíos incluidos— porque el cliente distingue "en ninguna" de "aún no lo sé". */
+export function getTracksPlaylistPresence(db: Db, trackIds: string[], userId: number): Record<string, PlaylistPresenceItem[]> {
+  const byTrack: Record<string, PlaylistPresenceItem[]> = Object.fromEntries(trackIds.map(id => [id, []]));
+  if (trackIds.length === 0) return byTrack;
+
+  const rows = db.all(sql`
+    SELECT spt.track_id as trackId, sp.id, sp.spotify_id as spotifyId, sp.name,
+           sp.image_url as imageUrl, sp.is_owned as isOwned
+    FROM spotify_playlist_tracks spt
+    JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
+    WHERE spt.track_id IN (${sql.join(trackIds.map(id => sql`${id}`), sql`, `)})
+    ORDER BY sp.name ASC
+  `) as Array<PlaylistPresenceItem & { trackId: string }>;
+
+  for (const { trackId, ...playlist } of rows) byTrack[trackId]?.push(playlist);
+  return byTrack;
+}
+
 /** En qué playlists aparece un artista (por tracks, position 0) */
 export function getArtistPlaylistPresence(db: Db, artistId: string, userId: number): PlaylistPresenceItem[] {
   return db.all(sql`

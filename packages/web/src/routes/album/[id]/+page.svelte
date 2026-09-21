@@ -5,7 +5,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, untrack } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getAlbumShowGlobalRanks } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getShowPlaylistBadges, getAlbumShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
@@ -69,6 +69,7 @@
   let albumTrackDisplay = $state<AlbumTrackDisplay>('fill');
   let albumShowDuration = $state(true);
   let albumShowAccolades = $state(true);
+  let showPlaylistBadges = $state(true);
   let albumShowGlobalRanks = $state(true);
   let trackGlobalRanks = $state<Record<string, number> | null>(null);
   let singleGlobalRanks = $state<Record<string, number> | null>(null);
@@ -217,6 +218,7 @@
     albumTrackDisplay = getAlbumTrackDisplay();
     albumShowDuration = getAlbumShowDuration();
     albumShowAccolades = getAlbumShowAccolades();
+    showPlaylistBadges = getShowPlaylistBadges();
     albumShowGlobalRanks = getAlbumShowGlobalRanks();
     layout = getDetailLayout('album');
     initialized = true;
@@ -288,9 +290,9 @@
           {#if trackSort === 'natural' && loadingNatural}
             <div class="loading"><div class="spinner"></div></div>
           {:else if trackSort === 'natural'}
-            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
+            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showPlaylists={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {:else}
-            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} globalRanks={trackGlobalRanks} />
+            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showPlaylists={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {/if}
         </section>
       {/if}

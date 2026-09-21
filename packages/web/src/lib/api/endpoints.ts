@@ -9,7 +9,7 @@ import type {
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
-  LibraryPlaylistListResponse, LibraryPlaylistDetail,
+  LibraryPlaylistListResponse, LibraryPlaylistDetail, PlaylistPresenceItem,
   RecentRankChangesResponse,
   ProfileResponse, CompareResponse, DirectoryResponse, FollowListResponse, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
@@ -154,8 +154,10 @@ export const api = {
   queueTrack: (trackId: string) =>
     apiMutate<{ success: boolean }>('POST', '/now-playing/queue', { uri: `spotify:track:${trackId}` }),
 
-  trackPlaylists: (trackId: string) =>
-    apiFetch<{ playlists: Array<{ id: number; spotifyId: string; name: string; imageUrl: string | null }> }>(`/now-playing/playlists/${encodeURIComponent(trackId)}`),
+  // pertenencia a playlists de un lote de temas (id → playlists, los vacíos
+  // incluidos). Una sola petición por lista, contra las playlists ya sincronizadas
+  trackPlaylists: (trackIds: string[]) =>
+    apiFetch<Record<string, PlaylistPresenceItem[]>>('/now-playing/playlists', { ids: trackIds.join(',') }),
   checkTrackLiked: (trackId: string) =>
     apiFetch<{ isLiked: boolean }>(`/now-playing/like/${encodeURIComponent(trackId)}`),
   likeTrack: (trackId: string) =>

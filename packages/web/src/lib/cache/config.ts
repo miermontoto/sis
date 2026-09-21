@@ -54,7 +54,8 @@ const RULES: Array<[string, EndpointConfig]> = [
   // desde otro dispositivo durante un día. Es una vista de seguridad: TTL corto.
   ['/settings/sessions',            { ttl: 1 * MIN,  maxStale: 10 * MIN }],
   ['/now-playing/like/',            { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
-  ['/now-playing/playlists/',       { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
+  // sin barra final: cubre el lote (`?ids=`) y la ruta por id de los apks viejos
+  ['/now-playing/playlists',        { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
 
   ['/stats/projected-rankings',     { ttl: 30 * SEC, maxStale: 5 * MIN }],
   ['/stats/recent-rank-changes',    { ttl: 5 * MIN,  maxStale: 1 * HOUR }],

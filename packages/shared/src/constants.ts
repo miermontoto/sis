@@ -119,3 +119,7 @@ export function nextMilestone(total: number): number {
   const last = MILESTONE_THRESHOLDS[MILESTONE_THRESHOLDS.length - 1];
   return MILESTONE_THRESHOLDS.find(t => t > total) ?? (Math.floor(total / last) + 1) * last;
 }
+
+// tope de ids por consulta de pertenencia a playlists (un badge por fila de
+// lista): acota la URL, no el coste — la query es local y de una sola pasada
+export const PLAYLIST_MEMBERSHIP_MAX_IDS = 200;

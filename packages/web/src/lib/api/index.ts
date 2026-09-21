@@ -52,6 +52,7 @@ export {
   getArtistShowTrackAccolades, setArtistShowTrackAccolades,
   getArtistShowGlobalRanks, setArtistShowGlobalRanks,
   getAlbumShowGlobalRanks, setAlbumShowGlobalRanks,
+  getShowPlaylistBadges, setShowPlaylistBadges,
   getArtistBackdrop, setArtistBackdrop,
   getSocialVisibility, setSocialVisibility,
   getNotificationsEnabled, setNotificationsEnabled,

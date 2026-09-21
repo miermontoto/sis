@@ -36,6 +36,7 @@
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import PlaylistPopover from '$lib/components/PlaylistPopover.svelte';
+  import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
   // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
@@ -90,6 +91,9 @@
       const result = await api.trackDetail(id, 'all', signal);
       if (signal.aborted) return;
       data = result;
+      // el detalle ya trae sus playlists: sembrarlas evita volver a preguntarlas
+      // y deja al store como única verdad para el popover del hero
+      playlistMembershipStore.seed(id, result.playlists);
       // el tinte sale del álbum: su color manual si lo tiene, si no el de la portada
       const album = result.track.album;
       if (album?.color || album?.imageUrl) {
@@ -444,11 +448,14 @@
         >
           <IconPlay />
         </button>
+        <!-- la pertenencia se sirve del store compartido con las filas de las
+             listas (sembrado con lo que ya trae el detalle), para que añadir aquí
+             se vea allí y al revés -->
         <PlaylistPopover
           trackId={trackId}
-          inPlaylists={data.playlists}
-          onAdd={(pl) => { if (data && !data.playlists.some(p => p.id === pl.id)) data.playlists = [...data.playlists, { ...pl, isOwned: true }]; }}
-          onRemove={(id) => { if (data) data.playlists = data.playlists.filter(p => p.id !== id); }}
+          inPlaylists={playlistMembershipStore.get(trackId) ?? data.playlists}
+          onAdd={(pl) => playlistMembershipStore.add(trackId, pl)}
+          onRemove={(id) => playlistMembershipStore.remove(trackId, id)}
         >
           {#snippet likeButton()}
             <button

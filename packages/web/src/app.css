@@ -1406,6 +1406,17 @@ a.track-item {
 .like-badge--empty {
   color: var(--text-muted);
 }
+/* variante de fila de lista: el badge va en flujo. El de la tarjeta de now
+   playing se cuelga del corazón (absoluto, esquina), y ahí no hay corazón */
+.like-wrap--inline {
+  display: inline-flex;
+  align-items: center;
+}
+.like-wrap--inline .like-badge {
+  position: static;
+  padding: 0 4px;
+}
+
 .like-popover {
   /* posición fija calculada por use:positionPopover para no salirse del viewport
      ni ser recortado por el overflow de la sidebar */

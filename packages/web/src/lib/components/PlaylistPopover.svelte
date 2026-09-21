@@ -1,12 +1,9 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
-  import { api } from '$lib/api';
+  import { api, type PlaylistPresenceItem } from '$lib/api';
   import { positionPopover } from '$lib/utils/popover';
   import IconCheckSmall from '$lib/icons/IconCheckSmall.svelte';
   import IconPlus from '$lib/icons/IconPlus.svelte';
-
-  // referencia mínima de playlist, común a now-playing y detalle de track
-  type PlaylistRef = { id: number; spotifyId: string; name: string; imageUrl: string | null };
 
   let {
     trackId,
@@ -14,21 +11,26 @@
     onAdd,
     onRemove,
     likeButton,
+    inline = false,
   }: {
     // spotify id del track para las mutaciones (null = sin track editable)
     trackId: string | null;
     // playlists que ya contienen el track (fuente de verdad del padre)
-    inPlaylists: PlaylistRef[];
+    inPlaylists: PlaylistPresenceItem[];
     // callbacks para que el padre actualice inPlaylists de forma optimista
-    onAdd: (pl: PlaylistRef) => void;
+    onAdd: (pl: PlaylistPresenceItem) => void;
     onRemove: (playlistId: number) => void;
     // botón de like: lo inyecta el padre porque su estado/estilo difiere
     likeButton?: Snippet;
+    // variante de fila de lista: el badge va en flujo (no hay corazón del que
+    // colgarse) y sólo afirma pertenencia, así que sin playlists no se pinta —
+    // una columna de "+" por cada tema de un disco es ruido, no afordancia
+    inline?: boolean;
   } = $props();
 
   // playlists propias/editables del usuario (independientes del track); se cargan
   // una sola vez de forma perezosa la primera vez que se abre el popover
-  let ownedPlaylists = $state<PlaylistRef[]>([]);
+  let ownedPlaylists = $state<PlaylistPresenceItem[]>([]);
   let ownedLoaded = false;
   let acting = $state<number | null>(null);
   let search = $state('');
@@ -57,7 +59,7 @@
       const res = await api.libraryPlaylists(200, 0);
       ownedPlaylists = res.items
         .filter(p => p.isOwned)
-        .map(p => ({ id: p.id, spotifyId: p.spotifyId, name: p.name, imageUrl: p.imageUrl }));
+        .map(p => ({ id: p.id, spotifyId: p.spotifyId, name: p.name, imageUrl: p.imageUrl, isOwned: true }));
     } catch {
       ownedLoaded = false; // permite reintentar en el próximo open
       ownedPlaylists = [];
@@ -78,7 +80,7 @@
     else search = '';
   }
 
-  async function add(pl: PlaylistRef) {
+  async function add(pl: PlaylistPresenceItem) {
     if (!trackId || acting) return;
     acting = pl.id;
     try {
@@ -123,9 +125,9 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="like-wrap" onmouseenter={openHover} onmouseleave={closeHover}>
+<div class="like-wrap" class:like-wrap--inline={inline} onmouseenter={openHover} onmouseleave={closeHover}>
   {@render likeButton?.()}
-  {#if inPlaylists.length > 0 || (trackId && ownedPlaylists.length > 0)}
+  {#if inPlaylists.length > 0 || (!inline && trackId && ownedPlaylists.length > 0)}
     <button
       type="button"
       class="like-badge"

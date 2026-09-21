@@ -3,9 +3,12 @@
   import { formatTrackLength, formatDate, formatHistoryStamp } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
+  import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
+  import { untrack } from 'svelte';
   import TrackItem from './TrackItem.svelte';
   import MetricMeta from './MetricMeta.svelte';
   import Accolades from './Accolades.svelte';
+  import PlaylistPopover from './PlaylistPopover.svelte';
 
   interface Props {
     items: (TopTrackItem | HistoryItem)[];
@@ -23,13 +26,23 @@
     percentLabels?: number[];
     showDuration?: boolean;
     showAccolades?: boolean;
+    showPlaylists?: boolean;
     sessionStartedAt?: string | null;
     sessionTotalTracks?: number;
   }
 
-  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, globalRanks = null, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false, sessionStartedAt = null, sessionTotalTracks = 0 }: Props = $props();
+  let { items, showRank = false, showRankChanges = false, showTime = false, metric = 'time', compact = false, focusId = null, itemFocusKey, ranks, globalRanks = null, dimUnplayed = false, fillPercents, percentLabels, showDuration = false, showAccolades = false, showPlaylists = false, sessionStartedAt = null, sessionTotalTracks = 0 }: Props = $props();
 
   let sessionStartMs = $derived(sessionStartedAt ? new Date(sessionStartedAt).getTime() : null);
+
+  // pertenencia a playlists de toda la lista en una sola petición. `untrack`
+  // porque ensure() lee el mismo estado que escribe: sin él, cada respuesta
+  // reejecuta el efecto
+  $effect(() => {
+    if (!showPlaylists) return;
+    const ids = items.map(getTrackId).filter((id): id is string => !!id);
+    if (ids.length > 0) untrack(() => playlistMembershipStore.ensure(ids));
+  });
 
   function resolveFocusKey(item: TopTrackItem | HistoryItem): string | null {
     return itemFocusKey ? itemFocusKey(item) : getTrackId(item);
@@ -95,6 +108,18 @@
       {#snippet extra()}
         {#if showAccolades && trackId}
           <Accolades entityType="track" entityId={trackId} />
+        {/if}
+        <!-- el badge afirma pertenencia, así que sólo existe cuando hay alguna:
+             montar el popover en cada fila sería un listener de documento por
+             fila para no pintar nada -->
+        {#if showPlaylists && trackId && (playlistMembershipStore.get(trackId)?.length ?? 0) > 0}
+          <PlaylistPopover
+            inline
+            {trackId}
+            inPlaylists={playlistMembershipStore.get(trackId) ?? []}
+            onAdd={(pl) => playlistMembershipStore.add(trackId, pl)}
+            onRemove={(id) => playlistMembershipStore.remove(trackId, id)}
+          />
         {/if}
       {/snippet}
       {#snippet meta()}

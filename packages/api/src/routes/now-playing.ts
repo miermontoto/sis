@@ -6,8 +6,11 @@ import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
+import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
+import { isLikedSynced, isTrackLiked, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT } from '../constants.js';
 import type { AppVariables } from '../app.js';
+import { PLAYLIST_MEMBERSHIP_MAX_IDS } from '@sis/shared';
 import type { SpotifyDevice, PlayContextRequest, LandedPlay } from '@sis/shared';
 import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse } from '../types/spotify.js';
 
@@ -365,9 +368,16 @@ nowPlaying.put('/device', async (c) => {
 
 // --- liked songs (Spotify library) ---
 
+// la pertenencia sale del espejo local (services/liked-sync.ts). Mientras no
+// exista para este usuario —primer arranque, sync caído— se responde en vivo y
+// se lanza el sync, que es exactamente lo que hacía esta ruta siempre
 nowPlaying.get('/like/:trackId', async (c) => {
   const userId = c.get('userId');
   const trackId = c.req.param('trackId');
+
+  if (isLikedSynced(userId)) return c.json({ isLiked: isTrackLiked(userId, trackId) });
+
+  syncUserLikedTracks(userId).catch(() => { /* se reintenta en el ciclo de 6h */ });
   const data = await spotifyFetch<boolean[]>('/me/tracks/contains', {
     userId,
     params: { ids: trackId },
@@ -388,6 +398,7 @@ nowPlaying.put('/like/:trackId', async (c) => {
     const detail = await res.text().catch(() => '');
     return c.json({ success: false, error: 'spotify_rejected', status: res.status, detail }, res.status as 400);
   }
+  setTrackLikedLocal(userId, trackId, true);
   return c.json({ success: true });
 });
 
@@ -404,11 +415,22 @@ nowPlaying.delete('/like/:trackId', async (c) => {
     const detail = await res.text().catch(() => '');
     return c.json({ success: false, error: 'spotify_rejected', status: res.status, detail }, res.status as 400);
   }
+  setTrackLikedLocal(userId, trackId, false);
   return c.json({ success: true });
 });
 
 // --- playlist presence ---
 
+// pertenencia de un LOTE de temas: lo que necesitan las listas de los detalles
+// (un badge por fila) sin una petición por fila. Todo sale de las playlists ya
+// sincronizadas, así que es una lectura local por muchas filas que traiga
+nowPlaying.get('/playlists', (c) => {
+  const ids = (c.req.query('ids') ?? '').split(',').filter(Boolean).slice(0, PLAYLIST_MEMBERSHIP_MAX_IDS);
+  return c.json(getTracksPlaylistPresence(getDb(), ids, c.get('userId')));
+});
+
+// pertenencia de un tema suelto. La sustituye la ruta de lote de arriba, pero
+// sigue viva porque la llaman los apks ya publicados
 nowPlaying.get('/playlists/:trackId', (c) => {
   const userId = c.get('userId');
   const trackId = c.req.param('trackId');
