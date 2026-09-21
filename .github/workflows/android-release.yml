@@ -1,28 +1,24 @@
-# caller fino: build + firma del .aab. la lógica real vive en el workflow reutilizable
-# del repo platform (se corrige UNA vez para todas las apps):
+# caller fino: build + firma del .aab y subida a Google Play. la lógica real vive en
+# el workflow reutilizable del repo platform (se corrige UNA vez para todas las apps):
 #   https://github.com/miermontoto/platform/blob/main/.github/workflows/android-release.yml
-# la lista de secrets (keystore, etc.) está documentada en su cabecera; hay que
-# configurarlos en este repo antes del primer run (falla rápido si faltan).
+# la lista de secrets y el setup de Play están documentados en su cabecera.
 #
 # AUTOMÁTICO: cada push a main que toque packages/web, el submódulo platform o los
 # workflows construye el .aab. el filtrado por paths lo hace el job `guard` del
 # workflow reutilizable (input path_filter), no un `paths:` nativo, que rompería el
 # release por tag.
 #
-# la SUBIDA a Play sigue apagada, y no por pereza: Play bloquea su api hasta que la
-# app tiene una primera release subida A MANO por la consola, así que con upload=true
-# el workflow fallaría igual aunque estuviera el service account. el .aab que deja
-# este workflow como artifact es justo el fichero para esa primera subida manual.
-# para encenderla, una vez hechos los 4 pasos de la cabecera del reutilizable
-# (crear la app → primera subida manual → service account invitado → secret
-# ANDROID_PLAY_SERVICE_ACCOUNT_JSON), cambia la línea `upload:` de abajo por:
-#     upload: ${{ github.event_name == 'push' || inputs.upload }}
+# la SUBIDA a Play en push la gobierna la variable de repo ANDROID_PLAY_UPLOAD
+# (Settings → Secrets and variables → Actions → Variables, valor `true`): Play bloquea
+# su api hasta que la app tiene una primera release subida A MANO por la consola, así
+# que con la subida encendida antes de tiempo cada push moriría en el upload (el .aab
+# queda como artifact igualmente: es justo el fichero para esa primera subida manual).
+# para encenderla, una vez hechos los pasos de la cabecera del reutilizable (app creada
+# → primera subida manual → service account invitado → secret
+# ANDROID_PLAY_SERVICE_ACCOUNT_JSON → las dos claves registradas en Android developer
+# verification), crea la variable; no hace falta tocar este fichero.
 #
-# iOS: sin workflow todavía — el login de sis es oauth de spotify, que en el webview
-# requiere browser del sistema + deep link de vuelta (pendiente en el roadmap de la
-# plataforma); tampoco hay dependencia @capacitor/ios, script mobile:build:ios, app
-# record en App Store Connect ni los 7 secrets de firma. hasta que el oauth móvil
-# funcione, un build de TestFlight sería una app en la que no se puede entrar.
+# iOS: ver ios-release.yml (mismo patrón, TestFlight).
 
 name: Android release
 
@@ -32,15 +28,15 @@ on:
     # filtros de ref. sin `paths:` a propósito (rompería el push de tag, que no trae
     # commits); el filtrado por rutas vive en el job `guard` del reutilizable.
     branches:
-      - main         # build automático (subida aún apagada, ver cabecera)
+      - main         # build automático (+ subida a alpha con ANDROID_PLAY_UPLOAD=true)
     tags:
       - 'android-v*'
   workflow_dispatch:
     inputs:
       upload:
-        description: 'Subir a Google Play (requiere ANDROID_PLAY_SERVICE_ACCOUNT_JSON, aún sin configurar).'
+        description: 'Subir a Google Play (requiere ANDROID_PLAY_SERVICE_ACCOUNT_JSON). Si no, solo build + artifact.'
         type: boolean
-        default: false
+        default: true
       track:
         description: 'Track de Play donde publicar el aab.'
         type: choice
@@ -61,9 +57,9 @@ jobs:
     with:
       app: sis
       package_name: info.mier.sis
-      # sin la primera release manual en la consola ni service account: en push queda
-      # en false (solo build + artifact). ver cabecera para encenderlo.
-      upload: ${{ inputs.upload || false }}
-      # alpha = closed testing, el destino real cuando se encienda la subida.
+      # push: sube sólo con la variable ANDROID_PLAY_UPLOAD=true (ver cabecera); en
+      # dispatch manda el input. default alpha = closed testing, donde se publica de
+      # verdad (internal está vacío); ojo: los nombres de la api no son los de la consola.
+      upload: ${{ (github.event_name == 'push' && vars.ANDROID_PLAY_UPLOAD == 'true') || (github.event_name == 'workflow_dispatch' && inputs.upload) }}
       track: ${{ inputs.track || 'alpha' }}
     secrets: inherit

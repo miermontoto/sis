@@ -18,3 +18,6 @@ packages/web/.svelte-kit/
 *firebase-adminsdk*.json
 # montajes propios de cada instancia (service account de firebase, etc.)
 docker-compose.override.yml
+
+# ios signing material (dist key/cert/p12, asc api key, profile) — NUNCA commitear
+assets/ios-signing/

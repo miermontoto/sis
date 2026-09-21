@@ -1,0 +1,67 @@
+# caller fino: build + firma + subida del ipa a App Store Connect (TestFlight). la
+# lógica real vive en el workflow reutilizable del repo platform (se corrige UNA vez
+# para todas las apps):
+#   https://github.com/miermontoto/platform/blob/main/.github/workflows/ios-release.yml
+# la lista de secrets y el setup de una sola vez (App ID, cert, profile, API key de
+# ASC) están documentados en su cabecera. para sis ya está hecho (2026-09-21): App ID
+# info.mier.sis (XNA5PZ82H3, con Push Notifications + Associated Domains), app record
+# "sis.fm" (6814445413), profile "sis App Store CI" (ZJWWQTGNPL) firmado con el cert
+# de distribución de la cuenta (KPG572448V, el mismo que duckhunt), y los 7 secrets
+# en este repo. el material está en assets/ios-signing/ (gitignored).
+#
+# AUTOMÁTICO: cada push a main que toque packages/web, el submódulo platform o los
+# workflows construye y sube a TestFlight. el filtrado por paths lo hace el job
+# `guard` del workflow reutilizable (input path_filter), no un `paths:` nativo, que
+# rompería el release por tag. la versión de marketing se queda fija y lo que crece es
+# el CFBundleVersion (run_number): TestFlight lista "1.0.0 (12)", "1.0.0 (13)"… para
+# una submission real a la App Store, lanza a mano con un marketing_version nuevo o
+# pushea un tag ios-vX.Y.Z.
+#
+# el login es oauth (spotify/last.fm) en el browser del sistema con vuelta por deep
+# link info.mier.sis:// (deep_link_scheme); no hay Sign in with Apple porque la app es
+# un cliente de la cuenta de spotify del usuario (excepción de la guideline 4.8).
+
+name: iOS release
+
+on:
+  push:
+    # branches y tags conviven en el mismo bloque: github los evalúa como un OR de
+    # filtros de ref. sin `paths:` a propósito (rompería el push de tag, que no trae
+    # commits); el filtrado por rutas vive en el job `guard` del reutilizable.
+    branches:
+      - main      # build + subida a TestFlight automáticos
+    tags:
+      - 'ios-v*'  # p.ej. ios-v1.0.0 → build con esa versión de marketing
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        # SIN default a propósito: la versión viva se declara UNA vez, en el `||` de
+        # abajo. un default aquí lo taparía sin que se note (le pasó a duckhunt: todo
+        # dispatch manual apuntaba a un tren ya cerrado y moría en el upload).
+        description: 'Versión de marketing (CFBundleShortVersionString). Vacío = la versión viva del workflow.'
+        required: false
+      upload:
+        description: 'Subir a App Store Connect (TestFlight). Si no, solo build + artifact.'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    uses: miermontoto/platform/.github/workflows/ios-release.yml@main
+    with:
+      app: sis
+      bundle_id: info.mier.sis
+      # en tag ios-vX.Y.Z la versión se deriva del tag; en push a main y en dispatch
+      # sin valor manda este default, ÚNICA declaración de la versión VIVA de la app
+      # (la snapshot 26wNNx no sirve: apple solo acepta dígitos y puntos). si App Store
+      # Connect cierra ese tren al publicarla, el upload falla con "Invalid Pre-Release
+      # Train" (90186) y se sube el número AQUÍ, que es el único sitio donde vive.
+      marketing_version: ${{ inputs.marketing_version || '1.0.0' }}
+      upload: ${{ github.event_name == 'push' || inputs.upload }}
+      icon_bg: '#080a0c'
+      deep_link_scheme: info.mier.sis
+    secrets: inherit
