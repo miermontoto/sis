@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200">
+  <!-- nombre + descriptor, sin icono (cabeceras, firmas) -->
+  <text x="0" y="118" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="120" fill="#e0e8e8">sis</text>
+  <text x="4" y="176" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-size="40" fill="#6a7a7a">listening stats</text>
+</svg>

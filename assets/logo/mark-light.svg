@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- marca suelta para fondos claros: el acento pierde contraste sobre blanco, va en tinta -->
+  <text x="256" y="296" text-anchor="middle" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="180" letter-spacing="0.06em" fill="#080a0c">SIS</text>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 640">
+  <!-- icono sobre wordmark, centrado (splash, tarjetas cuadradas) -->
+  <rect x="106" y="0" width="300" height="300" rx="56" fill="#0f1214" stroke="#1e2a2a" stroke-width="4"/>
+  <text x="256" y="174" text-anchor="middle" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="106" letter-spacing="0.06em" fill="#1db954">SIS</text>
+  <text x="256" y="470" text-anchor="middle" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="120" fill="#e0e8e8">sis</text>
+  <text x="256" y="540" text-anchor="middle" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-size="40" fill="#6a7a7a">listening stats</text>
+</svg>

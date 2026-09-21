@@ -1,0 +1,55 @@
+APP STORE METADATA (EN)
+
+SUBTITLE (30 chars max)
+Your Spotify listening, logged
+
+PROMOTIONAL TEXT (170 chars max)
+Every play logged to your own server: live now playing, history by session, rankings by plays or time, weekly charts and insights. Self-hosted, your data stays yours.
+
+KEYWORDS (100 chars max, comma-separated)
+spotify,stats,listening,history,scrobble,lastfm,charts,music,tracker,self-hosted,rankings,insights
+
+SHORT DESCRIPTION (80 chars max)
+Self-hosted Spotify tracker — your listening history, stats and trends.
+
+FULL DESCRIPTION (4000 chars max)
+SIS records every song you play on Spotify and turns it into a private dashboard of your own listening — running on your own server, with your data staying yours.
+
+Connect your Spotify account and SIS logs every play to its own database:
+• Now playing — your current track, live, polled every 30 seconds
+• History — every play you've ever made, grouped by session, with infinite scroll
+• Top tracks, artists and albums — ranked by play count or total listening time
+• Trends — daily, weekly and monthly listening over any time range
+• Insights — hourly and daily heatmaps, genre breakdowns, listening streaks and discovery metrics
+• Export — download everything as JSON or CSV, or import your Spotify data dump
+
+Built for the way you listen
+Switch any ranking between plays and time. Filter by all-time, year, 6 months, 3 months, month, week, day or a custom range. Jump to any track, artist or album for its own detail page and history.
+
+Fast and focused
+A dense, monospace dashboard with charts that load instantly, keyboard shortcuts for power users, and a global search to find anything in seconds.
+
+Yours, privately
+SIS is self-hosted: it talks to Spotify with your credentials and keeps your entire listening history in a database you control. No third-party analytics, no selling your taste back to you.
+
+Note: SIS requires a Spotify account and your own server to run. It is an independent project and is not affiliated with or endorsed by Spotify.
+
+Built for iPhone and iPad
+The app connects to any SIS instance: enter your server's address on first launch (or use sis.fm) and sign in with the same account you use on the web. Native system bars that follow the theme, a bottom tab bar for quick access on iPhone and the full sidebar layout on iPad.
+
+=== APP REVIEW INFORMATION (App Store Connect → App Review Information) ===
+
+SIGN-IN REQUIRED: Yes
+Instance to enter on the connect screen: sis.fm
+Demo account user name: (TODO — decide the review account: a Last.fm or mier.info user pre-authorised on sis.fm, since Spotify logins need a Spotify account allowed on the instance)
+Demo account password: (provided out-of-band; not stored in this repo)
+
+REVIEW NOTES
+SIS is a client for the user's own listening data. On first launch the app asks for the address of a SIS server (self-hosted by the user, or the public instance sis.fm) and then signs the user in through the browser with the account that instance accepts (Spotify, Last.fm or mier.info). Spotify is the data source, not a social login: the app exists to show the listening history of the user's own Spotify account, which is why there is no Sign in with Apple (guideline 4.8, client of a specific third-party service).
+With the demo account above the reviewer can see:
+• Dashboard: now playing, today's and this week's totals, top tracks, recent plays
+• Rankings: top tracks / albums / artists by plays or listening time over any range
+• Charts: weekly charts with peaks, weeks on chart and movement
+• Insights: hour × day heatmap, genres, streaks and discovery
+• History: every play, grouped by listening session
+No external account connection is required beyond signing in with the demo account.

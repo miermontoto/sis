@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- marca suelta (sin fondo) para fondos oscuros -->
+  <text x="256" y="296" text-anchor="middle" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="180" letter-spacing="0.06em" fill="#1db954">SIS</text>
+</svg>
