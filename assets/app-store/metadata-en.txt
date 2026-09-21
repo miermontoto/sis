@@ -40,13 +40,13 @@ The app connects to any SIS instance: enter your server's address on first launc
 === APP REVIEW INFORMATION (App Store Connect → App Review Information) ===
 
 SIGN-IN REQUIRED: Yes
-Instance to enter on the connect screen: sis.fm
-Demo account user name: (TODO — decide the review account: a Last.fm or mier.info user pre-authorised on sis.fm, since Spotify logins need a Spotify account allowed on the instance)
+Demo account user name: isghatiobueno@gmail.com
 Demo account password: (provided out-of-band; not stored in this repo)
 
 REVIEW NOTES
-SIS is a client for the user's own listening data. On first launch the app asks for the address of a SIS server (self-hosted by the user, or the public instance sis.fm) and then signs the user in through the browser with the account that instance accepts (Spotify, Last.fm or mier.info). Spotify is the data source, not a social login: the app exists to show the listening history of the user's own Spotify account, which is why there is no Sign in with Apple (guideline 4.8, client of a specific third-party service).
-With the demo account above the reviewer can see:
+SIS is a client for the user's own listening data. On first launch the app asks for the address of a SIS server: enter "sis.fm" (or tap "Use sis.fm"). Then tap "Sign in with Spotify": the system browser opens Spotify's own login page — sign in there with the demo account above (it is a Spotify account already authorised on sis.fm and pre-populated with listening history) and the browser returns to the app automatically.
+Spotify is the data source, not a social login: the app exists to show the listening history of the user's own Spotify account, which is why there is no Sign in with Apple (guideline 4.8, client of a specific third-party service). No other account is needed.
+With the demo account the reviewer can see:
 • Dashboard: now playing, today's and this week's totals, top tracks, recent plays
 • Rankings: top tracks / albums / artists by plays or listening time over any range
 • Charts: weekly charts with peaks, weeks on chart and movement

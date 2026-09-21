@@ -40,12 +40,12 @@ La app se conecta a cualquier instancia de SIS: escribe la dirección de tu serv
 === INFORMACIÓN PARA LA REVISIÓN (App Store Connect → App Review Information) ===
 
 INICIO DE SESIÓN REQUERIDO: Sí
-Instancia a escribir en la pantalla de conexión: sis.fm
-Usuario de la cuenta demo: (PENDIENTE — decidir la cuenta de revisión: un usuario de Last.fm o de mier.info autorizado en sis.fm, porque el login de Spotify exige una cuenta de Spotify permitida en la instancia)
+Usuario de la cuenta demo: isghatiobueno@gmail.com
 Contraseña de la cuenta demo: (se entrega aparte; no se guarda en este repo)
 
 NOTAS PARA LA REVISIÓN
-SIS es un cliente de los datos de escucha del propio usuario. Al arrancar pide la dirección de un servidor SIS (autoalojado por el usuario, o la instancia pública sis.fm) y después inicia sesión en el navegador con la cuenta que esa instancia acepta (Spotify, Last.fm o mier.info). Spotify es la fuente de datos, no un login social: la app existe para enseñar el historial de la cuenta de Spotify del usuario, por eso no hay Sign in with Apple (guideline 4.8, cliente de un servicio de terceros concreto).
+SIS es un cliente de los datos de escucha del propio usuario. Al arrancar la app pide la dirección de un servidor SIS: escribe "sis.fm" (o pulsa "Use sis.fm"). Después pulsa "Sign in with Spotify": se abre el navegador del sistema con la página de login de Spotify — entra ahí con la cuenta demo de arriba (una cuenta de Spotify ya autorizada en sis.fm y con historial de escucha cargado) y el navegador vuelve a la app solo.
+Spotify es la fuente de datos, no un login social: la app existe para enseñar el historial de la cuenta de Spotify del usuario, por eso no hay Sign in with Apple (guideline 4.8, cliente de un servicio de terceros concreto). No hace falta ninguna otra cuenta.
 Con la cuenta demo el revisor puede ver:
 • Dashboard: now playing, totales de hoy y de la semana, top tracks, reproducciones recientes
 • Rankings: top tracks / álbumes / artistas por plays o tiempo en cualquier rango
