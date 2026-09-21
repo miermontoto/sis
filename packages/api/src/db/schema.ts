@@ -244,6 +244,27 @@ export const spotifyPlaylistTracks = sqliteTable('spotify_playlist_tracks', {
   uniqueIndex('idx_spt_playlist_track').on(table.playlistId, table.trackId),
 ]);
 
+// espejo de los "liked songs" de spotify. track_id va SIN FK a tracks a
+// propósito: es una copia del conjunto que vive en spotify, no catálogo — la
+// biblioteca guardada incluye temas nunca escuchados, y con foreign_keys = ON
+// la FK obligaría a upsertear todo ese catálogo para poder guardarlos.
+export const likedTracks = sqliteTable('liked_tracks', {
+  userId: integer('user_id').notNull().references(() => users.id),
+  trackId: text('track_id').notNull(),
+  addedAt: text('added_at'),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.trackId] }),
+]);
+
+// marca del último sync del espejo. `total` es el que reportó spotify entonces:
+// comparar contra él (y no contra nuestro recuento) detecta altas y bajas sin
+// paginar, y sobrevive a los temas que saltamos (ficheros locales)
+export const likedSyncState = sqliteTable('liked_sync_state', {
+  userId: integer('user_id').primaryKey().references(() => users.id),
+  total: integer('total').notNull().default(0),
+  syncedAt: text('synced_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // tabla canónica de sesiones de la plataforma (@platform/auth). reemplaza a la
 // tabla `sessions` legacy (denormalizaba spotifyId/isAdmin); la física vieja queda
 // huérfana hasta una migración de limpieza.

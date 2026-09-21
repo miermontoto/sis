@@ -463,6 +463,31 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
 
+  // pertenencia por TEMA: el único índice de spotify_playlist_tracks es
+  // (playlist_id, track_id), que no sirve para preguntar "¿en qué playlists está
+  // este tema?" — sin éste, cada badge de una lista escanea la tabla entera
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_spt_track ON spotify_playlist_tracks(track_id)'); } catch {}
+
+  // espejo de los liked songs de spotify (ver schema.ts): track_id sin FK, que
+  // la biblioteca guardada incluye temas que nunca hemos ingestado. liked_sync_state
+  // guarda el `total` que reportó spotify en el último sync completo, que es lo que
+  // permite descartar un ciclo entero con una sola petición
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS liked_tracks (
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      track_id TEXT NOT NULL,
+      added_at TEXT,
+      PRIMARY KEY (user_id, track_id)
+    )`);
+  } catch {}
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS liked_sync_state (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      total INTEGER NOT NULL DEFAULT 0,
+      synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+
   // id.mier.info: cuentas vinculadas (sso propio, oidc)
   try {
     sqlite.exec(`CREATE TABLE IF NOT EXISTS mierid_accounts (

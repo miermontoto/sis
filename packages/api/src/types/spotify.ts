@@ -157,6 +157,15 @@ export interface SpotifySearchAlbumResult {
   albums: { items: { id: string; name: string; images: SpotifyImage[]; artists: { id: string; name: string }[]; release_date: string; total_tracks: number; album_type: string }[] };
 }
 
+export interface SpotifySavedTracksResponse {
+  items: {
+    added_at: string | null;
+    track: SpotifyTrack | null;
+  }[];
+  total: number;
+  next: string | null;
+}
+
 export interface SpotifyPlaylistTracksResponse {
   items: {
     added_at: string;

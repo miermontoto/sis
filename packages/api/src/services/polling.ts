@@ -23,11 +23,13 @@ import {
   RECORDS_CACHE_INTERVAL_MS,
   REPORT_WARM_INTERVAL_MS,
   PLAYLIST_SYNC_INTERVAL_MS,
+  LIKED_SYNC_INTERVAL_MS,
   AUTO_REGENERATE_CHECK_INTERVAL_MS,
   SESSION_GAP_MS,
   MIN_PLAY_MS,
 } from '../constants.js';
 import { syncAllUsersPlaylists } from './playlist-sync.js';
+import { syncAllUsersLikedTracks } from './liked-sync.js';
 import { runDueRegenerations } from './playlist-auto-regenerate.js';
 import { computeAndCacheRecords } from './records-cache.js';
 import { warmAllLatestReports } from './report-cache.js';
@@ -53,6 +55,7 @@ const logLastfmMeta = createLogger('lastfm-meta');
 const logRecordsCache = createLogger('records-cache');
 const logReportCache = createLogger('report-cache');
 const logPlaylistSync = createLogger('playlist-sync');
+const logLikedSync = createLogger('liked-sync');
 const logAutoRegen = createLogger('auto-regen');
 
 // timers por usuario
@@ -152,6 +155,7 @@ let artistFixTimer: ReturnType<typeof setInterval> | null = null;
 let recordsCacheTimer: ReturnType<typeof setInterval> | null = null;
 let reportWarmTimer: ReturnType<typeof setInterval> | null = null;
 let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
+let likedSyncTimer: ReturnType<typeof setInterval> | null = null;
 let autoRegenerateTimer: ReturnType<typeof setInterval> | null = null;
 let lastfmSyncTimer: ReturnType<typeof setInterval> | null = null;
 let tokenlessEnrichTimer: ReturnType<typeof setInterval> | null = null;
@@ -582,6 +586,11 @@ export function startPolling() {
       .catch(err => logPlaylistSync.error('error:', err));
   }, PLAYLIST_SYNC_INTERVAL_MS);
 
+  // espejo de liked songs (6h) — el primer sync se delega al login/navegación
+  likedSyncTimer = setInterval(() => {
+    syncAllUsersLikedTracks().catch(err => logLikedSync.error('error:', err));
+  }, LIKED_SYNC_INTERVAL_MS);
+
   // auto-regeneración de playlists generadas (check horario; la cadencia real por
   // playlist la fija su regenerate_interval_ms). solo por intervalo, sin run inicial.
   autoRegenerateTimer = setInterval(() => {
@@ -605,6 +614,7 @@ export function stopPolling() {
   if (recordsCacheTimer) clearInterval(recordsCacheTimer);
   if (reportWarmTimer) clearInterval(reportWarmTimer);
   if (playlistSyncTimer) clearInterval(playlistSyncTimer);
+  if (likedSyncTimer) clearInterval(likedSyncTimer);
   if (autoRegenerateTimer) clearInterval(autoRegenerateTimer);
   if (lastfmSyncTimer) clearInterval(lastfmSyncTimer);
   if (tokenlessEnrichTimer) clearInterval(tokenlessEnrichTimer);
@@ -614,6 +624,7 @@ export function stopPolling() {
   recordsCacheTimer = null;
   reportWarmTimer = null;
   playlistSyncTimer = null;
+  likedSyncTimer = null;
   autoRegenerateTimer = null;
   lastfmSyncTimer = null;
   tokenlessEnrichTimer = null;

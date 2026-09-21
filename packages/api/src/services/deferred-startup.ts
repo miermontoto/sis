@@ -2,6 +2,7 @@
 // en vez de bloquear el arranque del servidor.
 
 import { syncUserPlaylists } from './playlist-sync.js';
+import { syncUserLikedTracks } from './liked-sync.js';
 import { computeAndCacheForUserAsync } from './records-cache.js';
 import { warmRecentRankChanges } from './recent-changes-cache.js';
 import { getProfileSummaryCached, getUserStreaksCached } from './social.js';
@@ -10,6 +11,7 @@ import { getUserById } from './user-manager.js';
 import { createLogger } from './logger.js';
 
 const logPlaylistSync = createLogger('playlist-sync');
+const logLikedSync = createLogger('liked-sync');
 const logRecordsCache = createLogger('records-cache');
 const logRecentChanges = createLogger('recent-changes');
 const logSocialCard = createLogger('social-card');
@@ -25,6 +27,10 @@ export function triggerDeferredStartup(userId: number) {
 
   syncUserPlaylists(userId).catch(err =>
     logPlaylistSync.error(`error lazy sync usuario ${userId}:`, err));
+
+  // espejo de liked songs: sin él la pertenencia cae a spotify en cada corazón
+  syncUserLikedTracks(userId).catch(err =>
+    logLikedSync.error(`error lazy sync usuario ${userId}:`, err));
 
   // records cache + recent-rank-changes: ejecutan sus queries en worker threads via dbRead
   const user = getUserById(userId);
