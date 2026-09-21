@@ -4,14 +4,15 @@ import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
 import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
-import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
+import { triggerCurrentlyPlayingPoll, getPendingPlays } from '../services/polling.js';
+import { enrichTracksBatch } from '../db/queries/index.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
 import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
-import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
+import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS, PENDING_PLAY_MATCH_SLACK_MS } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import { PLAYLIST_MEMBERSHIP_MAX_IDS } from '@sis/shared';
-import type { SpotifyDevice, PlayContextRequest, LandedPlay } from '@sis/shared';
+import type { SpotifyDevice, PlayContextRequest, LandedPlay, PendingPlay } from '@sis/shared';
 import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
@@ -34,8 +35,66 @@ const nowPlaying = new Hono<{ Variables: AppVariables }>();
 // Coste: el índice único (user_id, played_at) hace de la marca un seek al final
 // del rango, y del delta un rango indexado que casi siempre trae cero filas —
 // gratis en un endpoint que se sondea cada 10s.
+
+// Los plays que el poller ya ha medido y spotify aún no ha expuesto en
+// recently-played. Es lo que tapa el agujero entre "el track ha terminado" y
+// "la fila existe": ese hueco es de segundos en el caso bueno pero se ha medido
+// en 6,5 min, y durante todo ese rato el historial no enseña nada y quien mira
+// concluye que se ha perdido un scrobble.
+//
+// Viene del servidor a propósito. El cliente ya anteponía el track saliente por
+// su cuenta, pero sólo si había VISTO el corte: recargar la página, abrir la app
+// a medias o mirar desde otro dispositivo no lo enseñaba, que es justo cuando se
+// nota. Es el mismo arreglo que ya se hizo con landedPlays.
+//
+// Un pendiente NO es una fila: puede no llegar nunca (spotify descarta escuchas
+// cortas), así que no lleva id y el cliente lo pinta marcado como tal.
+function readPendingPlays(userId: number): PendingPlay[] {
+  const pending = getPendingPlays(userId);
+  if (pending.length === 0) return [];
+
+  const db = getDb();
+  const trackMap = enrichTracksBatch(db, pending.map(p => p.trackId));
+
+  // descartar los que ya tengan fila: el buffer sólo lo consume
+  // pollRecentlyPlayed, así que un play que aterrice por otra vía (un scrobble
+  // de last.fm, /1/submit-listens, un scrobble manual) dejaría la entrada viva
+  // hasta el TTL y la lista pintaría el mismo play dos veces, uno como hecho y
+  // otro como pendiente. La ventana cubre las dos semánticas de played_at que
+  // conviven en la tabla: spotify marca el FIN del play y las fuentes de import
+  // el INICIO, así que se busca desde el comienzo estimado del track
+  const oldest = Math.min(...pending.map(p => p.endedAt - p.progressMs)) - PENDING_PLAY_MATCH_SLACK_MS;
+  const landed = db.all(sql`
+    SELECT track_id AS trackId, played_at AS playedAt
+    FROM listening_history
+    WHERE user_id = ${userId}
+      AND track_id IN (${sql.join([...new Set(pending.map(p => p.trackId))].map(id => sql`${id}`), sql`, `)})
+      AND played_at >= ${new Date(oldest).toISOString()}
+  `) as Array<{ trackId: string; playedAt: string }>;
+
+  return pending.flatMap((p) => {
+    const track = trackMap.get(p.trackId);
+    if (!track) return [];
+    const from = p.endedAt - p.progressMs - PENDING_PLAY_MATCH_SLACK_MS;
+    const to = p.endedAt + PENDING_PLAY_MATCH_SLACK_MS;
+    const already = landed.some((r) => {
+      if (r.trackId !== p.trackId) return false;
+      const at = Date.parse(r.playedAt);
+      return at >= from && at <= to;
+    });
+    if (already) return [];
+    return [{
+      trackId: p.trackId,
+      playedAt: new Date(p.endedAt).toISOString(),
+      playedMs: p.progressMs,
+      track,
+    }];
+  });
+}
+
 function readHistoryTail(userId: number | undefined, since: string | undefined) {
-  if (!userId) return { historyWatermark: null, landedPlays: [] as LandedPlay[] };
+  if (!userId) return { historyWatermark: null, landedPlays: [] as LandedPlay[], pendingPlays: [] as PendingPlay[] };
+  const pendingPlays = readPendingPlays(userId);
   const db = getDb();
   const row = db.get(
     sql`SELECT MAX(played_at) AS watermark FROM listening_history WHERE user_id = ${userId}`
@@ -46,7 +105,7 @@ function readHistoryTail(userId: number | undefined, since: string | undefined) 
   // su línea base. Las marcas son ISO-8601 UTC del servidor, así que compararlas
   // como texto equivale a compararlas como instantes
   if (!since || !watermark || watermark <= since) {
-    return { historyWatermark: watermark, landedPlays: [] as LandedPlay[] };
+    return { historyWatermark: watermark, landedPlays: [] as LandedPlay[], pendingPlays };
   }
 
   const rows = db.all(sql`
@@ -72,7 +131,7 @@ function readHistoryTail(userId: number | undefined, since: string | undefined) 
     playedAt: r.playedAt,
     playedMs: r.playedMs,
   }));
-  return { historyWatermark: watermark, landedPlays };
+  return { historyWatermark: watermark, landedPlays, pendingPlays };
 }
 
 // retorna el track actual desde polling_state (sin llamada a spotify)

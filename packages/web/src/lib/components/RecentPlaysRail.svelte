@@ -7,16 +7,22 @@
   // artista coincidente). el contenedor tiene scroll propio y, en dos columnas,
   // crece para terminar justo donde acaba la columna principal (nunca la sobrepasa).
   //
-  // cuando el seed cambia sin cambiar de entidad (el padre antepone un play que
-  // acaba de terminar) se funde por delante en vez de resetear: resetear
-  // tiraría las páginas ya cargadas y el scroll cada vez que termina una canción.
+  // cuando el seed cambia sin cambiar de entidad se funde por delante en vez de
+  // resetear: resetear tiraría las páginas ya cargadas y el scroll cada vez que
+  // termina una canción. Los pendientes no pasan por ahí — van en su propio
+  // prop y sólo se anteponen al pintar.
   import { api, type HistoryItem } from '$lib/api';
+  import { mergePendingPlays } from '$lib/utils/pending-plays';
   import TrackList from './TrackList.svelte';
 
-  let { entityType = null, entityId = '', initial, historyHref, compact = false, sessionStartedAt = null, sessionTotalTracks = 0 }: {
+  let { entityType = null, entityId = '', initial, pending = [], historyHref, compact = false, sessionStartedAt = null, sessionTotalTracks = 0 }: {
     entityType?: 'artist' | 'album' | 'track' | null;
     entityId?: string;
     initial: HistoryItem[];
+    // plays medidos por el servidor y aún sin fila. Van aparte de `items`
+    // porque no tienen id: entrarían en el dedupe y en las páginas ya cargadas
+    // y no saldrían de ahí cuando la fila aterrizase
+    pending?: HistoryItem[];
     historyHref: string;
     compact?: boolean;
     sessionStartedAt?: string | null;
@@ -104,7 +110,7 @@
 
 <h2 class="section-title"><a href={historyHref} class="section-link">Recent plays</a></h2>
 <div class="recent-scroll" bind:this={scrollEl}>
-  <TrackList {items} showTime {compact} {sessionStartedAt} {sessionTotalTracks} />
+  <TrackList items={mergePendingPlays(pending, items)} showTime {compact} {sessionStartedAt} {sessionTotalTracks} />
   {#if hasMore}
     <div class="recent-sentinel" bind:this={sentinel}>
       {#if loadingMore}<div class="spinner spinner--inline"></div>{/if}

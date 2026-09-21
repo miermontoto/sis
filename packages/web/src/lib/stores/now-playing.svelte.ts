@@ -11,7 +11,6 @@ let _lastCheckedTrackId: string | null = null;
 // lecturas cacheadas medidas ANTES que ella son obsoletas y se descartan
 let _liveInfoAtMs = 0;
 let _liveGuardUntil = 0;
-let _lastFinishedPlay = $state<HistoryItem | null>(null);
 let _volumePercent = $state<number | null>(null);
 // base de progreso del track: valor conocido + instante (reloj cliente) en que
 // se conoció; el progreso mostrado se extrapola desde aquí mientras suena.
@@ -90,12 +89,6 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
     const playedMs = Math.min(progressMsAt(Date.now()) ?? finished.durationMs, finished.durationMs);
     if (playedMs >= MIN_PLAY_MS) {
       const playedAt = new Date().toISOString();
-      _lastFinishedPlay = {
-        id: Date.now(),
-        playedAt,
-        contextType: null,
-        track: finished,
-      };
       playUpdatesStore.emitOptimistic({
         trackId: finished.id,
         albumId: finished.album?.id ?? null,
@@ -305,7 +298,21 @@ export const nowPlayingStore = {
   get isPlaying() { return !!(_data?.playing && _data.isPlaying); },
   get isLiked() { return playlistMembershipStore.isLiked(_data?.track?.id) === true; },
   get likeLoading() { return _likeLoading; },
-  get lastFinishedPlay() { return _lastFinishedPlay; },
+  // plays que el servidor ya ha medido y spotify todavía no ha confirmado, en
+  // forma de fila pintable. Antes esto lo componía el cliente con el track
+  // saliente, pero sólo si había visto el corte: quien recarga o abre la app a
+  // media canción no veía nada hasta que la fila aterrizaba — minutos después,
+  // en el peor caso — y el historial parecía haber perdido el play. Sin id
+  // porque no hay fila: no se puede seleccionar ni borrar
+  get pendingPlays(): HistoryItem[] {
+    return (_data?.pendingPlays ?? []).map(p => ({
+      id: 0,
+      playedAt: p.playedAt,
+      contextType: null,
+      track: p.track,
+      pending: true,
+    }));
+  },
   get volumePercent() { return _volumePercent; },
   progressMsAt,
   seek,

@@ -135,6 +135,20 @@ function scheduleHistoryFlush(userId: number, step = 0) {
   }, HISTORY_FLUSH_DELAYS_MS[step]));
 }
 
+// lo que el buffer tiene sin correlacionar: tracks que ya terminaron y cuya fila
+// aún no existe. Se filtran los que duraron menos de MIN_PLAY_MS porque spotify
+// no los registra NUNCA — caducan solos por TTL, así que anunciarlos como
+// pendientes sería prometer una fila que no va a llegar. El TTL también se
+// aplica aquí: pushCompletedPlay sólo poda al insertar, de modo que un usuario
+// que dejó de escuchar conserva su última entrada caducada hasta el siguiente
+// corte
+export function getPendingPlays(userId: number): CompletedPlay[] {
+  const list = completedPlays.get(userId);
+  if (!list) return [];
+  const cutoff = Date.now() - COMPLETED_PLAY_TTL_MS;
+  return list.filter(p => p.endedAt >= cutoff && p.progressMs >= MIN_PLAY_MS);
+}
+
 export function getCompletedPlayDuration(userId: number, trackId: string): number | null {
   const list = completedPlays.get(userId);
   if (!list) return null;

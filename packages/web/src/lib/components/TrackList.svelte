@@ -58,6 +58,15 @@
     return 'playCount' in item;
   }
 
+  // play que el servidor da por medido pero que spotify aún no ha confirmado.
+  // La fila NO se atenúa: atenuar es lo que se hace con lo que no sonó
+  // (dimUnplayed) y esto sí sonó; lo que falta es la confirmación, y eso lo
+  // dice la marca. Ocupa el sitio de la hora porque la nuestra es una
+  // estimación del corte, no el played_at que acabará guardándose
+  function isPending(item: TopTrackItem | HistoryItem): boolean {
+    return 'pending' in item && !!item.pending;
+  }
+
   function isInSession(item: TopTrackItem | HistoryItem): boolean {
     if (!sessionStartMs || !('playedAt' in item)) return false;
     return new Date(item.playedAt).getTime() >= sessionStartMs;
@@ -128,7 +137,9 @@
         {#if isTopTrack(item)}
           <MetricMeta playCount={item.playCount} totalMs={item.totalMs} {metric} flash={statFlashStore.isFlashing(trackId)} />
         {/if}
-        {#if showTime && 'playedAt' in item}
+        {#if isPending(item)}
+          <span class="track-pending" title="Played — waiting for Spotify to confirm it">pending</span>
+        {:else if showTime && 'playedAt' in item}
           <div class="track-time" title={formatDate(item.playedAt)}>{formatHistoryStamp(item.playedAt)}</div>
         {/if}
       {/snippet}
@@ -148,3 +159,19 @@
     {@render trackItem(item, ri + sessionCount)}
   {/each}
 </div>
+
+<style>
+  /* misma geometría neutra que .alias-badge: es un hecho sobre la fila (falta la
+     confirmación de spotify), no una alarma, así que no estrena color propio */
+  .track-pending {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius);
+    white-space: nowrap;
+  }
+</style>

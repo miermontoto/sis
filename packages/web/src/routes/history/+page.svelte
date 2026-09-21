@@ -11,6 +11,7 @@
   import LiveEq from '$lib/components/LiveEq.svelte';
   import AddScrobbleModal from '$lib/components/AddScrobbleModal.svelte';
   import DatePicker from '$lib/components/DatePicker.svelte';
+  import { mergePendingPlays } from '$lib/utils/pending-plays';
 
   let items = $state<HistoryItem[]>([]);
   let currentPage = $state(1);
@@ -38,6 +39,14 @@
   let lastSelectedIndex = $state<number | null>(null);
   let deleting = $state(false);
   let showConfirm = $state(false);
+
+  // los pendientes NO entran en `items`: no tienen fila, así que no se pueden
+  // seleccionar, borrar ni paginar, y meterlos ahí los colaría en el modo
+  // edición y en el dedupe por id. Sólo se anteponen al pintar, y desaparecen
+  // solos cuando el servidor deja de anunciarlos — porque la fila aterrizó o
+  // porque spotify descartó el play. Filtrados fuera: la lista sería mentira
+  // (los pendientes no saben de filtros) y el modo edición no los admite
+  let rendered = $derived(hasFilters || editMode ? items : mergePendingPlays(nowPlayingStore.pendingPlays, items));
   // scroll-to-focus desde /history?focus=<playedAt>
   let pendingFocusPlayedAt = $state<string | null>(null);
   let focusedPlayedAt = $state<string | null>(null);
@@ -236,13 +245,6 @@
     };
   });
 
-  $effect(() => {
-    const play = nowPlayingStore.lastFinishedPlay;
-    if (!play || items.length === 0 || hasFilters || editMode) return;
-    if (items[0]?.track?.id === play.track?.id && Math.abs(new Date(items[0].playedAt).getTime() - new Date(play.playedAt).getTime()) < 60_000) return;
-    items = [play, ...items];
-  });
-
   async function waitForHistoryElement(selector: string, timeoutMs = 2000): Promise<HTMLElement | null> {
     const deadline = performance.now() + timeoutMs;
     let el = document.querySelector<HTMLElement>(selector);
@@ -358,7 +360,7 @@
     <div class="spinner"></div>
     Loading...
   </div>
-{:else if items.length === 0}
+{:else if rendered.length === 0}
   <div class="empty-state">{hasFilters ? 'No plays match these filters.' : 'No listening data yet.'}</div>
 {:else if editMode}
   <div class="track-list">
@@ -402,7 +404,7 @@
   </div>
 {:else}
   <TrackList
-    {items}
+    items={rendered}
     showTime
     focusId={focusedPlayedAt}
     itemFocusKey={(i) => 'playedAt' in i ? i.playedAt : null}

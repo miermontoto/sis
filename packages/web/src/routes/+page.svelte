@@ -253,13 +253,6 @@
     return () => clearInterval(pollInterval);
   });
 
-  $effect(() => {
-    const play = nowPlayingStore.lastFinishedPlay;
-    if (!play || recentPlays.length === 0) return;
-    if (recentPlays[0]?.track?.id === play.track?.id && Math.abs(new Date(recentPlays[0].playedAt).getTime() - new Date(play.playedAt).getTime()) < 60_000) return;
-    recentPlays = [play, ...recentPlays].slice(0, RECENT_LIMIT);
-  });
-
   // --- play recién terminado: parche optimista de las cifras del dashboard ---
   //
   // Las listas son del rango 'week', así que un play de ahora siempre cae
@@ -587,7 +580,7 @@
           <h3 class="section-title"><a href="/history" class="section-link">Recent plays</a></h3>
           {@render trackGhost(RECENT_LIMIT, false)}
         {:else if recentPlays.length > 0}
-          <RecentPlaysRail initial={recentPlays} historyHref="/history" compact sessionStartedAt={getSessionTrackingDisplay() !== 'off' ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
+          <RecentPlaysRail initial={recentPlays} pending={nowPlayingStore.pendingPlays} historyHref="/history" compact sessionStartedAt={getSessionTrackingDisplay() !== 'off' ? projectionsStore.sessionStartedAt : null} sessionTotalTracks={projectionsStore.data?.sessionTrackCount ?? 0} />
         {:else}
           <h3 class="section-title"><a href="/history" class="section-link">Recent plays</a></h3>
           <p class="empty-inline">No listening data yet.</p>

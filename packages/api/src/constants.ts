@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w39d';
+export const VERSION = '26w39e';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -24,6 +24,9 @@ export const RECENTLY_PLAYED_INTERVAL_MS = 5 * 60_000;
 // escalera de reintentos para volcar a historial un track recién terminado sin
 // esperar al tick de 5 min: recently-played tarda unos segundos en reflejarlo
 export const HISTORY_FLUSH_DELAYS_MS = [8_000, 25_000, 75_000];
+// holgura al emparejar un play pendiente con una fila que ya exista: el corte
+// lo detecta currently-playing, así que nuestra marca llega hasta un poll tarde
+export const PENDING_PLAY_MATCH_SLACK_MS = CURRENTLY_PLAYING_MAX_MS;
 
 // límites de la API de spotify
 export const RECENTLY_PLAYED_LIMIT = 50;

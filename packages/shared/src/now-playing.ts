@@ -24,6 +24,14 @@ export interface NowPlayingResponse {
   // scrobble de last.fm/listenbrainz no cambian el track sonando. Sin `since`
   // viene vacío: esa lectura es la línea base, no un delta
   landedPlays?: LandedPlay[];
+  // plays que el poller YA ha medido y que spotify todavía no ha confirmado en
+  // recently-played. Son la otra mitad de landedPlays: uno dice lo que se ha
+  // registrado y el otro lo que está en camino, y entre los dos no queda hueco
+  // en el que un play parezca perdido. El corte lo detecta currently-playing al
+  // instante, pero recently-played puede tardar minutos en exponerlo (medido:
+  // un play tardó 6,5 min en aparecer), así que sin esta lista el historial
+  // enseña un agujero y quien mira concluye que se ha perdido un scrobble
+  pendingPlays?: PendingPlay[];
 }
 
 // un play ya registrado, con las entidades que toca. Mismos ids crudos que
@@ -35,6 +43,19 @@ export interface LandedPlay {
   artistIds: string[];
   playedAt: string;
   playedMs: number;
+}
+
+// un play medido por currently-playing que aún no tiene fila en
+// listening_history. NO es una promesa: spotify puede acabar descartándolo (una
+// escucha corta nunca entra en recently-played) y entonces caduca solo por TTL,
+// así que quien lo pinta tiene que marcarlo como pendiente, nunca como un hecho.
+// `playedAt` es el instante del corte según NUESTRO reloj, no el de spotify: los
+// dos difieren en unos segundos y el bueno es el que acabe guardando la fila
+export interface PendingPlay {
+  trackId: string;
+  playedAt: string;
+  playedMs: number;
+  track: TrackInfo;
 }
 
 // referencia a una entidad de la cola. `known` = el id existe en la biblioteca:
