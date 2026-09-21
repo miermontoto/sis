@@ -29,7 +29,7 @@
   import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { prewarmer, setUser, hydrateUser, bootCleanup } from '$lib/cache';
-  import { hasInstance, instanceOrigin, OFFICIAL_INSTANCE } from '$lib/instance';
+  import { hasInstance, instanceOrigin, APP_LINK_HOSTS } from '$lib/instance';
 
   // hidrata el namespace del cache antes de cualquier apiFetch para que
   // /me, /settings, /version hagan hit cuando vuelves al app.
@@ -165,9 +165,10 @@
     observeSystemBars({ backgroundVar: '--bg' });
     const { onAppLink, onAuthDeepLink } = await import('@platform/mobile/deep-link');
     // app links https: navegar a la ruta del link (compartidos /s /u /artist...).
-    // sólo el dominio oficial: el host va en el manifest y el assetlinks lleva
-    // la firma del apk, así que los links de otra instancia abren en el browser
-    await onAppLink(new URL(OFFICIAL_INSTANCE).host, (path) => goto(path));
+    // sólo los dominios propios (oficial + alias sis.mier.info): el host va en
+    // el manifest y el assetlinks lleva la firma del apk, así que los links de
+    // otra instancia abren en el browser
+    for (const host of APP_LINK_HOSTS) await onAppLink(host, (path) => goto(path));
     await onAuthDeepLink('info.mier.sis', async (url) => {
       const code = url.searchParams.get('code');
       if (!code) return;

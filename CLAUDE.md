@@ -57,7 +57,7 @@ Last.fm integration (optional — credential-gated, no-ops if unset; enables Las
 setlist.fm (optional — credential-gated, no-ops if unset; enables setlist search + import in the concert log — see Concert attendance log):
 - `SETLISTFM_API_KEY` — free key from https://www.setlist.fm/settings/api
 
-id.mier.info SSO (**main instance only** — credential-gated, no-ops if unset; enables "Sign in with mier.info" via OIDC authorization code + PKCE; identity-only, no data sync. Not in `.env.example` or the README on purpose: the OIDC client is registered for sis.mier.info and the store app hides the button on any other instance — the real gate is client registration at the IdP, not this code):
+id.mier.info SSO (**main instance only** — credential-gated, no-ops if unset; enables "Sign in with mier.info" via OIDC authorization code + PKCE; identity-only, no data sync. Not in `.env.example` or the README on purpose: the OIDC client is registered for sis.fm (and the sis.mier.info alias) and the store app hides the button on any other instance — the real gate is client registration at the IdP, not this code):
 - `MIERID_CLIENT_ID`, `MIERID_CLIENT_SECRET` — OAuth client registered at id.mier.info
 - `MIERID_REDIRECT_URI` — optional; defaults to `<SPOTIFY_REDIRECT_URI origin>/auth/mierid/callback`
 
@@ -249,10 +249,10 @@ Una preferencia nueva se declara en **cuatro** sitios y los cuatro tienen que co
 
 ## Deployment
 
-Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse proxy → `https://sis.mier.info`
+Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse proxy (`~/hosts/nginx-proxy`, one site file per host) → `https://sis.fm` (official since 2026-09-21; `sis.mier.info` stays as an alias so old shared links, older APKs and the mier.info OIDC client keep working — don't turn it into a redirect)
 - Data: Docker volume `sis-data` mounted at `/app/data`
 - The Firebase service-account bind-mount lives in `docker-compose.override.yml` (gitignored, picked up automatically by `docker compose`): it is this instance's secret, and a bind-mount to a missing file would break a self-hoster's first `docker compose up`
-- Callback URL in production: `https://sis.mier.info/auth/callback`
+- Callback URL in production: `https://sis.fm/auth/callback`
 - Docker WORKDIR is `/app/packages/api` so Hono's serveStatic finds `./static`
 - Deploy: `ssh fa "cd ~/dev/sis && docker compose up --build -d"`
 

@@ -13,7 +13,11 @@ import { Capacitor } from '@capacitor/core';
 import { clearAll } from './cache/store';
 import { instanceHost } from './utils/instance-url';
 
-export const OFFICIAL_INSTANCE = 'https://sis.mier.info';
+export const OFFICIAL_INSTANCE = 'https://sis.fm';
+// hosts cuyos links https abren la app (los del intent-filter del manifest):
+// el oficial y el alias antiguo, para que lo compartido antes del cambio de
+// dominio siga abriendo la app
+export const APP_LINK_HOSTS = [new URL(OFFICIAL_INSTANCE).host, 'sis.mier.info'];
 const STORAGE_KEY = 'sis:instance';
 const VERSION_PATH = '/api/version';
 

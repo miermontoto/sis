@@ -31,6 +31,6 @@ describe('normalizeInstanceUrl', () => {
 describe('instanceHost', () => {
   it('returns host with port when present', () => {
     expect(instanceHost('https://sis.example.org:8443')).toBe('sis.example.org:8443');
-    expect(instanceHost('https://sis.mier.info')).toBe('sis.mier.info');
+    expect(instanceHost('https://sis.fm')).toBe('sis.fm');
   });
 });

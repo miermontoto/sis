@@ -33,11 +33,14 @@
 
             <!-- app links verificados (assetlinks.json en el dominio): los links
                  de la app abren la app. paths enumerados a propósito — el dominio
-                 entero interceptaría callbacks oauth que viven en el browser -->
+                 entero interceptaría callbacks oauth que viven en el browser.
+                 sis.fm es el dominio oficial; sis.mier.info sigue como alias para
+                 que los links compartidos antes del cambio abran la app -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="sis.fm" />
                 <data android:scheme="https" android:host="sis.mier.info" />
                 <data android:pathPrefix="/s" />
                 <data android:pathPrefix="/u" />
