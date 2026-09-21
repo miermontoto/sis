@@ -40,12 +40,12 @@ The app connects to any SIS instance: enter your server's address on first launc
 === APP REVIEW INFORMATION (App Store Connect → App Review Information) ===
 
 SIGN-IN REQUIRED: Yes
-Demo account user name: isghatiobueno@gmail.com
+Demo account user name: review@sis.fm
 Demo account password: (provided out-of-band; not stored in this repo)
 
 REVIEW NOTES
-SIS is a client for the user's own listening data. On first launch the app asks for the address of a SIS server: enter "sis.fm" (or tap "Use sis.fm"). Then tap "Sign in with Spotify": the system browser opens Spotify's own login page — sign in there with the demo account above (it is a Spotify account already authorised on sis.fm and pre-populated with listening history) and the browser returns to the app automatically.
-Spotify is the data source, not a social login: the app exists to show the listening history of the user's own Spotify account, which is why there is no Sign in with Apple (guideline 4.8, client of a specific third-party service). No other account is needed.
+SIS is a client for the user's own listening data. On first launch the app asks for the address of a SIS server: enter "sis.fm" (or tap "Use sis.fm"). Then tap "Sign in with mier.info": the system browser opens the sign-in page of our identity provider (id.mier.info) — enter the demo credentials above and the browser returns to the app automatically. No Spotify account, code or second factor is needed for the demo account.
+Spotify appears as the first sign-in option because it is the data source for regular users: the app exists to show the listening history of the user's own Spotify account, which is why there is no Sign in with Apple (guideline 4.8, client of a specific third-party service). The mier.info option is our own account system.
 With the demo account the reviewer can see:
 • Dashboard: now playing, today's and this week's totals, top tracks, recent plays
 • Rankings: top tracks / albums / artists by plays or listening time over any range

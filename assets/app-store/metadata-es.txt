@@ -40,12 +40,12 @@ La app se conecta a cualquier instancia de SIS: escribe la dirección de tu serv
 === INFORMACIÓN PARA LA REVISIÓN (App Store Connect → App Review Information) ===
 
 INICIO DE SESIÓN REQUERIDO: Sí
-Usuario de la cuenta demo: isghatiobueno@gmail.com
+Usuario de la cuenta demo: review@sis.fm
 Contraseña de la cuenta demo: (se entrega aparte; no se guarda en este repo)
 
 NOTAS PARA LA REVISIÓN
-SIS es un cliente de los datos de escucha del propio usuario. Al arrancar la app pide la dirección de un servidor SIS: escribe "sis.fm" (o pulsa "Use sis.fm"). Después pulsa "Sign in with Spotify": se abre el navegador del sistema con la página de login de Spotify — entra ahí con la cuenta demo de arriba (una cuenta de Spotify ya autorizada en sis.fm y con historial de escucha cargado) y el navegador vuelve a la app solo.
-Spotify es la fuente de datos, no un login social: la app existe para enseñar el historial de la cuenta de Spotify del usuario, por eso no hay Sign in with Apple (guideline 4.8, cliente de un servicio de terceros concreto). No hace falta ninguna otra cuenta.
+SIS es un cliente de los datos de escucha del propio usuario. Al arrancar la app pide la dirección de un servidor SIS: escribe "sis.fm" (o pulsa "Use sis.fm"). Después pulsa "Sign in with mier.info": se abre el navegador del sistema con la página de acceso de nuestro proveedor de identidad (id.mier.info) — entra con las credenciales demo de arriba y el navegador vuelve a la app solo. La cuenta demo no necesita cuenta de Spotify, código ni segundo factor.
+Spotify aparece como primera opción de acceso porque es la fuente de datos de los usuarios normales: la app existe para enseñar el historial de la cuenta de Spotify del usuario, por eso no hay Sign in with Apple (guideline 4.8, cliente de un servicio de terceros concreto). La opción mier.info es nuestro propio sistema de cuentas.
 Con la cuenta demo el revisor puede ver:
 • Dashboard: now playing, totales de hoy y de la semana, top tracks, reproducciones recientes
 • Rankings: top tracks / álbumes / artistas por plays o tiempo en cualquier rango
