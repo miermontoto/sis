@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w39w';
+export const VERSION = '26w39x';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web

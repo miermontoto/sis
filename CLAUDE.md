@@ -222,6 +222,13 @@ All top-* endpoints accept `?range=` (from `TIME_RANGES` in constants.ts), `?lim
 
 `TIME_RANGES` uses sentinel values: `0` = all time (no filter), `-1` = thisYear (Jan 1 UTC of current year).
 
+### Records cache y accolades (`services/records-cache.ts`)
+Los records de un usuario se hornean enteros (los tres tipos, limit 50) en **una entrada en memoria** por `userId:weekStart:sort:unique`, y de esa misma entrada salen los accolades del hero (`getEntityAccolades` la busca por prefijo de usuario). El horneado cuesta ~12s de escaneo del historial, lo lanza el arranque diferido del usuario y lo repite el tick de polling cada 6h.
+
+**Una lista vacía nunca puede ser la respuesta a una cache fría.** `[]` no se distingue de "esta entidad no tiene records", y el cliente lo cachea una hora por entidad (`/stats/accolades/`, 1h fresh / 7d stale), así que la mentira sobrevive al servidor: el badge desaparecía de artistas, álbumes y temas. Por eso una lectura en frío **espera al horneado** (deduplicado por usuario: el detalle pide los tres tipos a la vez y el arranque diferido lanza el suyo). `/records` no lo enseñaba porque su ruta cae a `dbRead('getRecords', …)` cuando falla la cache; la de accolades no tenía salida.
+
+La cache se queda fría a menudo: cada deploy recrea el contenedor, y `invalidateRecordsCacheForUser` la borra desde las cinco mutaciones de colección (`invalidateDerived`) y las cuatro de bolo **sin rehornear nada** — `triggerDeferredStartup` es de una sola vez por proceso, así que sin la espera el hueco duraba hasta las 6h del siguiente tick. Esas invalidaciones existen porque la marca de agua del horneado es `MAX(played_at)`, que ni una colección ni un bolo mueven; por lo mismo suben la **generación** del usuario, y un horneado en vuelo que la vea cambiada descarta su resultado y recomputa en vez de guardar datos pre-mutación otras 6h.
+
 ### Chart peaks (streaming)
 `/stats/charts/peaks` (batch JSON) and `/stats/charts/peaks/stream` (NDJSON, one line per entity) return the same stats. Both drive `services/chart-peaks.ts`: the per-period `ROW_NUMBER()` scan is split into one-calendar-year `played_at` windows (work-preserving, since the ranking is partitioned by period, and index-friendly via `(user_id, played_at)`), walked newest → oldest, closing each entity once the scan passes its own first play. Year cut points are `Jan 1 + weekStart shift`, which never splits a period label. The batch endpoint stays as the client's fallback (shipped APKs, proxies that eat chunked responses).
 
