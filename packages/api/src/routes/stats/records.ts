@@ -26,11 +26,11 @@ records.get('/records', async (c) => {
   return c.json(await dbRead('getRecords', weekStart, sort, limit, type, userId, unique));
 });
 
-records.get('/accolades/:type/:id', (c) => {
+records.get('/accolades/:type/:id', async (c) => {
   const userId = c.get('userId');
   const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
-  return c.json(getEntityAccolades(entityType, id, userId));
+  return c.json(await getEntityAccolades(entityType, id, userId, c.get('spotifyId')));
 });
 
 records.get('/rankings/:type/:id', async (c) => {

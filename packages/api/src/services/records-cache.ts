@@ -26,6 +26,9 @@ const lastDataTs = new Map<number, string>();
 // solo avanza cuando hay dispositivos activos, para que un instante transitorio sin tokens
 // no consuma el edge (la entrada nueva se re-detecta cuando aparece un dispositivo).
 const notifyBaseline = new Map<number, RecordsResponse>();
+// generación por usuario: la sube cada invalidación para que un horneado en vuelo
+// sepa que su resultado ya nació viejo (ver bakeForUser)
+const generation = new Map<number, number>();
 
 function cacheKey(userId: number, ws: WeekStart, sort: Sort, unique: boolean) {
   return `${userId}:${ws}:${sort}:${unique ? 'u' : 'a'}`;
@@ -115,39 +118,67 @@ export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: num
   runRecordNotifications(userId, spotifyId, result);
 }
 
-/** Computa records en worker threads (prod) para no bloquear el event loop principal.
- *  Lanza tracks/albums/artists en paralelo sobre el pool de workers. */
-export async function computeAndCacheForUserAsync(userId: number, spotifyId: string) {
-  const db = getDb();
-  const { weekStart, sort, unique } = getUserSettingsForUser(db, spotifyId);
-  const k = cacheKey(userId, weekStart, sort, unique);
+// horneados en vuelo, por usuario. Un detalle pide accolades de artista, álbum y tema
+// casi a la vez, y el arranque diferido lanza el suyo: sin esto, cada uno arrancaría un
+// escaneo completo del historial (~12s) para acabar escribiendo lo mismo.
+const baking = new Map<number, Promise<void>>();
 
-  if (cache.has(k) && !hasNewData(db, userId)) {
-    log.info(`skip user ${userId} — no new data`);
+/** Computa records en worker threads (prod) para no bloquear el event loop principal.
+ *  Lanza tracks/albums/artists en paralelo sobre el pool de workers.
+ *  Deduplicado por usuario: varias llamadas concurrentes comparten un solo horneado. */
+export function computeAndCacheForUserAsync(userId: number, spotifyId: string): Promise<void> {
+  const inFlight = baking.get(userId);
+  if (inFlight) return inFlight;
+  const p = bakeForUser(userId, spotifyId).finally(() => { baking.delete(userId); });
+  baking.set(userId, p);
+  return p;
+}
+
+async function bakeForUser(userId: number, spotifyId: string) {
+  const db = getDb();
+
+  // el horneado dura ~12s y una mutación de colección o de bolo puede caer dentro:
+  // su invalidación se perdería al escribir un resultado pre-mutación, que ya nadie
+  // volvería a recomputar (la marca de agua es MAX(played_at) y no se ha movido).
+  // Por eso se compara la generación al entrar y al escribir, y se repite si cambió.
+  for (;;) {
+    const gen = generation.get(userId) ?? 0;
+    const { weekStart, sort, unique } = getUserSettingsForUser(db, spotifyId);
+    const k = cacheKey(userId, weekStart, sort, unique);
+
+    if (cache.has(k) && !hasNewData(db, userId)) {
+      log.info(`skip user ${userId} — no new data`);
+      return;
+    }
+
+    log.info(`computing records for user ${userId} (${k}) [worker]...`);
+    const start = performance.now();
+    const [trackResult, albumResult, artistResult] = await Promise.all([
+      dbRead('getRecords', weekStart, sort, 50, 'track', userId, unique),
+      dbRead('getRecords', weekStart, sort, 50, 'album', userId, unique),
+      dbRead('getRecords', weekStart, sort, 50, 'artist', userId, unique),
+    ]);
+    const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
+    const ms = (performance.now() - start).toFixed(0);
+    log.info(`done in ${ms}ms`);
+
+    if ((generation.get(userId) ?? 0) !== gen) {
+      log.info(`descartado user ${userId} — invalidado durante el horneado, recomputando`);
+      continue;
+    }
+
+    updateDataTimestamp(db, userId);
+
+    for (const [key] of cache) {
+      if (key.startsWith(`${userId}:`)) cache.delete(key);
+    }
+    cache.set(k, result);
+
+    // notificaciones: 'record' cuando una entidad entra por primera vez al top de una
+    // categoría. el baseline del diff solo avanza si hay dispositivos activos.
+    runRecordNotifications(userId, spotifyId, result);
     return;
   }
-
-  log.info(`computing records for user ${userId} (${k}) [worker]...`);
-  const start = performance.now();
-  const [trackResult, albumResult, artistResult] = await Promise.all([
-    dbRead('getRecords', weekStart, sort, 50, 'track', userId, unique),
-    dbRead('getRecords', weekStart, sort, 50, 'album', userId, unique),
-    dbRead('getRecords', weekStart, sort, 50, 'artist', userId, unique),
-  ]);
-  const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
-  const ms = (performance.now() - start).toFixed(0);
-  log.info(`done in ${ms}ms`);
-
-  updateDataTimestamp(db, userId);
-
-  for (const [key] of cache) {
-    if (key.startsWith(`${userId}:`)) cache.delete(key);
-  }
-  cache.set(k, result);
-
-  // notificaciones: 'record' cuando una entidad entra por primera vez al top de una
-  // categoría. el baseline del diff solo avanza si hay dispositivos activos.
-  runRecordNotifications(userId, spotifyId, result);
 }
 
 /** Devuelve records cacheados para un usuario, o null si no hay cache */
@@ -203,14 +234,23 @@ export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sor
 }
 
 /** Busca en la cache qué records tiene una entidad para un usuario */
-export function getEntityAccolades(entityType: 'track' | 'album' | 'artist', entityId: string, userId: number): AccoladesResponse {
-  // buscar cache entry del usuario
-  let cacheEntry: [string, RecordsResponse] | undefined;
+function findUserEntry(userId: number): [string, RecordsResponse] | undefined {
   for (const [key, val] of cache) {
-    if (key.startsWith(`${userId}:`)) {
-      cacheEntry = [key, val];
-      break;
-    }
+    if (key.startsWith(`${userId}:`)) return [key, val];
+  }
+  return undefined;
+}
+
+export async function getEntityAccolades(entityType: 'track' | 'album' | 'artist', entityId: string, userId: number, spotifyId: string): Promise<AccoladesResponse> {
+  // la cache está fría al arrancar el proceso y cada vez que una mutación de
+  // colección o de bolo la invalida. Devolver [] ahí sería MENTIR: una lista vacía
+  // no se distingue de "esta entidad no tiene records", y el cliente la cachea una
+  // hora, así que el badge desaparecía de todas las entidades visitadas hasta 6h
+  // (el siguiente tick de polling). Se espera al horneado, deduplicado por usuario.
+  let cacheEntry = findUserEntry(userId);
+  if (!cacheEntry) {
+    await computeAndCacheForUserAsync(userId, spotifyId);
+    cacheEntry = findUserEntry(userId);
   }
   if (!cacheEntry) return { metric: 'time', accolades: [] };
   const [key, cached] = cacheEntry;
@@ -253,10 +293,16 @@ export function invalidateRecordsCacheForUser(userId: number) {
     if (key.startsWith(`${userId}:`)) cache.delete(key);
   }
   lastDataTs.delete(userId);
+  generation.set(userId, (generation.get(userId) ?? 0) + 1);
 }
 
 /** Invalida la cache de todos los usuarios (fuerza recomputo en el siguiente ciclo) */
 export function invalidateRecordsCache() {
   cache.clear();
   lastDataTs.clear();
+  // sólo importan los horneados en vuelo: son los que escribirían un resultado
+  // anterior a esta invalidación
+  for (const userId of baking.keys()) {
+    generation.set(userId, (generation.get(userId) ?? 0) + 1);
+  }
 }

@@ -144,7 +144,11 @@ export function getConfig(path: string): EndpointConfig {
 }
 
 // versión del schema del cache. Incrementar para invalidar todo en boot.
-export const SCHEMA_VERSION = 1;
+// v2: `/stats/accolades/` respondía [] con la cache de records fría (arranque del
+// proceso, o una mutación de colección o de bolo que la invalidaba), y esa lista vacía
+// se guardó aquí una hora por entidad como si fuese la verdad. El servidor ya no
+// miente, pero lo ya escrito en IndexedDB sigue vaciando el badge hasta caducar.
+export const SCHEMA_VERSION = 2;
 
 // cap blando del cache persistente (bytes aproximados).
 export const STORAGE_SOFT_CAP = 50 * 1024 * 1024;
