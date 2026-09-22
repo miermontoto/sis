@@ -8,6 +8,7 @@
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import EntityHoverCard from '$lib/components/EntityHoverCard.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
+  import CollectionModal from '$lib/components/CollectionModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
@@ -26,6 +27,8 @@
   import UserMenu from '$lib/components/UserMenu.svelte';
   import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import { collectionModal } from '$lib/stores/collection-modal.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { prewarmer, setUser, hydrateUser, bootCleanup } from '$lib/cache';
@@ -54,6 +57,16 @@
   });
   $effect(() => {
     if (!mergeModalShow && mergeModal.target) mergeModal.close();
+  });
+
+  // ídem para el modal de colecciones, que abre el menú contextual de un álbum o un
+  // tema (la entrada sólo aparece si su artista tiene alguna: ver collectionsStore)
+  let collectionModalShow = $state(false);
+  $effect(() => {
+    collectionModalShow = collectionModal.target !== null;
+  });
+  $effect(() => {
+    if (!collectionModalShow && collectionModal.target) collectionModal.close();
   });
 
   // ídem para el modal de relaciones soft entre artistas
@@ -143,6 +156,10 @@
     userMenuFromHover = false;
     showUserMenu = false;
   }
+
+  // el índice de colecciones se carga una vez: es lo que deja al menú contextual
+  // decidir de forma síncrona si ofrece "add to collection"
+  onMount(() => { collectionsStore.ensure(); });
 
   onMount(async () => {
     if (pwaInfo) {
@@ -808,6 +825,15 @@
       onRelate={mergeModal.target.entityType === 'artist'
         ? () => { const t = mergeModal.target!.target; mergeModal.close(); relateModal.open({ target: t }); }
         : undefined}
+    />
+  {/if}
+  {#if collectionModal.target}
+    <CollectionModal
+      bind:show={collectionModalShow}
+      artistId={collectionModal.target.artistId}
+      artistName={collectionModal.target.artistName}
+      entity={{ type: collectionModal.target.entityType, id: collectionModal.target.entity.id, name: collectionModal.target.entity.name, imageUrl: collectionModal.target.entity.imageUrl }}
+      onChanged={() => collectionModal.notifyChange()}
     />
   {/if}
   {#if relateModal.target}

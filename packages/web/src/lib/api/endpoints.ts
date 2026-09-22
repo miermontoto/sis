@@ -15,7 +15,7 @@ import type {
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
-  AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates,
+  AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates, CollectionIndexItem,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
 
@@ -116,6 +116,10 @@ export const api = {
   // Toda mutación de colección cambia a qué entidad se atribuyen los plays de sus
   // miembros, o sea TODO ranking de álbum: se deja caer en el fallback conservador de
   // applyMutationInvalidation (limpia el cache entero), que aquí es lo correcto.
+
+  // índice sin cifras de todas las colecciones del usuario: lo carga una vez el store
+  // que decide si el menú contextual ofrece "add to collection"
+  collectionsIndex: () => apiFetch<CollectionIndexItem[]>('/collections'),
 
   collectionDetail: (id: number, range = 'all', sort?: string, signal?: AbortSignal, dates?: DateRangeParams) =>
     apiFetch<CollectionDetail>(`/stats/collection/${id}`, { ...rangeParams(range, dates), ...(sort && { sort }) }, signal),

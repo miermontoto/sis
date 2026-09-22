@@ -15,7 +15,7 @@ import { sql } from 'drizzle-orm';
 import type { Db, Sort, SqlChunk, StatsRow, SeriesRow, RecentPlayRow } from './helpers.js';
 import { rangeWhere, userFilter, getDateTrunc, getDateTruncForDays, playDuration, resolvedPlayJoins, artistCreditedAlbums } from './helpers.js';
 import { collectionKey, COLLECTION_ID_PREFIX } from '@sis/shared';
-import type { AlbumCollectionSummary, CollectionCandidate, CollectionMember, CollectionMemberType, CollectionRef } from '@sis/shared';
+import type { AlbumCollectionSummary, CollectionCandidate, CollectionIndexItem, CollectionMember, CollectionMemberType, CollectionRef } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 
 // tipo de álbum que se le atribuye a una colección allí donde la UI espera uno
@@ -167,6 +167,38 @@ function hydrateSummary(db: Db, row: CollectionRow, userId: number): AlbumCollec
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/** Índice ligero de las colecciones del usuario: lo que necesita el cliente para
+ *  saber, sin preguntar, si un álbum o un tema puede ir a alguna (el menú contextual
+ *  sólo ofrece la acción cuando su artista tiene una). Deliberadamente SIN cifras:
+ *  `AlbumCollectionSummary` cuesta un escaneo del historial por colección, y esto se
+ *  pide una vez por sesión para pintar una entrada de menú.
+ *  Lleva el grupo de merge del artista porque el cliente compara contra el id que
+ *  tenga a mano, que puede ser el de un alias. */
+export function getCollectionsIndex(db: Db, userId: number): CollectionIndexItem[] {
+  const rows = db.all(sql`
+    SELECT ac.id, ac.artist_id, al.name, al.image_url, ar.name AS artist_name
+    FROM album_collections ac
+    JOIN albums al ON al.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
+    LEFT JOIN artists ar ON ar.spotify_id = ac.artist_id
+    WHERE ac.user_id = ${userId}
+    ORDER BY al.name ASC
+  `) as { id: number; artist_id: string; name: string; image_url: string | null; artist_name: string | null }[];
+  if (rows.length === 0) return [];
+
+  const aliases = db.all(sql`
+    SELECT source_id, target_id FROM merge_rules
+    WHERE entity_type = 'artist' AND user_id = ${userId} AND target_id IN (${idList(rows.map(r => r.artist_id))})
+  `) as { source_id: string; target_id: string }[];
+
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    imageUrl: r.image_url,
+    artistIds: [r.artist_id, ...aliases.filter(a => a.target_id === r.artist_id).map(a => a.source_id)],
+    artistName: r.artist_name ?? '',
+  }));
 }
 
 /** Colecciones de un artista (resuelto sobre su grupo de merge, como el resto de

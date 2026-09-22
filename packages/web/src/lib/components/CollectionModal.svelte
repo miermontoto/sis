@@ -12,6 +12,7 @@
   // las de cualquier artista acreditado en ella (un tema a dos nombres cabe en las
   // dos). Sin entidad, el modal gestiona las del artista de la página.
   import { errorMessage } from '$lib/utils/errors';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import { api, collectionKey, COLLECTION_NAME_MAX_CHARS, type AlbumCollectionSummary, type CollectionMemberType } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconTrash from '$lib/icons/IconTrash.svelte';
@@ -108,6 +109,9 @@
     error = '';
     try {
       const created = await api.createCollection({ name, artistId });
+      // el menú contextual decide con el índice en memoria: sin esto la colección
+      // recién creada no aparecería como destino hasta recargar la app
+      collectionsStore.invalidate();
       newName = '';
       collections = [...collections, created];
       // crear una colección desde la página de un álbum significa meterlo en ella:
@@ -126,6 +130,7 @@
     busy = true;
     try {
       await api.deleteCollection(c.id);
+      collectionsStore.invalidate();
       collections = collections.filter(x => x.id !== c.id);
       if (memberOf === c.id) memberOf = null;
       onChanged();

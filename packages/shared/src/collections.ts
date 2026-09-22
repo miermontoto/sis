@@ -112,6 +112,19 @@ export interface CollectionCandidates {
   tracks: CollectionCandidate[];
 }
 
+// fila del índice que el cliente carga una vez para decidir si ofrece "add to
+// collection" en el menú contextual. `artistIds` es el grupo de merge del artista
+// dueño: el menú compara contra el id que tenga a mano, que puede ser un alias.
+export interface CollectionIndexItem {
+  id: number;
+  name: string;
+  imageUrl: string | null;
+  artistIds: string[];
+  // nombre del artista dueño: el menú contextual no lo tiene a mano y el modal lo
+  // usa en su copy ("sólo cabe la obra de X")
+  artistName: string;
+}
+
 export interface CollectionInput {
   name: string;
   artistId: string;

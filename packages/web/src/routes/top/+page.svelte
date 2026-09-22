@@ -1028,7 +1028,7 @@
             class:track-item--live={live}
             class:track-item--focused={focusedId === item.albumId}
             data-focus-id={item.albumId}
-            oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl })}
+            oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: item.artists?.[0]?.id })}
           >
             <RankCell
               rank={i + 1}

@@ -22,7 +22,7 @@ export type { ConcertRow, ConcertSongRow } from './concerts.js';
 
 // colecciones ("álbumes lógicos"): agregan álbumes y temas de un artista y sustituyen
 // a sus miembros en los rankings (la capa que lo hace vive en helpers.ts)
-export { getCollectionSummary, getArtistCollections, getCollectionMembers, getCollectionStats, getCollectionSeries, getCollectionTracks, getCollectionRecentPlays, getCollectionScope, getCollectionRefs, getCollectionArtists, getCollectionCandidates, getEligibleCollections } from './collections.js';
+export { getCollectionSummary, getArtistCollections, getCollectionMembers, getCollectionStats, getCollectionSeries, getCollectionTracks, getCollectionRecentPlays, getCollectionScope, getCollectionRefs, getCollectionArtists, getCollectionCandidates, getEligibleCollections, getCollectionsIndex } from './collections.js';
 export type { CollectionScope } from './collections.js';
 
 // merge (genérico para albums / artists / tracks)

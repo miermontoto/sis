@@ -14,7 +14,7 @@ import {
   removeCollectionMember, reorderCollectionMembers, findMemberCollection,
   getCollectionRow, getCollectionSummary, getArtistCollections, getCollectionMembers,
   canonicalMemberId, isEligibleMember, artistMergeGroup, getEligibleCollections,
-  getCollectionCandidates,
+  getCollectionCandidates, getCollectionsIndex,
 } from '../db/queries/collections.js';
 import { invalidateRecordsCacheForUser } from '../services/records-cache.js';
 import { invalidateReportCacheForUser } from '../services/report-cache.js';
@@ -46,6 +46,11 @@ function parseNotes(value: unknown): string | null {
 function isMemberType(value: unknown): value is CollectionMemberType {
   return value === 'album' || value === 'track';
 }
+
+// índice ligero de TODAS las colecciones del usuario. Lo carga el cliente una vez para
+// saber si ofrece "add to collection" en el menú contextual de un álbum o un tema, así
+// que no lleva cifras (ver getCollectionsIndex)
+collections.get('/', (c) => c.json(getCollectionsIndex(getDb(), c.get('userId'))));
 
 // colecciones de un artista, resueltas sobre su grupo de merge (igual que los
 // conciertos y las valoraciones): la página de un alias enseña las del canónico

@@ -8,6 +8,7 @@
   import { errorMessage } from '$lib/utils/errors';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { contextMenu } from '$lib/stores/context-menu.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import TrackItem from './TrackItem.svelte';
   import MetricMeta from './MetricMeta.svelte';
   import IconTrash from '$lib/icons/IconTrash.svelte';
@@ -34,6 +35,7 @@
     busy = true;
     try {
       await api.deleteCollection(c.id);
+      collectionsStore.invalidate();
       onChanged();
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error deleting collection'));

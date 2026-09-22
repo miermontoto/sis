@@ -437,7 +437,7 @@
             name: item.album?.name ?? '',
             stat: value(item.playCount, item.totalMs),
             isLive: item.albumId === nowPlayingStore.albumId,
-            oncontextmenu: openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album?.name ?? '', imageUrl: item.album?.imageUrl ?? null }),
+            oncontextmenu: openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album?.name ?? '', imageUrl: item.album?.imageUrl ?? null, parentArtistId: item.artists?.[0]?.id }),
           }))} />
         {:else}
           <p class="empty-inline">No data yet.</p>

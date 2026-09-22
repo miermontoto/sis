@@ -43,6 +43,8 @@
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import { parseCollectionKey, collectionKey, type CollectionMember } from '$lib/api';
   import { contextMenu } from '$lib/stores/context-menu.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
+  import { collectionModal } from '$lib/stores/collection-modal.svelte';
   import { entityContextActions } from '$lib/utils/entity-context';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { errorMessage } from '$lib/utils/errors';
@@ -150,6 +152,7 @@
     try {
       const artistId = data.artists[0]?.id;
       await api.deleteCollection(id);
+      collectionsStore.invalidate();
       goto(artistId ? `/artist/${artistId}` : '/');
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error deleting the collection'));
@@ -295,6 +298,9 @@
     const id = albumId;
     void metric;
     void mergeModal.changeVersion;
+    // alguien acaba de tocar una colección desde el menú contextual: la línea de
+    // pertenencia y los badges de esta página dependen de ella
+    void collectionModal.changeVersion;
     if (!initialized || !id) return;
     // resetear al cambiar de álbum para mostrar spinner
     if (id !== prevId) {
