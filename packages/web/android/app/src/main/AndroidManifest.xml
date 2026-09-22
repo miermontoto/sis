@@ -33,7 +33,9 @@
 
             <!-- app links verificados (assetlinks.json en el dominio): los links
                  de la app abren la app. paths enumerados a propósito — el dominio
-                 entero interceptaría callbacks oauth que viven en el browser.
+                 entero interceptaría callbacks oauth que viven en el browser;
+                 y con barra final: "/s" a secas también casaba /settings y /search
+                 y la app se abría sola sobre el redirect del callback (2026-09-21).
                  sis.fm es el dominio oficial; sis.mier.info sigue como alias para
                  que los links compartidos antes del cambio abran la app -->
             <intent-filter android:autoVerify="true">
@@ -42,11 +44,11 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="sis.fm" />
                 <data android:scheme="https" android:host="sis.mier.info" />
-                <data android:pathPrefix="/s" />
-                <data android:pathPrefix="/u" />
-                <data android:pathPrefix="/artist" />
-                <data android:pathPrefix="/track" />
-                <data android:pathPrefix="/album" />
+                <data android:pathPrefix="/s/" />
+                <data android:pathPrefix="/u/" />
+                <data android:pathPrefix="/artist/" />
+                <data android:pathPrefix="/track/" />
+                <data android:pathPrefix="/album/" />
             </intent-filter>
 
         </activity>

@@ -4,7 +4,7 @@ import { SPOTIFY_AUTH_URL, SPOTIFY_TOKEN_URL, SPOTIFY_API_BASE, SPOTIFY_SCOPES, 
 import { storeTokens } from '../services/token-manager.js';
 import { restartPolling } from '../services/polling.js';
 import { markRateLimited } from '../services/spotify-client.js';
-import { createSession, deleteSession, validateSession } from '../services/session.js';
+import { createSession, deleteSession, validateSession, type Session } from '../services/session.js';
 import { createOneTimeCodeStore } from '@platform/auth';
 import { findOrCreateUser, findUserBySpotifyId, getUserById, hasAnyUsers, isAllowedUser, migrateExistingData, updateUser } from '../services/user-manager.js';
 import { isLastfmConfigured, getAuthSession } from '../services/lastfm-client.js';
@@ -47,6 +47,17 @@ function setLoginCookies(c: Context): void {
       maxAge: 10 * 60,
     });
   }
+}
+
+// sesión sis con la que VINCULAR una cuenta externa (last.fm / mier.info). en el
+// flujo móvil (cookie sis_mobile) se ignora a propósito: el custom tab comparte
+// las cookies de chrome, así que una sesión web previa en el móvil convertía el
+// login de la app en "vincular a ese usuario" y el callback acababa en /settings
+// dentro del browser en vez de entregar el código a la app (2026-09-21)
+function linkingSession(c: Context): Session | null {
+  if (getCookie(c, 'sis_mobile') === '1') return null;
+  const sessionCookie = getCookie(c, 'sis_session');
+  return sessionCookie ? validateSession(sessionCookie) : null;
 }
 
 function issueState(): string {
@@ -253,9 +264,9 @@ auth.get('/lastfm/callback', async (c) => {
     return c.json({ error: 'error al verificar identidad con last.fm' }, 500);
   }
 
-  // modo vinculación: con sesión sis activa, conectar la cuenta al usuario actual
-  const sessionCookie = getCookie(c, 'sis_session');
-  const current = sessionCookie ? validateSession(sessionCookie) : null;
+  // modo vinculación: con sesión sis activa (y fuera del flujo móvil), conectar
+  // la cuenta al usuario actual
+  const current = linkingSession(c);
   if (current) {
     deleteCookie(c, 'sis_return_to', { path: '/' });
     deleteCookie(c, 'sis_mobile', { path: '/' });
@@ -350,9 +361,9 @@ auth.get('/mierid/callback', async (c) => {
   // handle legible para placeholders y logs; el vínculo real siempre es el sub
   const handle = identity.username ?? identity.sub;
 
-  // modo vinculación: con sesión sis activa, conectar la cuenta al usuario actual
-  const sessionCookie = getCookie(c, 'sis_session');
-  const current = sessionCookie ? validateSession(sessionCookie) : null;
+  // modo vinculación: con sesión sis activa (y fuera del flujo móvil), conectar
+  // la cuenta al usuario actual
+  const current = linkingSession(c);
   if (current) {
     deleteCookie(c, 'sis_return_to', { path: '/' });
     deleteCookie(c, 'sis_mobile', { path: '/' });
