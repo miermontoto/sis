@@ -37,6 +37,7 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'topAlbums', label: 'Top albums', column: 'main' },
     { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'concerts', label: 'Concerts', column: 'rail' },
+    { key: 'collections', label: 'Collections', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],

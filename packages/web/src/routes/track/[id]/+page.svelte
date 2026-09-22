@@ -24,6 +24,7 @@
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
+  import CollectionModal from '$lib/components/CollectionModal.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
@@ -35,6 +36,7 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import PlaylistPopover from '$lib/components/PlaylistPopover.svelte';
   import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
@@ -56,6 +58,7 @@
   let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
   let showMergeModal = $state(false);
+  let showCollectionModal = $state(false);
   let playActing = $state(false);
   // el corazón del hero sale del store compartido: darle aquí o en una fila de
   // una lista es la misma acción sobre el mismo dato
@@ -377,6 +380,14 @@
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
           {/each}
         </p>
+        {#if data.collection}
+          <!-- `direct: false` = entra por su álbum, así que desde aquí no se puede
+               sacar; el sitio es la página del álbum -->
+          <p class="detail-meta-line">
+            {data.collection.direct ? 'In' : 'Through its album, in'}
+            <a href="/collection/{data.collection.id}">{data.collection.name}</a>
+          </p>
+        {/if}
         {#if data.track.album}
           <p class="detail-album">
             <a href="/album/{data.track.album.id}">{data.track.album.name}</a>
@@ -484,6 +495,7 @@
           ] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
           { label: 'Relations', icon: IconMerge, onClick: () => { showMergeModal = true; } },
+          { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
         ]}
       />
     </div>
@@ -511,6 +523,17 @@
     parentId={data.track.artists[0]?.id ?? ''}
     existingMerges={mergedFrom}
     onMerged={() => loadData(trackId)}
+  />
+{/if}
+
+{#if data && data.track.artists[0]}
+  <CollectionModal
+    bind:show={showCollectionModal}
+    artistId={data.track.artists[0].id}
+    artistName={data.track.artists[0].name}
+    entity={{ type: 'track', id: trackId, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null }}
+    memberOfId={data.collection?.direct ? data.collection.id : null}
+    onChanged={() => loadData(trackId)}
   />
 {/if}
 

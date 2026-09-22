@@ -21,6 +21,8 @@
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
   import ConcertList from '$lib/components/ConcertList.svelte';
+  import CollectionList from '$lib/components/CollectionList.svelte';
+  import CollectionModal from '$lib/components/CollectionModal.svelte';
   import ConcertModal from '$lib/components/ConcertModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
@@ -42,6 +44,7 @@
   import IconLink from '$lib/icons/IconLink.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
   // tamaños de las listas top: colapsadas por defecto, expandidas con "show all"
@@ -84,6 +87,7 @@
   let showAllAlbums = $state(false);
   let showArtistMergeModal = $state(false);
   let showRelateModal = $state(false);
+  let showCollectionModal = $state(false);
   let showConcertModal = $state(false);
   let editingConcert = $state<Concert | null>(null);
   let showImagePicker = $state(false);
@@ -157,6 +161,13 @@
   async function refreshConcerts() {
     if (!data) return;
     data = { ...data, concerts: await api.artistConcerts(artistId) };
+  }
+
+  // igual que los conciertos: refresco puntual de la sección tras mutar, sin rehacer
+  // el detalle entero (que repintaría las gráficas desde cero)
+  async function refreshCollections() {
+    if (!data) return;
+    data = { ...data, collections: await api.artistCollections(artistId) };
   }
 
   async function loadData(id: string) {
@@ -405,6 +416,7 @@
             { label: 'Picture & background', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
             { label: 'Relations', icon: IconLink, onClick: () => { showArtistMergeModal = true; } },
             { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
+            { label: 'Collections', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
           ]}
         />
       </div>
@@ -545,6 +557,19 @@
           />
         </section>
       {/if}
+    {:else if key === 'collections'}
+      <!-- sin colecciones no hay sección: el alta vive en el menú del hero, igual
+           que los conciertos -->
+      {#if (d.collections ?? []).length > 0}
+        <section class="detail-section">
+          <CollectionList
+            collections={d.collections ?? []}
+            {metric}
+            onManage={() => { showCollectionModal = true; }}
+            onChanged={refreshCollections}
+          />
+        </section>
+      {/if}
     {:else if key === 'relations'}
       {#if d.relations.length > 0}
         <section class="detail-section">
@@ -605,6 +630,12 @@
     artist={{ id: data.artist.id, name: data.artist.name }}
     editing={editingConcert}
     onSaved={refreshConcerts}
+  />
+  <CollectionModal
+    bind:show={showCollectionModal}
+    artistId={data.artist.id}
+    artistName={data.artist.name}
+    onChanged={refreshCollections}
   />
 {/if}
 

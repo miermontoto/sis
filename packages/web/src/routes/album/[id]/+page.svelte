@@ -25,6 +25,7 @@
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import AlbumRating from '$lib/components/AlbumRating.svelte';
+  import CollectionModal from '$lib/components/CollectionModal.svelte';
   import ImagePicker from '$lib/components/ImagePicker.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
@@ -35,6 +36,7 @@
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconPalette from '$lib/icons/IconPalette.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
 
@@ -63,6 +65,7 @@
   let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let showCoverPicker = $state(false);
   let showMergeModal = $state(false);
+  let showCollectionModal = $state(false);
   let mergeInitialStep = $state<'select' | 'remerge' | undefined>(undefined);
   let playActing = $state(false);
   let trackSort = $state<'ranked' | 'natural'>('ranked');
@@ -259,13 +262,13 @@
         <StatsGrid stats={d.stats} flash={statFlashStore.isFlashing(albumId)} />
       </section>
     {:else if key === 'rankingBadges'}
-      {#if !mergedInto}
+      {#if !mergedInto && !d.collection}
         <section class="detail-section">
           <RankingBadges entityType="album" entityId={albumId} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
-      {#if !mergedInto}
+      {#if !mergedInto && !d.collection}
         <section class="detail-section">
           <ChartStats entityType="album" entityId={albumId} bind:chartData={chartHistoryData} bind:highlightedMonth />
         </section>
@@ -389,6 +392,13 @@
             {#if albumLengthMs > 0}{formatDuration(albumLengthMs)}{/if}
           </p>
         {/if}
+        {#if data.collection}
+          <!-- mientras esté en una colección es ELLA quien rankea por este álbum: la
+               página lo dice en vez de enseñar unos badges que ya no existen -->
+          <p class="detail-meta-line">
+            Part of <a href="/collection/{data.collection.id}">{data.collection.name}</a>
+          </p>
+        {/if}
         <AlbumRating {albumId} initial={data.rating ?? null} />
       </div>
     </div>
@@ -407,7 +417,7 @@
           <IconPlay />
         </button>
       {/if}
-      {#if !mergedInto}
+      {#if !mergedInto && !data.collection}
         <Accolades entityType="album" entityId={albumId} />
       {/if}
       <EntityActionsMenu
@@ -419,6 +429,7 @@
           // portada/color y el modal de merges su botón de auto-merge
           { label: 'Cover & color', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
           { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
+          { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
         ]}
       />
     </div>
@@ -436,6 +447,17 @@
       {/each}
     </aside>
   </div>
+{/if}
+
+{#if data && data.artists[0]}
+  <CollectionModal
+    bind:show={showCollectionModal}
+    artistId={data.artists[0].id}
+    artistName={data.artists[0].name}
+    entity={{ type: 'album', id: albumId, name: data.album.name, imageUrl: data.album.imageUrl }}
+    memberOfId={data.collection?.id ?? null}
+    onChanged={() => loadData(albumId)}
+  />
 {/if}
 
 {#if data}

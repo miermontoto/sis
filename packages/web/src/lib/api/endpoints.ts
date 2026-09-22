@@ -15,6 +15,7 @@ import type {
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
+  AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
 
@@ -110,6 +111,40 @@ export const api = {
 
   trackDetail: (id: string, range = 'all', signal?: AbortSignal, dates?: DateRangeParams) =>
     apiFetch<TrackDetail>(`/stats/track/${encodeURIComponent(id)}`, rangeParams(range, dates), signal),
+
+  // --- colecciones ("álbumes lógicos") ---
+  // Toda mutación de colección cambia a qué entidad se atribuyen los plays de sus
+  // miembros, o sea TODO ranking de álbum: se deja caer en el fallback conservador de
+  // applyMutationInvalidation (limpia el cache entero), que aquí es lo correcto.
+
+  collectionDetail: (id: number, range = 'all', sort?: string, signal?: AbortSignal, dates?: DateRangeParams) =>
+    apiFetch<CollectionDetail>(`/stats/collection/${id}`, { ...rangeParams(range, dates), ...(sort && { sort }) }, signal),
+
+  // las colecciones del artista ya viajan dentro de artistDetail; esto es el refresco
+  // puntual tras mutar, igual que artistConcerts
+  artistCollections: (artistId: string) =>
+    apiFetch<AlbumCollectionSummary[]>(`/collections/artist/${encodeURIComponent(artistId)}`),
+
+  createCollection: (input: CollectionInput) =>
+    apiMutate<AlbumCollectionSummary>('POST', '/collections', input),
+
+  updateCollection: (id: number, fields: { name?: string; notes?: string | null; imageUrl?: string | null; color?: string | null }) =>
+    apiMutate<AlbumCollectionSummary>('PUT', `/collections/${id}`, fields),
+
+  deleteCollection: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/collections/${id}`),
+
+  collectionMembers: (id: number) => apiFetch<CollectionMember[]>(`/collections/${id}/members`),
+
+  // 409 con { collectionId, collectionName } si la entidad ya está en otra colección:
+  // un miembro pertenece a UNA sola, o sus plays se contarían dos veces
+  addCollectionMember: (id: number, entityType: CollectionMemberType, entityId: string) =>
+    apiMutate<CollectionMember[]>('POST', `/collections/${id}/members`, { entityType, entityId }),
+
+  removeCollectionMember: (id: number, entityType: CollectionMemberType, entityId: string) =>
+    apiMutate<CollectionMember[]>('DELETE', `/collections/${id}/members/${entityType}/${encodeURIComponent(entityId)}`),
+
+  reorderCollectionMembers: (id: number, order: { entityType: CollectionMemberType; entityId: string }[]) =>
+    apiMutate<CollectionMember[]>('PUT', `/collections/${id}/order`, { order }),
 
   search: (q: string, limit = 5) =>
     apiFetch<SearchResults>('/stats/search', { q, limit: String(limit) }),
