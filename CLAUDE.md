@@ -116,6 +116,25 @@ Las cifras las da `getRelationStats` (queries/relations.ts), que cuenta cada id 
 
 Que la página sea un alias lo dice además un `AliasBadge` pegado al nombre en el hero ("MERGED INTO X", con el nombre sin mayusculizar): la sección lo repite como fila, pero el rail se puede reordenar y esconder, y ese hecho explica la página entera (es lo que apaga records, ranking badges y chart stats).
 
+### Álbumes lógicos (`album_collections` / `album_collection_members`)
+Contenedor del usuario que agrega **álbumes enteros y temas sueltos** de un artista (una trilogía, una era, los singles de un año). Es la tercera intensidad de vínculo, y no es ninguna de las otras dos: un **merge** absorbe (la fuente pasa a ser un alias), una **relación soft** no toca el tracking, y una **colección** deja a sus miembros con su página y sus cifras intactas pero **los sustituye en los rankings** — top albums, charts, records y reports enseñan la colección, no sus partes.
+
+La capa que lo hace son dos LEFT JOIN metidos **dentro de `entityMergeJoin('album')`**, para que viajen siempre con `resolvedEntityId('album')`, que pasa a ser `COALESCE('collection:'||acm_track.collection_id, 'collection:'||acm_album.collection_id, mr_album.target_id, t.album_id)`. El miembro álbum se busca por el id **ya resuelto de merges** y el tema suelto gana sobre la colección de su álbum. Así ninguna query puede nombrar la expresión sin haber unido los joins, la misma doctrina que el `userId` de los merges.
+
+**Las claves `collection:N` no son filas de `albums`** y no deben serlo: un id sintético en el catálogo lo tocarían los barridos de dedup e identity (ver los incidentes de `local:`/`import:`). El precio es que **cada sitio que hidrata un id del eje álbum tiene que conocerlas**: `lookupAlbum`, `getAlbumArtists`, `fetchEntityMetadata`, y en SQL los helpers `albumEntityJoins/Name/Image/ArtistId/ArtistName` (records y records-extended, donde el `JOIN albums` pasó a LEFT JOIN + guard `IS NOT NULL`: con el inner, esas filas desaparecían en vez de listarse). Agregación e hidratación van en el mismo commit o el ranking pierde filas en silencio.
+
+Las columnas del miembro son **`member_type`/`member_id`**, no `entity_*`: las queries de ranking alias su columna de grupo como `entity_id` y con ese nombre el `GROUP BY` se vuelve ambiguo (error real, igual que el `GROUP BY id` de los CTEs). `UNIQUE(user_id, member_type, member_id)` sostiene el invariante de **un miembro, UNA colección** — en dos, sus plays se contarían dos veces —, y las rutas lo traducen a un 409 que nombra la colección en conflicto.
+
+**Los miembros se guardan por su id canónico de merge** (`canonicalMemberId`): como el eje álbum resuelve merges *antes* de mirar la pertenencia, un alias como miembro no casa con ningún play y la colección rankeaba a cero mientras su propia página, que cuenta por el álbum crudo, enseñaba las escuchas. Por lo mismo `getCollectionRefs` canoniza lo que se le pregunta, para que la página de un alias enseñe su línea de pertenencia.
+
+Las cifras de la lista de miembros se cuentan por el álbum **crudo** del play y se reparten con `albumOwners` (cada álbum del alcance a un solo miembro: él mismo si lo es, si no el que lo absorbió). Agrupando por el resuelto, un miembro mergeado dentro de otro marcaba 0 y las filas no sumaban el total.
+
+Dos sitios del report necesitan trato aparte: las **décadas** se anclan al álbum REAL (`COALESCE(mr_album.target_id, t.album_id)`, que una colección no tiene fecha de lanzamiento y sus plays se caían de la sección) y el **discovery** expande la colección a sus miembros (sin eso `noPlayBefore` no encontraba ninguno de sus tracks y TODA colección se estrenaba cada periodo).
+
+Superficies: `/collection/:id` (detalle con las mismas secciones que un álbum, más la de miembros), sección `collections` en el detalle de artista, y la línea de pertenencia en álbum y tema — en el álbum apaga además sus ranking badges y chart stats, que ahora son de la colección, igual que en un alias. **`/album/[id]` redirige** cuando el id es una clave de colección, así que los ~28 sitios que construyen enlaces de álbum no se enteran; no los reescribas uno a uno.
+
+Coste medido del sondeo por fila en top-albums all-time (349k plays): **377ms → 453ms**, y 453ms también con la tabla vacía. Las dos alternativas medidas (guard constante en el ON: no evita el seek; `IN (set)` + subquery escalar: 415ms a cambio de devolverle el `userId` a `resolvedEntityId` en ~15 call sites) están anotadas en el comentario de `collectionMemberJoins`.
+
 ### Concert attendance log (`concerts` / `concert_songs`)
 Per-user annotation on an artist, same contract as `album_ratings`: reads resolve the artist **merge group**, writes land on the visited id. `UNIQUE(user_id, artist_id, concert_date)` is what stops a show being logged twice, so the routes must translate it into a 409 — drizzle wraps the better-sqlite3 error, so the `SQLITE_CONSTRAINT_UNIQUE` code only appears down the `cause` chain (`isUniqueViolation` in `routes/concerts.ts`).
 
