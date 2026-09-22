@@ -499,26 +499,51 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
 
-  // álbumes lógicos (colecciones): contenedor del usuario que agrega álbumes y
-  // temas sueltos de un artista. Ver schema.ts — no son filas de `albums` a
-  // propósito. El UNIQUE de miembros (user_id, entity_type, entity_id) hace de
-  // índice del lookup caliente de los rankings además de sostener el invariante
-  // de "un miembro, una colección"
+  // álbumes lógicos (colecciones): la colección ES un álbum —su fila vive en
+  // `albums` con el id `collection:<id>`, de donde salen nombre, portada, color y
+  // valoración— y esta tabla sólo guarda de quién es y de qué artista. Ver schema.ts.
   try {
     sqlite.exec(`CREATE TABLE IF NOT EXISTS album_collections (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id),
       artist_id TEXT NOT NULL REFERENCES artists(spotify_id),
-      name TEXT NOT NULL,
-      image_url TEXT,
-      color TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`);
   } catch {}
+  // la tabla nació con nombre/portada/color propios y esos metadatos se mudaron a la
+  // fila de `albums` para que la colección herede la vista de álbum entera. Se migra
+  // en vez de recrearse a secas: puede haber colecciones ya creadas
+  try {
+    const cols = sqlite.prepare('PRAGMA table_info(album_collections)').all() as { name: string }[];
+    if (cols.some(c => c.name === 'name')) {
+      sqlite.exec(`INSERT OR IGNORE INTO albums (spotify_id, name, image_url, color, album_type, updated_at)
+        SELECT 'collection:' || id, name, image_url, color, 'collection', datetime('now') FROM album_collections`);
+      sqlite.exec(`CREATE TABLE album_collections_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        artist_id TEXT NOT NULL REFERENCES artists(spotify_id),
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      sqlite.exec('INSERT INTO album_collections_new SELECT id, user_id, artist_id, notes, created_at, updated_at FROM album_collections');
+      sqlite.exec('DROP TABLE album_collections');
+      sqlite.exec('ALTER TABLE album_collections_new RENAME TO album_collections');
+    }
+  } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_album_collections_user ON album_collections(user_id)'); } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_album_collections_user_artist ON album_collections(user_id, artist_id)'); } catch {}
+  // la tabla de miembros nació el mismo día con las columnas entity_type/entity_id y
+  // se renombraron a member_* en cuanto se vio que volvían ambiguo el GROUP BY de las
+  // queries de ranking. CREATE TABLE IF NOT EXISTS no arregla una tabla ya creada con
+  // la forma vieja, así que se tira: sólo puede existir en un dev que arrancó a medio
+  // camino, y nunca llegó a tener filas con significado
+  try {
+    const cols = sqlite.prepare('PRAGMA table_info(album_collection_members)').all() as { name: string }[];
+    if (cols.some(c => c.name === 'entity_id')) sqlite.exec('DROP TABLE album_collection_members');
+  } catch {}
   try {
     sqlite.exec(`CREATE TABLE IF NOT EXISTS album_collection_members (
       collection_id INTEGER NOT NULL REFERENCES album_collections(id) ON DELETE CASCADE,

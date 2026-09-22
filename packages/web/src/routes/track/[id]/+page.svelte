@@ -25,6 +25,7 @@
   import Accolades from '$lib/components/Accolades.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
+  import { collectionKey } from '$lib/api';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
@@ -385,7 +386,7 @@
                sacar; el sitio es la página del álbum -->
           <p class="detail-meta-line">
             {data.collection.direct ? 'In' : 'Through its album, in'}
-            <a href="/collection/{data.collection.id}">{data.collection.name}</a>
+            <a href="/album/{collectionKey(data.collection.id)}">{data.collection.name}</a>
           </p>
         {/if}
         {#if data.track.album}

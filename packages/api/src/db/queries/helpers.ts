@@ -216,49 +216,23 @@ export function resolvedPlayJoins(entityType: EntityType, userId: number): SqlCh
     ${entityMergeJoin('track', userId)}`;
 }
 
-/** Hidratación de un id del eje álbum que puede ser una **colección** (`collection:N`).
- *  Desde que existen los álbumes lógicos, resolvedEntityId('album') emite ids que no
- *  tienen fila en `albums`: un `JOIN albums` a secas deja fuera esas filas —los records
- *  y los reports perderían justo los plays que la colección agrega— y un LEFT JOIN a
- *  secas las pinta sin nombre. Devuelve los dos joins y las expresiones que los mezclan.
- *
- *  El join de la colección compara `'collection:' || acol.id` en vez de partir el id:
- *  la tabla tiene un puñado de filas por usuario y así la condición se lee. Se usa sólo
- *  en la hidratación (decenas de filas), nunca en el escaneo del historial. */
-export function albumEntityJoins(eidExpr: SqlChunk): SqlChunk {
-  return sql`LEFT JOIN albums al ON al.spotify_id = ${eidExpr}
-    LEFT JOIN album_collections acol ON ${COLLECTION_ID_PREFIX} || acol.id = ${eidExpr}`;
+/** Artista de una fila del eje álbum: el de posición 0 de sus temas y, si no lo hay,
+ *  el dueño de la colección. Un álbum lógico (`collection:N`) SÍ tiene fila en
+ *  `albums` —de ahí le vienen nombre, portada y color— pero no tiene temas propios,
+ *  así que la subconsulta de siempre devolvía NULL y la fila salía sin artista. */
+export function albumArtistId(eidExpr: SqlChunk): SqlChunk {
+  return sql`COALESCE(
+    (SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+     WHERE t2.album_id = ${eidExpr} LIMIT 1),
+    (SELECT ac.artist_id FROM album_collections ac WHERE ${COLLECTION_ID_PREFIX} || ac.id = ${eidExpr}))`;
 }
 
-/** Nombre de la entidad hidratada por albumEntityJoins. */
-export function albumEntityName(): SqlChunk {
-  return sql`COALESCE(al.name, acol.name)`;
-}
-
-/** Portada: la del álbum, la manual de la colección o, si no la tiene, la del primer
- *  miembro que tenga una (misma regla que collectionCover en el lado JS). */
-export function albumEntityImage(): SqlChunk {
-  return sql`COALESCE(al.image_url, acol.image_url, (
-    SELECT COALESCE(m_al.image_url, m_alt.image_url)
-    FROM album_collection_members m
-    LEFT JOIN albums m_al ON m.member_type = 'album' AND m_al.spotify_id = m.member_id
-    LEFT JOIN tracks m_t ON m.member_type = 'track' AND m_t.spotify_id = m.member_id
-    LEFT JOIN albums m_alt ON m_alt.spotify_id = m_t.album_id
-    WHERE m.collection_id = acol.id AND COALESCE(m_al.image_url, m_alt.image_url) IS NOT NULL
-    ORDER BY m.position ASC LIMIT 1))`;
-}
-
-/** Artista de la fila: el de posición 0 de los temas del álbum o, en una colección, su
- *  artista dueño (el único crédito que tiene). `eidExpr` es el id ya resuelto. */
-export function albumEntityArtistId(eidExpr: SqlChunk): SqlChunk {
-  return sql`COALESCE((SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-    WHERE t2.album_id = ${eidExpr} LIMIT 1), acol.artist_id)`;
-}
-
-export function albumEntityArtistName(eidExpr: SqlChunk): SqlChunk {
-  return sql`COALESCE((SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-    JOIN artists a ON a.spotify_id = ta.artist_id WHERE t2.album_id = ${eidExpr} LIMIT 1),
-    (SELECT a2.name FROM artists a2 WHERE a2.spotify_id = acol.artist_id))`;
+export function albumArtistName(eidExpr: SqlChunk): SqlChunk {
+  return sql`COALESCE(
+    (SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+     JOIN artists a ON a.spotify_id = ta.artist_id WHERE t2.album_id = ${eidExpr} LIMIT 1),
+    (SELECT a2.name FROM album_collections ac JOIN artists a2 ON a2.spotify_id = ac.artist_id
+     WHERE ${COLLECTION_ID_PREFIX} || ac.id = ${eidExpr}))`;
 }
 
 /** AND t.album_id IS NOT NULL — necesario para queries de álbumes, vacío para otros tipos.

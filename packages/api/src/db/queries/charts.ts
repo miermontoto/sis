@@ -1,9 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, ChartPeakStats, RankingMetric, WeekStartOption, Granularity, EntityType } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr } from './helpers.js';
-import { parseCollectionKey, collectionKey } from '@sis/shared';
-import { fetchCollectionMetadata, collectionCover } from './collections.js';
+import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr, albumArtistId, albumArtistName } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 import { ChartPeaksAccumulator, peakSlices, periodYear, type ChartRankSlice, type PeakSlice, type RankSliceRow } from '../../services/chart-peaks.js';
 
@@ -205,25 +203,12 @@ export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[
       if (meta.artistId === null) { meta.artistId = r.artist_id; meta.artistName = r.artist_name; }
     }
   } else if (entityType === 'album') {
-    // los ids de colección (álbumes lógicos) no están en `albums`: se resuelven aparte
-    // y se mezclan en el mismo Map, que es lo que leen charts, rankings y las
-    // notificaciones sin saber de qué clase de entidad viene cada fila
-    const collectionIds = ids.map(id => parseCollectionKey(id)).filter((n): n is number => n !== null);
-    for (const r of fetchCollectionMetadata(db, collectionIds)) {
-      const artists = r.artist_name ? [{ id: r.artist_id, name: r.artist_name }] : [];
-      result.set(collectionKey(r.id), {
-        name: r.name,
-        imageUrl: r.image_url ?? collectionCover(db, r.id),
-        artistName: r.artist_name, artistId: r.artist_id, artists,
-      });
-    }
-
+    // un álbum lógico tiene su fila en `albums` como cualquier otro; lo único que no
+    // tiene son temas propios, y de ahí el fallback de los helpers de artista
     const rows = db.all(sql`
       SELECT al.spotify_id as id, al.name, al.image_url,
-             (SELECT a.name FROM tracks t2 JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-              JOIN artists a ON a.spotify_id = ta2.artist_id WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_name,
-             (SELECT ta2.artist_id FROM tracks t2 JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-              WHERE t2.album_id = al.spotify_id LIMIT 1) as artist_id
+             ${albumArtistName(sql`al.spotify_id`)} as artist_name,
+             ${albumArtistId(sql`al.spotify_id`)} as artist_id
       FROM albums al WHERE al.spotify_id IN (${placeholders})
     `) as any[];
     for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: r.artist_name, artistId: r.artist_id, artists: r.artist_id ? [{ id: r.artist_id, name: r.artist_name }] : [] });

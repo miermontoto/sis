@@ -11,6 +11,17 @@ export function isSyntheticId(id: string): boolean {
   return SYNTHETIC_ID_PREFIXES.some(prefix => id.startsWith(prefix));
 }
 
+// ids que no existen en spotify, sintéticos incluidos: los de arriba MÁS los álbumes
+// lógicos (`collection:`, ver db/queries/collections.ts). Es la lista que tiene que
+// mirar cualquier cosa que vaya a PREGUNTARLE a spotify por un id; NO es la de los
+// sweeps de sintéticos, que fusionan entre sí local: e import: y no deben tocar una
+// colección (es una entidad del usuario, no un duplicado que reconciliar).
+export const NON_SPOTIFY_ID_PREFIXES = [...SYNTHETIC_ID_PREFIXES, 'collection:'] as const;
+
+export function isNonSpotifyId(id: string): boolean {
+  return NON_SPOTIFY_ID_PREFIXES.some(prefix => id.startsWith(prefix));
+}
+
 // `<col>` es sintético, derivado de SYNTHETIC_ID_PREFIXES para que los dos prefijos se
 // traten como UN espacio. Cuando cada sweep filtraba el suyo a mano, la misma entidad
 // vivía dos veces: los dos caminos acuñan el álbum como syntheticId(prefix, artista,

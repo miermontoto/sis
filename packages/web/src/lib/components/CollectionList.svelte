@@ -4,7 +4,7 @@
   // de listas de la app.
   // La lista se asume no vacía: sin colecciones la ficha no monta la sección y el alta
   // queda en el menú del hero, igual que los conciertos.
-  import { api, type AlbumCollectionSummary, type RankingMetric } from '$lib/api';
+  import { api, collectionKey, type AlbumCollectionSummary, type RankingMetric } from '$lib/api';
   import { errorMessage } from '$lib/utils/errors';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { contextMenu } from '$lib/stores/context-menu.svelte';
@@ -66,7 +66,7 @@
     {/snippet}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div oncontextmenu={menu(c)}>
-      <TrackItem name={c.name} nameHref={`/collection/${c.id}`} imageUrl={c.imageUrl} {subtitle} {meta} />
+      <TrackItem name={c.name} nameHref={`/album/${collectionKey(c.id)}`} imageUrl={c.imageUrl} {subtitle} {meta} />
     </div>
   {/each}
 </div>

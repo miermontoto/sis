@@ -4,8 +4,11 @@ import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
 import IconLink from '$lib/icons/IconLink.svelte';
 
+// `collection:` entra en la misma familia que local:/import:: un álbum lógico tiene
+// fila en `albums` pero no existe en spotify, así que no hay nada que abrir, encolar
+// ni reproducir por contexto (ver shared/collections.ts)
 export function isSpotifyId(id: string): boolean {
-  return !id.startsWith('local:') && !id.startsWith('import:');
+  return !id.startsWith('local:') && !id.startsWith('import:') && !id.startsWith('collection:');
 }
 
 export type EntityType = 'album' | 'artist' | 'track';

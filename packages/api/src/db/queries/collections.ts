@@ -3,14 +3,19 @@
 // helpers.ts (collectionMemberJoins / resolvedEntityId) para la capa que hace que
 // sustituyan a sus miembros en los rankings.
 //
-// Aquí vive lo que NO sale gratis de esa capa: el CRUD, la expansión del alcance de
-// una colección (qué álbumes y qué temas aporta) y las queries de su página de
-// detalle, que son las de un álbum pero con dos ejes en vez de uno.
+// **Una colección ES un álbum**: su fila vive en `albums` con el id `collection:<id>`,
+// así que nombre, portada, color, valoración, buscador y la vista de detalle entera
+// le salen gratis, sin rutas ni componentes paralelos. Esta tabla sólo guarda lo que
+// un álbum no tiene: de quién es y de qué artista.
+//
+// Lo que NO sale gratis es todo lo que va del álbum a sus plays, porque una colección
+// no tiene temas propios: sus cifras, su serie, su tracklist y su historial salen del
+// alcance de sus miembros, y eso es lo que vive aquí.
 import { sql } from 'drizzle-orm';
 import type { Db, Sort, SqlChunk, StatsRow, SeriesRow, RecentPlayRow } from './helpers.js';
-import { rangeWhere, userFilter, getDateTrunc, getDateTruncForDays, playDuration, resolvedPlayJoins } from './helpers.js';
+import { rangeWhere, userFilter, getDateTrunc, getDateTruncForDays, playDuration, resolvedPlayJoins, artistCreditedAlbums } from './helpers.js';
 import { collectionKey, COLLECTION_ID_PREFIX } from '@sis/shared';
-import type { AlbumCollectionSummary, CollectionMember, CollectionMemberType, CollectionRef, FormattedAlbum } from '@sis/shared';
+import type { AlbumCollectionSummary, CollectionCandidate, CollectionMember, CollectionMemberType, CollectionRef } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 
 // tipo de álbum que se le atribuye a una colección allí donde la UI espera uno
@@ -21,13 +26,21 @@ interface CollectionRow {
   id: number;
   user_id: number;
   artist_id: string;
-  name: string;
-  image_url: string | null;
-  color: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+  // de la fila de `albums` (LEFT JOIN: la colección se lee igual aunque su álbum
+  // todavía no exista, que es el estado en el que la deja una migración a medias)
+  name: string | null;
+  image_url: string | null;
+  color: string | null;
 }
+
+// SELECT común: la colección con los metadatos de su álbum
+const COLLECTION_SELECT = sql`
+  SELECT ac.*, al.name AS name, al.image_url AS image_url, al.color AS color
+  FROM album_collections ac
+  LEFT JOIN albums al ON al.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id`;
 
 /** Alcance de una colección: los ids que aporta a cualquier agregación.
  *  `albumIds` viene expandido con los álbumes que cada miembro haya absorbido por
@@ -115,31 +128,7 @@ function scopeDrive(scope: CollectionScope, userId: number): SqlChunk {
 // --- lectura ---
 
 export function getCollectionRow(db: Db, collectionId: number, userId: number): CollectionRow | undefined {
-  return db.all(sql`
-    SELECT * FROM album_collections WHERE id = ${collectionId} AND user_id = ${userId}
-  `)[0] as CollectionRow | undefined;
-}
-
-/** Portada efectiva: la elegida a mano o, si no hay, la del primer miembro que tenga.
- *  Una colección recién creada no tiene imagen propia y sin esto saldría en blanco en
- *  todas las listas de ranking, que es donde más se nota. */
-export function collectionCover(db: Db, collectionId: number): string | null {
-  return coverFallback(db, collectionId);
-}
-
-function coverFallback(db: Db, collectionId: number): string | null {
-  const row = db.all(sql`
-    SELECT COALESCE(al.image_url, al_t.image_url) AS image_url
-    FROM album_collection_members acm
-    LEFT JOIN albums al ON acm.member_type = 'album' AND al.spotify_id = acm.member_id
-    LEFT JOIN tracks t ON acm.member_type = 'track' AND t.spotify_id = acm.member_id
-    LEFT JOIN albums al_t ON al_t.spotify_id = t.album_id
-    WHERE acm.collection_id = ${collectionId}
-      AND COALESCE(al.image_url, al_t.image_url) IS NOT NULL
-    ORDER BY acm.position ASC
-    LIMIT 1
-  `)[0] as { image_url: string | null } | undefined;
-  return row?.image_url ?? null;
+  return db.all(sql`${COLLECTION_SELECT} WHERE ac.id = ${collectionId} AND ac.user_id = ${userId}`)[0] as CollectionRow | undefined;
 }
 
 /** Resumen de una colección con sus recuentos y sus cifras all-time. */
@@ -165,10 +154,10 @@ function hydrateSummary(db: Db, row: CollectionRow, userId: number): AlbumCollec
 
   return {
     id: row.id,
-    name: row.name,
     artistId: row.artist_id,
     artistName: artist?.name ?? '',
-    imageUrl: row.image_url ?? coverFallback(db, row.id),
+    name: row.name ?? '',
+    imageUrl: row.image_url,
     color: row.color,
     notes: row.notes,
     albumCount: counts.albums ?? 0,
@@ -185,9 +174,9 @@ function hydrateSummary(db: Db, row: CollectionRow, userId: number): AlbumCollec
 export function getArtistCollections(db: Db, artistIds: string[], userId: number): AlbumCollectionSummary[] {
   if (artistIds.length === 0) return [];
   const rows = db.all(sql`
-    SELECT * FROM album_collections
-    WHERE user_id = ${userId} AND artist_id IN (${idList(artistIds)})
-    ORDER BY created_at ASC
+    ${COLLECTION_SELECT}
+    WHERE ac.user_id = ${userId} AND ac.artist_id IN (${idList(artistIds)})
+    ORDER BY ac.created_at ASC
   `) as CollectionRow[];
   return rows.map(r => hydrateSummary(db, r, userId));
 }
@@ -403,27 +392,6 @@ export function getCollectionRecentPlays(db: Db, collectionId: number, limit: nu
 
 // --- hidratación de ids `collection:N` en el espacio de álbum ---
 
-/** La colección vista como un álbum, para los formateadores de las listas de ranking.
- *  `releaseDate` es la del primer lanzamiento que agrega: es lo que ordena bien una
- *  era o una trilogía entre los discos sueltos del artista. */
-export function lookupCollectionAsAlbum(db: Db, collectionId: number): FormattedAlbum | null {
-  const row = db.all(sql`
-    SELECT ac.name, ac.image_url, ac.color,
-           (SELECT MIN(al.release_date) FROM album_collection_members acm
-            JOIN albums al ON al.spotify_id = acm.member_id
-            WHERE acm.collection_id = ac.id AND acm.member_type = 'album') AS release_date
-    FROM album_collections ac WHERE ac.id = ${collectionId}
-  `)[0] as { name: string; image_url: string | null; color: string | null; release_date: string | null } | undefined;
-  if (!row) return null;
-  return {
-    name: row.name,
-    imageUrl: row.image_url ?? coverFallback(db, collectionId),
-    releaseDate: row.release_date,
-    albumType: COLLECTION_ALBUM_TYPE,
-    color: row.color,
-  };
-}
-
 /** Artista dueño de una colección, con la forma que devuelve getAlbumArtists. */
 export function getCollectionArtists(db: Db, collectionId: number) {
   return db.all(sql`
@@ -431,17 +399,6 @@ export function getCollectionArtists(db: Db, collectionId: number) {
     FROM album_collections ac JOIN artists a ON a.spotify_id = ac.artist_id
     WHERE ac.id = ${collectionId}
   `) as { artist_id: string; name: string; image_url: string | null }[];
-}
-
-/** Metadatos en lote para un conjunto de claves `collection:N` (fetchEntityMetadata). */
-export function fetchCollectionMetadata(db: Db, collectionIds: number[]) {
-  if (collectionIds.length === 0) return [];
-  return db.all(sql`
-    SELECT ac.id, ac.name, ac.image_url, ac.artist_id, a.name AS artist_name
-    FROM album_collections ac
-    LEFT JOIN artists a ON a.spotify_id = ac.artist_id
-    WHERE ac.id IN (${sql.join(collectionIds.map(id => sql`${id}`), sql`, `)})
-  `) as { id: number; name: string; image_url: string | null; artist_id: string; artist_name: string | null }[];
 }
 
 /** A qué colección pertenece cada entidad de un lote. Es lo que pinta la línea de
@@ -465,65 +422,211 @@ export function getCollectionRefs(db: Db, entityType: CollectionMemberType, enti
 
   const lookupIds = [...new Set(canonical.values())];
   const direct = db.all(sql`
-    SELECT acm.member_id AS member_id, ac.id, ac.name, ac.image_url
+    SELECT acm.member_id AS member_id, ac.id, al.name, al.image_url
     FROM album_collection_members acm
     JOIN album_collections ac ON ac.id = acm.collection_id
+    JOIN albums al ON al.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
     WHERE acm.user_id = ${userId} AND acm.member_type = ${entityType} AND acm.member_id IN (${idList(lookupIds)})
   `) as { member_id: string; id: number; name: string; image_url: string | null }[];
   const byMember = new Map(direct.map(r => [r.member_id, r]));
   for (const [requested, canon] of canonical) {
     const r = byMember.get(canon);
-    if (r) out.set(requested, { id: r.id, name: r.name, imageUrl: r.image_url ?? coverFallback(db, r.id), direct: true });
+    if (r) out.set(requested, { id: r.id, name: r.name, imageUrl: r.image_url, direct: true });
   }
 
   if (entityType === 'track') {
     // el álbum del tema también se resuelve de merges: es como lo mira el ranking
     const viaAlbum = db.all(sql`
-      SELECT t.spotify_id AS member_id, ac.id, ac.name, ac.image_url
+      SELECT t.spotify_id AS member_id, ac.id, al.name, al.image_url
       FROM tracks t
       LEFT JOIN merge_rules mr_album ON mr_album.entity_type = 'album' AND mr_album.source_id = t.album_id AND mr_album.user_id = ${userId}
       JOIN album_collection_members acm ON acm.user_id = ${userId} AND acm.member_type = 'album'
         AND acm.member_id = COALESCE(mr_album.target_id, t.album_id)
       JOIN album_collections ac ON ac.id = acm.collection_id
+      JOIN albums al ON al.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
       WHERE t.spotify_id IN (${ids})
     `) as { member_id: string; id: number; name: string; image_url: string | null }[];
     for (const r of viaAlbum) {
       if (out.has(r.member_id)) continue;
-      out.set(r.member_id, { id: r.id, name: r.name, imageUrl: r.image_url ?? coverFallback(db, r.id), direct: false });
+      out.set(r.member_id, { id: r.id, name: r.name, imageUrl: r.image_url, direct: false });
     }
   }
 
   return out;
 }
 
+// --- elegibilidad: qué puede entrar en la colección de un artista ---
+
+/** Una colección agrupa lo que es DEL artista, así que un miembro tiene que estar
+ *  acreditado en él. La definición no se reinventa aquí:
+ *   - álbum: `artistCreditedAlbums`, la misma que decide qué discos salen en la
+ *     página del artista (crédito de álbum, o mayoría de temas liderados). Con una
+ *     regla propia acabarías viendo un disco en su página que la colección rechaza.
+ *   - tema: acreditado en CUALQUIER posición. Una colaboración es de los dos, igual
+ *     que un disco a dos nombres.
+ *  `artistIds` es el grupo de merge del artista de la colección. */
+export function isEligibleMember(db: Db, entityType: CollectionMemberType, entityId: string, artistIds: string[]): boolean {
+  if (artistIds.length === 0) return false;
+  const ids = idList(artistIds);
+  const row = entityType === 'album'
+    ? db.all(sql`SELECT 1 AS ok FROM albums WHERE spotify_id = ${entityId} AND spotify_id IN ${artistCreditedAlbums(artistIds)}`)[0]
+    : db.all(sql`SELECT 1 AS ok FROM track_artists WHERE track_id = ${entityId} AND artist_id IN (${ids}) LIMIT 1`)[0];
+  return !!row;
+}
+
+/** Colecciones en las que ESTA entidad puede entrar: las de cualquier artista
+ *  acreditado en ella. Un tema a dos nombres cabe en la colección de los dos, y sin
+ *  esto la página sólo ofrecía las del artista principal.
+ *  Se filtra colección a colección con `isEligibleMember` en vez de invertir la regla
+ *  de crédito (que no es invertible en el arm de la mayoría): son un puñado de filas
+ *  por usuario y así la regla vive en un solo sitio. */
+export function getEligibleCollections(db: Db, entityType: CollectionMemberType, entityId: string, userId: number): AlbumCollectionSummary[] {
+  const rows = db.all(sql`${COLLECTION_SELECT} WHERE ac.user_id = ${userId} ORDER BY ac.created_at ASC`) as CollectionRow[];
+  const memberId = canonicalMemberId(db, entityType, entityId, userId);
+  return rows
+    .filter(r => isEligibleMember(db, entityType, memberId, artistMergeGroup(db, r.artist_id, userId)))
+    .map(r => hydrateSummary(db, r, userId));
+}
+
+/** Grupo de merge del artista de una colección: sus alias también acreditan. */
+export function artistMergeGroup(db: Db, artistId: string, userId: number): string[] {
+  const sources = db.all(sql`
+    SELECT source_id FROM merge_rules
+    WHERE entity_type = 'artist' AND target_id = ${artistId} AND user_id = ${userId}
+  `) as { source_id: string }[];
+  return [artistId, ...sources.map(r => r.source_id)];
+}
+
+/** Candidatos para el picker de la colección: lo del artista que todavía no está en
+ *  ninguna colección. `takenBy` no los esconde — enseñar dónde están es lo que
+ *  explica por qué no se pueden añadir (un miembro pertenece a UNA colección). */
+export function getCollectionCandidates(db: Db, collectionId: number, userId: number, q: string, limit: number) {
+  const row = getCollectionRow(db, collectionId, userId);
+  if (!row) return { albums: [], tracks: [] };
+  const artistIds = artistMergeGroup(db, row.artist_id, userId);
+  const ids = idList(artistIds);
+  const term = `%${q.trim().toLowerCase()}%`;
+  // cualificado: en la query hay dos `albums` (el candidato y la colección que lo
+  // tiene), y un `name` a secas es ambiguo
+  const search = q.trim() ? sql`AND lower(a.name) LIKE ${term}` : sql``;
+
+  // la pertenencia se pinta con el nombre de la colección que lo tiene, así que el
+  // LEFT JOIN va a las dos tablas; `member_id` ya es canónico (ver canonicalMemberId)
+  const albums = db.all(sql`
+    SELECT a.spotify_id AS id, a.name, a.image_url, a.release_date,
+           coalesce(p.play_count, 0) AS play_count, coalesce(p.total_ms, 0) AS total_ms,
+           ac.id AS taken_id, taken.name AS taken_name
+    FROM albums a
+    LEFT JOIN album_collection_members acm ON acm.user_id = ${userId} AND acm.member_type = 'album' AND acm.member_id = a.spotify_id
+    LEFT JOIN album_collections ac ON ac.id = acm.collection_id
+    LEFT JOIN albums taken ON taken.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
+    LEFT JOIN (
+      SELECT t.album_id AS album_id, count(*) AS play_count, sum(${playDuration()}) AS total_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.user_id = ${userId} AND t.album_id IN ${artistCreditedAlbums(artistIds)}
+      GROUP BY t.album_id
+    ) p ON p.album_id = a.spotify_id
+    WHERE a.spotify_id IN ${artistCreditedAlbums(artistIds)}
+      -- otra colección no es candidata: anidar colecciones contaría sus plays dos veces
+      AND a.album_type IS NOT ${COLLECTION_ALBUM_TYPE}
+      -- un alias de merge no es candidato: lo que se guarda es su canónico, y
+      -- ofrecer los dos es ofrecer la misma entidad dos veces
+      AND a.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId})
+      ${search}
+    ORDER BY play_count DESC, a.release_date DESC
+    LIMIT ${limit}
+  `) as CandidateRow[];
+
+  const tracks = db.all(sql`
+    SELECT t.spotify_id AS id, t.name, al.image_url, al.release_date,
+           coalesce(p.play_count, 0) AS play_count, coalesce(p.total_ms, 0) AS total_ms,
+           ac.id AS taken_id, taken.name AS taken_name
+    FROM tracks t
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
+    LEFT JOIN album_collection_members acm ON acm.user_id = ${userId} AND acm.member_type = 'track' AND acm.member_id = t.spotify_id
+    LEFT JOIN album_collections ac ON ac.id = acm.collection_id
+    LEFT JOIN albums taken ON taken.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
+    LEFT JOIN (
+      -- el alias tiene que ser t: playDuration() capa el tiempo con t.duration_ms
+      SELECT lh.track_id AS track_id, count(*) AS play_count, sum(${playDuration()}) AS total_ms
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.user_id = ${userId} AND lh.track_id IN (SELECT track_id FROM track_artists WHERE artist_id IN (${ids}))
+      GROUP BY lh.track_id
+    ) p ON p.track_id = t.spotify_id
+    WHERE t.spotify_id IN (SELECT track_id FROM track_artists WHERE artist_id IN (${ids}))
+      AND t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
+      ${q.trim() ? sql`AND lower(t.name) LIKE ${term}` : sql``}
+    ORDER BY play_count DESC, t.name ASC
+    LIMIT ${limit}
+  `) as CandidateRow[];
+
+  return { albums: albums.map(toCandidate), tracks: tracks.map(toCandidate) };
+}
+
+interface CandidateRow {
+  id: string; name: string; image_url: string | null; release_date: string | null;
+  play_count: number; total_ms: number; taken_id: number | null; taken_name: string | null;
+}
+
+function toCandidate(r: CandidateRow): CollectionCandidate {
+  return {
+    id: r.id,
+    name: r.name,
+    imageUrl: r.image_url,
+    releaseDate: r.release_date,
+    playCount: r.play_count,
+    totalMs: r.total_ms,
+    takenBy: r.taken_id !== null ? { id: r.taken_id, name: r.taken_name ?? '' } : null,
+  };
+}
+
 // --- escritura ---
 
+/** Crea la colección y **su fila de álbum**. `artist_ids` y `release_date` se quedan
+ *  a NULL a propósito: es lo que mantiene lejos a los cuatro barridos de dedup de
+ *  álbumes, que exigen tracks, créditos o una fecha real. `album_type` la marca para
+ *  que la UI pueda distinguirla de un lanzamiento de verdad. */
 export function createCollection(db: Db, userId: number, artistId: string, name: string, notes: string | null): number {
   const row = db.all(sql`
-    INSERT INTO album_collections (user_id, artist_id, name, notes)
-    VALUES (${userId}, ${artistId}, ${name}, ${notes})
+    INSERT INTO album_collections (user_id, artist_id, notes)
+    VALUES (${userId}, ${artistId}, ${notes})
     RETURNING id
   `)[0] as { id: number };
+  db.run(sql`
+    INSERT INTO albums (spotify_id, name, album_type, updated_at)
+    VALUES (${collectionKey(row.id)}, ${name}, ${COLLECTION_ALBUM_TYPE}, datetime('now'))
+  `);
   return row.id;
 }
 
-export function updateCollection(db: Db, collectionId: number, userId: number, fields: { name?: string; notes?: string | null; imageUrl?: string | null; color?: string | null }): void {
-  const sets: SqlChunk[] = [];
-  if (fields.name !== undefined) sets.push(sql`name = ${fields.name}`);
-  if (fields.notes !== undefined) sets.push(sql`notes = ${fields.notes}`);
-  if (fields.imageUrl !== undefined) sets.push(sql`image_url = ${fields.imageUrl}`);
-  if (fields.color !== undefined) sets.push(sql`color = ${fields.color}`);
-  if (sets.length === 0) return;
-  sets.push(sql`updated_at = ${new Date().toISOString()}`);
-  db.run(sql`UPDATE album_collections SET ${sql.join(sets, sql`, `)} WHERE id = ${collectionId} AND user_id = ${userId}`);
+/** El nombre vive en la fila de álbum y las notas en la de colección. Portada y color
+ *  NO se tocan aquí: son los de `albums` y los edita el mismo `/api/covers/album/:id`
+ *  que cualquier otro disco, que es justo lo que se gana teniendo fila propia. */
+export function updateCollection(db: Db, collectionId: number, userId: number, fields: { name?: string; notes?: string | null }): void {
+  if (!getCollectionRow(db, collectionId, userId)) return;
+  if (fields.name !== undefined) {
+    db.run(sql`UPDATE albums SET name = ${fields.name}, updated_at = datetime('now') WHERE spotify_id = ${collectionKey(collectionId)}`);
+  }
+  if (fields.notes !== undefined) {
+    db.run(sql`UPDATE album_collections SET notes = ${fields.notes} WHERE id = ${collectionId} AND user_id = ${userId}`);
+  }
+  touch(db, collectionId, userId);
 }
 
 export function deleteCollection(db: Db, collectionId: number, userId: number): void {
+  const key = collectionKey(collectionId);
   // los miembros no caen por la FK: foreign_keys puede estar OFF y el ON DELETE
   // CASCADE sólo actúa con el pragma activo. Borrarlos a mano es lo que garantiza
   // que sus plays vuelvan a atribuirse a los álbumes de verdad
   db.run(sql`DELETE FROM album_collection_members WHERE collection_id = ${collectionId} AND user_id = ${userId}`);
   db.run(sql`DELETE FROM album_collections WHERE id = ${collectionId} AND user_id = ${userId}`);
+  // y todo lo que cuelga de su fila de álbum, en orden: las valoraciones tienen FK a
+  // `albums` y con foreign_keys = ON bloquearían el borrado
+  db.run(sql`DELETE FROM album_ratings WHERE album_id = ${key}`);
+  db.run(sql`DELETE FROM album_covers WHERE album_id = ${key}`);
+  db.run(sql`DELETE FROM albums WHERE spotify_id = ${key}`);
 }
 
 /** Colección a la que ya pertenece una entidad, si es que pertenece a alguna: el
@@ -532,8 +635,9 @@ export function deleteCollection(db: Db, collectionId: number, userId: number): 
 export function findMemberCollection(db: Db, entityType: CollectionMemberType, entityId: string, userId: number): { id: number; name: string } | undefined {
   const memberId = canonicalMemberId(db, entityType, entityId, userId);
   return db.all(sql`
-    SELECT ac.id, ac.name FROM album_collection_members acm
+    SELECT ac.id, al.name FROM album_collection_members acm
     JOIN album_collections ac ON ac.id = acm.collection_id
+    JOIN albums al ON al.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
     WHERE acm.user_id = ${userId} AND acm.member_type = ${entityType} AND acm.member_id = ${memberId}
   `)[0] as { id: number; name: string } | undefined;
 }
@@ -561,7 +665,22 @@ export function addCollectionMember(db: Db, collectionId: number, userId: number
     INSERT INTO album_collection_members (collection_id, user_id, member_type, member_id, position)
     VALUES (${collectionId}, ${userId}, ${entityType}, ${memberId}, ${next.pos})
   `);
+  inheritMemberCover(db, collectionId, entityType, memberId);
   touch(db, collectionId, userId);
+}
+
+/** La portada del miembro entra en el pool de la colección (`album_covers`), que es
+ *  de donde el ImagePicker saca las opciones, y se hace activa si todavía no había
+ *  ninguna. Así una colección recién hecha ya se ve en las listas de ranking, y el
+ *  usuario elige entre las portadas de sus discos sin subir nada. */
+function inheritMemberCover(db: Db, collectionId: number, entityType: CollectionMemberType, memberId: string): void {
+  const key = collectionKey(collectionId);
+  const cover = entityType === 'album'
+    ? db.all(sql`SELECT image_url FROM albums WHERE spotify_id = ${memberId}`)[0] as { image_url: string | null } | undefined
+    : db.all(sql`SELECT al.image_url FROM tracks t JOIN albums al ON al.spotify_id = t.album_id WHERE t.spotify_id = ${memberId}`)[0] as { image_url: string | null } | undefined;
+  if (!cover?.image_url) return;
+  db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${key}, ${cover.image_url}, 'spotify')`);
+  db.run(sql`UPDATE albums SET image_url = ${cover.image_url} WHERE spotify_id = ${key} AND image_url IS NULL`);
 }
 
 export function removeCollectionMember(db: Db, collectionId: number, userId: number, entityType: CollectionMemberType, entityId: string): void {

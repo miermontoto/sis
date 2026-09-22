@@ -15,7 +15,7 @@ import type {
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
-  AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput,
+  AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
 
@@ -134,6 +134,19 @@ export const api = {
   deleteCollection: (id: number) => apiMutate<{ success: boolean }>('DELETE', `/collections/${id}`),
 
   collectionMembers: (id: number) => apiFetch<CollectionMember[]>(`/collections/${id}/members`),
+
+  // candidatos del picker: sólo lo acreditado al artista de la colección, que es lo
+  // único que puede entrar en ella. Los que ya están en otra vienen marcados con
+  // `takenBy` en vez de escondidos
+  collectionCandidates: (id: number, q = '', signal?: AbortSignal) =>
+    apiFetch<CollectionCandidates>(`/collections/${id}/candidates`, q ? { q } : undefined, signal),
+
+  // colecciones en las que este álbum o tema puede entrar: las de CUALQUIER artista
+  // acreditado, no sólo el principal (un tema a dos nombres cabe en las dos)
+  eligibleCollections: (entityType: CollectionMemberType, entityId: string) =>
+    apiFetch<{ collections: AlbumCollectionSummary[]; memberOf: number | null }>(
+      `/collections/for/${entityType}/${encodeURIComponent(entityId)}`,
+    ),
 
   // 409 con { collectionId, collectionName } si la entidad ya está en otra colección:
   // un miembro pertenece a UNA sola, o sus plays se contarían dos veces

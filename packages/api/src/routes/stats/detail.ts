@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import { dbRead } from '../../db/read-pool.js';
 import { ensureFullAlbumTracks } from '../../services/ingestion.js';
 import { isSyntheticId } from '../../services/ids.js';
@@ -121,6 +122,66 @@ detail.get('/artist/:id/top/:kind', async (c) => {
   return c.json(await Promise.all(rows.map((row) => dbRead('formatArtistAlbumRow', row))));
 });
 
+// Detalle de una colección con la MISMA forma que el de un álbum (AlbumDetail): la
+// página es la misma, y así hereda portada, color, valoración, secciones y ajustes sin
+// una vista paralela. Sólo cambia el origen de las cifras — el alcance de sus miembros —
+// y el añadido de `members`.
+async function albumDetailForCollection(
+  c: Context,
+  collectionId: number,
+  album: { spotify_id: string; name: string; image_url: string | null; release_date: string | null; total_tracks: number | null; album_type: string | null; color: string | null },
+  userId: number,
+) {
+  const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
+  const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
+
+  const [summary, members, statsRow, series, collectionTracks, recentRaw, coversRaw, ratingRow] = await Promise.all([
+    dbRead('getCollectionSummary', collectionId, userId),
+    dbRead('getCollectionMembers', collectionId, userId),
+    dbRead('getCollectionStats', collectionId, rangeStart, rangeEnd, userId),
+    dbRead('getCollectionSeries', collectionId, rangeStart, rangeKey, rangeEnd, customDays, userId),
+    dbRead('getCollectionTracks', collectionId, rangeStart, sort, rangeEnd, userId),
+    dbRead('getCollectionRecentPlays', collectionId, 10, userId),
+    dbRead('getAlbumCovers', album.spotify_id),
+    dbRead('getAlbumRating', [album.spotify_id], userId),
+  ]);
+  if (!summary) return c.json({ error: 'Album not found' }, 404);
+
+  // los temas vienen de varios álbumes, así que cada fila necesita su carátula y sus
+  // créditos propios: enrichTracksBatch los resuelve en dos queries para todo el lote
+  const [recentPlays, trackMap] = await Promise.all([
+    dbRead('formatRecentPlays', recentRaw),
+    dbRead('enrichTracksBatch', collectionTracks.map((r) => r.track_id)),
+  ]);
+
+  return c.json({
+    album: {
+      id: album.spotify_id, name: album.name, imageUrl: album.image_url,
+      releaseDate: album.release_date, totalTracks: album.total_tracks, albumType: album.album_type,
+      color: album.color,
+    },
+    artists: [{ id: summary.artistId, name: summary.artistName, imageUrl: null }],
+    stats: statsRow,
+    series,
+    tracks: collectionTracks.map((row) => ({
+      trackId: row.track_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      track: trackMap.get(row.track_id) ?? null,
+    })),
+    // una colección no tiene singles de adelanto ni merges: no es un lanzamiento
+    relatedSingles: [],
+    recentPlays,
+    relations: [],
+    playlists: [],
+    covers: coversRaw.map((r) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
+    rating: ratingRow ? { rating: ratingRow.rating, review: ratingRow.review, updatedAt: ratingRow.updated_at } : null,
+    collection: null,
+    members,
+    notes: summary.notes,
+  });
+}
+
 detail.get('/album/:id', async (c) => {
   const id = c.req.param('id');
   const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
@@ -128,6 +189,12 @@ detail.get('/album/:id', async (c) => {
 
   const album = await dbRead('lookupAlbumById', id);
   if (!album) return c.json({ error: 'Album not found' }, 404);
+
+  // un álbum lógico tiene su fila en `albums` como cualquier otro, así que llega hasta
+  // aquí y se sirve con la misma forma: lo único que cambia es de dónde salen los plays
+  // (de sus miembros, que él no tiene temas) y que lleva la lista de miembros
+  const collectionId = parseCollectionKey(id);
+  if (collectionId !== null) return albumDetailForCollection(c, collectionId, album, userId);
 
   // completar el tracklist siempre, no solo en orden natural: el emparejamiento de singles
   // compara contra los nombres de los tracks del álbum, así que un tracklist incompleto (los

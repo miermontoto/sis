@@ -8,7 +8,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, RankingMetric, WeekStartOption, EntityType,
 } from '@sis/shared';
-import { albumEntityJoins, albumEntityName, albumEntityImage, albumEntityArtistId, albumEntityArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
+import { albumArtistId, albumArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
 import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
@@ -141,13 +141,12 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
       SELECT eid, MIN(w) as debut_week FROM weekly GROUP BY eid
     )
     SELECT w.*, fw.debut_week,
-           ${albumEntityName()} as name, ${albumEntityImage()} as image_url,
-           ${albumEntityArtistId(sql`w.eid`)} as artist_id,
-           ${albumEntityArtistName(sql`w.eid`)} as artist_name
+           al.name, al.image_url,
+           ${albumArtistId(sql`w.eid`)} as artist_id,
+           ${albumArtistName(sql`w.eid`)} as artist_name
     FROM weekly w
     JOIN first_week fw ON fw.eid = w.eid
-    ${albumEntityJoins(sql`w.eid`)}
-    WHERE ${albumEntityName()} IS NOT NULL
+    JOIN albums al ON al.spotify_id = w.eid
   `) as any[];
 
   const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
@@ -167,13 +166,12 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
       GROUP BY eid
       HAVING value > 1
     )
-    SELECT ap.eid as entityId, ${albumEntityName()} as name, ${albumEntityImage()} as imageUrl,
-           ${albumEntityArtistId(sql`ap.eid`)} as artistId,
-           ${albumEntityArtistName(sql`ap.eid`)} as artistName,
+    SELECT ap.eid as entityId, al.name, al.image_url as imageUrl,
+           ${albumArtistId(sql`ap.eid`)} as artistId,
+           ${albumArtistName(sql`ap.eid`)} as artistName,
            ap.value as value
     FROM album_playlists ap
-    ${albumEntityJoins(sql`ap.eid`)}
-    WHERE ${albumEntityName()} IS NOT NULL
+    JOIN albums al ON al.spotify_id = ap.eid
     ORDER BY value DESC
     LIMIT ${limit}
   `) as RecordEntry[];

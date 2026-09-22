@@ -1,5 +1,6 @@
 import { inArray } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
+import { parseCollectionKey } from '@sis/shared';
 import { dbRead } from '../../db/read-pool.js';
 import { tracks } from '../../db/schema.js';
 import { insertLocalPlay } from '../../services/ingestion.js';
@@ -29,10 +30,14 @@ insights.get('/history', async (c) => {
   const rawAlbumId = c.req.query('album');
   const rawArtistId = c.req.query('artist');
 
-  const [trackIds, albumIds, artistIds] = await Promise.all([
+  // un álbum lógico filtra por el alcance de sus miembros: él no tiene temas propios,
+  // así que `t.album_id = 'collection:N'` no casaría con ningún play
+  const collectionId = parseCollectionKey(rawAlbumId);
+  const [trackIds, albumIds, artistIds, collectionScope] = await Promise.all([
     rawTrackId ? dbRead('resolveEntityIds', 'track', rawTrackId, userId) : Promise.resolve(undefined),
-    rawAlbumId ? dbRead('resolveEntityIds', 'album', rawAlbumId, userId) : Promise.resolve(undefined),
+    rawAlbumId && collectionId === null ? dbRead('resolveEntityIds', 'album', rawAlbumId, userId) : Promise.resolve(undefined),
     rawArtistId ? dbRead('resolveEntityIds', 'artist', rawArtistId, userId) : Promise.resolve(undefined),
+    collectionId !== null ? dbRead('getCollectionScope', collectionId, userId) : Promise.resolve(undefined),
   ]);
 
   const tzRaw = c.req.query('tz');
@@ -42,6 +47,7 @@ insights.get('/history', async (c) => {
     trackIds,
     albumIds,
     artistIds,
+    collectionScope,
     tzOffsetMinutes: Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0,
   });
 

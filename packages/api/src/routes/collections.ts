@@ -13,12 +13,13 @@ import {
   createCollection, updateCollection, deleteCollection, addCollectionMember,
   removeCollectionMember, reorderCollectionMembers, findMemberCollection,
   getCollectionRow, getCollectionSummary, getArtistCollections, getCollectionMembers,
+  canonicalMemberId, isEligibleMember, artistMergeGroup, getEligibleCollections,
+  getCollectionCandidates,
 } from '../db/queries/collections.js';
 import { invalidateRecordsCacheForUser } from '../services/records-cache.js';
 import { invalidateReportCacheForUser } from '../services/report-cache.js';
-import { COLLECTION_NAME_MAX_CHARS, COLLECTION_NOTES_MAX_CHARS } from '@sis/shared';
+import { COLLECTION_NAME_MAX_CHARS, COLLECTION_NOTES_MAX_CHARS, COLLECTION_CANDIDATES_LIMIT } from '@sis/shared';
 import type { CollectionMemberType } from '@sis/shared';
-import { ALBUM_COLOR_RE } from '../constants.js';
 
 const collections = new Hono<{ Variables: AppVariables }>();
 
@@ -55,6 +56,30 @@ collections.get('/artist/:id', (c) => {
   return c.json(getArtistCollections(db, artistIds, userId));
 });
 
+// colecciones en las que ESTA entidad puede entrar: las de cualquier artista
+// acreditado en ella, no sólo las del principal (un tema a dos nombres cabe en las
+// dos). `memberOf` dice cuál la tiene ya, si alguna
+collections.get('/for/:type/:entityId', (c) => {
+  const userId = c.get('userId');
+  const type = c.req.param('type');
+  if (!isMemberType(type)) return c.json({ error: "type must be 'album' or 'track'" }, 400);
+  const entityId = c.req.param('entityId');
+  const db = getDb();
+  const eligible = getEligibleCollections(db, type, entityId, userId);
+  const memberOf = findMemberCollection(db, type, entityId, userId);
+  return c.json({ collections: eligible, memberOf: memberOf?.id ?? null });
+});
+
+// candidatos del picker: lo del artista de la colección que puede entrar en ella
+collections.get('/:id{[0-9]+}/candidates', (c) => {
+  const userId = c.get('userId');
+  const id = Number(c.req.param('id'));
+  const db = getDb();
+  if (!getCollectionRow(db, id, userId)) return c.json({ error: 'collection not found' }, 404);
+  const limit = Math.min(parseInt(c.req.query('limit') || String(COLLECTION_CANDIDATES_LIMIT)), 200);
+  return c.json(getCollectionCandidates(db, id, userId, c.req.query('q') ?? '', limit));
+});
+
 collections.post('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<{ name?: unknown; artistId?: unknown; notes?: unknown }>().catch(() => null);
@@ -73,33 +98,24 @@ collections.post('/', async (c) => {
   return c.json(getCollectionSummary(db, id, userId), 201);
 });
 
+// nombre y notas. La portada y el color NO están aquí: una colección tiene fila en
+// `albums`, así que los edita el mismo `/api/covers/album/:id` que cualquier disco
 collections.put('/:id{[0-9]+}', async (c) => {
   const userId = c.get('userId');
   const id = Number(c.req.param('id'));
-  const body = await c.req.json<{ name?: unknown; notes?: unknown; imageUrl?: unknown; color?: unknown }>().catch(() => null);
+  const body = await c.req.json<{ name?: unknown; notes?: unknown }>().catch(() => null);
   if (!body) return c.json({ error: 'invalid body' }, 400);
 
   const db = getDb();
   if (!getCollectionRow(db, id, userId)) return c.json({ error: 'collection not found' }, 404);
 
-  const fields: { name?: string; notes?: string | null; imageUrl?: string | null; color?: string | null } = {};
+  const fields: { name?: string; notes?: string | null } = {};
   if (body.name !== undefined) {
     const name = parseName(body.name);
     if (!name) return c.json({ error: 'name cannot be empty' }, 400);
     fields.name = name;
   }
   if (body.notes !== undefined) fields.notes = body.notes === null ? null : parseNotes(body.notes);
-  if (body.imageUrl !== undefined) {
-    if (body.imageUrl !== null && typeof body.imageUrl !== 'string') return c.json({ error: 'imageUrl must be a string or null' }, 400);
-    fields.imageUrl = body.imageUrl as string | null;
-  }
-  // mismo contrato que el color de un álbum: #rrggbb o null para volver al extraído
-  if (body.color !== undefined) {
-    if (body.color !== null && (typeof body.color !== 'string' || !ALBUM_COLOR_RE.test(body.color))) {
-      return c.json({ error: 'color must be #rrggbb or null' }, 400);
-    }
-    fields.color = body.color as string | null;
-  }
 
   updateCollection(db, id, userId, fields);
   invalidateDerived(userId);
@@ -141,6 +157,15 @@ collections.post('/:id{[0-9]+}/members', async (c) => {
   const table = body.entityType === 'album' ? sql`albums` : sql`tracks`;
   const exists = db.all(sql`SELECT spotify_id FROM ${table} WHERE spotify_id = ${body.entityId}`)[0];
   if (!exists) return c.json({ error: `${body.entityType} not found` }, 404);
+
+  // una colección agrupa lo que es DEL artista: se comprueba sobre el id canónico,
+  // que es el que se va a guardar y el que acabará contando (ver isEligibleMember)
+  const memberId = canonicalMemberId(db, body.entityType, body.entityId, userId);
+  const collection = getCollectionRow(db, id, userId)!;
+  if (!isEligibleMember(db, body.entityType, memberId, artistMergeGroup(db, collection.artist_id, userId))) {
+    const artist = db.all(sql`SELECT name FROM artists WHERE spotify_id = ${collection.artist_id}`)[0] as { name: string } | undefined;
+    return c.json({ error: `not credited to ${artist?.name ?? 'this artist'}` }, 422);
+  }
 
   const conflict = findMemberCollection(db, body.entityType, body.entityId, userId);
   if (conflict) {

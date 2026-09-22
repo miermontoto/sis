@@ -385,19 +385,19 @@ export const shareLinks = sqliteTable('share_links', {
 // sueltos del mismo artista (una trilogía, una era, los singles de un año). A
 // diferencia de un merge NO absorbe a sus miembros —sus páginas siguen enteras—,
 // pero en los rankings SÍ los sustituye: sus plays se atribuyen a la colección.
-// Vive en tabla propia y nunca en `albums`: una fila sintética en el catálogo la
-// tocarían los barridos de dedup e identity (ver los incidentes de local:/import:).
+//
+// La colección ES un álbum: tiene su fila en `albums` con el id `collection:<id>`, y
+// por eso hereda sin más portada, color, valoración, buscador y la vista de detalle
+// entera. Esta tabla sólo guarda lo que un álbum no tiene: de quién es y de qué
+// artista. La fila de `albums` nace con `artist_ids` y `release_date` a NULL a
+// propósito: es lo que mantiene a los cuatro barridos de dedup lejos de ella (todos
+// exigen tracks, créditos o una fecha real).
 export const albumCollections = sqliteTable('album_collections', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').notNull().references(() => users.id),
-  // artista dueño: es quien presta la sección del detalle donde se listan. Los
-  // miembros no están obligados a acreditarlo (una era con colaboraciones)
+  // artista dueño: quien presta la sección del detalle donde se listan y, sobre todo,
+  // quien decide qué puede entrar (ver isEligibleMember)
   artistId: text('artist_id').notNull().references(() => artists.spotifyId),
-  name: text('name').notNull(),
-  // portada elegida a mano; NULL = la del primer miembro con portada
-  imageUrl: text('image_url'),
-  // pick manual #rrggbb, misma semántica que albums.color (NULL = el extraído)
-  color: text('color'),
   notes: text('notes'),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),

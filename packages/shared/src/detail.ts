@@ -4,7 +4,7 @@ import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
 import type { EntityRelation } from './relations.js';
 import type { Concert, ConcertRef } from './concerts.js';
-import type { AlbumCollectionSummary, CollectionRef } from './collections.js';
+import type { AlbumCollectionSummary, CollectionMember, CollectionRef } from './collections.js';
 
 export interface Rankings {
   week: number | null;
@@ -92,6 +92,11 @@ export interface AlbumDetail {
   // colección que se lo ha llevado: mientras exista, es ELLA quien rankea por este
   // álbum, así que la página lo dice y apaga sus badges de ranking
   collection?: CollectionRef | null;
+  // ESTE álbum es una colección (`collection:N`): sus miembros y sus notas. La página
+  // es la misma que la de cualquier álbum — de ahí que la colección herede portada,
+  // color, valoración y secciones — y sólo añade la sección de miembros
+  members?: CollectionMember[];
+  notes?: string | null;
 }
 
 export interface TrackDetail {

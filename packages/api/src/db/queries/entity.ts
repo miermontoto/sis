@@ -230,11 +230,13 @@ export interface HistoryPageResult {
 }
 
 /** Historial paginado, con filtros opcionales. Acepta arrays de IDs pre-resueltos (merge-aware). */
-export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; albumIds?: string[]; trackIds?: string[]; artistIds?: string[]; tzOffsetMinutes?: number }): HistoryPageResult {
-  const { date, albumIds, trackIds, artistIds, tzOffsetMinutes = 0 } = filters ?? {};
+export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; albumIds?: string[]; trackIds?: string[]; artistIds?: string[]; collectionScope?: { albumIds: string[]; trackIds: string[] }; tzOffsetMinutes?: number }): HistoryPageResult {
+  const { date, albumIds, trackIds, artistIds, collectionScope, tzOffsetMinutes = 0 } = filters ?? {};
   const tzModifier = (tzOffsetMinutes >= 0 ? '+' : '') + tzOffsetMinutes + ' minutes';
   const dateFilter = date ? sql` AND date(lh.played_at, ${tzModifier}) = ${date}` : sql``;
-  const needsTrackJoin = albumIds || artistIds;
+  // el alcance de una colección son dos ejes en OR (sus álbumes y sus temas sueltos),
+  // no dos filtros que se acumulan como el resto
+  const needsTrackJoin = albumIds || artistIds || collectionScope;
   const trackJoin = needsTrackJoin ? sql`JOIN tracks t ON t.spotify_id = lh.track_id` : sql``;
   const artistJoin = artistIds ? sql`JOIN track_artists ta ON ta.track_id = lh.track_id` : sql``;
 
@@ -248,6 +250,14 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
       ? sql` AND lh.track_id = ${trackIds[0]}`
       : sql` AND lh.track_id IN (${sql.join(trackIds.map(id => sql`${id}`), sql`, `)})`)
     : sql``;
+  const collectionWhere = collectionScope
+    ? sql` AND (${sql.join([
+        ...(collectionScope.albumIds.length > 0 ? [sql`t.album_id IN (${sql.join(collectionScope.albumIds.map(id => sql`${id}`), sql`, `)})`] : []),
+        ...(collectionScope.trackIds.length > 0 ? [sql`lh.track_id IN (${sql.join(collectionScope.trackIds.map(id => sql`${id}`), sql`, `)})`] : []),
+        ...(collectionScope.albumIds.length === 0 && collectionScope.trackIds.length === 0 ? [sql`0`] : []),
+      ], sql` OR `)})`
+    : sql``;
+
   const artistWhere = artistIds
     ? (artistIds.length === 1
       ? sql` AND ta.artist_id = ${artistIds[0]}`
@@ -259,7 +269,7 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
     FROM listening_history lh
     ${trackJoin}
     ${artistJoin}
-    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}
+    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
     ORDER BY lh.played_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `) as RecentPlayRow[];
@@ -269,7 +279,7 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
     FROM listening_history lh
     ${trackJoin}
     ${artistJoin}
-    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}
+    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
   `) as { count: number }[])[0].count;
 
   return { items, total };

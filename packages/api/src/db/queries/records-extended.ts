@@ -9,7 +9,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   MonthCountEntry, YearEndFinish, RankingMetric,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumEntityJoins, albumEntityName, albumEntityImage, albumEntityArtistId, albumEntityArtistName } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { RECORDS_LIMIT } from '../../constants.js';
 
@@ -42,13 +42,11 @@ export function entityCtx(entity: Ent, userId: number) {
       eidExpr: resolvedEntityId('album'),
       extraJoins: resolvedPlayJoins('album', userId),
       filter: sql`AND t.album_id IS NOT NULL`,
-      // el eje álbum emite también ids de colección, que no están en `albums`: con un
-      // JOIN a secas esos records desaparecían en vez de listarse
-      finalJoin: albumEntityJoins(sql`eid`),
-      finalName: albumEntityName(),
-      finalImg: albumEntityImage(),
-      finalArtistId: albumEntityArtistId(sql`eid`),
-      finalArtistName: albumEntityArtistName(sql`eid`),
+      finalJoin: sql`JOIN albums al ON al.spotify_id = eid`,
+      finalName: sql`al.name`,
+      finalImg: sql`al.image_url`,
+      finalArtistId: albumArtistId(sql`eid`),
+      finalArtistName: albumArtistName(sql`eid`),
     };
   }
   // artist
@@ -129,7 +127,7 @@ export function computeLongestGap(entity: Ent, db: Db, userId: number, limit: nu
            ${ctx.finalArtistName} AS artist_name
     FROM top t
     ${ctx.finalJoin}
-    WHERE t.value > 0 AND ${ctx.finalName} IS NOT NULL
+    WHERE t.value > 0
     ORDER BY t.value DESC
   `) as any[];
 
@@ -182,7 +180,6 @@ export function computeGoldenOldies(entity: Ent, db: Db, userId: number, limit: 
            ${ctx.finalArtistName} AS artist_name
     FROM agg
     ${ctx.finalJoin}
-    WHERE ${ctx.finalName} IS NOT NULL
     ORDER BY agg.last_play ASC
     LIMIT ${limit}
   `) as any[];
@@ -218,7 +215,6 @@ export function computeLatestDiscoveries(entity: Ent, db: Db, userId: number, li
            ${ctx.finalArtistName} AS artist_name
     FROM agg
     ${ctx.finalJoin}
-    WHERE ${ctx.finalName} IS NOT NULL
     ORDER BY agg.first_play DESC
     LIMIT ${limit}
   `) as any[];
@@ -358,7 +354,7 @@ export function computeMostDistinctTracks(entity: 'artist', db: Db, userId: numb
            ${ctx.finalArtistName} AS artist_name
     FROM agg
     ${ctx.finalJoin}
-    WHERE agg.distinct_tracks > 1 AND ${ctx.finalName} IS NOT NULL
+    WHERE agg.distinct_tracks > 1
     ORDER BY agg.distinct_tracks DESC
     LIMIT ${limit}
   `) as any[];
@@ -400,7 +396,6 @@ export function computeOneHitWonders(entity: 'artist', db: Db, userId: number, l
     FROM qualified q
     JOIN tracks top_t ON top_t.spotify_id = q.top_tid
     ${ctx.finalJoin}
-    WHERE ${ctx.finalName} IS NOT NULL
     ORDER BY q.total DESC
     LIMIT ${limit}
   `) as any[];
@@ -478,7 +473,7 @@ export function computeMostHeardLive(db: Db, userId: number, limit: number): Rec
            ${ctx.finalArtistName} AS artist_name
     FROM agg
     ${ctx.finalJoin}
-    WHERE agg.shows > 1 AND ${ctx.finalName} IS NOT NULL
+    WHERE agg.shows > 1
     ORDER BY agg.shows DESC, ${ctx.finalName} ASC
     LIMIT ${limit}
   `) as any[];

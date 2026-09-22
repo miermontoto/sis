@@ -47,6 +47,9 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'chartStats', label: 'Chart stats', column: 'main' },
     { key: 'activity', label: 'Activity chart', column: 'main' },
     { key: 'tracks', label: 'Tracks', column: 'main' },
+    // sólo se pinta en un álbum lógico (ver shared/collections.ts); en un disco de
+    // verdad la sección no existe, como 'singles' en un single
+    { key: 'members', label: 'Collection members', column: 'main' },
     { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'singles', label: 'Singles', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },

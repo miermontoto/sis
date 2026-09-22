@@ -129,6 +129,9 @@ export function deduplicateAlbums() {
     JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
     WHERE al.spotify_id NOT LIKE 'import:%'
       AND al.spotify_id NOT LIKE 'local:%'
+      -- un álbum lógico no es un lanzamiento que reconciliar (ver collections.ts):
+      -- hoy además no tiene tracks, pero la guarda no depende de eso
+      AND al.spotify_id NOT LIKE 'collection:%'
     GROUP BY album_name, ta.artist_id
     HAVING cnt > 1
   `) as { album_name: string; artist_id: string | null; ids: string }[];
@@ -196,6 +199,7 @@ export function deduplicateAlbumShells() {
     FROM albums
     WHERE spotify_id NOT LIKE 'import:%'
       AND spotify_id NOT LIKE 'local:%'
+      AND spotify_id NOT LIKE 'collection:%'
       AND artist_ids IS NOT NULL
       -- exigir nombre y fecha reales: nombre vacío o fecha placeholder ('0000') son
       -- metadata basura que agruparía lanzamientos DISTINTOS solo por compartir huecos
@@ -275,6 +279,10 @@ export function deduplicateEmptyAlbumShells() {
     FROM albums a
     WHERE a.spotify_id NOT LIKE 'import:%'
       AND a.spotify_id NOT LIKE 'local:%'
+      -- un álbum lógico no tiene tracks por definición, que es justo lo que este
+      -- barrido busca para absorber: sin la guarda, una colección llamada como un
+      -- disco real (una "Trilogy") desaparecería dentro de él
+      AND a.spotify_id NOT LIKE 'collection:%'
       -- mismas guardas que deduplicateAlbumShells: nombre vacío o artist_ids ausente son
       -- metadata basura que agruparía lanzamientos distintos solo por compartir huecos
       AND a.name IS NOT NULL AND a.name != ''

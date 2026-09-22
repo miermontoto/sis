@@ -7,8 +7,12 @@
   // que cambia es quién rankea — en top albums y en los charts aparece la colección y
   // no sus partes —, y por eso un miembro sólo puede estar en UNA: en dos, sus plays
   // se contarían dos veces. El 409 del servidor trae el nombre de la que lo tiene.
+  //
+  // Con una entidad delante se listan sólo las colecciones en las que PUEDE entrar:
+  // las de cualquier artista acreditado en ella (un tema a dos nombres cabe en las
+  // dos). Sin entidad, el modal gestiona las del artista de la página.
   import { errorMessage } from '$lib/utils/errors';
-  import { api, COLLECTION_NAME_MAX_CHARS, type AlbumCollectionSummary, type CollectionMemberType } from '$lib/api';
+  import { api, collectionKey, COLLECTION_NAME_MAX_CHARS, type AlbumCollectionSummary, type CollectionMemberType } from '$lib/api';
   import { formatNumber } from '$lib/utils/format';
   import IconTrash from '$lib/icons/IconTrash.svelte';
 
@@ -46,8 +50,16 @@
     loading = true;
     error = '';
     try {
-      collections = await api.artistCollections(id);
-      memberOf = memberOfId;
+      if (entity) {
+        // las elegibles, no las del artista de la página: la regla la decide el
+        // servidor (crédito en el álbum o en el tema) y aquí sólo se pinta
+        const res = await api.eligibleCollections(entity.type, entity.id);
+        collections = res.collections;
+        memberOf = res.memberOf;
+      } else {
+        collections = await api.artistCollections(id);
+        memberOf = null;
+      }
     } catch (e) {
       error = errorMessage(e, 'Error loading collections');
     } finally {
@@ -62,7 +74,7 @@
     try {
       await api.addCollectionMember(collectionId, entity.type, entity.id);
       memberOf = collectionId;
-      collections = await api.artistCollections(artistId);
+      await load(artistId);
       onChanged();
     } catch (e) {
       // el 409 nombra la colección que ya lo tiene: es la única forma de que el
@@ -80,7 +92,7 @@
     try {
       await api.removeCollectionMember(collectionId, entity.type, entity.id);
       memberOf = null;
-      collections = await api.artistCollections(artistId);
+      await load(artistId);
       onChanged();
     } catch (e) {
       error = errorMessage(e, 'Error removing from the collection');
@@ -157,7 +169,7 @@
           </div>
         </div>
       {:else}
-        <p class="col-hint">Group {artistName}'s albums and loose tracks into one entry. Members keep their own pages; the collection is what ranks.</p>
+        <p class="col-hint">Group {artistName}'s albums and loose tracks into one entry. Members keep their own pages; the collection is what ranks, and only {artistName}'s own work can go in.</p>
       {/if}
 
       {#if error}<div class="col-error">{error}</div>{/if}
@@ -173,7 +185,7 @@
               {:else}
                 <div class="col-thumb-sm col-thumb--empty"></div>
               {/if}
-              <a class="col-item-info" href="/collection/{c.id}">
+              <a class="col-item-info" href="/album/{collectionKey(c.id)}">
                 <div class="col-item-name">{c.name}</div>
                 <div class="col-item-meta">
                   {plural(c.albumCount, 'album')} · {plural(c.trackCount, 'loose track')} · {formatNumber(c.playCount)} plays
@@ -192,7 +204,11 @@
               {/if}
             </div>
           {:else}
-            <div class="col-empty">No collections for {artistName} yet.</div>
+            <!-- con entidad delante la lista son las ELEGIBLES, así que vacía no
+                 significa "no tienes ninguna" sino "ninguna de las suyas la admite" -->
+            <div class="col-empty">
+              {entity ? `No collection of its artists yet — create one below.` : `No collections for ${artistName} yet.`}
+            </div>
           {/each}
         </div>
 

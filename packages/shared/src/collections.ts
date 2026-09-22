@@ -94,6 +94,24 @@ export interface CollectionRef {
   direct: boolean;
 }
 
+// candidato del picker: algo del artista que puede entrar en la colección.
+// `takenBy` no lo esconde de la lista — decir dónde está es lo que explica por qué
+// no se puede añadir (un miembro pertenece a una sola colección).
+export interface CollectionCandidate {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  releaseDate: string | null;
+  playCount: number;
+  totalMs: number;
+  takenBy: { id: number; name: string } | null;
+}
+
+export interface CollectionCandidates {
+  albums: CollectionCandidate[];
+  tracks: CollectionCandidate[];
+}
+
 export interface CollectionInput {
   name: string;
   artistId: string;
@@ -107,6 +125,10 @@ export interface CollectionConflict {
   collectionId: number;
   collectionName: string;
 }
+
+// tope de filas por lista del picker de candidatos: la discografía de un artista
+// prolífico son cientos de temas y la lista se acota con el buscador
+export const COLLECTION_CANDIDATES_LIMIT = 50;
 
 export const COLLECTION_NAME_MAX_CHARS = 120;
 export const COLLECTION_NOTES_MAX_CHARS = 2000;

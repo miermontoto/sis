@@ -26,6 +26,9 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import AlbumRating from '$lib/components/AlbumRating.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
+  import CollectionCandidatePicker from '$lib/components/CollectionCandidatePicker.svelte';
+  import MetricMeta from '$lib/components/MetricMeta.svelte';
+  import TrackItem from '$lib/components/TrackItem.svelte';
   import ImagePicker from '$lib/components/ImagePicker.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
@@ -38,6 +41,15 @@
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
+  import { parseCollectionKey, collectionKey, type CollectionMember } from '$lib/api';
+  import { contextMenu } from '$lib/stores/context-menu.svelte';
+  import { entityContextActions } from '$lib/utils/entity-context';
+  import { toastStore } from '$lib/stores/toast.svelte';
+  import { errorMessage } from '$lib/utils/errors';
+  import IconPlus from '$lib/icons/IconPlus.svelte';
+  import IconEdit from '$lib/icons/IconEdit.svelte';
+  import IconTrash from '$lib/icons/IconTrash.svelte';
+  import { goto } from '$app/navigation';
 
 
   // id de la ruta [id]: $page tipa params como opcional aunque el router garantice que existe
@@ -66,6 +78,10 @@
   let showCoverPicker = $state(false);
   let showMergeModal = $state(false);
   let showCollectionModal = $state(false);
+  // esta página ES la de una colección cuando el id lo es: mismo componente, mismas
+  // secciones y mismos ajustes, más la sección de miembros (ver shared/collections.ts)
+  const collectionId = $derived(parseCollectionKey(albumId));
+  let addingMember = $state(false);
   let mergeInitialStep = $state<'select' | 'remerge' | undefined>(undefined);
   let playActing = $state(false);
   let trackSort = $state<'ranked' | 'natural'>('ranked');
@@ -112,6 +128,54 @@
   function refreshCoverColor(imageUrl: string | null, signal?: AbortSignal) {
     if (!imageUrl) { coverRgb = null; return; }
     extractColor(imageUrl).then((rgb) => { if (!signal?.aborted) coverRgb = rgb; });
+  }
+
+  async function renameCollection() {
+    const id = collectionId;
+    if (id === null || !data) return;
+    const name = prompt('Collection name', data.album.name)?.trim();
+    if (!name || name === data.album.name) return;
+    try {
+      await api.updateCollection(id, { name });
+      await loadData(albumId);
+    } catch (e) {
+      toastStore.show(errorMessage(e, 'Error renaming the collection'));
+    }
+  }
+
+  async function deleteCollection() {
+    const id = collectionId;
+    if (id === null || !data) return;
+    if (!confirm(`Delete "${data.album.name}"? Its members go back to ranking on their own.`)) return;
+    try {
+      const artistId = data.artists[0]?.id;
+      await api.deleteCollection(id);
+      goto(artistId ? `/artist/${artistId}` : '/');
+    } catch (e) {
+      toastStore.show(errorMessage(e, 'Error deleting the collection'));
+    }
+  }
+
+  async function removeMember(m: CollectionMember) {
+    const id = collectionId;
+    if (id === null) return;
+    try {
+      await api.removeCollectionMember(id, m.entityType, m.entityId);
+      await loadData(albumId);
+    } catch (e) {
+      toastStore.show(errorMessage(e, 'Error removing the member'));
+    }
+  }
+
+  // menú contextual de un miembro: sus acciones de siempre + sacarlo de la colección,
+  // que es la única que sólo existe aquí
+  function memberMenu(m: CollectionMember) {
+    return (e: MouseEvent) => {
+      contextMenu.open(e, [
+        ...entityContextActions({ type: m.entityType, id: m.entityId, name: m.name, imageUrl: m.imageUrl, parentArtistId: m.artists[0]?.id }),
+        { label: 'Remove from collection', icon: IconTrash, danger: true, onClick: () => removeMember(m) },
+      ]);
+    };
   }
 
   async function selectCover(imageUrl: string) {
@@ -299,6 +363,49 @@
           {/if}
         </section>
       {/if}
+    {:else if key === 'members'}
+      <!-- sólo en un álbum lógico: un disco de verdad no tiene miembros -->
+      {#if collectionId !== null}
+        <section class="detail-section">
+          <div class="section-header">
+            <h2 class="section-title">Members</h2>
+            <button class="show-all-btn" onclick={() => { addingMember = !addingMember; }}>
+              <IconPlus size={13} /> Add
+            </button>
+          </div>
+          {#if addingMember}
+            <div class="card member-picker">
+              <!-- el picker sólo ofrece lo acreditado a este artista: es lo único que
+                   el servidor deja entrar en una colección suya -->
+              <CollectionCandidatePicker collectionId={collectionId} onadded={() => loadData(albumId)} />
+            </div>
+          {/if}
+          <div class="track-list">
+            {#each d.members ?? [] as m (m.entityType + m.entityId)}
+              {#snippet memberSubtitle()}
+                <span>{[m.entityType === 'album' ? 'Album' : 'Track', m.artists.map(a => a.name).join(', ')].filter(Boolean).join(' · ')}</span>
+              {/snippet}
+              {#snippet memberMeta()}
+                <MetricMeta playCount={m.playCount} totalMs={m.totalMs} {metric} />
+              {/snippet}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div oncontextmenu={memberMenu(m)}>
+                <TrackItem
+                  name={m.name}
+                  nameHref={m.entityType === 'album' ? `/album/${m.entityId}` : `/track/${m.entityId}`}
+                  imageUrl={m.imageUrl}
+                  subtitle={memberSubtitle}
+                  meta={memberMeta}
+                />
+              </div>
+            {:else}
+              <div class="empty-state">
+                Nothing in this collection yet. Add albums or loose tracks of {d.artists[0]?.name ?? 'this artist'} and they will rank together as one.
+              </div>
+            {/each}
+          </div>
+        </section>
+      {/if}
     {:else if key === 'historyByYear'}
       {#if d.series.length > 1}
         <section class="detail-section">
@@ -377,6 +484,7 @@
         onPreviewColor={(c) => { colorPreview = c; }}
       />
       <div class="detail-header-info">
+        {#if collectionId !== null}<div class="data-label">Collection</div>{/if}
         <h1>{data.album.name}{#if albumId === nowPlayingStore.albumId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="album" target={mergedInto} />{/if}</h1>
         <p class="detail-subtitle">
           {#each data.artists as artist, i}
@@ -396,9 +504,10 @@
           <!-- mientras esté en una colección es ELLA quien rankea por este álbum: la
                página lo dice en vez de enseñar unos badges que ya no existen -->
           <p class="detail-meta-line">
-            Part of <a href="/collection/{data.collection.id}">{data.collection.name}</a>
+            Part of <a href="/album/{collectionKey(data.collection.id)}">{data.collection.name}</a>
           </p>
         {/if}
+        {#if data.notes}<p class="detail-meta-line">{data.notes}</p>{/if}
         <AlbumRating {albumId} initial={data.rating ?? null} />
       </div>
     </div>
@@ -428,8 +537,15 @@
           // una entrada por modal, no por pestaña ni por paso: el picker ya trae
           // portada/color y el modal de merges su botón de auto-merge
           { label: 'Cover & color', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
-          { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
-          { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+          // un álbum lógico no se mergea (no es un lanzamiento) ni se mete en otra
+          // colección: anidarlas contaría sus plays dos veces
+          ...(collectionId === null ? [
+            { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
+            { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+          ] : [
+            { label: 'Rename', icon: IconEdit, onClick: renameCollection },
+            { label: 'Delete collection', icon: IconTrash, danger: true, onClick: deleteCollection },
+          ]),
         ]}
       />
     </div>
@@ -449,7 +565,7 @@
   </div>
 {/if}
 
-{#if data && data.artists[0]}
+{#if data && data.artists[0] && collectionId === null}
   <CollectionModal
     bind:show={showCollectionModal}
     artistId={data.artists[0].id}
@@ -460,7 +576,7 @@
   />
 {/if}
 
-{#if data}
+{#if data && collectionId === null}
   <MergeEntityModal
     bind:show={showMergeModal}
     entityType="album"
@@ -473,6 +589,10 @@
 {/if}
 
 <style>
+  .member-picker {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
   .track-sort-toggle {
     display: flex;
     gap: 2px;

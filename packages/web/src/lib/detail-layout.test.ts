@@ -27,7 +27,7 @@ describe('resolveLayout', () => {
   it('respeta el orden y las columnas guardadas', () => {
     const stored = { main: ['activity', 'stats'], rail: ['recentPlays', 'historyByYear'], hidden: ['tracks'] };
     const resolved = resolveLayout('album', stored);
-    expect(resolved.main).toEqual(['activity', 'stats', 'rankingBadges', 'chartStats']);
+    expect(resolved.main).toEqual(['activity', 'stats', 'rankingBadges', 'chartStats', 'members']);
     // 'singles' y 'relations' no están en lo guardado → se añaden al final de su
     // columna por defecto, en el orden del registro
     expect(resolved.rail).toEqual(['recentPlays', 'historyByYear', 'singles', 'relations']);

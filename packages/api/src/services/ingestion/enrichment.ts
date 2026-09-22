@@ -165,8 +165,13 @@ export async function enrichArtistMetadata(userId: number) {
 // devuelve (delistados) conservan artist_ids NULL y se reintentan en el siguiente ciclo.
 export async function enrichAlbumMetadata(userId: number) {
   const db = getDb();
+  // el NOT LIKE 'collection:%' es por los álbumes lógicos: viven en albums con
+  // artist_ids NULL a propósito (ver db/queries/collections.ts), así que caerían justo
+  // en este barrido y preguntarle a spotify por uno de sus ids es un 400 seguro
   const missing = db.all(
-    sql`SELECT spotify_id FROM albums WHERE artist_ids IS NULL AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'`
+    sql`SELECT spotify_id FROM albums WHERE artist_ids IS NULL
+      AND spotify_id NOT LIKE 'local:%' AND spotify_id NOT LIKE 'import:%'
+      AND spotify_id NOT LIKE 'collection:%'`
   ) as { spotify_id: string }[];
 
   if (missing.length === 0) return;

@@ -1,8 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type { FormattedArtist, FormattedAlbum } from '@sis/shared';
-import { parseCollectionKey } from '@sis/shared';
-import { lookupCollectionAsAlbum } from './collections.js';
 import { artists, albums } from '../schema.js';
 import { enrichTracksBatch } from './track.js';
 import { getAlbumArtists } from './album.js';
@@ -16,12 +14,9 @@ export function lookupArtist(db: Db, spotifyId: string): FormattedArtist | null 
   return { name: artist.name, imageUrl: artist.imageUrl, genres: artist.genres as string[] };
 }
 
-/** Buscar y formatear un álbum por spotifyId. El eje álbum de los rankings emite
- *  también claves `collection:N` (álbumes lógicos, ver queries/collections.ts), que no
- *  tienen fila en `albums`: se hidratan de su propia tabla o la fila saldría sin nombre. */
+/** Buscar y formatear un álbum por spotifyId (un álbum lógico tiene su fila como
+ *  cualquier otro: ver queries/collections.ts). */
 export function lookupAlbum(db: Db, spotifyId: string): FormattedAlbum | null {
-  const collectionId = parseCollectionKey(spotifyId);
-  if (collectionId !== null) return lookupCollectionAsAlbum(db, collectionId);
   const album = db.select().from(albums).where(eq(albums.spotifyId, spotifyId)).get();
   if (!album) return null;
   return { name: album.name, imageUrl: album.imageUrl, releaseDate: album.releaseDate, albumType: album.albumType, color: album.color };
