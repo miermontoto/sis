@@ -10,15 +10,14 @@ export interface CollectionModalTarget {
   artistName: string;
 }
 
+// Sólo la ventana: quién avisa de que una colección cambió es
+// `collectionsStore.invalidate()`, que lo llaman todas las mutaciones y refresca a la
+// vez el índice del menú y las vistas montadas. Dos señales para lo mismo era la
+// forma de que una vista escuchara la que no se disparaba.
 let target = $state<CollectionModalTarget | null>(null);
-let changeVersion = $state(0);
 
 export const collectionModal = {
   get target() { return target; },
-  // lo miran las vistas que quieran recargarse cuando algo cambió desde el menú
-  // contextual (el detalle de álbum y el de tema pintan su línea de pertenencia)
-  get changeVersion() { return changeVersion; },
   open(opts: CollectionModalTarget) { target = opts; },
   close() { target = null; },
-  notifyChange() { changeVersion++; },
 };

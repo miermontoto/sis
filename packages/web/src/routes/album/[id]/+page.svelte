@@ -44,7 +44,6 @@
   import { parseCollectionKey, collectionKey, type CollectionMember } from '$lib/api';
   import { contextMenu } from '$lib/stores/context-menu.svelte';
   import { collectionsStore } from '$lib/stores/collections.svelte';
-  import { collectionModal } from '$lib/stores/collection-modal.svelte';
   import { entityContextActions } from '$lib/utils/entity-context';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { errorMessage } from '$lib/utils/errors';
@@ -139,6 +138,7 @@
     if (!name || name === data.album.name) return;
     try {
       await api.updateCollection(id, { name });
+      collectionsStore.invalidate();
       await loadData(albumId);
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error renaming the collection'));
@@ -164,6 +164,7 @@
     if (id === null) return;
     try {
       await api.removeCollectionMember(id, m.entityType, m.entityId);
+      collectionsStore.invalidate();
       await loadData(albumId);
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error removing the member'));
@@ -298,9 +299,9 @@
     const id = albumId;
     void metric;
     void mergeModal.changeVersion;
-    // alguien acaba de tocar una colección desde el menú contextual: la línea de
-    // pertenencia y los badges de esta página dependen de ella
-    void collectionModal.changeVersion;
+    // alguien acaba de tocar una colección: la línea de pertenencia y los badges de
+    // esta página dependen de ella
+    void collectionsStore.changeVersion;
     if (!initialized || !id) return;
     // resetear al cambiar de álbum para mostrar spinner
     if (id !== prevId) {

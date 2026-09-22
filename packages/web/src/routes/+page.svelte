@@ -18,6 +18,7 @@
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
@@ -233,6 +234,17 @@
     localStorage.setItem(LAST_YEAR_TYPE_KEY, type);
     loadLastYear();
   }
+
+  // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o sea
+  // todo ranking de álbum. El dashboard carga en onMount, así que necesita su propio
+  // efecto: se salta el valor inicial y relee en cada mutación posterior
+  let lastCollectionVersion = collectionsStore.changeVersion;
+  $effect(() => {
+    const version = collectionsStore.changeVersion;
+    if (version === lastCollectionVersion) return;
+    lastCollectionVersion = version;
+    untrack(() => loadData());
+  });
 
   // pull-to-refresh: sin invalidar, loadData se resuelve entera desde la cache
   // SWR (TTL de 10 min en los tops) y el gesto no hace nada visible. Aquí el

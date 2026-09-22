@@ -5,6 +5,7 @@
   import { get } from 'svelte/store';
   import { nextFrame, waitForElement } from '$lib/utils/dom';
   import { api, createFetchController, getRankingMetric, getWeekStart, getRecordsUnique, type TrackRecords, type AlbumRecords, type ArtistRecordsData, type RankingMetric, type WeekStartOption, type RecordEntry, type MonthCountEntry } from '$lib/api';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { urlEnumParam } from '$lib/utils/query-state.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
@@ -106,6 +107,9 @@
     void metric;
     void weekStart;
     void unique;
+    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
+    // sea todo ranking de álbum: hay que releer cuando alguien toca una
+    void collectionsStore.changeVersion;
     void loadTab(tab.value).then(revealSection);
   });
 

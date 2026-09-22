@@ -13,6 +13,7 @@
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import LiveEq from '$lib/components/LiveEq.svelte';
   import CollectionBadge from '$lib/components/CollectionBadge.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
@@ -314,6 +315,9 @@
     void selectedPeriod;
     void activeType;
     void metric;
+    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
+    // sea todo ranking de álbum: hay que releer cuando alguien toca una
+    void collectionsStore.changeVersion;
     if (initialized && selectedPeriod) loadChart();
   });
 

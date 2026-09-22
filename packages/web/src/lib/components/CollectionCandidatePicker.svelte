@@ -11,6 +11,7 @@
   import { errorMessage } from '$lib/utils/errors';
   import { formatNumber } from '$lib/utils/format';
   import { toastStore } from '$lib/stores/toast.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
 
   const SEARCH_DEBOUNCE_MS = 250;
 
@@ -50,6 +51,7 @@
     busyId = candidate.id;
     try {
       await api.addCollectionMember(collectionId, entityType, candidate.id);
+      collectionsStore.invalidate();
       onadded();
       await load(query);
     } catch (e) {

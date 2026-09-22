@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { api, createFetchController, getWeekStart, getRankingMetric, getArtistBackdrop, type ReportResponse, type ReportFacts, type Granularity, type WeekStartOption, type RankingMetric, type ArtistBackdrop, type ListeningTimeItem } from '$lib/api';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import { isGranularity, isPeriodKey, isClosedPeriod } from '@sis/shared';
   import { isAbortError } from '$lib/utils/errors';
   import { periodLabel } from '$lib/utils/periods';
@@ -72,6 +73,9 @@
   $effect(() => {
     const gran = granularity;
     const key = period;
+    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
+    // sea todo ranking de álbum: hay que releer cuando alguien toca una
+    void collectionsStore.changeVersion;
     untrack(() => {
       weekStart = getWeekStart();
       metric = getRankingMetric();

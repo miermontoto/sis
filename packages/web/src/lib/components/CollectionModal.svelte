@@ -74,6 +74,7 @@
     error = '';
     try {
       await api.addCollectionMember(collectionId, entity.type, entity.id);
+      collectionsStore.invalidate();
       memberOf = collectionId;
       await load(artistId);
       onChanged();
@@ -92,6 +93,7 @@
     error = '';
     try {
       await api.removeCollectionMember(collectionId, entity.type, entity.id);
+      collectionsStore.invalidate();
       memberOf = null;
       await load(artistId);
       onChanged();

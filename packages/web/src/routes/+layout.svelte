@@ -833,7 +833,6 @@
       artistId={collectionModal.target.artistId}
       artistName={collectionModal.target.artistName}
       entity={{ type: collectionModal.target.entityType, id: collectionModal.target.entity.id, name: collectionModal.target.entity.name, imageUrl: collectionModal.target.entity.imageUrl }}
-      onChanged={() => collectionModal.notifyChange()}
     />
   {/if}
   {#if relateModal.target}

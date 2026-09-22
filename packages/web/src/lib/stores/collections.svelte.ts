@@ -11,6 +11,12 @@
 import { api, type CollectionIndexItem } from '$lib/api';
 
 let items = $state<CollectionIndexItem[]>([]);
+// contador de mutaciones: lo miran las vistas que enseñan álbumes para releerse.
+// Una colección cambia a qué entidad se atribuyen los plays de sus miembros, o sea
+// TODO ranking de álbum: sin esta señal, la lista desde la que acabas de añadir algo
+// por el menú contextual se queda como estaba (el cache ya se purgó, pero nadie
+// vuelve a pedir).
+let changeVersion = $state(0);
 let loaded = false;
 let inflight: Promise<void> | null = null;
 
@@ -29,6 +35,7 @@ async function load(): Promise<void> {
 
 export const collectionsStore = {
   get items() { return items; },
+  get changeVersion() { return changeVersion; },
 
   /** Carga el índice si hace falta. Idempotente y con deduplicación de vuelos. */
   ensure(): Promise<void> {
@@ -50,10 +57,14 @@ export const collectionsStore = {
     return items.find(c => c.artistIds.includes(artistId))?.artistName ?? '';
   },
 
-  /** Tras crear o borrar una colección. Recarga en el sitio para que el próximo menú
-   *  ya la refleje sin esperar a un ensure(). */
+  /** Tras CUALQUIER mutación de colección (crear, borrar, renombrar, mover un
+   *  miembro). Recarga el índice en el sitio, para que el próximo menú ya la refleje
+   *  sin esperar a un ensure(), y avisa a las vistas montadas. Es una sola llamada a
+   *  propósito: separar "refresca el índice" de "avisa" es la forma de olvidarse de
+   *  una de las dos. */
   invalidate(): void {
     loaded = false;
     inflight = load();
+    changeVersion++;
   },
 };

@@ -9,6 +9,7 @@
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
   import CollectionBadge from '$lib/components/CollectionBadge.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
@@ -828,6 +829,9 @@
     void metric;
     void startDate;
     void endDate;
+    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
+    // sea todo ranking de álbum: hay que releer cuando alguien toca una
+    void collectionsStore.changeVersion;
     if (initialized) loadData();
   });
 

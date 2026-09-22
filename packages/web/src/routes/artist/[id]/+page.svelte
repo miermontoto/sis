@@ -15,6 +15,7 @@
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import CollectionBadge from '$lib/components/CollectionBadge.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
@@ -334,6 +335,9 @@
     const id = artistId;
     void metric;
     void mergeModal.changeVersion;
+    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
+    // sea todo ranking de álbum: hay que releer cuando alguien toca una
+    void collectionsStore.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
       // abortar toggles en vuelo: su respuesta parchearía las listas del artista anterior

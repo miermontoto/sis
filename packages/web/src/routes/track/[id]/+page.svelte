@@ -30,7 +30,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
-  import { collectionModal } from '$lib/stores/collection-modal.svelte';
+  import { collectionsStore } from '$lib/stores/collections.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
@@ -172,7 +172,7 @@
   $effect(() => {
     const id = trackId;
     void mergeModal.changeVersion;
-    void collectionModal.changeVersion;
+    void collectionsStore.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
       data = null;
