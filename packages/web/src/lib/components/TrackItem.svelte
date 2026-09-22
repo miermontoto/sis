@@ -3,6 +3,7 @@
   import { medalColor } from '$lib/utils/medals';
   import { openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
   import RankCell from './RankCell.svelte';
+  import CollectionBadge from './CollectionBadge.svelte';
   import LiveEq from './LiveEq.svelte';
 
   interface Props {
@@ -60,6 +61,8 @@
       {:else}
         {name}
       {/if}
+      <!-- se pinta solo si el id es de colección; en una fila normal no renderiza nada -->
+      <CollectionBadge id={entity?.id} />
     </div>
     <!-- la línea de subtítulo sólo existe si el consumidor la pasa: la fila lo
          detecta sola, no hay que declararlo. Antes se reservaba siempre "para que

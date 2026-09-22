@@ -8,6 +8,7 @@
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { getQueryParam, setQueryParams } from '$lib/utils/query-state';
   import TrackList from '$lib/components/TrackList.svelte';
+  import CollectionBadge from '$lib/components/CollectionBadge.svelte';
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
@@ -1045,7 +1046,7 @@
               <div class="track-art"></div>
             {/if}
             <div class="track-info">
-              <div class="track-name">{item.album.name}</div>
+              <div class="track-name">{item.album.name}<CollectionBadge id={item.albumId} /></div>
               <div class="track-artist">{item.album.releaseDate ?? ''}</div>
             </div>
             <div class="track-meta">

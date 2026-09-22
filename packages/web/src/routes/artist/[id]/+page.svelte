@@ -14,6 +14,7 @@
   import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
+  import CollectionBadge from '$lib/components/CollectionBadge.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
@@ -21,7 +22,6 @@
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
   import ConcertList from '$lib/components/ConcertList.svelte';
-  import CollectionList from '$lib/components/CollectionList.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
   import ConcertModal from '$lib/components/ConcertModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
@@ -163,12 +163,6 @@
     data = { ...data, concerts: await api.artistConcerts(artistId) };
   }
 
-  // igual que los conciertos: refresco puntual de la sección tras mutar, sin rehacer
-  // el detalle entero (que repintaría las gráficas desde cero)
-  async function refreshCollections() {
-    if (!data) return;
-    data = { ...data, collections: await api.artistCollections(artistId) };
-  }
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -518,7 +512,7 @@
                     <div class="track-art"></div>
                   {/if}
                   <div class="track-info">
-                    <div class="track-name">{item.album.name}</div>
+                    <div class="track-name">{item.album.name}<CollectionBadge id={item.albumId} /></div>
                     <div class="track-artist">{item.album.releaseDate ?? ''}</div>
                   </div>
                   {#if artistShowAlbumAccolades}
@@ -554,19 +548,6 @@
             onAdd={() => openConcertModal(null)}
             onEdit={(concert) => openConcertModal(concert)}
             onChanged={refreshConcerts}
-          />
-        </section>
-      {/if}
-    {:else if key === 'collections'}
-      <!-- sin colecciones no hay sección: el alta vive en el menú del hero, igual
-           que los conciertos -->
-      {#if (d.collections ?? []).length > 0}
-        <section class="detail-section">
-          <CollectionList
-            collections={d.collections ?? []}
-            {metric}
-            onManage={() => { showCollectionModal = true; }}
-            onChanged={refreshCollections}
           />
         </section>
       {/if}
@@ -631,11 +612,14 @@
     editing={editingConcert}
     onSaved={refreshConcerts}
   />
+  <!-- gestor de colecciones del artista: crear y borrar. No hay sección propia en la
+       ficha porque las colecciones YA salen en sus top albums (rankean como el resto
+       de discos); recargar el detalle es lo que las mueve de sitio ahí -->
   <CollectionModal
     bind:show={showCollectionModal}
     artistId={data.artist.id}
     artistName={data.artist.name}
-    onChanged={refreshCollections}
+    onChanged={() => loadData(artistId)}
   />
 {/if}
 

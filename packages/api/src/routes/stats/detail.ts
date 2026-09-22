@@ -74,9 +74,6 @@ detail.get('/artist/:id', async (c) => {
     dbRead('getConcerts', userId, artistIds),
   ]);
 
-  // colecciones del grupo de merge: son del artista, como los conciertos, y su
-  // sección vive en el mismo detalle
-  const collections = await dbRead('getArtistCollections', artistIds, userId);
 
   const [topTracks, topAlbums, recentPlays, concerts, relations] = await Promise.all([
     dbRead('formatArtistTrackRows', topTracksRaw),
@@ -98,7 +95,6 @@ detail.get('/artist/:id', async (c) => {
     relations,
     playlists,
     concerts,
-    collections,
   });
 });
 

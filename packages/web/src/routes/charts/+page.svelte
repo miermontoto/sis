@@ -12,6 +12,7 @@
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import LiveEq from '$lib/components/LiveEq.svelte';
+  import CollectionBadge from '$lib/components/CollectionBadge.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
@@ -450,7 +451,7 @@
           <div class="chart-art" class:chart-art--round={activeType === 'artists'}></div>
         {/if}
         <div class="chart-info">
-          <div class="chart-name">{entry.name}</div>
+          <div class="chart-name">{entry.name}<CollectionBadge id={entry.entityId} /></div>
           {#if entry.artists?.length}
             <!-- svelte-ignore node_invalid_placement_ssr -->
             <div class="chart-artists">

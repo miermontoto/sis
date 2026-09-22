@@ -4,7 +4,7 @@ import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
 import type { EntityRelation } from './relations.js';
 import type { Concert, ConcertRef } from './concerts.js';
-import type { AlbumCollectionSummary, CollectionMember, CollectionRef } from './collections.js';
+import type { CollectionMember, CollectionRef } from './collections.js';
 
 export interface Rankings {
   week: number | null;
@@ -47,9 +47,6 @@ export interface ArtistDetail {
   // conciertos del usuario para este artista (resueltos sobre el grupo de merge);
   // doblan como marcadores de las gráficas junto a los releases
   concerts?: Concert[];
-  // álbumes lógicos del artista (ver collections.ts): agrupan discos y temas suyos y
-  // los sustituyen en los rankings
-  collections?: AlbumCollectionSummary[];
 }
 
 // single de adelanto ligado a un álbum: es un ReleaseEvent (sirve de marcador en las gráficas)
