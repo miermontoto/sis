@@ -8,7 +8,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, RankingMetric, WeekStartOption, EntityType,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
+import { albumEntityJoins, albumEntityName, albumEntityImage, albumEntityArtistId, albumEntityArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
 import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
@@ -141,15 +141,13 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
       SELECT eid, MIN(w) as debut_week FROM weekly GROUP BY eid
     )
     SELECT w.*, fw.debut_week,
-           al.name, al.image_url,
-           (SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-            WHERE t2.album_id = w.eid LIMIT 1) as artist_id,
-           (SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-            JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE t2.album_id = w.eid LIMIT 1) as artist_name
+           ${albumEntityName()} as name, ${albumEntityImage()} as image_url,
+           ${albumEntityArtistId(sql`w.eid`)} as artist_id,
+           ${albumEntityArtistName(sql`w.eid`)} as artist_name
     FROM weekly w
     JOIN first_week fw ON fw.eid = w.eid
-    JOIN albums al ON al.spotify_id = w.eid
+    ${albumEntityJoins(sql`w.eid`)}
+    WHERE ${albumEntityName()} IS NOT NULL
   `) as any[];
 
   const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
@@ -169,15 +167,13 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
       GROUP BY eid
       HAVING value > 1
     )
-    SELECT ap.eid as entityId, al.name, al.image_url as imageUrl,
-           (SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-            WHERE t2.album_id = ap.eid LIMIT 1) as artistId,
-           (SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-            JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE t2.album_id = ap.eid LIMIT 1) as artistName,
+    SELECT ap.eid as entityId, ${albumEntityName()} as name, ${albumEntityImage()} as imageUrl,
+           ${albumEntityArtistId(sql`ap.eid`)} as artistId,
+           ${albumEntityArtistName(sql`ap.eid`)} as artistName,
            ap.value as value
     FROM album_playlists ap
-    JOIN albums al ON al.spotify_id = ap.eid
+    ${albumEntityJoins(sql`ap.eid`)}
+    WHERE ${albumEntityName()} IS NOT NULL
     ORDER BY value DESC
     LIMIT ${limit}
   `) as RecordEntry[];

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { getDb } from '../connection.js';
 import { TIME_RANGES, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import type { TimeRange } from '../../constants.js';
+import { COLLECTION_ID_PREFIX } from '@sis/shared';
 import type { EntityType, RankingMetric } from '@sis/shared';
 
 export type Db = ReturnType<typeof getDb>;
@@ -133,13 +134,38 @@ export function trackJoinResolvingMerges(userId: number): SqlChunk {
     JOIN tracks t ON t.spotify_id = COALESCE(mr_track.target_id, lh.track_id)`;
 }
 
+/** Pertenencia a colecciones ("álbumes lógicos", ver shared/collections.ts) para el eje
+ *  álbum: dos LEFT JOIN, uno por tema suelto y otro por álbum entero. Van DENTRO de
+ *  entityMergeJoin('album') a propósito, para que ningún query pueda nombrar
+ *  resolvedEntityId('album') sin haberlos unido — la misma doctrina que el userId de los
+ *  merges: quien acota es el join, no la expresión.
+ *  El miembro álbum se busca por el id YA resuelto de merges: si el usuario mete en la
+ *  colección un álbum que absorbió a otro, las escuchas del absorbido también entran.
+ *
+ *  COSTE MEDIDO (349k plays, top-albums all-time): 377ms sin los joins, 453ms con ellos
+ *  —y 453ms también con la tabla vacía, porque lo que se paga es el sondeo por fila, no
+ *  los miembros—. Se probaron dos alternativas: un guard constante en el ON no evita el
+ *  seek (444ms), y sustituir los joins por `IN (set)` + subquery escalar baja a 415ms
+ *  pero obliga a devolverle el `userId` a resolvedEntityId en sus ~15 call sites. Si
+ *  alguna vez hay que recuperar esos 40-76ms, ese es el camino medido. */
+function collectionMemberJoins(userId: number): SqlChunk {
+  return sql`
+    LEFT JOIN album_collection_members acm_track ON acm_track.user_id = ${userId}
+      AND acm_track.member_type = 'track' AND acm_track.member_id = t.spotify_id
+    LEFT JOIN album_collection_members acm_album ON acm_album.user_id = ${userId}
+      AND acm_album.member_type = 'album' AND acm_album.member_id = COALESCE(mr_album.target_id, t.album_id)`;
+}
+
 /** LEFT JOIN a merge_rules para un tipo de entidad, filtrado por usuario. `userId` es
  *  OBLIGATORIO: un merge es una decisión privada, y la variante sin filtro plegaba las
- *  escuchas de uno sobre el canónico que había elegido otro. No la reintroduzcas. */
+ *  escuchas de uno sobre el canónico que había elegido otro. No la reintroduzcas.
+ *  En álbum arrastra además los joins de pertenencia a colecciones (ver arriba). */
 export function entityMergeJoin(type: EntityType, userId: number): SqlChunk {
   const alias = sql.raw(MERGE_ALIAS[type]);
   const src = sourceCol(type);
-  return sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src} AND ${alias}.user_id = ${userId}`;
+  const mergeJoin = sql`LEFT JOIN merge_rules ${alias} ON ${alias}.entity_type = ${type} AND ${alias}.source_id = ${src} AND ${alias}.user_id = ${userId}`;
+  if (type !== 'album') return mergeJoin;
+  return sql`${mergeJoin} ${collectionMemberJoins(userId)}`;
 }
 
 /** COALESCE(mr_X.target_id, <source_col>) — expresa el ID canónico tras merges.
@@ -148,7 +174,13 @@ export function entityMergeJoin(type: EntityType, userId: number): SqlChunk {
  *  entityMergeJoin() del mismo query, y sin él esto resuelve merges de cualquiera. */
 export function resolvedEntityId(type: EntityType): SqlChunk {
   const alias = sql.raw(MERGE_ALIAS[type]);
-  return sql`COALESCE(${alias}.target_id, ${sourceCol(type)})`;
+  if (type !== 'album') return sql`COALESCE(${alias}.target_id, ${sourceCol(type)})`;
+  // orden de precedencia: el tema añadido a mano manda sobre la colección de su álbum
+  // (por eso se puede sacar un corte suelto de una era y ponerlo en otra), y las dos
+  // sobre el merge. La clave `collection:N` sólo existe aquí y en el cliente: no hay
+  // fila de esa colección en `albums`, y el concat con NULL se queda en NULL, que es
+  // justo lo que necesita el COALESCE para caer al siguiente nivel.
+  return sql`COALESCE(${COLLECTION_ID_PREFIX} || acm_track.collection_id, ${COLLECTION_ID_PREFIX} || acm_album.collection_id, ${alias}.target_id, ${sourceCol(type)})`;
 }
 
 // --- helpers de SQL dinámico según tipo de entidad ---
@@ -184,9 +216,56 @@ export function resolvedPlayJoins(entityType: EntityType, userId: number): SqlCh
     ${entityMergeJoin('track', userId)}`;
 }
 
-/** AND t.album_id IS NOT NULL — necesario para queries de álbumes, vacío para otros tipos. */
+/** Hidratación de un id del eje álbum que puede ser una **colección** (`collection:N`).
+ *  Desde que existen los álbumes lógicos, resolvedEntityId('album') emite ids que no
+ *  tienen fila en `albums`: un `JOIN albums` a secas deja fuera esas filas —los records
+ *  y los reports perderían justo los plays que la colección agrega— y un LEFT JOIN a
+ *  secas las pinta sin nombre. Devuelve los dos joins y las expresiones que los mezclan.
+ *
+ *  El join de la colección compara `'collection:' || acol.id` en vez de partir el id:
+ *  la tabla tiene un puñado de filas por usuario y así la condición se lee. Se usa sólo
+ *  en la hidratación (decenas de filas), nunca en el escaneo del historial. */
+export function albumEntityJoins(eidExpr: SqlChunk): SqlChunk {
+  return sql`LEFT JOIN albums al ON al.spotify_id = ${eidExpr}
+    LEFT JOIN album_collections acol ON ${COLLECTION_ID_PREFIX} || acol.id = ${eidExpr}`;
+}
+
+/** Nombre de la entidad hidratada por albumEntityJoins. */
+export function albumEntityName(): SqlChunk {
+  return sql`COALESCE(al.name, acol.name)`;
+}
+
+/** Portada: la del álbum, la manual de la colección o, si no la tiene, la del primer
+ *  miembro que tenga una (misma regla que collectionCover en el lado JS). */
+export function albumEntityImage(): SqlChunk {
+  return sql`COALESCE(al.image_url, acol.image_url, (
+    SELECT COALESCE(m_al.image_url, m_alt.image_url)
+    FROM album_collection_members m
+    LEFT JOIN albums m_al ON m.member_type = 'album' AND m_al.spotify_id = m.member_id
+    LEFT JOIN tracks m_t ON m.member_type = 'track' AND m_t.spotify_id = m.member_id
+    LEFT JOIN albums m_alt ON m_alt.spotify_id = m_t.album_id
+    WHERE m.collection_id = acol.id AND COALESCE(m_al.image_url, m_alt.image_url) IS NOT NULL
+    ORDER BY m.position ASC LIMIT 1))`;
+}
+
+/** Artista de la fila: el de posición 0 de los temas del álbum o, en una colección, su
+ *  artista dueño (el único crédito que tiene). `eidExpr` es el id ya resuelto. */
+export function albumEntityArtistId(eidExpr: SqlChunk): SqlChunk {
+  return sql`COALESCE((SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+    WHERE t2.album_id = ${eidExpr} LIMIT 1), acol.artist_id)`;
+}
+
+export function albumEntityArtistName(eidExpr: SqlChunk): SqlChunk {
+  return sql`COALESCE((SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+    JOIN artists a ON a.spotify_id = ta.artist_id WHERE t2.album_id = ${eidExpr} LIMIT 1),
+    (SELECT a2.name FROM artists a2 WHERE a2.spotify_id = acol.artist_id))`;
+}
+
+/** AND t.album_id IS NOT NULL — necesario para queries de álbumes, vacío para otros tipos.
+ *  El OR deja pasar al tema suelto que es miembro de una colección: su play cuenta para
+ *  ella aunque el track no tenga álbum, que es el caso de los sintéticos sin shell. */
 export function albumNullFilter(entityType: EntityType): SqlChunk {
-  return entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
+  return entityType === 'album' ? sql`AND (t.album_id IS NOT NULL OR acm_track.collection_id IS NOT NULL)` : sql``;
 }
 
 export function entityGroupCol(entityType: EntityType): SqlChunk {

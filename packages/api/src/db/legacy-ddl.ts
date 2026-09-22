@@ -498,4 +498,37 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`);
   } catch {}
+
+  // álbumes lógicos (colecciones): contenedor del usuario que agrega álbumes y
+  // temas sueltos de un artista. Ver schema.ts — no son filas de `albums` a
+  // propósito. El UNIQUE de miembros (user_id, entity_type, entity_id) hace de
+  // índice del lookup caliente de los rankings además de sostener el invariante
+  // de "un miembro, una colección"
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS album_collections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      artist_id TEXT NOT NULL REFERENCES artists(spotify_id),
+      name TEXT NOT NULL,
+      image_url TEXT,
+      color TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_album_collections_user ON album_collections(user_id)'); } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_album_collections_user_artist ON album_collections(user_id, artist_id)'); } catch {}
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS album_collection_members (
+      collection_id INTEGER NOT NULL REFERENCES album_collections(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      member_type TEXT NOT NULL,
+      member_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (collection_id, member_type, member_id)
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_acm_unique_member ON album_collection_members(user_id, member_type, member_id)'); } catch {}
 }

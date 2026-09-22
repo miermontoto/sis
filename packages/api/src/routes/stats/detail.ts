@@ -5,6 +5,7 @@ import { hydrateConcerts } from '../../services/concerts.js';
 import { getRangeStart } from '../../db/queries/index.js';
 import type { MergeInfo, RelatedArtistRow, EntityType } from '../../db/queries/index.js';
 import type { EntityCard, EntityRelation } from '@sis/shared';
+import { parseCollectionKey } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS, SERIES_BATCH_LIMIT } from '../../constants.js';
 import { statsRouter, parseParams } from './_shared.js';
@@ -72,6 +73,10 @@ detail.get('/artist/:id', async (c) => {
     dbRead('getConcerts', userId, artistIds),
   ]);
 
+  // colecciones del grupo de merge: son del artista, como los conciertos, y su
+  // sección vive en el mismo detalle
+  const collections = await dbRead('getArtistCollections', artistIds, userId);
+
   const [topTracks, topAlbums, recentPlays, concerts, relations] = await Promise.all([
     dbRead('formatArtistTrackRows', topTracksRaw),
     Promise.all(topAlbumsRaw.map((row) => dbRead('formatArtistAlbumRow', row))),
@@ -92,6 +97,7 @@ detail.get('/artist/:id', async (c) => {
     relations,
     playlists,
     concerts,
+    collections,
   });
 });
 
@@ -157,11 +163,15 @@ detail.get('/album/:id', async (c) => {
 
   // artistas reales por track (incluye secundarios/featured) — el álbum comparte cover pero cada track
   // tiene sus propios artistas; enrichTracksBatch los devuelve ordenados por position (0 = principal)
-  const [recentPlays, trackArtistMap, relations] = await Promise.all([
+  const [recentPlays, trackArtistMap, relations, collectionRefs] = await Promise.all([
     dbRead('formatRecentPlays', recentRaw),
     dbRead('enrichTracksBatch', albumTracks.map((r) => r.track_id)),
     buildRelations('album', mergeInfo, userId),
+    // el álbum puede estar dentro de una colección, que es quien lo representa en los
+    // rankings: la página lo dice y apaga sus badges de ranking (ver el cliente)
+    dbRead('getCollectionRefs', 'album', albumIds, userId),
   ]);
+  const collection = albumIds.map(aid => collectionRefs.get(aid)).find(Boolean) ?? null;
 
   // fallback a los artistas del álbum si un track no tiene artistas propios (data quality)
   const albumArtists = albumArtistRows.map((a) => ({ id: a.artist_id, name: a.name }));
@@ -201,6 +211,50 @@ detail.get('/album/:id', async (c) => {
     playlists,
     covers: coversRaw.map((r) => ({ id: r.id, imageUrl: r.image_url, source: r.source, observedAt: r.observed_at })),
     rating: ratingRow ? { rating: ratingRow.rating, review: ratingRow.review, updatedAt: ratingRow.updated_at } : null,
+    collection,
+  });
+});
+
+// Detalle de una colección ("álbum lógico"): las mismas secciones que un álbum, pero
+// el alcance son sus miembros. El id es numérico y la ruta va restringida (`[0-9]+`)
+// para no solaparse con nada: las claves `collection:N` sólo viven en el espacio de ids
+// de álbum de los rankings, nunca en la URL.
+detail.get('/collection/:id{[0-9]+}', async (c) => {
+  const id = Number(c.req.param('id'));
+  const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
+  const userId = c.get('userId');
+
+  const collection = await dbRead('getCollectionSummary', id, userId);
+  if (!collection) return c.json({ error: 'Collection not found' }, 404);
+
+  const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
+  const [members, statsRow, series, collectionTracks, recentRaw] = await Promise.all([
+    dbRead('getCollectionMembers', id, userId),
+    dbRead('getCollectionStats', id, rangeStart, rangeEnd, userId),
+    dbRead('getCollectionSeries', id, rangeStart, rangeKey, rangeEnd, customDays, userId),
+    dbRead('getCollectionTracks', id, rangeStart, sort, rangeEnd, userId),
+    dbRead('getCollectionRecentPlays', id, 10, userId),
+  ]);
+
+  // los temas vienen de varios álbumes, así que cada fila necesita su propia carátula
+  // y sus créditos: enrichTracksBatch los resuelve en dos queries para todo el lote
+  const [recentPlays, trackMap] = await Promise.all([
+    dbRead('formatRecentPlays', recentRaw),
+    dbRead('enrichTracksBatch', collectionTracks.map((r) => r.track_id)),
+  ]);
+
+  return c.json({
+    collection,
+    members,
+    stats: statsRow,
+    series,
+    tracks: collectionTracks.map((row) => ({
+      trackId: row.track_id,
+      playCount: row.play_count,
+      totalMs: row.total_ms,
+      track: trackMap.get(row.track_id) ?? null,
+    })),
+    recentPlays,
   });
 });
 
@@ -229,7 +283,7 @@ detail.get('/track/:id', async (c) => {
     dbRead('getTrackLiveConcerts', userId, trackIds),
   ]);
 
-  const [recentPlays, albumBreakdowns, relations] = await Promise.all([
+  const [recentPlays, albumBreakdowns, relations, collectionRefs] = await Promise.all([
     dbRead('formatRecentPlays', recentRaw),
     Promise.all(albumBreakdownRaw.map((row) => dbRead('lookupAlbum', row.album_id).then(ab => ({
       albumId: row.album_id,
@@ -238,7 +292,9 @@ detail.get('/track/:id', async (c) => {
       album: ab ? { id: row.album_id, ...ab } : null,
     })))),
     buildRelations('track', mergeInfo, userId),
+    dbRead('getCollectionRefs', 'track', trackIds, userId),
   ]);
+  const collection = trackIds.map(tid => collectionRefs.get(tid)).find(Boolean) ?? null;
 
   return c.json({
     track: {
@@ -263,6 +319,7 @@ detail.get('/track/:id', async (c) => {
       venue: r.venue,
       city: r.city,
     })),
+    collection,
   });
 });
 
@@ -315,8 +372,39 @@ detail.get('/card/:type/:id', async (c) => {
   const id = c.req.param('id');
   const userId = c.get('userId');
 
-  const entityIds = await dbRead('resolveEntityIds', type, id, userId);
   const seriesStart = getRangeStart(HOVER_CARD_SERIES_RANGE);
+
+  // una colección viaja por el eje álbum, así que llega aquí como `collection:N` desde
+  // cualquier fila de ranking. Sin esta rama el lookup no encontraba fila en `albums` y
+  // la tarjeta salía 404: un hueco en blanco justo en las listas donde más se asoma
+  const collectionId = parseCollectionKey(id);
+  if (type === 'album' && collectionId !== null) {
+    const [summary, stats, series] = await Promise.all([
+      dbRead('getCollectionSummary', collectionId, userId),
+      dbRead('getCollectionStats', collectionId, null, null, userId),
+      dbRead('getCollectionSeries', collectionId, seriesStart, HOVER_CARD_SERIES_RANGE, null, HOVER_CARD_SERIES_BUCKET_DAYS, userId),
+    ]);
+    if (!summary) return c.json({ error: 'Not found' }, 404);
+    const card: EntityCard = {
+      type, id,
+      name: summary.name,
+      imageUrl: summary.imageUrl,
+      artists: summary.artistName ? [summary.artistName] : [],
+      genres: [], albumName: null, durationMs: null,
+      releaseDate: null,
+      // "pistas" de una colección son sus miembros: es la cifra que la describe
+      totalTracks: summary.albumCount + summary.trackCount,
+      playCount: stats.play_count,
+      totalMs: stats.total_ms,
+      firstPlayed: stats.first_played,
+      lastPlayed: stats.last_played,
+      series: series.map((s) => ({ day: s.period, playCount: s.play_count, totalMs: s.total_ms })),
+      seriesDays: TIME_RANGES[HOVER_CARD_SERIES_RANGE],
+    };
+    return c.json(card);
+  }
+
+  const entityIds = await dbRead('resolveEntityIds', type, id, userId);
   const [meta, stats, series] = await Promise.all([
     cardMeta(type, id, entityIds),
     dbRead('getEntityStats', type, id, null, null, entityIds, userId),

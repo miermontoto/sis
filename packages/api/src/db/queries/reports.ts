@@ -13,7 +13,7 @@ import type {
   ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone, ReportEntityRef, ReportPlayRef,
 } from '@sis/shared';
 import {
-  periodBounds, adjacentPeriod, isClosedPeriod,
+  periodBounds, adjacentPeriod, isClosedPeriod, COLLECTION_ID_PREFIX,
   REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT,
 } from '@sis/shared';
 import type { Db, SqlChunk, AggregateRow } from './helpers.js';
@@ -219,9 +219,13 @@ function genreCoverage(db: Db, userId: number, start: string, end: string, total
 // división deja de ser entera (cada año salía como su propia "década")
 const decadeExpr = sql`(cast(substr(al.release_date, 1, ${sql.raw(String(RELEASE_YEAR_CHARS))}) AS integer) / ${sql.raw(String(DECADE_YEARS))}) * ${sql.raw(String(DECADE_YEARS))}`;
 
+// OJO: aquí se une el álbum REAL (el resuelto de merges), no resolvedEntityId('album'),
+// que desde los álbumes lógicos puede devolver una clave `collection:N`. Esta sección
+// necesita la fecha de lanzamiento del disco que sonó: una colección no tiene una, y
+// agrupar por ella dejaría fuera de las décadas todos los plays que agrega.
 function albumJoins(userId: number): SqlChunk {
   return sql`${trackJoinResolvingMerges(userId)} ${entityMergeJoin('album', userId)}
-    JOIN albums al ON al.spotify_id = ${resolvedEntityId('album')}`;
+    JOIN albums al ON al.spotify_id = COALESCE(mr_album.target_id, t.album_id)`;
 }
 
 function getDecades(db: Db, userId: number, start: string, end: string, totalPlays: number): ReportDecade[] {
@@ -329,7 +333,16 @@ function albumDiscovery(db: Db, userId: number, start: string, end: string, sort
   // quedan fuera a propósito: incluirlos obliga a un join merge_rules × tracks por
   // álbum del periodo (5s en un año) para cubrir el caso de un álbum cuyos únicos
   // plays previos fueran de tracks luego mergeados
-  const albumTracks = sql`SELECT tr.spotify_id FROM tracks tr WHERE tr.album_id IN (${mergeGroup('album', userId, sql`p.id`)})`;
+  // el id del periodo puede ser una colección: su grupo son los álbumes miembro (y sus
+  // temas sueltos aparte). Sin esto, `noPlayBefore` no encontraba ningún track suyo y
+  // TODA colección se estrenaba cada periodo
+  const collectionAlbums = sql`SELECT acm.member_id FROM album_collection_members acm
+    WHERE acm.user_id = ${userId} AND acm.member_type = 'album' AND ${COLLECTION_ID_PREFIX} || acm.collection_id = p.id`;
+  const collectionTracks = sql`SELECT acm.member_id FROM album_collection_members acm
+    WHERE acm.user_id = ${userId} AND acm.member_type = 'track' AND ${COLLECTION_ID_PREFIX} || acm.collection_id = p.id`;
+  const albumTracks = sql`SELECT tr.spotify_id FROM tracks tr
+    WHERE tr.album_id IN (${mergeGroup('album', userId, sql`p.id`)} UNION ${collectionAlbums})
+    UNION ${collectionTracks}`;
   const period = sql`
     SELECT ${resolvedEntityId('album')} AS id, count(*) AS plays, sum(${playDuration()}) AS total_ms
     FROM listening_history lh ${trackJoinResolvingMerges(userId)} ${entityMergeJoin('album', userId)}

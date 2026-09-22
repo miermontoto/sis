@@ -58,6 +58,11 @@ export type { PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistL
 // merge
 export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 
+// colecciones ("álbumes lógicos"): agregan álbumes y temas de un artista y
+// sustituyen a sus miembros en los rankings
+export type { CollectionMember, CollectionMemberType, AlbumCollectionSummary, CollectionDetail, CollectionRef, CollectionInput, CollectionConflict } from './collections.js';
+export { COLLECTION_ID_PREFIX, collectionKey, isCollectionKey, parseCollectionKey, COLLECTION_NAME_MAX_CHARS, COLLECTION_NOTES_MAX_CHARS } from './collections.js';
+
 // relaciones soft entre artistas
 export type { RelatedArtist, ArtistRelationRule, EntityRelation, RelationKind } from './relations.js';
 

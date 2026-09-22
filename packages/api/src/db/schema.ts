@@ -380,3 +380,48 @@ export const shareLinks = sqliteTable('share_links', {
 }, (table) => [
   index('idx_share_links_user').on(table.userId),
 ]);
+
+// "álbum lógico": contenedor creado por el usuario que agrega otros álbumes y temas
+// sueltos del mismo artista (una trilogía, una era, los singles de un año). A
+// diferencia de un merge NO absorbe a sus miembros —sus páginas siguen enteras—,
+// pero en los rankings SÍ los sustituye: sus plays se atribuyen a la colección.
+// Vive en tabla propia y nunca en `albums`: una fila sintética en el catálogo la
+// tocarían los barridos de dedup e identity (ver los incidentes de local:/import:).
+export const albumCollections = sqliteTable('album_collections', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  // artista dueño: es quien presta la sección del detalle donde se listan. Los
+  // miembros no están obligados a acreditarlo (una era con colaboraciones)
+  artistId: text('artist_id').notNull().references(() => artists.spotifyId),
+  name: text('name').notNull(),
+  // portada elegida a mano; NULL = la del primer miembro con portada
+  imageUrl: text('image_url'),
+  // pick manual #rrggbb, misma semántica que albums.color (NULL = el extraído)
+  color: text('color'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  index('idx_album_collections_user').on(table.userId),
+  index('idx_album_collections_user_artist').on(table.userId, table.artistId),
+]);
+
+// miembros de una colección: álbumes enteros o temas sueltos. `user_id` va
+// denormalizado para que el lookup del ranking sea una sola bajada de índice, igual
+// que en merge_rules. El UNIQUE(user_id, entity_type, entity_id) es la pieza que
+// sostiene "la colección sustituye a sus miembros": si un álbum pudiera estar en dos,
+// sus plays se contarían dos veces y el ranking saldría inflado.
+export const albumCollectionMembers = sqliteTable('album_collection_members', {
+  collectionId: integer('collection_id').notNull().references(() => albumCollections.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  // member_type / member_id y no entity_type / entity_id: las queries de ranking
+  // alias su columna de agrupación como `entity_id`, y con ese nombre aquí el
+  // GROUP BY se vuelve ambiguo en cuanto el join de pertenencia entra en la query
+  memberType: text('member_type').notNull(), // 'album' | 'track'
+  memberId: text('member_id').notNull(),
+  position: integer('position').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  primaryKey({ columns: [table.collectionId, table.memberType, table.memberId] }),
+  uniqueIndex('idx_acm_unique_member').on(table.userId, table.memberType, table.memberId),
+]);

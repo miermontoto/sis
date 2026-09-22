@@ -4,6 +4,7 @@ import type { PlaylistPresenceItem } from './records.js';
 import type { TrackVersion } from './versions.js';
 import type { EntityRelation } from './relations.js';
 import type { Concert, ConcertRef } from './concerts.js';
+import type { AlbumCollectionSummary, CollectionRef } from './collections.js';
 
 export interface Rankings {
   week: number | null;
@@ -46,6 +47,9 @@ export interface ArtistDetail {
   // conciertos del usuario para este artista (resueltos sobre el grupo de merge);
   // doblan como marcadores de las gráficas junto a los releases
   concerts?: Concert[];
+  // álbumes lógicos del artista (ver collections.ts): agrupan discos y temas suyos y
+  // los sustituyen en los rankings
+  collections?: AlbumCollectionSummary[];
 }
 
 // single de adelanto ligado a un álbum: es un ReleaseEvent (sirve de marcador en las gráficas)
@@ -85,6 +89,9 @@ export interface AlbumDetail {
   covers?: AlbumCover[];
   // valoración del usuario (null = sin valorar); se resuelve sobre el grupo de merge entero
   rating?: AlbumRating | null;
+  // colección que se lo ha llevado: mientras exista, es ELLA quien rankea por este
+  // álbum, así que la página lo dice y apaga sus badges de ranking
+  collection?: CollectionRef | null;
 }
 
 export interface TrackDetail {
@@ -108,4 +115,7 @@ export interface TrackDetail {
   liveConcerts?: ConcertRef[];
   // otras versiones del mismo tema (live, remix, remaster...) que el usuario ha escuchado
   versions: TrackVersion[];
+  // colección que se lo ha llevado, directamente o a través de su álbum (ver
+  // CollectionRef.direct); mientras exista, ella rankea en su lugar en el eje álbum
+  collection?: CollectionRef | null;
 }

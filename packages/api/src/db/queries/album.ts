@@ -1,9 +1,14 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
 import { rangeWhere, userFilter, albumIdIn, albumPlaysPredicate, playDuration } from './helpers.js';
+import { parseCollectionKey } from '@sis/shared';
+import { getCollectionArtists } from './collections.js';
 
-/** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists */
+/** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists.
+ *  Una clave `collection:N` (álbum lógico) responde con su artista dueño: es el único crédito que tiene. */
 export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
+  const collectionId = parseCollectionKey(albumId);
+  if (collectionId !== null) return getCollectionArtists(db, collectionId);
   const albumIds = ids ?? [albumId];
 
   // intentar usar artist_ids almacenados del album (datos de spotify)

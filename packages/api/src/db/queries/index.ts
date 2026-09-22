@@ -20,6 +20,11 @@ export { getChart, getChartPeaks, getChartRankSlice, chartPeakSlices, prevPeriod
 export { getConcerts, getConcertSongs, getConcertSongPlays, getConcertStats, getArtistTrackCatalog, getTracksByArtistNames, getImportedSetlistIds, getConcertCounts, getTrackLiveConcerts } from './concerts.js';
 export type { ConcertRow, ConcertSongRow } from './concerts.js';
 
+// colecciones ("álbumes lógicos"): agregan álbumes y temas de un artista y sustituyen
+// a sus miembros en los rankings (la capa que lo hace vive en helpers.ts)
+export { getCollectionSummary, getArtistCollections, getCollectionMembers, getCollectionStats, getCollectionSeries, getCollectionTracks, getCollectionRecentPlays, getCollectionScope, getCollectionRefs, lookupCollectionAsAlbum, getCollectionArtists, collectionCover } from './collections.js';
+export type { CollectionScope } from './collections.js';
+
 // merge (genérico para albums / artists / tracks)
 export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './merge.js';
 export type { MergeInfo } from './merge.js';
