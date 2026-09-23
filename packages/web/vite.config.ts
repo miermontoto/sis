@@ -8,6 +8,12 @@ const pwa: Record<string, any> = createPwaOptions({
   shortName: 'SIS',
   description: 'Personal Spotify listening statistics',
   themeColor: '#080a0c',
+  // el maskable va a sangre (el launcher recorta su propia forma); los 'any' llevan esquinas
+  icons: [
+    { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
   shortcuts: [
     { name: 'Dashboard', url: '/' },
     { name: 'History', url: '/history' },

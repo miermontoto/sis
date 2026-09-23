@@ -8,7 +8,7 @@
   <line x1="340" y1="-8" x2="340" y2="1447.4" stroke="#1e2a2a" stroke-width="2"/>
   <g transform="translate(40,48)">
     <rect x="0" y="0" width="56" height="56" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
-    <text x="28" y="37" font-size="22" font-weight="700" letter-spacing="1" fill="#1db954" text-anchor="middle">SIS</text>
+    <g transform="translate(10.21 15) scale(0.2421) translate(0 -16.12)"><path d="M40.06 51.43A18.8 12.22 0 1 0 27 72.44A20 13.78 0 1 1 13.11 96.13M73.5 100V48M133.06 51.43A18.8 12.22 0 1 0 120 72.44A20 13.78 0 1 1 106.11 96.13" fill="none" stroke="#e0e8e8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><circle cx="73.5" cy="25.62" r="9.5" fill="#1db954"/></g>
     <text x="74" y="26" font-size="30" font-weight="700" fill="#e0e8e8">sis</text>
     <text x="74" y="50" font-size="16" fill="#6a7a7a">listening stats</text>
   </g>

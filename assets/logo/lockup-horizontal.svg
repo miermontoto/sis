@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 200">
-  <!-- icono + wordmark en línea, fondo oscuro (readme, ficha de la web) -->
-  <rect width="200" height="200" rx="38" fill="#0f1214" stroke="#1e2a2a" stroke-width="4"/>
-  <text x="100" y="116" text-anchor="middle" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="70" letter-spacing="0.06em" fill="#1db954">SIS</text>
-  <text x="240" y="118" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-weight="700" font-size="120" fill="#e0e8e8">sis</text>
-  <text x="244" y="176" font-family="ui-monospace,'Fira Code','Cascadia Code','DejaVu Sans Mono',monospace" font-size="40" fill="#6a7a7a">listening stats</text>
-</svg>
