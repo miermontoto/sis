@@ -218,6 +218,27 @@
     loadingNatural = false;
   }
 
+  // un álbum se reproduce por contexto; una colección no existe en spotify, así que se
+  // manda su tracklist natural (cronológico, ver getCollectionTracks) como cola de uris.
+  // Sólo lo que aportan sus miembros directos: un álbum absorbido por merge repetiría
+  // los temas de su canónico
+  async function play() {
+    playActing = true;
+    try {
+      if (collectionId === null) {
+        await nowPlayingStore.playContext({ context_uri: `spotify:album:${albumId}` });
+      } else {
+        const own = new Set((data?.members ?? []).map(m => m.entityId));
+        const tracks = naturalTracks ?? (await api.albumDetail(albumId, 'all', 'natural')).tracks;
+        const uris = tracks
+          .filter(t => isSpotifyId(t.trackId) && (own.has(t.trackId) || own.has(t.track?.album?.id ?? '')))
+          .map(t => `spotify:track:${t.trackId}`);
+        if (uris.length > 0) await nowPlayingStore.playContext({ uris });
+      }
+    } catch {}
+    playActing = false;
+  }
+
   function toggleTrackSort(mode: 'ranked' | 'natural') {
     trackSort = mode;
     if (mode === 'natural' && !naturalTracks) {
@@ -519,17 +540,8 @@
       </div>
     </div>
     <div class="hero-actions">
-      {#if isSpotifyId(albumId)}
-        <button
-          class="play-entity-btn"
-          title="Play on Spotify"
-          disabled={playActing}
-          onclick={async () => {
-            playActing = true;
-            await nowPlayingStore.playContext({ context_uri: `spotify:album:${albumId}` });
-            playActing = false;
-          }}
-        >
+      {#if isSpotifyId(albumId) || (data.members?.length ?? 0) > 0}
+        <button class="play-entity-btn" title="Play on Spotify" disabled={playActing} onclick={play}>
           <IconPlay />
         </button>
       {/if}

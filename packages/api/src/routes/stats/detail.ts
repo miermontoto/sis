@@ -131,6 +131,12 @@ async function albumDetailForCollection(
   const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
   const rangeKey = range === 'custom' ? 'all' : range as TimeRange;
 
+  // completar el tracklist de cada álbum miembro, igual que el detalle de un álbum: la
+  // cola del botón de play son los discos enteros, no sólo lo que ya sonó (en una
+  // colección de EPs suele faltar la mitad de los temas)
+  const memberAlbums = await dbRead('getCollectionAlbumMembers', collectionId, userId);
+  await Promise.all(memberAlbums.map((a) => ensureFullAlbumTracks(a.spotify_id, a.total_tracks, userId).catch(() => {})));
+
   const [summary, members, statsRow, series, collectionTracks, recentRaw, coversRaw, ratingRow] = await Promise.all([
     dbRead('getCollectionSummary', collectionId, userId),
     dbRead('getCollectionMembers', collectionId, userId),

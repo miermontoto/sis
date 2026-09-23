@@ -376,9 +376,24 @@ export function getCollectionSeries(db: Db, collectionId: number, rangeStart: st
   `) as SeriesRow[];
 }
 
+/** Álbumes miembro directos (no los absorbidos por merge) con su total de temas: lo que
+ *  necesita ensureFullAlbumTracks para completar cada tracklist. */
+export function getCollectionAlbumMembers(db: Db, collectionId: number, userId: number) {
+  return db.all(sql`
+    SELECT al.spotify_id, al.total_tracks
+    FROM album_collection_members acm
+    JOIN albums al ON al.spotify_id = acm.member_id
+    WHERE acm.collection_id = ${collectionId} AND acm.user_id = ${userId} AND acm.member_type = 'album'
+  `) as { spotify_id: string; total_tracks: number | null }[];
+}
+
 /** Todos los temas que agrega la colección: los de sus álbumes miembro más los sueltos.
  *  Excluye los que son source de un merge (se cuentan bajo su canónico), igual que
- *  getAlbumTracks. */
+ *  getAlbumTracks.
+ *  El orden natural es cronológico —cada disco por fecha de lanzamiento y dentro en su
+ *  orden de disco/pista—, no el orden de los miembros (que es el de inserción): es la
+ *  cola que reproduce el botón de play, y ordenar sólo por disco/pista intercalaba la
+ *  pista 1 de cada álbum. */
 export function getCollectionTracks(db: Db, collectionId: number, rangeStart: string | null, sort: Sort, rangeEnd: string | null | undefined, userId: number) {
   const scope = getCollectionScope(db, collectionId, userId);
   const parts: SqlChunk[] = [];
@@ -402,10 +417,13 @@ export function getCollectionTracks(db: Db, collectionId: number, rangeStart: st
           OR ${scope.trackIds.length > 0 ? sql`tr.spotify_id IN (${idList(scope.trackIds)})` : sql`0`})
       GROUP BY resolved_track_id
     ) s ON s.resolved_track_id = t.spotify_id
+    LEFT JOIN albums al ON al.spotify_id = t.album_id
     WHERE ${member}
       AND t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
     ORDER BY ${sort === 'natural'
-      ? sql`COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC`
+      // t.album_id tras la fecha mantiene juntos dos discos del mismo día
+      ? sql`al.release_date IS NULL, al.release_date ASC, t.album_id,
+            COALESCE(t.disc_number, 1) ASC, COALESCE(t.track_number, 9999) ASC, t.name ASC`
       : sort === 'plays' ? sql`play_count DESC, t.name ASC` : sql`total_ms DESC, t.name ASC`}
   `) as { track_id: string; name: string; duration_ms: number; track_number: number | null; disc_number: number | null; album_id: string | null; play_count: number; total_ms: number }[];
 }
