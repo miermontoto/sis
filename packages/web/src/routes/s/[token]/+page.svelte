@@ -57,7 +57,7 @@
 </script>
 
 <svelte:head>
-  <title>{displayName ? `${displayName} — SIS` : 'SIS'}</title>
+  <title>{displayName ? `${displayName} — sis` : 'sis'}</title>
 </svelte:head>
 
 <div class="share-page">

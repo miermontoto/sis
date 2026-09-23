@@ -48,7 +48,7 @@ function buildMetaBlock(fields: OgFields): string {
     `<meta property="og:description" content="${escapeHtml(fields.description)}">`,
     `<meta property="og:url" content="${escapeHtml(fields.url)}">`,
     `<meta property="og:type" content="profile">`,
-    `<meta property="og:site_name" content="SIS">`,
+    `<meta property="og:site_name" content="sis">`,
   ];
   if (fields.imageUrl) {
     lines.push(`<meta property="og:image" content="${escapeHtml(fields.imageUrl)}">`);
@@ -63,7 +63,7 @@ async function ogFieldsForUser(user: User, opts: { imageUrl: string | null; url:
   const summary = await getProfileSummaryCached(user.id);
   const name = user.displayName ?? user.spotifyId;
   return {
-    title: `${name} en SIS`,
+    title: `${name} en sis`,
     description: `${summary.play_count.toLocaleString('en-US')} plays · ${formatHours(summary.total_ms)} · ${summary.distinct_artists.toLocaleString('en-US')} artistas`,
     imageUrl: opts.imageUrl,
     url: opts.url,

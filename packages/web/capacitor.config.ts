@@ -5,6 +5,6 @@ import { createCapacitorConfig } from '@platform/mobile';
 
 export default createCapacitorConfig({
   appId: 'info.mier.sis',
-  appName: 'SIS',
+  appName: 'sis',
   backgroundColor: '#080a0c',
 });

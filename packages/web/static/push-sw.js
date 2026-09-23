@@ -11,11 +11,11 @@ self.addEventListener('push', (event) => {
     payload = event.data.json();
   } catch {
     // fallback: texto plano como cuerpo
-    payload = { title: 'SIS', body: event.data.text(), data: {} };
+    payload = { title: 'sis', body: event.data.text(), data: {} };
   }
   const { title, body, data } = payload;
   event.waitUntil(
-    self.registration.showNotification(title || 'SIS', {
+    self.registration.showNotification(title || 'sis', {
       body: body || '',
       icon: '/pwa-192.png',
       badge: '/pwa-192.png',

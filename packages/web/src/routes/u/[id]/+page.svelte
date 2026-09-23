@@ -93,7 +93,7 @@
 </script>
 
 <svelte:head>
-  <title>{displayName} — SIS</title>
+  <title>{displayName} — sis</title>
 </svelte:head>
 
 {#if loading && !profile}

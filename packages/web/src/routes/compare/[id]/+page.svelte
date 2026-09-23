@@ -123,7 +123,7 @@
 </script>
 
 <svelte:head>
-  <title>Compare — SIS</title>
+  <title>Compare — sis</title>
 </svelte:head>
 
 {#if loading && !data}

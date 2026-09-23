@@ -5,12 +5,12 @@
   import PrivacyPolicy from '@platform/ui/PrivacyPolicy.svelte';
 </script>
 
-<svelte:head><title>Privacy — SIS</title></svelte:head>
+<svelte:head><title>Privacy — sis</title></svelte:head>
 
 <div class="privacy-page">
   <PrivacyPolicy
     lang="en"
-    appName="SIS"
+    appName="sis"
     authProvider="Spotify"
     contactEmail="support@mier.info"
     updated="2026-06-08"
@@ -18,14 +18,14 @@
     <section class="privacy-extra">
       <h2>Spotify listening data</h2>
       <p>
-        SIS exists to track and show your listening stats, so with your Spotify
+        sis exists to track and show your listening stats, so with your Spotify
         sign-in we read your listening activity (recently played tracks, current
         playback, your library and top items) and store it to build your history,
         charts and rankings. This data stays in your account and is only used to
         provide these features to you.
       </p>
       <p>
-        You can revoke SIS's access at any time from your Spotify account settings;
+        You can revoke sis's access at any time from your Spotify account settings;
         doing so stops any further syncing.
       </p>
     </section>

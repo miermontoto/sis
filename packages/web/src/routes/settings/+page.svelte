@@ -961,7 +961,7 @@
               <div class="pref-label lastfm-label"><IconMier size={16} /> mier.info</div>
               <div class="pref-desc">
                 {#if mieridStatus.account}
-                  Connected as <strong>{mieridStatus.account.username ?? mieridStatus.account.sub}</strong> — sign in to SIS with your mier.info account
+                  Connected as <strong>{mieridStatus.account.username ?? mieridStatus.account.sub}</strong> — sign in to sis with your mier.info account
                 {:else}
                   Link your mier.info account to sign in without Spotify or Last.fm
                 {/if}

@@ -9,8 +9,8 @@
   // componente renderiza como enlace mailto al contacto.
   const FAQ = [
     {
-      q: 'What is SIS?',
-      a: 'SIS records what you listen to on Spotify and turns it into a history, rankings, charts and records, with shareable profiles.',
+      q: 'What is sis?',
+      a: 'sis records what you listen to on Spotify and turns it into a history, rankings, charts and records, with shareable profiles.',
     },
     {
       q: 'Can I bring in my listening history from before I joined?',
@@ -18,15 +18,15 @@
     },
     {
       q: 'How do I delete my account and data?',
-      a: 'Email us at {email} from your account address and we will delete your account and its associated data. You can also revoke SIS from your Spotify account settings to stop any further syncing.',
+      a: 'Email us at {email} from your account address and we will delete your account and its associated data. You can also revoke sis from your Spotify account settings to stop any further syncing.',
     },
   ];
 </script>
 
-<svelte:head><title>Support — SIS</title></svelte:head>
+<svelte:head><title>Support — sis</title></svelte:head>
 
 <div class="support-page">
-  <Support lang="en" appName="SIS" contactEmail="support@mier.info" faq={FAQ} />
+  <Support lang="en" appName="sis" contactEmail="support@mier.info" faq={FAQ} />
 </div>
 
 <style>

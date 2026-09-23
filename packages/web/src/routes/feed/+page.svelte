@@ -73,7 +73,7 @@
 </script>
 
 <svelte:head>
-  <title>Feed — SIS</title>
+  <title>Feed — sis</title>
 </svelte:head>
 
 {#if loading && !feed}

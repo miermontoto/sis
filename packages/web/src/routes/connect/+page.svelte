@@ -27,7 +27,7 @@
   async function connect(origin: string | null) {
     if (busy) return;
     if (!origin) {
-      error = 'Enter the address of a SIS instance. Only https:// is supported.';
+      error = 'Enter the address of a sis instance. Only https:// is supported.';
       return;
     }
     busy = true;
@@ -35,7 +35,7 @@
     try {
       await probeInstance(origin);
     } catch {
-      error = `Could not reach a SIS instance at ${instanceHost(origin)}.`;
+      error = `Could not reach a sis instance at ${instanceHost(origin)}.`;
       busy = false;
       return;
     }
@@ -55,7 +55,7 @@
     <div class="connect-card">
       <div class="logo-mark"><Wordmark /></div>
       <h1 class="connect-title">Connect to an instance</h1>
-      <p class="connect-desc">SIS is self-hosted. Enter the address of the server you want this app to use.</p>
+      <p class="connect-desc">sis is self-hosted. Enter the address of the server you want this app to use.</p>
 
       <form onsubmit={submit}>
         <input
