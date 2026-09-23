@@ -7,6 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import IconLock from '$lib/icons/IconLock.svelte';
   import { instanceOrigin, isForeignInstance, isNativeApp, instanceLabel } from '$lib/instance';
+  import Wordmark from '$lib/components/Wordmark.svelte';
 
   let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
@@ -71,7 +72,7 @@
   <div class="login-container">
     <div class="login-card">
       <div class="logo-area">
-        <div class="logo-mark">SIS</div>
+        <div class="logo-mark"><Wordmark /></div>
       </div>
 
       {#if errorMessage}
@@ -148,11 +149,10 @@
   }
 
   .logo-mark {
+    display: flex;
+    justify-content: center;
     font-size: 2.8rem;
-    font-weight: 800;
-    color: var(--accent);
-    letter-spacing: -0.02em;
-    line-height: 1;
+    color: var(--text);
   }
 
   .login-error {

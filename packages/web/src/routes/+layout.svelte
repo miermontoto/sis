@@ -12,6 +12,7 @@
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import Wordmark from '$lib/components/Wordmark.svelte';
   import { apiBase, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
   import { formatDuration } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
@@ -355,7 +356,7 @@
   });
 
   const navGroups = [
-    // en escritorio el grupo no existe: el dashboard es el logo SIS de la cabecera
+    // en escritorio el grupo no existe: el dashboard es el logo de la cabecera
     // (la columna no cabía con todo) y History se llega desde "Recent plays" del
     // dashboard, la tarjeta de sesión, las stat cards y el atajo `h`. Ambos siguen
     // en `nav` para que la cabecera móvil titule la página
@@ -523,7 +524,7 @@
       <div class="sidebar-top">
         <div class="sidebar-head">
           <div class="sidebar-logo">
-            <a href="/" class="sidebar-logo-mark" class:active={isNavActive('/')} aria-current={isNavActive('/') ? 'page' : undefined} title="Dashboard">SIS</a>
+            <a href="/" class="sidebar-logo-mark" class:active={isNavActive('/')} aria-current={isNavActive('/') ? 'page' : undefined} title="Dashboard"><Wordmark /></a>
           </div>
           <button
             type="button"
@@ -784,7 +785,7 @@
     </aside>
     <main class="main-content">
       <div class="mobile-header">
-        <span class="mobile-header-title"><span class="mobile-header-logo">SIS</span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
+        <span class="mobile-header-title"><span class="mobile-header-logo"><Wordmark /></span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
         <div class="mobile-header-right">
           <button class="mobile-search-bar" onclick={() => showSearch = true}>
             Search...

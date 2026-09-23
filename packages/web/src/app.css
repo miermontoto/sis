@@ -171,18 +171,14 @@ a:hover {
 
 /* el logo es el enlace al dashboard (el grupo Listen no cabía en la columna):
    brillo al pasar el ratón y subrayado en acento cuando estás en él, como las
-   pestañas .tab. No un punto: un punto verde es el indicador de directo */
+   pestañas .tab. No un punto: un punto verde es el indicador de directo (el de
+   la i del wordmark es parte del logo, estático). El wordmark mide 1em */
 .sidebar-logo-mark {
   display: inline-block;
-  padding-bottom: 0.15rem;
+  padding-bottom: 0.2rem;
   border-bottom: 2px solid transparent;
-  font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: 0.06em;
-  line-height: 1.1;
-  text-shadow: 0 0 10px rgba(29, 185, 84, 0.4);
+  font-size: 1.35rem;
+  color: var(--text);
   transition: color 0.05s, border-color 0.05s;
 }
 
@@ -2218,7 +2214,10 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     margin-bottom: 1rem;
   }
 
+  /* baseline: el pie del wordmark se apoya en la línea base del título */
   .mobile-header-title {
+    display: inline-flex;
+    align-items: baseline;
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--text);
@@ -2226,11 +2225,8 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   }
 
   .mobile-header-logo {
-    font-family: var(--font-mono);
-    color: var(--accent);
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-shadow: 0 0 10px rgba(29, 185, 84, 0.4);
+    display: inline-flex;
+    font-size: 1.25rem;
   }
 
   .mobile-header-sep {

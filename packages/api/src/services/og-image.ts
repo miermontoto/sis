@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { WORDMARK, wordmarkHeight, wordmarkSvg } from '@sis/shared';
 import { dbRead } from '../db/read-pool.js';
 import { getRangeStart } from '../db/queries/index.js';
 import { OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_CACHE_MS } from '../constants.js';
@@ -20,6 +21,7 @@ const LAYOUT = {
   coverSize: 232,
   coverGap: 24,
   coverRadius: 16,
+  brandWidth: 52, // wordmark de la esquina: su x-height ronda la de las mayúsculas del pie
 } as const;
 
 // mismo fondo que el body del SPA
@@ -113,7 +115,7 @@ export async function generateOgImage(token: string, user: User, range: TimeRang
   ]);
   const albums = await Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row)));
 
-  const { pad, avatarSize, coverSize, coverGap, coverRadius } = LAYOUT;
+  const { pad, avatarSize, coverSize, coverGap, coverRadius, brandWidth } = LAYOUT;
   const name = escapeXml(user.displayName ?? user.spotifyId);
   const statsLine = escapeXml(
     `${summary.play_count.toLocaleString('en-US')} plays · ${formatHours(summary.total_ms)} · ${summary.distinct_artists.toLocaleString('en-US')} artistas`
@@ -122,13 +124,14 @@ export async function generateOgImage(token: string, user: User, range: TimeRang
 
   // base: fondo + textos (las imágenes van por composite)
   const textX = pad + avatarSize + 36;
+  const footerY = OG_IMAGE_HEIGHT - pad + 18;
   const baseSvg = `<svg width="${OG_IMAGE_WIDTH}" height="${OG_IMAGE_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
     <rect width="100%" height="100%" fill="${BG_COLOR}"/>
     <rect x="0" y="0" width="100%" height="6" fill="${ACCENT_COLOR}"/>
     <text x="${textX}" y="${pad + 62}" font-family="DejaVu Sans, sans-serif" font-size="56" font-weight="bold" fill="${TEXT_COLOR}">${name}</text>
     <text x="${textX}" y="${pad + 112}" font-family="DejaVu Sans, sans-serif" font-size="30" fill="${MUTED_COLOR}">${statsLine}</text>
-    <text x="${pad}" y="${OG_IMAGE_HEIGHT - pad + 18}" font-family="DejaVu Sans, sans-serif" font-size="26" fill="${MUTED_COLOR}">${rangeLabel}</text>
-    <text x="${OG_IMAGE_WIDTH - pad}" y="${OG_IMAGE_HEIGHT - pad + 18}" font-family="DejaVu Sans, sans-serif" font-size="26" font-weight="bold" fill="${ACCENT_COLOR}" text-anchor="end">SIS</text>
+    <text x="${pad}" y="${footerY}" font-family="DejaVu Sans, sans-serif" font-size="26" fill="${MUTED_COLOR}">${rangeLabel}</text>
+    ${wordmarkSvg(WORDMARK, OG_IMAGE_WIDTH - pad - brandWidth, footerY - wordmarkHeight(WORDMARK, brandWidth), brandWidth, TEXT_COLOR, ACCENT_COLOR)}
   </svg>`;
 
   const composites: sharp.OverlayOptions[] = [];

@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { api, PublicShareError, type ProfileResponse, type TimeRange } from '$lib/api';
   import { formatDuration, formatNumber, formatSmartDate } from '$lib/utils/format';
+  import Wordmark from '$lib/components/Wordmark.svelte';
 
   // vista pública sin sesión: usa exclusivamente publicFetch (vía api.publicShareProfile),
   // nunca apiFetch (que redirige a /login en 401 y usa cache namespaced).
@@ -190,7 +191,7 @@
   {/if}
 
   <footer class="share-footer">
-    powered by <span class="share-footer-brand">SIS</span>
+    powered by <span class="share-footer-brand"><Wordmark /></span>
   </footer>
 </div>
 
@@ -464,8 +465,10 @@
     color: var(--text-muted, #9aa3ad);
   }
 
+  /* el wordmark mide 1em: algo más grande que el texto del pie para que se lea como marca */
   .share-footer-brand {
-    color: var(--accent, #1db954);
-    font-weight: 700;
+    display: inline-block;
+    font-size: 1.3em;
+    color: var(--text, #e0e8e8);
   }
 </style>

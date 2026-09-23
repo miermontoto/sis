@@ -6,6 +6,7 @@
   import { goto } from '$app/navigation';
   import { OFFICIAL_INSTANCE, hasInstance, instanceLabel, isNativeApp, probeInstance, switchInstance } from '$lib/instance';
   import { instanceHost, normalizeInstanceUrl } from '$lib/utils/instance-url';
+  import Wordmark from '$lib/components/Wordmark.svelte';
 
   const LOGIN_ROUTE = '/login';
   const officialHost = instanceHost(OFFICIAL_INSTANCE);
@@ -52,7 +53,7 @@
 <div class="connect-page">
   <div class="connect-container">
     <div class="connect-card">
-      <div class="logo-mark">SIS</div>
+      <div class="logo-mark"><Wordmark /></div>
       <h1 class="connect-title">Connect to an instance</h1>
       <p class="connect-desc">SIS is self-hosted. Enter the address of the server you want this app to use.</p>
 
@@ -111,11 +112,10 @@
   }
 
   .logo-mark {
+    display: flex;
+    justify-content: center;
     font-size: 2.8rem;
-    font-weight: 800;
-    color: var(--accent);
-    letter-spacing: -0.02em;
-    line-height: 1;
+    color: var(--text);
     margin-bottom: 1.5rem;
   }
 
