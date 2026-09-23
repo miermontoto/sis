@@ -299,10 +299,10 @@
   });
 
   // rutas sin chrome ni auth gate: login + picker de instancia (apk) + vistas
-  // públicas de share links + política de privacidad (debe ser accesible sin
-  // sesión, p.ej. revisión de stores)
+  // públicas de share links + privacidad y soporte (deben ser accesibles sin
+  // sesión: las stores exigen ambas urls)
   function isBareRoute(pathname: string): boolean {
-    return pathname === '/login' || pathname === CONNECT_ROUTE || pathname === '/privacy' || pathname.startsWith('/s/');
+    return pathname === '/login' || pathname === CONNECT_ROUTE || pathname === '/privacy' || pathname === '/support' || pathname.startsWith('/s/');
   }
 
   $effect(() => {
