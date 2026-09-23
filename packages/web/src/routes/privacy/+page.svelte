@@ -12,7 +12,7 @@
     lang="en"
     appName="SIS"
     authProvider="Spotify"
-    contactEmail="gplay@mier.info"
+    contactEmail="support@mier.info"
     updated="2026-06-08"
   >
     <section class="privacy-extra">
