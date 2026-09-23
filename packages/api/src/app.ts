@@ -22,6 +22,7 @@ import lastfm from './routes/lastfm.js';
 import mierid from './routes/mierid.js';
 import { listenbrainzApi, listenTokenRoutes } from './routes/listens.js';
 import publicRoutes from './routes/public.js';
+import supportRoute from './routes/support.js';
 import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
@@ -111,6 +112,9 @@ app.route('/1', listenbrainzApi);
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente
 // exentas del auth gate; nunca devuelven 401
 app.route('/public', publicRoutes);
+
+// página pública de soporte (stores): raíz, sin gate, antes del fallback de la spa
+app.route('/support', supportRoute);
 
 // guarda una imagen subida en data/covers/ y devuelve su ruta pública. la comparten
 // portadas de álbum y fotos de artista: mismo asset, mismos límites, mismo directorio.
