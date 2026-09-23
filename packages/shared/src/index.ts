@@ -86,3 +86,7 @@ export type { PeriodBounds } from './periods.js';
 // reports periódicos
 export type { ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone } from './reports.js';
 export { REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT, REPORT_INDEX_HISTORY } from './constants.js';
+
+// logo (wordmark "sis"): geometría compartida por la web, la imagen og y los assets
+export type { Wordmark } from './brand.js';
+export { WORDMARK, WORDMARK_BOLD, wordmarkHeight, wordmarkSvg } from './brand.js';
