@@ -9,7 +9,13 @@
   import { instanceOrigin, isForeignInstance, isNativeApp, instanceLabel } from '$lib/instance';
   import Wordmark from '$lib/components/Wordmark.svelte';
 
-  let returnTo = $derived(page.url.searchParams.get('returnTo') || '/');
+  // un returnTo que apunta al propio login (urls que dejó el bucle de 401) vuelve al
+  // dashboard: tras autenticarse aterrizaría otra vez aquí
+  const LOGIN_PATH = '/login';
+  let returnTo = $derived.by(() => {
+    const target = page.url.searchParams.get('returnTo') || '/';
+    return target.startsWith(LOGIN_PATH) ? '/' : target;
+  });
   let loginHref = $derived('/auth/login?returnTo=' + encodeURIComponent(returnTo));
   let lastfmHref = $derived('/auth/lastfm/login?returnTo=' + encodeURIComponent(returnTo));
   let mieridHref = $derived('/auth/mierid/login?returnTo=' + encodeURIComponent(returnTo));

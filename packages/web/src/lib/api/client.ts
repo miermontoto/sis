@@ -66,11 +66,21 @@ function walkAssets(value: unknown, origin: string): void {
   }
 }
 
+const LOGIN_PATH = '/login';
+
+// 401 → login conservando la vista actual. Desde el propio login no redirige:
+// una petición sin sesión hecha ahí (el layout monta en todas las rutas) recargaba
+// /login anidando su propia url en returnTo en cada vuelta, un bucle infinito
+export function redirectToLogin(): void {
+  if (window.location.pathname === LOGIN_PATH) return;
+  window.location.href = `${LOGIN_PATH}?returnTo=` + encodeURIComponent(window.location.pathname + window.location.search);
+}
+
 // fetch crudo (sin cache). Maneja 401 → redirect a login.
 async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, signal ? { signal } : undefined);
   if (res.status === 401) {
-    window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
+    redirectToLogin();
     throw new Error('No autorizado');
   }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -83,7 +93,7 @@ async function rawFetch<T>(url: string, signal?: AbortSignal): Promise<T> {
 async function readNdjson<T>(url: string, onItem?: (item: T) => void, signal?: AbortSignal): Promise<T[]> {
   const res = await fetch(url, signal ? { signal } : undefined);
   if (res.status === 401) {
-    window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
+    redirectToLogin();
     throw new Error('No autorizado');
   }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -332,7 +342,7 @@ export async function apiMutate<T>(method: string, path: string, body?: unknown,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) {
-    window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
+    redirectToLogin();
     throw new Error('No autorizado');
   }
   if (!res.ok) {

@@ -158,10 +158,6 @@
     showUserMenu = false;
   }
 
-  // el índice de colecciones se carga una vez: es lo que deja al menú contextual
-  // decidir de forma síncrona si ofrece "add to collection"
-  onMount(() => { collectionsStore.ensure(); });
-
   onMount(async () => {
     if (pwaInfo) {
       const { registerSW } = await import('virtual:pwa-register');
@@ -330,6 +326,10 @@
             sessionRankDisplay = getSessionRankDisplay();
             sidebarCollapsed = getSidebarCollapsed();
             closedChartsStore.refresh();
+            // el índice de colecciones se carga una vez: es lo que deja al menú contextual
+            // decidir de forma síncrona si ofrece "add to collection". Sólo tras el gate:
+            // pedido en onMount corría también en /login y su 401 lo recargaba en bucle
+            collectionsStore.ensure();
             nowPlayingStore.startPolling();
             if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
             // namespacing del cache por usuario + limpieza foreign/LRU + prewarming
