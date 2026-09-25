@@ -5,7 +5,7 @@ import { PLAYLIST_SCOPES } from '../../constants.js';
 import { hasRequiredScopes } from '../../services/token-manager.js';
 import { spotifyFetchRaw } from '../../services/spotify-client.js';
 import { enrichTrack, getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlaylistSeries } from '../../db/queries/index.js';
-import { syncUserPlaylists } from '../../services/playlist-sync.js';
+import { syncUserPlaylists, syncLibraryPlaylist } from '../../services/playlist-sync.js';
 import type { AppVariables } from '../../app.js';
 
 const library = new Hono<{ Variables: AppVariables }>();
@@ -40,6 +40,12 @@ library.post('/library/sync', async (c) => {
   const userId = c.get('userId');
   await syncUserPlaylists(userId);
   return c.json({ success: true });
+});
+
+// refresco manual de una sola playlist (botón del detalle)
+library.post('/library/:id{[0-9]+}/sync', async (c) => {
+  const ok = await syncLibraryPlaylist(c.get('userId'), parseInt(c.req.param('id')));
+  return ok ? c.json({ success: true }) : c.json({ error: 'playlist no encontrada' }, 404);
 });
 
 // agregar track a playlist

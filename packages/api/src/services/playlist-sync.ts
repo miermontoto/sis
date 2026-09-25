@@ -112,6 +112,38 @@ async function syncPlaylistTracks(userId: number, spotifyPlaylistId: string, dbP
   return collected.length;
 }
 
+// refresco manual de UNA playlist desde su detalle: re-sincroniza los tracks aunque
+// el snapshot no haya cambiado (lo pide el usuario) sin paginar la biblioteca entera.
+// devuelve false si la playlist no es del usuario o spotify no la sirve
+export async function syncLibraryPlaylist(userId: number, dbPlaylistId: number): Promise<boolean> {
+  const db = getDb();
+  const row = db.get(sql`
+    SELECT spotify_id FROM spotify_playlists WHERE id = ${dbPlaylistId} AND user_id = ${userId}
+  `) as { spotify_id: string } | undefined;
+  if (!row) return false;
+
+  const pl = await spotifyFetch<SpotifyPlaylistsResponse['items'][number]>(`/playlists/${row.spotify_id}`, { userId });
+  if (!pl) return false;
+
+  const now = new Date().toISOString();
+  db.run(sql`
+    UPDATE spotify_playlists SET
+      name = ${pl.name},
+      image_url = ${pl.images?.[0]?.url ?? null},
+      owner_name = ${pl.owner.display_name},
+      is_algorithmic = ${isAlgorithmic(pl.owner.id) ? 1 : 0},
+      track_count = ${pl.tracks.total},
+      snapshot_id = ${pl.snapshot_id},
+      last_synced_at = ${now},
+      updated_at = ${now}
+    WHERE id = ${dbPlaylistId}
+  `);
+  const count = await syncPlaylistTracks(userId, row.spotify_id, dbPlaylistId);
+  rebuildPlaylistSearchIndex(db, userId);
+  log.info(`~ ${pl.name} (${count} tracks, manual refresh)`);
+  return true;
+}
+
 export async function syncUserPlaylists(userId: number): Promise<void> {
   const db = getDb();
   const seenSpotifyIds = new Set<string>();

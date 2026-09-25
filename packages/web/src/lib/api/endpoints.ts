@@ -358,6 +358,9 @@ export const api = {
   syncLibrary: () =>
     apiMutate<{ success: boolean }>('POST', '/playlists/library/sync'),
 
+  syncLibraryPlaylist: (id: number) =>
+    apiMutate<{ success: boolean }>('POST', `/playlists/library/${id}/sync`),
+
   addTrackToPlaylist: (playlistId: number, trackId: string) =>
     apiMutate<{ success: boolean }>('POST', `/playlists/library/${playlistId}/tracks`, { trackId }),
 

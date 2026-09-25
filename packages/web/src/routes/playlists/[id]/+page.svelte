@@ -11,6 +11,7 @@
   import { openEntityContextMenu } from '$lib/utils/entity-context';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
+  import IconRefresh from '$lib/icons/IconRefresh.svelte';
 
   // la cifra de tiempo se pulsa y cambia de unidad (misma tarjeta que en insights)
   const listening = createDurationUnit('minutes');
@@ -20,6 +21,7 @@
   let loading = $state(true);
   let metric = $state<RankingMetric>('time');
   let playActing = $state(false);
+  let refreshing = $state(false);
 
   async function loadData(id: string) {
     loading = true;
@@ -31,6 +33,23 @@
       loading = false;
     }
   }
+
+  // re-sincroniza la playlist con spotify y relee el detalle (la mutación ya purga su cache)
+  async function refresh() {
+    if (!data) return;
+    refreshing = true;
+    try {
+      await api.syncLibraryPlaylist(data.playlist.id);
+      await loadData(String(data.playlist.id));
+    } catch {
+      // se queda con los datos que ya había
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  // misma altura en las dos gráficas para que las tarjetas cuadren lado a lado
+  const CHART_HEIGHT = '280px';
 
   let initialized = false;
   onMount(() => {
@@ -66,7 +85,6 @@
   <div class="loading"><div class="spinner"></div></div>
 {:else if data}
   {@const pl = data.playlist}
-  {@const cov = data.coverage}
 
   <!-- Hero -->
   <div class="hero">
@@ -84,6 +102,15 @@
       </div>
     </div>
     <div class="hero-actions">
+      <button
+        class="refresh-btn"
+        class:refresh-btn--spinning={refreshing}
+        title="Refresh from Spotify"
+        disabled={refreshing}
+        onclick={refresh}
+      >
+        <IconRefresh />
+      </button>
       <button
         class="play-entity-btn"
         title="Play on Spotify"
@@ -124,35 +151,30 @@
       <div class="stat-label">listening time</div>
     </button>
     <div class="stat-card">
-      <div class="stat-value">{cov.tracksPlayed}/{cov.totalTracks}</div>
+      <div class="stat-value">{data.coverage.tracksPlayed}/{data.coverage.totalTracks}</div>
       <div class="stat-label">tracks played</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-value">{cov.percent}%</div>
-      <div class="stat-label">coverage</div>
-    </div>
   </div>
 
-  <!-- Coverage bar -->
-  <div class="coverage-section">
-    <div class="coverage-bar-lg">
-      <div class="coverage-fill-lg" style="width: {cov.percent}%"></div>
-    </div>
-  </div>
-
-  <!-- Time series -->
-  {#if data.series.length > 0}
-    <div class="card">
-      <h2>Listening over time</h2>
-      <BaseChart option={seriesChart} height="250px" />
-    </div>
-  {/if}
-
-  <!-- Genres -->
-  {#if data.genres.length > 0}
-    <div class="card">
-      <h2>Genres</h2>
-      <GenrePie genres={data.genres.slice(0, PIE_MAX_SLICES)} unit="plays" height="300px" />
+  <!-- gráficas: lado a lado con ancho suficiente (.section-grid), una sola va a ancho completo -->
+  {#if data.series.length > 0 || data.genres.length > 0}
+    <div class="section-grid charts-grid">
+      {#if data.series.length > 0}
+        <section class="detail-section detail-section--half">
+          <div class="card">
+            <h2>Listening over time</h2>
+            <BaseChart option={seriesChart} height={CHART_HEIGHT} />
+          </div>
+        </section>
+      {/if}
+      {#if data.genres.length > 0}
+        <section class="detail-section detail-section--half">
+          <div class="card">
+            <h2>Genres</h2>
+            <GenrePie genres={data.genres.slice(0, PIE_MAX_SLICES)} unit="plays" height={CHART_HEIGHT} />
+          </div>
+        </section>
+      {/if}
     </div>
   {/if}
 
@@ -257,7 +279,7 @@
 
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.75rem;
     margin-bottom: 1rem;
   }
@@ -278,19 +300,27 @@
     margin-top: 0.2rem;
   }
 
-  .coverage-section { margin-bottom: 1.5rem; }
-  .coverage-bar-lg {
-    height: 6px;
-    background: var(--border);
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    width: 32px;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    overflow: hidden;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.05s, border-color 0.05s;
   }
-  .coverage-fill-lg {
-    height: 100%;
-    background: var(--accent);
-    border-radius: var(--radius);
-    transition: width 0.12s;
-  }
+  .refresh-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text-muted); }
+  .refresh-btn:disabled { cursor: default; }
+  .refresh-btn--spinning :global(svg) { animation: spin 0.8s linear infinite; }
+
+  /* el hueco entre tarjetas lo pone el gap de la rejilla; hasta la lista de tracks, su margen */
+  .charts-grid { margin-bottom: 1.5rem; }
+  .charts-grid .card { height: 100%; margin-bottom: 0; }
 
   .card {
     background: var(--bg-card);
@@ -378,6 +408,5 @@
     .hero { flex-direction: column; text-align: center; }
     .hero-img { width: 120px; height: 120px; }
     .hero-meta { justify-content: center; flex-wrap: wrap; }
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
