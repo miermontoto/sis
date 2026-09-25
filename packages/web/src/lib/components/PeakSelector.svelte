@@ -108,12 +108,20 @@
     font-weight: 500;
     color: var(--text-muted);
   }
+  /* la variante lg vive dentro de las .cs-badge de ChartStats, junto a badges de
+     texto normal: hereda su interlineado (el del body) en vez del 1.1 compacto de
+     /charts, que si no juntaba cifra y etiqueta ~6px más que sus vecinas */
   .peak-selector--lg .peak-val {
     font-size: var(--fs-lg);
+    line-height: inherit;
   }
   .peak-selector--lg .peak-label {
     font-size: var(--fs-xs);
     letter-spacing: var(--track);
+    line-height: inherit;
+  }
+  .peak-selector--lg .peak-trigger {
+    line-height: inherit;
   }
   .peak-selector--lg .peak-times {
     font-size: var(--fs-sm);
