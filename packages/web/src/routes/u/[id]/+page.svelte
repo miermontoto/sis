@@ -231,6 +231,7 @@
     gap: 0.4rem;
     color: var(--text-muted);
     font-size: var(--fs-md);
+    margin-top: 0.25rem;
   }
 
   .profile-actions {
