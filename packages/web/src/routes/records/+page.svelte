@@ -680,7 +680,7 @@
     font-variant-numeric: tabular-nums;
     font-size: var(--fs-md);
     font-weight: 600;
-    color: var(--text);
+    color: var(--accent);
   }
   .record-week {
     font-size: var(--fs-xs);

@@ -247,7 +247,7 @@
     font-variant-numeric: tabular-nums;
     font-size: var(--fs-lg);
     font-weight: 700;
-    color: var(--text);
+    color: var(--accent);
   }
   .cs-val--muted {
     color: var(--text-muted);

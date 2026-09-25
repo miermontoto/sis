@@ -669,8 +669,7 @@ a:hover {
   font-size: clamp(0.95rem, 2.5vw, 1.8rem);
   font-weight: 700;
   letter-spacing: var(--track);
-  /* las cifras van en tinta: el verde se reserva para estado activo, acciones, directo y deltas */
-  color: var(--text);
+  color: var(--accent);
   max-width: 100%;
   overflow-wrap: break-word;
   line-height: 1.2;
@@ -855,7 +854,7 @@ a.track-item {
 }
 
 .track-share {
-  color: var(--text-muted);
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   font-weight: 500;
@@ -885,7 +884,7 @@ a.track-item {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: var(--text);
+  color: var(--accent);
 }
 
 .track-time {
