@@ -12,6 +12,8 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconRefresh from '$lib/icons/IconRefresh.svelte';
+  import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
+  import { extractColor } from '$lib/utils/color';
 
   // la cifra de tiempo se pulsa y cambia de unidad (misma tarjeta que en insights)
   const listening = createDurationUnit('minutes');
@@ -22,11 +24,17 @@
   let metric = $state<RankingMetric>('time');
   let playActing = $state(false);
   let refreshing = $state(false);
+  // tinte del hero sacado de la portada, como en el resto de detalles ("r,g,b")
+  let heroColor = $state('');
 
   async function loadData(id: string) {
     loading = true;
     try {
       data = await api.libraryPlaylistDetail(parseInt(id), metric);
+      const imageUrl = data?.playlist.imageUrl;
+      if (!imageUrl) heroColor = '';
+      // sólo pinta si la portada sigue siendo la misma al resolver (navegar entre playlists)
+      else extractColor(imageUrl).then((rgb) => { if (data?.playlist.imageUrl === imageUrl) heroColor = rgb.join(','); });
     } catch {
       data = null;
     } finally {
@@ -86,31 +94,24 @@
 {:else if data}
   {@const pl = data.playlist}
 
-  <!-- Hero -->
-  <div class="hero">
-    {#if pl.imageUrl}
-      <img class="hero-img" src={pl.imageUrl} alt={pl.name} />
-    {:else}
-      <div class="hero-img placeholder"></div>
-    {/if}
-    <div class="hero-info">
-      <h1>{pl.name}</h1>
-      <div class="hero-meta">
-        {#if pl.ownerName}<span>by {pl.ownerName}</span>{/if}
-        <span>{pl.trackCount} tracks</span>
-        {#if pl.isAlgorithmic}<span class="badge algo">Algorithmic</span>{/if}
+  <DetailBackdrop color={heroColor} />
+
+  <!-- mismo hero que los detalles de artista, álbum, tema y bolo (clases globales de app.css) -->
+  <div class="detail-hero-row">
+    <div class="detail-hero">
+      {#if pl.imageUrl}
+        <img class="detail-image" src={pl.imageUrl} alt={pl.name} />
+      {:else}
+        <div class="detail-image"></div>
+      {/if}
+      <div class="detail-header-info">
+        <div class="data-label">{pl.isAlgorithmic ? 'Algorithmic playlist' : 'Playlist'}</div>
+        <h1>{pl.name}</h1>
+        {#if pl.ownerName}<p class="detail-subtitle">by {pl.ownerName}</p>{/if}
+        <p class="detail-meta-line">{formatNumber(pl.trackCount)} tracks</p>
       </div>
     </div>
     <div class="hero-actions">
-      <button
-        class="refresh-btn"
-        class:refresh-btn--spinning={refreshing}
-        title="Refresh from Spotify"
-        disabled={refreshing}
-        onclick={refresh}
-      >
-        <IconRefresh />
-      </button>
       <button
         class="play-entity-btn"
         title="Play on Spotify"
@@ -122,6 +123,15 @@
         }}
       >
         <IconPlay />
+      </button>
+      <button
+        class="refresh-btn"
+        class:refresh-btn--spinning={refreshing}
+        title="Refresh from Spotify"
+        disabled={refreshing}
+        onclick={refresh}
+      >
+        <IconRefresh />
       </button>
     </div>
   </div>
@@ -239,39 +249,6 @@
     animation: spin 0.6s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  .hero {
-    display: flex;
-    gap: 1.5rem;
-    align-items: center;
-    margin-bottom: 1.5rem;
-  }
-  .hero-img {
-    width: 160px;
-    height: 160px;
-    border-radius: var(--radius);
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .hero-img.placeholder {
-    background: var(--bg-card);
-  }
-  .hero-info { flex: 1; }
-  .hero-info h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
-  .hero-meta {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  }
-  .badge.algo {
-    background: rgba(255, 165, 0, 0.15);
-    color: orange;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-  }
 
   .embed-section {
     margin-bottom: 1.5rem;
@@ -402,11 +379,5 @@
     color: var(--text-muted);
     text-align: center;
     padding: 4rem;
-  }
-
-  @media (max-width: 768px) {
-    .hero { flex-direction: column; text-align: center; }
-    .hero-img { width: 120px; height: 120px; }
-    .hero-meta { justify-content: center; flex-wrap: wrap; }
   }
 </style>
