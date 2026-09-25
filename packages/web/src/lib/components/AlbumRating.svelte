@@ -141,7 +141,6 @@
      que el gap visual y la alineación queden como en el resto de líneas */
   .album-rating {
     position: relative;
-    margin-top: 0.1rem;
   }
   .rating-stars {
     display: flex;
