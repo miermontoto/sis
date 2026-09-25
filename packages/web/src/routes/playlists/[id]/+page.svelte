@@ -119,18 +119,10 @@
         <div class="data-label">{pl.isAlgorithmic ? 'Algorithmic playlist' : 'Playlist'}</div>
         <h1>{pl.name}</h1>
         {#if pl.ownerName}<p class="detail-subtitle">by {pl.ownerName}</p>{/if}
+        <!-- rango de altas: primera → última (una sola fecha si coinciden) -->
         <p class="detail-meta-line">
-          {formatNumber(pl.trackCount)} tracks{#if lengthMs > 0}{' · '}{formatDuration(lengthMs)}{/if}
+          {formatNumber(pl.trackCount)} tracks{#if lengthMs > 0}{' · '}{formatDuration(lengthMs)}{/if}{#if addedRange}{' · '}{addedRange.first}{#if addedRange.last !== addedRange.first}{' → '}{addedRange.last}{/if}{/if}
         </p>
-        {#if addedRange}
-          <p class="detail-meta-line">
-            {#if addedRange.first === addedRange.last}
-              Added {addedRange.first}
-            {:else}
-              First added {addedRange.first} &middot; last added {addedRange.last}
-            {/if}
-          </p>
-        {/if}
       </div>
     </div>
     <div class="hero-actions">
