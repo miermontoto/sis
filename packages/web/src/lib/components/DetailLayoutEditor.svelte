@@ -175,14 +175,14 @@
   .dl-tab {
     background: none; border: none; color: var(--text-muted);
     padding: 0.25rem 0.6rem; border-radius: var(--radius); cursor: pointer;
-    font-size: 0.78rem; font-weight: 500; transition: all 0.05s;
+    font-size: var(--fs-sm); font-weight: 500; transition: all 0.05s;
   }
   .dl-tab:hover { color: var(--text); }
   .dl-tab--active { background: var(--accent); color: #fff; }
   .dl-reset {
     margin-left: auto; background: none; border: 1px solid var(--border);
     color: var(--text-muted); padding: 0.2rem 0.55rem; border-radius: var(--radius);
-    cursor: pointer; font-size: 0.72rem; transition: all 0.05s;
+    cursor: pointer; font-size: var(--fs-xs); transition: all 0.05s;
   }
   .dl-reset:hover { color: var(--accent); border-color: var(--accent); }
 
@@ -192,7 +192,7 @@
 
   .dl-zone { display: flex; flex-direction: column; gap: 0.35rem; }
   .dl-zone-title {
-    font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: var(--track);
     color: var(--text-muted); font-weight: 600;
   }
   .dl-list {
@@ -219,7 +219,7 @@
   .dl-handle:active { cursor: grabbing; }
   .dl-handle svg { fill: currentColor; }
 
-  .dl-label { flex: 1; min-width: 0; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl-label { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .dl-eye {
     display: flex; align-items: center; justify-content: center;
@@ -229,7 +229,7 @@
   .dl-eye:hover { color: var(--accent); }
 
   .dl-empty {
-    font-size: 0.72rem; color: var(--text-muted); text-align: center;
+    font-size: var(--fs-xs); color: var(--text-muted); text-align: center;
     padding: 0.4rem; opacity: 0.7;
   }
 </style>

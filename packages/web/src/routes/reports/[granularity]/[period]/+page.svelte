@@ -467,7 +467,7 @@
     gap: 1rem;
   }
   .report-arrow {
-    font-size: 1.2rem;
+    font-size: var(--fs-lg);
     line-height: 1;
     padding: 0.35rem 0.7rem;
     text-decoration: none;
@@ -481,13 +481,13 @@
     flex-direction: column;
   }
   .report-title h1 {
-    font-size: 2rem;
+    font-size: var(--fs-2xl);
     font-weight: 700;
     line-height: 1.15;
   }
   .report-range {
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
   .report-actions {
     display: flex;
@@ -590,18 +590,18 @@
     margin-bottom: 1.5rem;
   }
   .report-discovery-lead {
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     line-height: 1.4;
     margin-bottom: 1rem;
   }
   .report-discovery-pct {
-    font-size: 2rem;
+    font-size: var(--fs-2xl);
     color: var(--accent);
     margin-right: 0.35rem;
   }
   .report-discovery-sub {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
   .report-discovery-tiles {
     display: grid;
@@ -636,7 +636,7 @@
     min-width: 0;
   }
   .report-month-plays {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .report-month-artist {
@@ -663,7 +663,7 @@
     background: var(--border);
   }
   .report-month-track {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .report-month-track:hover { color: var(--accent); }
@@ -678,6 +678,6 @@
     .report-discovery-tiles { grid-template-columns: 1fr; }
     .report-discovery-picks { grid-template-columns: 1fr; }
     .report-edges { grid-template-columns: 1fr; }
-    .report-title h1 { font-size: 1.5rem; }
+    .report-title h1 { font-size: var(--fs-xl); }
   }
 </style>

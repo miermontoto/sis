@@ -173,7 +173,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     line-height: 1;
     padding: 2px 4px;
     margin-left: 0.15rem;
@@ -194,7 +194,7 @@
     padding: 2px 4px;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     line-height: 1;
     cursor: pointer;
     opacity: 0;
@@ -232,7 +232,7 @@
     border-radius: var(--radius);
     color: var(--text);
     font: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     padding: 0.45rem 0.55rem;
   }
   .review-popover textarea:focus {
@@ -251,7 +251,7 @@
     border-radius: var(--radius);
     padding: 0.2rem 0.7rem;
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     transition: all 0.05s;
   }

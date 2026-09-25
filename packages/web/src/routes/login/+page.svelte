@@ -157,7 +157,7 @@
   .logo-mark {
     display: flex;
     justify-content: center;
-    font-size: 2.8rem;
+    font-size: var(--fs-3xl);
     color: var(--text);
   }
 
@@ -167,7 +167,7 @@
     color: #ffaa00;
     padding: 0.7rem 0.9rem;
     border-radius: var(--radius);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     line-height: 1.4;
     margin-bottom: 1rem;
     text-align: left;
@@ -182,7 +182,7 @@
     background: var(--accent);
     color: #000;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     padding: 0.8rem 1.5rem;
     border-radius: var(--radius);
     text-decoration: none;
@@ -221,13 +221,13 @@
     align-items: center;
     gap: 0.4rem;
     margin-top: 1.25rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
   .instance-line {
     margin-top: 0.75rem;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -237,7 +237,7 @@
   }
 
   .login-footer {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 

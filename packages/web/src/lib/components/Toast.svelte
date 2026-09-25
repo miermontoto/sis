@@ -27,7 +27,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     padding: 0.5rem 1rem;
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);

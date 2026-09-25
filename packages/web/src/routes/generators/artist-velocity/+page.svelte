@@ -274,7 +274,7 @@
     justify-content: space-between;
     align-items: center;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--border);
   }
@@ -291,7 +291,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
 
   .mode-btn.active {
@@ -315,7 +315,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -354,6 +354,6 @@
     text-align: center;
     color: var(--text-muted);
     padding: 4rem 1rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
 </style>

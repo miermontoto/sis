@@ -38,9 +38,9 @@
     background: none;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
     cursor: pointer;
     transition: color 0.05s, border-color 0.05s;
   }

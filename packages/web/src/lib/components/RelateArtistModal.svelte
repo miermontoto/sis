@@ -224,7 +224,7 @@
   }
   .relate-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-weight: 600;
   }
 
@@ -232,7 +232,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.5rem;
+    font-size: var(--fs-xl);
     cursor: pointer;
     padding: 0;
     line-height: 1;
@@ -271,26 +271,26 @@
   }
   .relate-target-name {
     font-weight: 500;
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
   }
   .relate-target-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-top: 0.1rem;
   }
 
   .relate-error {
     padding: 0.75rem 1.25rem;
-    color: #ff4444;
-    font-size: 0.85rem;
+    color: var(--danger);
+    font-size: var(--fs-md);
     background: rgba(255, 68, 68, 0.1);
   }
 
   .relate-section-title {
     padding: 0.5rem 1.25rem 0.25rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
   }
 
@@ -302,7 +302,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-family: var(--font-sans);
     outline: none;
   }
@@ -313,7 +313,7 @@
     padding: 2rem;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
 
   .relate-list {
@@ -348,14 +348,14 @@
     min-width: 0;
   }
   .relate-item-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .relate-item-plays {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -363,13 +363,13 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.2rem;
+    font-size: var(--fs-lg);
     cursor: pointer;
     padding: 0.2rem 0.4rem;
     border-radius: var(--radius);
     line-height: 1;
     flex-shrink: 0;
   }
-  .relate-remove:hover:not(:disabled) { color: #ff4444; }
+  .relate-remove:hover:not(:disabled) { color: var(--danger); }
   .relate-remove:disabled { opacity: 0.4; cursor: wait; }
 </style>

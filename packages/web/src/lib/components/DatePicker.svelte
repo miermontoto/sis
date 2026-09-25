@@ -234,7 +234,7 @@
     border-radius: var(--radius);
     color: var(--text);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding: 0.4rem 0.6rem;
     cursor: pointer;
     transition: border-color 0.05s, color 0.05s;
@@ -266,7 +266,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: var(--fs-base);
     line-height: 1;
     padding: 0.2rem 0.3rem;
     cursor: pointer;
@@ -283,7 +283,7 @@
     padding: 0.5rem;
     border-radius: var(--radius);
     background: var(--bg-card);
-    border: 1px solid rgba(29, 185, 84, 0.25);
+    border: 1px solid var(--accent-a25);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     animation: dp-pop 0.14s ease-out;
     user-select: none;
@@ -303,10 +303,10 @@
     flex: 1;
     text-align: center;
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
   }
   .dp-heading::first-letter {
@@ -319,7 +319,7 @@
     border-radius: var(--radius);
     background: none;
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: var(--fs-base);
     line-height: 1;
     cursor: pointer;
   }
@@ -336,7 +336,7 @@
   .dp-dow {
     text-align: center;
     font-family: var(--font-mono);
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
     color: var(--text-muted);
     padding: 0.15rem 0 0.3rem;
@@ -348,7 +348,7 @@
     background: none;
     color: var(--text);
     font: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-variant-numeric: tabular-nums;
     cursor: pointer;
     transition: background 0.05s, border-color 0.05s;
@@ -390,7 +390,7 @@
     border-radius: var(--radius);
     color: var(--text);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-variant-numeric: tabular-nums;
     text-align: center;
     padding: 0.3rem 0.2rem;
@@ -410,9 +410,9 @@
     background: none;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--track-tight);
     cursor: pointer;
   }
   .dp-ampm:hover,

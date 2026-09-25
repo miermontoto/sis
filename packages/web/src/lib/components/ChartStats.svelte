@@ -245,25 +245,25 @@
   .cs-val {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     font-weight: 700;
-    color: var(--accent);
+    color: var(--text);
   }
   .cs-val--muted {
     color: var(--text-muted);
   }
   .cs-total {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-weight: 500;
     color: var(--text-muted);
     margin-left: 0.15em;
   }
   .cs-label {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
   }
 
   /* chart-run grid */
@@ -283,7 +283,7 @@
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 1px solid var(--border);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
@@ -349,12 +349,12 @@
     background: rgba(255,255,255,0.02);
   }
   .run-times {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     font-weight: 500;
     opacity: 0.6;
   }
   .run-gap-count {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: #444;
   }
 </style>

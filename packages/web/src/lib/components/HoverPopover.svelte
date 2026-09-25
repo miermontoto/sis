@@ -92,7 +92,7 @@
 <style>
   .hover-root {
     --hover-tone: var(--accent);
-    --hover-tone-soft: rgba(29, 185, 84, 0.08);
+    --hover-tone-soft: var(--accent-a10);
     position: relative;
     flex-shrink: 0;
     align-self: center;
@@ -136,7 +136,7 @@
     padding: 0.5rem;
     border-radius: var(--radius);
     background: var(--bg-card);
-    border: 1px solid rgba(29, 185, 84, 0.25);
+    border: 1px solid var(--accent-a25);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     animation: hover-pop 0.14s ease-out;
   }
@@ -157,10 +157,10 @@
   /* --- contenido: clases compartidas por todos los consumidores --- */
   .hover-popover :global(.popover-title) {
     font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     padding: 0.2rem 0.4rem 0.4rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -193,16 +193,16 @@
     transition: background 0.05s;
   }
   .hover-popover :global(.popover-row--link:hover) {
-    background: rgba(29, 185, 84, 0.1);
+    background: var(--accent-a10);
   }
   .hover-popover :global(.popover-label) {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     flex: 1;
     min-width: 0;
   }
   .hover-popover :global(.popover-value) {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text);
     margin-left: auto;

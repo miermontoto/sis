@@ -1109,7 +1109,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.2rem 0.4rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     /* cifras en mono: es el mismo criterio que las etiquetas de valor del chart */
     font-family: var(--font-mono);
     white-space: nowrap;
@@ -1122,7 +1122,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.2rem 0.4rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-family: inherit;
     cursor: pointer;
   }
@@ -1147,7 +1147,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
   }
 
   .chart-mode-toggle button.active {
@@ -1168,7 +1168,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.5rem 0.75rem 0.25rem;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
 
   .vel-hidden-label {
@@ -1187,7 +1187,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-family: inherit;
     transition: color 0.05s, border-color 0.05s, background 0.05s;
   }

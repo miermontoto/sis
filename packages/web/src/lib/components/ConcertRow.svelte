@@ -141,19 +141,19 @@
     height: 36px;
   }
   .concert-tile-month {
-    font-size: 0.55rem;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
   }
   .concert-tile-day {
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     margin-top: 2px;
   }
   :global(.track-item.compact) .concert-tile-day {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 
   .concert-art--empty {

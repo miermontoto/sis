@@ -181,7 +181,7 @@
   }
 
   .changes-empty {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted, #666);
     margin: 0;
   }
@@ -203,7 +203,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.25rem 0;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-secondary, #aaa);
     min-width: 0;
   }
@@ -276,7 +276,7 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted, #666);
   }
 
@@ -287,7 +287,7 @@
   /* solo subidas: verde como la session card; NEW en accent */
   .change-badge {
     font-weight: 600;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
     text-decoration: none;
     color: #1db954;

@@ -185,9 +185,9 @@
 
   .relation-group-label {
     font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
     margin-bottom: 0.4rem;
   }

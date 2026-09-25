@@ -309,7 +309,7 @@
   .hc-title { min-width: 0; }
 
   .hc-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
     overflow: hidden;
@@ -319,7 +319,7 @@
 
   .hc-sub,
   .hc-meta {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -337,13 +337,13 @@
     align-items: baseline;
     gap: 0.25rem;
     font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text);
   }
 
   .hc-rank-label {
     font-family: var(--font-sans);
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
   }
 
@@ -365,7 +365,7 @@
 
   .hc-stat-value {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -373,7 +373,7 @@
   }
 
   .hc-stat-label {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     flex-shrink: 0;
   }
@@ -400,7 +400,7 @@
     position: absolute;
     right: 0;
     top: 0;
-    font-size: 0.55rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
   }
 
@@ -409,7 +409,7 @@
     align-items: center;
     justify-content: center;
     height: 56px;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 

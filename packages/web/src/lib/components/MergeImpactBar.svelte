@@ -102,7 +102,7 @@
     border: 1px solid rgba(255, 176, 46, 0.25);
     border-radius: var(--radius);
     padding: 0.55rem 0.75rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: opacity 0.1s;
   }
   .impact--loading { opacity: 0.6; }
@@ -123,7 +123,7 @@
     display: flex;
     gap: 0.5rem;
     align-items: baseline;
-    font-size: 0.76rem;
+    font-size: var(--fs-sm);
   }
   .impact-name {
     flex: 1;
@@ -141,7 +141,7 @@
 
   .impact-note {
     margin-top: 0.35rem;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 </style>

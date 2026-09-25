@@ -58,13 +58,13 @@
     align-items: center;
     gap: 0.3rem;
     padding: 0.1rem 0;
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-secondary, #aaa);
   }
 
   .displaced-arrow {
     color: #1db954;
-    font-size: 0.5rem;
+    font-size: var(--fs-2xs);
     flex-shrink: 0;
   }
 
@@ -89,7 +89,7 @@
   }
 
   .displaced-more {
-    font-size: 0.55rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted, #666);
     padding-top: 0.1rem;
   }

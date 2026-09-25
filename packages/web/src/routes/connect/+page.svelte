@@ -114,19 +114,19 @@
   .logo-mark {
     display: flex;
     justify-content: center;
-    font-size: 2.8rem;
+    font-size: var(--fs-3xl);
     color: var(--text);
     margin-bottom: 1.5rem;
   }
 
   .connect-title {
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     font-weight: 600;
     margin: 0 0 0.4rem;
   }
 
   .connect-desc {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
     margin: 0 0 1.25rem;
     line-height: 1.4;
@@ -138,7 +138,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     padding: 0.7rem 0.9rem;
     margin-bottom: 0.6rem;
   }
@@ -154,7 +154,7 @@
     color: #ffaa00;
     padding: 0.7rem 0.9rem;
     border-radius: var(--radius);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     line-height: 1.4;
     margin-bottom: 0.6rem;
     text-align: left;
@@ -168,7 +168,7 @@
     background: var(--accent);
     color: #000;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     padding: 0.8rem 1.5rem;
     border: none;
     border-radius: var(--radius);
@@ -189,7 +189,7 @@
 
   .connect-current {
     margin-top: 1.25rem;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 

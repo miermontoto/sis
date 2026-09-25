@@ -667,7 +667,7 @@
   /* línea de contexto bajo cada cifra: ayer, la semana pasada, el récord… */
   .stat-sub {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     margin-top: 0.35rem;
     min-height: 1em;
@@ -677,8 +677,8 @@
   }
 
   .closed-charts-card {
-    border-color: rgba(29, 185, 84, 0.3);
-    background: rgba(29, 185, 84, 0.04);
+    border-color: var(--accent-a25);
+    background: var(--accent-a05);
   }
   .closed-charts-header {
     font-family: var(--font-mono);
@@ -686,10 +686,10 @@
     align-items: center;
     gap: 0.5rem;
     color: var(--accent);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
     margin-bottom: 0.5rem;
   }
   .closed-charts-dismiss {
@@ -697,7 +697,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.2rem;
+    font-size: var(--fs-lg);
     cursor: pointer;
     padding: 0 0.2rem;
     line-height: 1;
@@ -717,7 +717,7 @@
     gap: 0.4rem;
     color: var(--text);
     text-decoration: none;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     padding: 0.3rem 0;
     transition: color 0.05s;
   }
@@ -741,7 +741,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
   .report-picks {
     display: grid;
@@ -777,7 +777,7 @@
   }
   .report-pick-name {
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -789,7 +789,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
 
   /* la lista del rail va dentro de una card, como el resto del dashboard: la
@@ -868,7 +868,7 @@
   }
   .empty-inline {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin: 0.25rem 0;
   }
 

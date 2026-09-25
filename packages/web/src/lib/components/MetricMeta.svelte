@@ -1,5 +1,5 @@
 <script lang="ts">
-  // cifra de un item de ranking: la métrica elegida en acento y la otra debajo
+  // cifra de un item de ranking: la métrica elegida en tinta y la otra debajo
   // en muted (tiempo + plays, o plays + tiempo). es el único sitio que pinta
   // ese par: listas, fichas del report y tarjetas de nº 1 lo comparten para
   // que un álbum o un artista no salga con una cifra suelta en blanco

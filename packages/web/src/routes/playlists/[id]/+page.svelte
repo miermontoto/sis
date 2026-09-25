@@ -268,11 +268,11 @@
     text-align: center;
   }
   .stat-value {
-    font-size: 1.3rem;
+    font-size: var(--fs-xl);
     font-weight: 600;
   }
   .stat-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-top: 0.2rem;
   }
@@ -306,7 +306,7 @@
     padding: 1.5rem;
     margin-bottom: 1.5rem;
   }
-  h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+  h2 { margin: 0 0 1rem; font-size: var(--fs-lg); }
 
   .track-list-detail {
     display: flex;
@@ -326,7 +326,7 @@
     width: 24px;
     text-align: right;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     flex-shrink: 0;
   }
   .track-art {
@@ -340,7 +340,7 @@
   .track-info { flex: 1; min-width: 0; }
   .track-name {
     display: block;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     color: var(--text);
     text-decoration: none;
     white-space: nowrap;
@@ -349,7 +349,7 @@
   }
   .track-name:hover { color: var(--accent); }
   .track-artists {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -367,10 +367,10 @@
     flex-shrink: 0;
     gap: 0.1rem;
   }
-  .track-plays { font-size: 0.8rem; }
-  .track-time { font-size: 0.7rem; color: var(--text-muted); }
+  .track-plays { font-size: var(--fs-sm); }
+  .track-time { font-size: var(--fs-xs); color: var(--text-muted); }
   .track-unplayed {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     opacity: 0.5;
   }

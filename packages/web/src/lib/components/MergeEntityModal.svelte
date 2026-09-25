@@ -648,7 +648,7 @@
 
   .merge-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-weight: 600;
   }
 
@@ -656,7 +656,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.5rem;
+    font-size: var(--fs-xl);
     cursor: pointer;
     padding: 0;
     line-height: 1;
@@ -703,11 +703,11 @@
 
   .merge-target-name {
     font-weight: 500;
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
   }
 
   .merge-target-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--accent);
     margin-top: 0.1rem;
   }
@@ -719,16 +719,16 @@
 
   .merge-error {
     padding: 0.75rem 1.25rem;
-    color: #ff4444;
-    font-size: 0.85rem;
+    color: var(--danger);
+    font-size: var(--fs-md);
     background: rgba(255, 68, 68, 0.1);
   }
 
   .merge-section-title {
     padding: 0.5rem 1.25rem 0.25rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
   }
 
@@ -740,7 +740,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-family: var(--font-sans);
     outline: none;
   }
@@ -751,7 +751,7 @@
     padding: 2rem;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
 
   .merge-list {
@@ -780,7 +780,7 @@
   }
 
   .merge-item:hover:not(:disabled) { background: var(--bg-hover); }
-  .merge-item--selected { background: rgba(29, 185, 84, 0.08); }
+  .merge-item--selected { background: var(--accent-a10); }
   .merge-item--existing { cursor: default; opacity: 0.9; }
 
   .merge-check {
@@ -791,7 +791,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     flex-shrink: 0;
     transition: border-color 0.05s, background 0.05s;
   }
@@ -809,7 +809,7 @@
   }
 
   .merge-item-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -817,7 +817,7 @@
   }
 
   .merge-item-plays {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -825,7 +825,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.2rem;
+    font-size: var(--fs-lg);
     cursor: pointer;
     padding: 0.2rem 0.4rem;
     border-radius: var(--radius);
@@ -833,13 +833,13 @@
     flex-shrink: 0;
   }
 
-  .merge-unmerge:hover { color: #ff4444; }
+  .merge-unmerge:hover { color: var(--danger); }
 
   .merge-swap {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     padding: 0.2rem 0.3rem;
     border-radius: var(--radius);
@@ -870,7 +870,7 @@
     color: var(--text-muted);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     font-family: var(--font-sans);
     white-space: nowrap;
@@ -885,7 +885,7 @@
     border: none;
     border-radius: var(--radius);
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     transition: opacity 0.05s;
   }
@@ -908,7 +908,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     min-width: 0;
   }
 
@@ -925,7 +925,7 @@
   .merge-badge-arrow {
     flex-shrink: 0;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
 
   .track-pair {
@@ -945,7 +945,7 @@
 
   .track-pair:hover:not(:disabled) { background: var(--bg-hover); }
   .track-pair:disabled { cursor: default; opacity: 0.5; }
-  .track-pair--matched { background: rgba(29, 185, 84, 0.05); }
+  .track-pair--matched { background: var(--accent-a05); }
   .track-pair--unmatched { opacity: 0.7; }
 
   .track-pair .merge-check { margin-top: 1px; }
@@ -959,23 +959,23 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
   }
 
   .track-pair-target {
     color: var(--accent);
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
   }
 
   .track-pair-arrow {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     padding-left: 1.4rem;
     line-height: 1;
   }
 
   .track-pair-no-match {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     padding-left: 1.4rem;
     font-style: italic;
@@ -983,7 +983,7 @@
 
   .track-num {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     min-width: 1.2rem;
     text-align: right;
     flex-shrink: 0;
@@ -999,12 +999,12 @@
 
   .track-duration {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     flex-shrink: 0;
   }
 
   .track-confidence {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     padding: 0.05rem 0.3rem;
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.08);
@@ -1013,7 +1013,7 @@
   }
 
   .track-confidence--position {
-    background: rgba(29, 185, 84, 0.15);
+    background: var(--accent-a15);
     color: var(--accent);
   }
 
@@ -1031,7 +1031,7 @@
     border: 1px dashed var(--border);
     border-radius: var(--radius);
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-family: inherit;
     cursor: pointer;
     transition: border-color 0.05s, color 0.05s;
@@ -1046,7 +1046,7 @@
   }
 
   .track-album-hint {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     max-width: 10rem;
     overflow: hidden;

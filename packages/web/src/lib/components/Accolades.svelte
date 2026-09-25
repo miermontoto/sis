@@ -268,25 +268,25 @@
   /* el trigger, el panel y las filas los estila HoverPopover; aquí sólo queda
      lo propio de los records: medallas y pills de year-end */
   .trigger-medal {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     line-height: 1;
     display: inline-flex;
     align-items: center;
   }
   .trigger-medal--text {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
   }
   .trigger-times {
     font-family: var(--font-mono);
-    font-size: 0.55rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     opacity: 0.7;
     margin-left: 0.05rem;
   }
   .trigger-more {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     opacity: 0.7;
     margin-left: 0.1rem;
@@ -300,7 +300,7 @@
     color: var(--accent);
   }
   .trigger-live-count {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
   }
 
@@ -341,7 +341,7 @@
     transition: background 0.05s;
   }
   .popover-main:hover {
-    background: rgba(29, 185, 84, 0.1);
+    background: var(--accent-a10);
   }
   .popover-value--link {
     padding: 0.35rem 0.4rem;
@@ -353,19 +353,19 @@
   }
   .popover-value--link:hover {
     color: var(--accent);
-    background: rgba(29, 185, 84, 0.1);
+    background: var(--accent-a10);
   }
 
   /* la fecha hace de columna fija a la izquierda, como la medalla en los records */
   .live-date {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     flex-shrink: 0;
   }
   .live-place {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -385,26 +385,26 @@
     gap: 0.3rem;
     padding: 0.2rem 0.55rem 0.2rem 0.4rem;
     border-radius: 999px;
-    background: rgba(29, 185, 84, 0.08);
-    border: 1px solid rgba(29, 185, 84, 0.2);
-    font-size: 0.75rem;
+    background: var(--accent-a10);
+    border: 1px solid var(--accent-a15);
+    font-size: var(--fs-sm);
     color: var(--text);
     line-height: 1.2;
     white-space: nowrap;
   }
   .popover-pill--text .pill-medal {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     color: var(--text-muted);
   }
   .pill-medal {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     line-height: 1;
   }
   .pill-count {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     color: var(--text);
     background: var(--border);
@@ -415,7 +415,7 @@
   }
   .pill-years {
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
   }
   .pill-year-link {
     color: var(--text-muted);
@@ -427,13 +427,13 @@
     text-decoration: underline;
   }
   .popover-medal {
-    font-size: 1rem;
+    font-size: var(--fs-base);
     line-height: 1;
     min-width: 1.4rem;
     text-align: center;
   }
   .popover-medal--text {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 700;
     color: var(--text-muted);
   }

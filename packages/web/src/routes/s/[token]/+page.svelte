@@ -236,13 +236,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
+    font-size: var(--fs-2xl);
     font-weight: 700;
   }
 
   .share-identity h1 {
     margin: 0;
-    font-size: 1.8rem;
+    font-size: var(--fs-display);
   }
 
   .share-np {
@@ -250,7 +250,7 @@
     align-items: center;
     gap: 0.4rem;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin-top: 0.35rem;
   }
 
@@ -280,9 +280,9 @@
     border-radius: var(--radius, 6px);
     border: 1px solid var(--border, #2a2f36);
     background: transparent;
-    color: var(--text-muted, #9aa3ad);
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     text-transform: uppercase;
   }
 
@@ -310,15 +310,15 @@
   }
 
   .share-stat-value {
-    font-size: 1.25rem;
+    font-size: var(--fs-lg);
     font-weight: 700;
   }
 
   .share-stat-label {
-    font-size: 0.68rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted, #9aa3ad);
+    letter-spacing: var(--track);
+    color: var(--text-muted);
   }
 
   .share-section {
@@ -326,10 +326,10 @@
   }
 
   .share-section h2 {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted, #9aa3ad);
+    letter-spacing: var(--track);
+    color: var(--text-muted);
     margin-bottom: 0.75rem;
   }
 
@@ -354,7 +354,7 @@
     top: 2px;
     left: 2px;
     font-family: var(--font-mono, monospace);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     background: rgba(0, 0, 0, 0.6);
     border-radius: var(--radius, 6px);
@@ -378,7 +378,7 @@
   }
 
   .share-cover-name {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     margin-top: 0.4rem;
     white-space: nowrap;
@@ -388,8 +388,8 @@
   }
 
   .share-cover-stat {
-    font-size: 0.65rem;
-    color: var(--text-muted, #9aa3ad);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
   }
 
   .share-tracks {
@@ -412,8 +412,8 @@
   .share-track::before {
     content: counter(track);
     font-family: var(--font-mono, monospace);
-    font-size: 0.72rem;
-    color: var(--text-muted, #9aa3ad);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
     width: 1.4rem;
     text-align: right;
     flex-shrink: 0;
@@ -435,7 +435,7 @@
   }
 
   .share-track-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -443,16 +443,16 @@
   }
 
   .share-track-artists {
-    font-size: 0.72rem;
-    color: var(--text-muted, #9aa3ad);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .share-track-stat {
-    font-size: 0.72rem;
-    color: var(--text-muted, #9aa3ad);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
     font-family: var(--font-mono, monospace);
     flex-shrink: 0;
   }
@@ -461,8 +461,8 @@
     margin-top: auto;
     padding-top: 2.5rem;
     text-align: center;
-    font-size: 0.72rem;
-    color: var(--text-muted, #9aa3ad);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
   }
 
   /* el wordmark mide 1em: algo más grande que el texto del pie para que se lea como marca */

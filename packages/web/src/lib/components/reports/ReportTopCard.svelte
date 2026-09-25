@@ -85,7 +85,7 @@
     overflow-wrap: anywhere;
   }
   .report-top-sub {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     min-height: 1.3em;
   }

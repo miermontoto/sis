@@ -452,7 +452,7 @@
     border: none;
     border-bottom: 1px solid var(--border);
     color: var(--text);
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-family: var(--font-sans);
     outline: none;
   }
@@ -472,9 +472,9 @@
 
   .search-section-title {
     padding: 0.25rem 1.25rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
     display: flex;
     align-items: center;
@@ -524,7 +524,7 @@
   }
 
   .search-result-name {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -532,7 +532,7 @@
   }
 
   .search-result-sub {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -576,7 +576,7 @@
   }
 
   .search-result-plays {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     flex-shrink: 0;
   }
@@ -590,7 +590,7 @@
     padding: 2rem;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
 
   .search-hint {
@@ -598,7 +598,7 @@
     gap: 1rem;
     padding: 0.5rem 1.25rem;
     border-top: 1px solid var(--border);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -607,6 +607,6 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0 0.3rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
   }
 </style>

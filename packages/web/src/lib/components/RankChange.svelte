@@ -35,7 +35,7 @@
 
 <style>
   .rank-change {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
     display: inline-flex;
     align-items: center;
@@ -46,21 +46,21 @@
     color: #1db954;
   }
   .rank-change.down {
-    color: #e34234;
+    color: var(--negative);
   }
   .rank-change.same {
     color: #666;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
   .rank-change.new {
     color: #f0c040;
-    font-size: 0.6rem;
-    letter-spacing: 0.03em;
+    font-size: var(--fs-2xs);
+    letter-spacing: var(--track-tight);
   }
   .rank-change.re {
     color: #4a9eff;
-    font-size: 0.6rem;
-    letter-spacing: 0.03em;
+    font-size: var(--fs-2xs);
+    letter-spacing: var(--track-tight);
   }
   .rank-change :global(svg) {
     flex-shrink: 0;

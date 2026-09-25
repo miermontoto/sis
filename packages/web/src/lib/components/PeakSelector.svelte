@@ -93,30 +93,38 @@
     gap: 0.25em;
   }
   .peak-val {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 700;
     line-height: 1.1;
   }
   .peak-label {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--track-tight);
   }
   .peak-times {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 500;
     color: var(--text-muted);
   }
+  /* la variante lg vive dentro de las .cs-badge de ChartStats, junto a badges de
+     texto normal: hereda su interlineado (el del body) en vez del 1.1 compacto de
+     /charts, que si no juntaba cifra y etiqueta ~6px más que sus vecinas */
   .peak-selector--lg .peak-val {
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
+    line-height: inherit;
   }
   .peak-selector--lg .peak-label {
-    font-size: 0.65rem;
-    letter-spacing: 0.05em;
+    font-size: var(--fs-xs);
+    letter-spacing: var(--track);
+    line-height: inherit;
+  }
+  .peak-selector--lg .peak-trigger {
+    line-height: inherit;
   }
   .peak-selector--lg .peak-times {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
   .peak-dropdown {
     position: absolute;
@@ -143,7 +151,7 @@
     border-radius: var(--radius);
     background: none;
     color: var(--text);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     transition: background 0.05s;
     white-space: nowrap;

@@ -343,7 +343,7 @@
   }
   .scrobble-title {
     flex: 1;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
   }
@@ -351,7 +351,7 @@
     background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: var(--fs-base);
     line-height: 1;
     padding: 0.2rem 0.4rem;
     cursor: pointer;
@@ -368,7 +368,7 @@
     border: none;
     border-bottom: 1px solid var(--border);
     color: var(--text);
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-family: var(--font-sans);
     outline: none;
   }
@@ -376,13 +376,13 @@
   .scrobble-body { padding: 0.5rem 0; }
   .scrobble-body.scroll { overflow-y: auto; }
   .pad-center { padding: 2rem; text-align: center; }
-  .muted { color: var(--text-muted); font-size: 0.9rem; }
+  .muted { color: var(--text-muted); font-size: var(--fs-md); }
 
   .section-title {
     padding: 0.25rem 1.25rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
     display: flex;
     align-items: center;
@@ -413,14 +413,14 @@
   .thumb--empty { background: var(--border); }
   .result-info { flex: 1; min-width: 0; }
   .result-name {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .result-sub {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -444,14 +444,14 @@
   .picked-art--empty { background: var(--border); }
   .picked-info { min-width: 0; }
   .picked-name {
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .picked-sub {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -464,14 +464,14 @@
     padding: 0.4rem 1.25rem;
   }
   .field-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .field-input {
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-family: var(--font-sans);
     padding: 0.45rem 0.6rem;
     border-radius: var(--radius);
@@ -483,13 +483,13 @@
   .hint-text {
     padding: 0.2rem 1.25rem;
     margin: 0;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .error-text {
     padding: 0.4rem 1.25rem;
     color: var(--danger);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
 
   .actions,
@@ -502,7 +502,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     padding: 0.45rem 0.9rem;
     border-radius: var(--radius);
     cursor: pointer;
@@ -519,6 +519,6 @@
   .btn--primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
 
   .done-panel { padding: 1.5rem 1.25rem 0.5rem; text-align: center; }
-  .done-msg { font-size: 0.95rem; color: var(--text); margin-bottom: 0.5rem; }
+  .done-msg { font-size: var(--fs-md); color: var(--text); margin-bottom: 0.5rem; }
   .done-actions { justify-content: center; }
 </style>

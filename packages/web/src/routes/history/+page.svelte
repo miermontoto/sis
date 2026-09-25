@@ -455,14 +455,14 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text);
   }
   .filter-chip-clear {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     padding: 0 0.15rem;
     line-height: 1;
@@ -474,7 +474,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     text-decoration: underline;
   }
@@ -486,7 +486,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     padding: 0.3rem 0.75rem;
     border-radius: var(--radius);
     cursor: pointer;
@@ -504,7 +504,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     padding: 0.25rem 0.6rem;
     border-radius: var(--radius);
     cursor: pointer;
@@ -528,11 +528,11 @@
     cursor: default;
   }
   .toolbar-count {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .confirm-prompt {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--danger);
     font-weight: 500;
   }
@@ -545,7 +545,7 @@
     cursor: pointer;
   }
   .track-item--selected {
-    background: rgba(29, 185, 84, 0.06);
+    background: var(--accent-a05);
   }
 
 </style>

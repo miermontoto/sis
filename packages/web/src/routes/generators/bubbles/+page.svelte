@@ -227,7 +227,7 @@
 
   .group-label {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 
   .chip-row { display: flex; gap: 0.4rem; }
@@ -283,7 +283,7 @@
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     white-space: nowrap;
   }
 
@@ -294,7 +294,7 @@
 
   .tt-value {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     margin-top: 2px;
   }
 

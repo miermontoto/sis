@@ -67,6 +67,6 @@
 
   .date-sep {
     color: #666;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 </style>

@@ -631,10 +631,10 @@
   }
 
   .control-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .toggle-group { display: flex; gap: 0.2rem; }
@@ -646,7 +646,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -674,7 +674,7 @@
   }
 
   .counter {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-right: auto;
     font-variant-numeric: tabular-nums;
@@ -687,7 +687,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -702,7 +702,7 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     align-self: flex-start;
     transition: all 0.05s;
   }
@@ -716,7 +716,7 @@
     border-radius: var(--radius);
     padding: 0.5rem 0.8rem;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     margin-bottom: 0.75rem;
   }
 
@@ -751,7 +751,7 @@
     background: transparent;
     border: none;
     text-align: center;
-    font-size: 1.3rem;
+    font-size: var(--fs-xl);
     font-weight: 700;
     color: #000;
     font-family: inherit;
@@ -779,7 +779,7 @@
     color: #000;
     border-radius: 3px;
     cursor: pointer;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     line-height: 1;
     display: flex;
     align-items: center;
@@ -808,16 +808,16 @@
   .tray-wrap { margin-top: 1rem; }
 
   .tray-title {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
     margin-bottom: 0.35rem;
   }
 
   .tier-empty {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     align-self: center;
     padding: 0 0.5rem;
     opacity: 0.6;
@@ -831,7 +831,7 @@
     background: transparent;
     color: var(--accent);
     cursor: pointer;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
   }
 
   .place-btn:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
@@ -887,7 +887,7 @@
     justify-content: center;
     background: var(--bg-card);
     color: var(--text-muted);
-    font-size: 1.4rem;
+    font-size: var(--fs-xl);
     font-weight: 600;
   }
 
@@ -898,7 +898,7 @@
     bottom: 0;
     background: rgba(0, 0, 0, 0.65);
     color: #fff;
-    font-size: 0.58rem;
+    font-size: var(--fs-2xs);
     line-height: 1.1;
     padding: 2px 3px;
     text-align: center;
@@ -917,7 +917,7 @@
     border-radius: 3px;
     background: rgba(0, 0, 0, 0.6);
     color: #fff;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     line-height: 1;
     cursor: pointer;
     opacity: 0;

@@ -232,11 +232,11 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 1.2rem;
+    font-size: var(--fs-lg);
   }
 
   .strip-name {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -245,7 +245,7 @@
   }
 
   .strip-meta {
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -299,12 +299,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
   }
 
   .stream-user {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-weight: 700;
     flex: 1;
     min-width: 0;
@@ -314,7 +314,7 @@
   }
 
   .stream-time {
-    font-size: 0.68rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
     flex-shrink: 0;
@@ -357,7 +357,7 @@
   }
 
   .stream-track-name {
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -365,7 +365,7 @@
   }
 
   .stream-track-artists {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -373,7 +373,7 @@
   }
 
   .stream-track-time {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
     flex-shrink: 0;
@@ -387,9 +387,9 @@
 
   .discover-title {
     display: block;
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     margin-bottom: 0.6rem;
   }
@@ -439,11 +439,11 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 1.2rem;
+    font-size: var(--fs-lg);
   }
 
   .discover-name {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -452,7 +452,7 @@
   }
 
   .discover-plays {
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
   }
@@ -463,7 +463,7 @@
     color: var(--text);
     border-radius: var(--radius);
     padding: 0.25rem 0.7rem;
-    font-size: 0.68rem;
+    font-size: var(--fs-xs);
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
   }

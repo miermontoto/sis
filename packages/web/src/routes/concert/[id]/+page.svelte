@@ -361,7 +361,7 @@
 
   .concert-notes {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     line-height: 1.5;
     white-space: pre-wrap;
   }
@@ -373,9 +373,9 @@
     gap: 0.6rem;
     margin-top: 0.5rem;
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
   }
   .setlist-divider::before,
@@ -400,13 +400,13 @@
   .song-tag,
   .song-info {
     margin-left: 0.45rem;
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
   .song-tag {
     font-family: var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0 0.3rem;
@@ -423,9 +423,9 @@
     border-radius: var(--radius);
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
     padding: 0.1rem 0.45rem;
     cursor: pointer;
     transition: color 0.05s, border-color 0.05s, opacity 0.05s;

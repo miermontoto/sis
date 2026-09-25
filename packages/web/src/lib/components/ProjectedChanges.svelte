@@ -133,7 +133,7 @@
     background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.02));
     border: 1px solid rgba(74, 158, 255, 0.15);
     border-radius: var(--radius, 8px);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-secondary, #aaa);
   }
 
@@ -186,15 +186,15 @@
   }
 
   .session-title {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     font-weight: 600;
     color: var(--text-muted, #666);
   }
 
   .session-count {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted, #555);
   }
 
@@ -273,7 +273,7 @@
 
   .session-change {
     font-weight: 600;
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     font-variant-numeric: tabular-nums;
     text-decoration: none;
   }
@@ -287,7 +287,7 @@
   }
 
   .session-change.down {
-    color: #e34234;
+    color: var(--negative);
   }
 
 </style>
