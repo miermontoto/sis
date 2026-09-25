@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { api, type LibraryPlaylistDetail, type RankingMetric, getRankingMetric } from '$lib/api';
-  import { formatDuration, formatNumber } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { GRID, TOOLTIP_BASE, categoryAxis, valueAxis, lineSeries, AXIS_LABEL, PIE_MAX_SLICES, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
@@ -20,6 +20,17 @@
 
   let data = $state<LibraryPlaylistDetail | null>(null);
   let listenedMs = $derived(data?.stats.totalMs ?? 0);
+  // duración y fechas de alta salen de las filas, que ya traen cada track con su
+  // added_at: sin los ficheros locales, que la sync no guarda (trackCount sí los cuenta)
+  let lengthMs = $derived(data?.tracks.reduce((sum, t) => sum + (t.track?.durationMs ?? 0), 0) ?? 0);
+  let addedRange = $derived.by(() => {
+    const dates = (data?.tracks ?? []).flatMap(t => (t.addedAt ? [t.addedAt] : []));
+    if (!dates.length) return null;
+    // added_at es un instante: fecha local, no de calendario
+    const first = formatShortDate(dates.reduce((a, b) => (b < a ? b : a)));
+    const last = formatShortDate(dates.reduce((a, b) => (b > a ? b : a)));
+    return { first, last };
+  });
   let loading = $state(true);
   let metric = $state<RankingMetric>('time');
   let playActing = $state(false);
@@ -108,7 +119,18 @@
         <div class="data-label">{pl.isAlgorithmic ? 'Algorithmic playlist' : 'Playlist'}</div>
         <h1>{pl.name}</h1>
         {#if pl.ownerName}<p class="detail-subtitle">by {pl.ownerName}</p>{/if}
-        <p class="detail-meta-line">{formatNumber(pl.trackCount)} tracks</p>
+        <p class="detail-meta-line">
+          {formatNumber(pl.trackCount)} tracks{#if lengthMs > 0}{' · '}{formatDuration(lengthMs)}{/if}
+        </p>
+        {#if addedRange}
+          <p class="detail-meta-line">
+            {#if addedRange.first === addedRange.last}
+              Added {addedRange.first}
+            {:else}
+              First added {addedRange.first} &middot; last added {addedRange.last}
+            {/if}
+          </p>
+        {/if}
       </div>
     </div>
     <div class="hero-actions">
