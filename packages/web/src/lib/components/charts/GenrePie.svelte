@@ -20,9 +20,12 @@
   // el radio en % es sobre el lado menor, que en estas cards siempre es el alto:
   // el anillo salía igual de gordo en el rail (400px) que en insights (800px) y
   // echarts recortaba los nombres con puntos suspensivos. se mide el ancho y el
-  // anillo cede lo que haga falta, así que la banda de etiquetas no se estrecha
-  const HEIGHT_FRACTION = 0.35;
-  const WIDTH_FRACTION = 0.13;
+  // anillo cede lo que haga falta, así que la banda de etiquetas no se estrecha.
+  // la banda es fija en px, no una fracción del ancho: con una fracción el anillo
+  // se quedaba en ~88px de radio en una card de 674px con media card vacía
+  const HEIGHT_FRACTION = 0.4;
+  // hueco por lado para etiqueta + línea: el género más largo a 11px más la guía
+  const LABEL_BAND_PX = 150;
   // proporción del agujero, la de los radios originales (40% / 70%)
   const INNER_RATIO = 0.57;
   const FALLBACK_RADIUS = ['40%', '70%'];
@@ -35,7 +38,7 @@
 
   let radius = $derived.by(() => {
     if (!width) return FALLBACK_RADIUS; // antes del primer layout
-    const outer = Math.min(parseFloat(height) * HEIGHT_FRACTION, width * WIDTH_FRACTION);
+    const outer = Math.min(parseFloat(height) * HEIGHT_FRACTION, width / 2 - LABEL_BAND_PX);
     return [outer * INNER_RATIO, outer];
   });
 
