@@ -9,7 +9,7 @@
   <!-- app bar -->
   <g transform="translate(0,232)">
     <rect x="64" y="0" width="60" height="60" rx="12" fill="#0f1214" stroke="#1e2a2a" stroke-width="2"/>
-    <g transform="translate(74.59 16) scale(0.2641) translate(0 -16.12)"><path d="M40.06 51.43A18.8 12.22 0 1 0 27 72.44A20 13.78 0 1 1 13.11 96.13M73.5 100V48M133.06 51.43A18.8 12.22 0 1 0 120 72.44A20 13.78 0 1 1 106.11 96.13" fill="none" stroke="#e0e8e8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><circle cx="73.5" cy="25.62" r="9.5" fill="#1db954"/></g>
+    <g transform="translate(72.68 16) scale(0.2632) translate(0 -15.8)"><path d="M43 48H14A7 7 0 0 0 7 55V67A7 7 0 0 0 14 74H36A7 7 0 0 1 43 81V93A7 7 0 0 1 36 100H7M81 100V48M65.88 48H81M63 100H99M155 48H126A7 7 0 0 0 119 55V67A7 7 0 0 0 126 74H148A7 7 0 0 1 155 81V93A7 7 0 0 1 148 100H119" fill="none" stroke="#e0e8e8" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/><rect x="72.25" y="15.8" width="17.5" height="17.5" fill="#1db954"/></g>
     <text x="140" y="34" font-size="36" font-weight="700" fill="#e0e8e8">Listening History</text>
     <text x="142" y="62" font-size="18" fill="#6a7a7a">every track you've played</text>
   </g>

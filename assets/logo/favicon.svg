@@ -1,4 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- favicon: corte grueso del wordmark, legible a 16-32 px -->
-  <rect width="512" height="512" rx="112" fill="#080a0c"/><g transform="translate(36 116.33) scale(2.5731) translate(0 -0.44)"><path d="M47.02 43.96A21.62 14.1 0 1 0 32 68.2A23 15.9 0 1 1 16.02 95.54M85.5 100V40M154.02 43.96A21.62 14.1 0 1 0 139 68.2A23 15.9 0 1 1 123.02 95.54" fill="none" stroke="#e0e8e8" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/><circle cx="85.5" cy="11.94" r="11.5" fill="#1db954"/></g>
+  <rect width="512" height="512" rx="72" fill="#080a0c"/><g transform="translate(46 129.53) scale(2.3333) translate(0 -0.6)"><path d="M47 42H17A8 8 0 0 0 9 50V63A8 8 0 0 0 17 71H39A8 8 0 0 1 47 79V92A8 8 0 0 1 39 100H9M90 100V42M74.04 42H90M71 100H109M171 42H141A8 8 0 0 0 133 50V63A8 8 0 0 0 141 71H163A8 8 0 0 1 171 79V92A8 8 0 0 1 163 100H133" fill="none" stroke="#e0e8e8" stroke-width="18" stroke-linecap="square" stroke-linejoin="miter"/><rect x="78.75" y="0.6" width="22.5" height="22.5" fill="#1db954"/></g>
 </svg>
