@@ -129,7 +129,7 @@
     background: transparent;
     color: var(--text);
     font-family: var(--font-sans);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     transition: background 0.05s, color 0.05s;
   }
@@ -141,7 +141,7 @@
     cursor: not-allowed;
   }
   .actions-item--danger {
-    color: #ff4444;
+    color: var(--danger);
   }
   .actions-item--danger:hover:not(:disabled) {
     background: rgba(255, 68, 68, 0.08);

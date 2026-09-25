@@ -230,7 +230,7 @@
     margin-bottom: 1.5rem;
   }
   .back-link {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
     text-decoration: none;
   }
@@ -239,7 +239,7 @@
   }
   .scan-link {
     margin-left: auto;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--accent);
     text-decoration: none;
   }
@@ -265,7 +265,7 @@
     margin-bottom: 0.75rem;
   }
   .merge-count {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 400;
     text-transform: none;
     letter-spacing: 0;
@@ -277,7 +277,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding: 0.35rem 0.7rem;
     outline: none;
     width: 180px;
@@ -315,7 +315,7 @@
   .merge-group-header:hover { color: var(--accent); }
   .merge-chevron {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     width: 0.9rem;
     flex-shrink: 0;
   }
@@ -328,7 +328,7 @@
   }
   .merge-group-avatar--empty { background: var(--border); }
   .merge-group-name {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     flex: 1;
     min-width: 0;
@@ -338,7 +338,7 @@
   }
   .merge-group-count {
     color: var(--text-muted);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     padding: 0.1rem 0.5rem;
     background: var(--bg);
     border: 1px solid var(--border);
@@ -360,7 +360,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.2rem 0;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     min-width: 0;
   }
   .merge-type-pill {
@@ -370,7 +370,7 @@
     width: 18px;
     height: 18px;
     border-radius: var(--radius);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     color: var(--text);
     background: var(--bg);
@@ -379,7 +379,7 @@
   }
   .merge-type-pill--artist { color: #a76bff; border-color: rgba(167, 107, 255, 0.4); }
   .merge-type-pill--relation { color: #4aa8ff; border-color: rgba(74, 168, 255, 0.4); }
-  .merge-type-pill--album  { color: var(--accent); border-color: rgba(29, 185, 84, 0.4); }
+  .merge-type-pill--album  { color: var(--accent); border-color: var(--accent-a40); }
   .merge-type-pill--track  { color: #ffaa00; border-color: rgba(255, 170, 0, 0.4); }
 
   .merge-side {
@@ -420,7 +420,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: var(--fs-base);
     cursor: pointer;
     padding: 0 0.3rem;
     line-height: 1;
@@ -429,13 +429,13 @@
     transition: opacity 0.05s, color 0.05s;
   }
   .merge-row:hover .merge-flat-unmerge { opacity: 1; }
-  .merge-flat-unmerge:hover { color: #ff4444; }
+  .merge-flat-unmerge:hover { color: var(--danger); }
 
   .merge-flat-swap {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     padding: 0 0.3rem;
     line-height: 1;

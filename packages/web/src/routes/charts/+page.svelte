@@ -565,10 +565,10 @@
     padding: 0.6rem 1rem;
     margin-bottom: 1rem;
     border-radius: var(--radius);
-    border: 1px solid rgba(29, 185, 84, 0.3);
-    background: rgba(29, 185, 84, 0.06);
+    border: 1px solid var(--accent-a25);
+    background: var(--accent-a05);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
   .closed-chart-banner :global(svg) {
     color: var(--accent);
@@ -581,7 +581,7 @@
     border: none;
     border-radius: var(--radius);
     padding: 0.25rem 0.7rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     cursor: pointer;
     transition: background 0.05s;
@@ -593,7 +593,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     cursor: pointer;
     padding: 0 0.2rem;
     line-height: 1;
@@ -617,7 +617,7 @@
   }
   .period-arrow {
     padding: 0.4rem 0.5rem;
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     line-height: 1;
   }
   .period-select {
@@ -625,7 +625,7 @@
     border: 1px solid var(--border);
     color: var(--text);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     padding: 0.4rem 0.6rem;
     border-radius: var(--radius);
     cursor: pointer;
@@ -635,7 +635,7 @@
     border-color: var(--accent);
   }
   .period-date-label {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-left: 0.35rem;
   }
@@ -696,7 +696,7 @@
   }
   .chart-rank {
     font-variant-numeric: tabular-nums;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-weight: 700;
     color: var(--text);
   }
@@ -719,7 +719,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -727,7 +727,7 @@
   }
   /* la línea entera trunca; cada artista es un link inline dentro */
   .chart-artists {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -756,19 +756,19 @@
   }
   .chart-stat-val {
     font-variant-numeric: tabular-nums;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 700;
     color: var(--text);
     line-height: 1.1;
   }
   .chart-stat-label {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--track-tight);
   }
   .chart-stat-total {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 500;
     color: var(--text-muted);
     margin-left: 0.15em;
@@ -782,15 +782,15 @@
     transition: background 0.05s;
   }
   .chart-stat--peak:hover {
-    background: rgba(29, 185, 84, 0.12);
+    background: var(--accent-a10);
   }
   .chart-stat--peak .chart-stat-val {
     color: var(--accent);
   }
   .chart-peak-badge {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: #f0c040;
     background: rgba(240, 192, 64, 0.12);
     border: 1px solid rgba(240, 192, 64, 0.3);
@@ -808,22 +808,22 @@
     flex-shrink: 0;
   }
   .chart-primary {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
   }
   .chart-secondary {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .dropouts-section {
     margin-top: 1.25rem;
   }
   .dropouts-header {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     margin-bottom: 0.5rem;
   }
   .chart-item--dropout {
@@ -833,10 +833,10 @@
     opacity: 1;
   }
   .dropout-arrow {
-    font-size: 0.55rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
-    color: #e74c3c;
-    letter-spacing: 0.03em;
+    color: var(--danger);
+    letter-spacing: var(--track-tight);
   }
   @media (max-width: 640px) {
     .period-date-label {

@@ -700,10 +700,10 @@
   }
 
   .control-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .control-actions {
@@ -724,7 +724,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -739,7 +739,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -752,13 +752,13 @@
     border-radius: var(--radius);
     padding: 0.6rem 0.9rem;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin-bottom: 1rem;
     line-height: 1.5;
   }
 
   .auto-size {
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     color: var(--text);
     font-weight: 600;
     padding: 0.3rem 0;
@@ -767,9 +767,9 @@
   .auto-size small {
     color: var(--text-muted);
     font-weight: 400;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .picker-card {
@@ -803,13 +803,13 @@
     background: transparent;
     color: var(--text);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     max-width: 220px;
   }
 
-  .roster-chip:hover { border-color: #ef476f; }
-  .roster-chip:hover .roster-x { color: #ef476f; }
+  .roster-chip:hover { border-color: var(--danger); }
+  .roster-chip:hover .roster-x { color: var(--danger); }
 
   .roster-chip img {
     width: 22px;
@@ -829,7 +829,7 @@
 
   .hint {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin: 0;
     line-height: 1.5;
   }
@@ -856,13 +856,13 @@
   }
 
   .round-name {
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
 
   .match-count {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -889,9 +889,9 @@
 
   .versus {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--track-wide);
   }
 
   .contender {
@@ -929,7 +929,7 @@
     justify-content: center;
     background: var(--bg-hover, #161a1d);
     color: var(--text-muted);
-    font-size: 3rem;
+    font-size: var(--fs-3xl);
     font-weight: 600;
   }
 
@@ -941,30 +941,30 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.1rem 0.4rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 
   .contender-name {
-    font-size: 1.05rem;
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
     line-height: 1.3;
   }
 
   .contender-sub {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
   .contender-stat {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--accent);
     font-variant-numeric: tabular-nums;
   }
 
   .contender-key {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     opacity: 0.6;
   }
@@ -972,7 +972,7 @@
   .hint-row {
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     margin-top: 0.9rem;
   }
 
@@ -983,9 +983,9 @@
   }
 
   .champion-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--accent);
   }
 
@@ -1009,7 +1009,7 @@
   }
 
   .champion-name {
-    font-size: 1.6rem;
+    font-size: var(--fs-display);
     font-weight: 700;
     color: var(--text);
     line-height: 1.2;
@@ -1017,17 +1017,17 @@
 
   .champion-sub {
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
 
   .champion-stats {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 
   .champion-footnote {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     line-height: 1.5;
   }
 

@@ -21,10 +21,10 @@
   .collection-badge {
     display: inline-block;
     font-family: var(--font-mono);
-    font-size: 0.58rem;
+    font-size: var(--fs-2xs);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     border: 1px solid var(--border);
     border-radius: 3px;

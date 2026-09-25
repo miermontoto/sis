@@ -15,8 +15,8 @@
 
 <style>
   .report-delta {
-    font-size: 0.7rem;
-    letter-spacing: 0.03em;
+    font-size: var(--fs-xs);
+    letter-spacing: var(--track-tight);
     color: var(--text-muted);
     white-space: nowrap;
   }

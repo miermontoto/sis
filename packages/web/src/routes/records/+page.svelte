@@ -617,12 +617,15 @@
     margin-bottom: 1.25rem;
   }
 
+  /* jerarquía de la app: el grupo es una etiqueta (mono diminuta, muted) y cada
+     record un título de sección (mono mayúsculas, como .section-title) */
   .record-group {
-    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track-wide);
     margin: 1.75rem 0 0.5rem;
-    color: var(--text);
+    color: var(--text-muted);
     font-weight: 600;
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.3rem;
@@ -639,7 +642,7 @@
     animation: record-section-flash 1.8s ease-out;
   }
   @keyframes record-section-flash {
-    0%   { box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.45), 0 0 0 4px rgba(29, 185, 84, 0.15); }
+    0%   { box-shadow: 0 0 0 1px var(--accent-a40), 0 0 0 4px var(--accent-a15); }
     100% { box-shadow: 0 0 0 1px transparent, 0 0 0 4px transparent; }
   }
   .record-header {
@@ -648,7 +651,11 @@
     margin-bottom: 0.5rem;
   }
   .record-title {
-    font-size: 0.95rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-md);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--track);
     color: var(--text);
   }
   .record-list {
@@ -671,23 +678,23 @@
   }
   .record-val {
     font-variant-numeric: tabular-nums;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 600;
-    color: var(--accent);
+    color: var(--text);
   }
   .record-week {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     text-decoration: none;
   }
   .record-week:hover, .record-week a:hover { color: var(--accent); }
   .record-week a { color: inherit; text-decoration: none; }
   .record-active {
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     font-weight: 600;
     color: var(--accent);
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--track-tight);
   }
 
   .hit-track {

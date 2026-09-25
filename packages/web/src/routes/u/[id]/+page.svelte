@@ -230,7 +230,7 @@
     align-items: center;
     gap: 0.4rem;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin-top: 0.25rem;
   }
 
@@ -246,7 +246,7 @@
     color: var(--text);
     border-radius: var(--radius);
     padding: 0.4rem 0.9rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
   }

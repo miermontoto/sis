@@ -268,13 +268,13 @@
   }
   .col-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--fs-base);
   }
   .col-close {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.4rem;
+    font-size: var(--fs-xl);
     line-height: 1;
     cursor: pointer;
   }
@@ -304,13 +304,13 @@
   }
   .col-target-label,
   .col-hint {
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin: 0;
   }
   .col-error {
-    font-size: 0.8rem;
-    color: var(--danger, #e5484d);
+    font-size: var(--fs-sm);
+    color: var(--danger);
   }
   .col-list {
     display: flex;
@@ -337,18 +337,18 @@
     text-decoration: none;
   }
   .col-item-name {
-    font-size: 0.88rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .col-item-meta {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
   .col-empty {
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     padding: 0.4rem 0;
   }
@@ -358,7 +358,7 @@
     color: #fff;
     border-radius: var(--radius);
     padding: 0.3rem 0.7rem;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
   }
   .col-btn:disabled {
@@ -379,7 +379,7 @@
     display: flex;
   }
   .col-icon-btn:hover {
-    color: var(--danger, #e5484d);
+    color: var(--danger);
   }
   .col-new {
     display: flex;
@@ -392,6 +392,6 @@
     border-radius: var(--radius);
     color: var(--text);
     padding: 0.35rem 0.5rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 </style>

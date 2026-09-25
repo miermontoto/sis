@@ -95,19 +95,19 @@
   }
 
   .generator-icon {
-    font-size: 2rem;
+    font-size: var(--fs-2xl);
     line-height: 1;
     color: var(--accent);
   }
 
   .generator-name {
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--text);
   }
 
   .generator-desc {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
     line-height: 1.4;
   }

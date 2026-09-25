@@ -318,8 +318,8 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem;
-    background: linear-gradient(135deg, rgba(29, 185, 84, 0.08), rgba(29, 185, 84, 0.02));
-    border: 1px solid rgba(29, 185, 84, 0.15);
+    background: linear-gradient(135deg, var(--accent-a10), var(--accent-a05));
+    border: 1px solid var(--accent-a15);
     border-radius: var(--radius);
   }
 
@@ -333,7 +333,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   }
 
   .np-time {
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -362,7 +362,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     height: 4px;
     border-radius: 2px;
     overflow: hidden;
-    background: rgba(29, 185, 84, 0.15);
+    background: var(--accent-a15);
   }
 
   .np-progress-fill {
@@ -384,7 +384,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     height: 3px;
     border-radius: 0 0 var(--radius) var(--radius);
     overflow: hidden;
-    background: rgba(29, 185, 84, 0.15);
+    background: var(--accent-a15);
   }
 
   .np--compact {
@@ -449,11 +449,11 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   }
 
   .np--inline .np-track {
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
   }
 
   .np--inline .np-artist {
-    font-size: 0.68rem;
+    font-size: var(--fs-xs);
   }
 
   .np--inline .np-actions {
@@ -511,7 +511,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
 
   .np-track {
     display: block;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
     text-decoration: none;
@@ -538,7 +538,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     padding: 0.2rem 0.3rem;
     border-radius: 0 0 var(--radius) var(--radius);
     background: rgba(8, 10, 12, 0.85);
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     color: var(--text);
     animation: np-next-in 0.2s ease-out;
   }
@@ -550,9 +550,9 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
 
   .np-next-label {
     flex-shrink: 0;
-    font-size: 0.55rem;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
   }
 
@@ -591,7 +591,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   }
 
   .np-artist {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -653,16 +653,16 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
 
   .ctrl-btn--play:hover:not(:disabled) {
     color: var(--accent);
-    background: rgba(29, 185, 84, 0.12);
+    background: var(--accent-a10);
   }
 
   .ctrl-btn--like:hover:not(:disabled) {
-    color: #ff4b7a;
+    color: var(--like);
     background: rgba(255, 75, 122, 0.1);
   }
 
   .ctrl-btn--liked {
-    color: #ff4b7a;
+    color: var(--like);
   }
 
   .ctrl-btn:disabled {

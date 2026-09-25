@@ -43,12 +43,12 @@
   }
   .privacy-extra h2 {
     margin: 0 0 0.5rem;
-    font-size: 0.95rem;
-    letter-spacing: 0.02em;
+    font-size: var(--fs-md);
+    letter-spacing: var(--track-tight);
   }
   .privacy-extra p {
     margin: 0 0 0.6rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     line-height: 1.6;
     color: var(--ui-text, inherit);
   }

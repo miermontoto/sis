@@ -60,7 +60,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     min-width: 0;
   }
   .report-bar-art {
@@ -82,7 +82,7 @@
     gap: 0.4rem;
     min-width: 0;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
   .report-bar-sub--link {
     color: var(--text);
@@ -99,7 +99,7 @@
   .report-bar-value {
     margin-left: auto;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     white-space: nowrap;
   }
   .report-bar-track {

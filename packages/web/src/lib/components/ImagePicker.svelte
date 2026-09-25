@@ -234,7 +234,7 @@
     right: 4px;
     background: rgba(0, 0, 0, 0.7);
     color: #fff;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     width: 22px;
     height: 22px;
@@ -304,7 +304,7 @@
     background: none;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: capitalize;
     cursor: pointer;
   }
@@ -315,9 +315,9 @@
   .picker-thumb--none {
     border: 2px dashed var(--border);
     color: var(--text-muted);
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
   .picker-thumb--none.picker-thumb--active {
     border-style: solid;
@@ -326,7 +326,7 @@
   .picker-thumb--upload {
     border: 2px dashed var(--border);
     color: var(--text-muted);
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
   .picker-thumb--upload:hover {
@@ -349,7 +349,7 @@
   .picker-color-value {
     flex: 0 0 100%;
     font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 </style>

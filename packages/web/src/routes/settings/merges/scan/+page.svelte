@@ -345,7 +345,7 @@
     margin-bottom: 1.5rem;
   }
   .back-link {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
     text-decoration: none;
   }
@@ -364,7 +364,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-family: inherit;
     padding: 0.35rem 0.7rem;
     cursor: pointer;
@@ -373,19 +373,19 @@
   .scan-btn:disabled, .scan-select:disabled { opacity: 0.5; cursor: wait; }
 
   .scan-error {
-    color: #ff4444;
+    color: var(--danger);
     background: rgba(255, 68, 68, 0.1);
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin-bottom: 0.75rem;
   }
   .scan-result {
     color: var(--accent);
-    background: rgba(29, 185, 84, 0.08);
+    background: var(--accent-a10);
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     margin-bottom: 0.75rem;
   }
   .scan-skipped { color: var(--text-muted); margin-left: 0.4rem; }
@@ -400,12 +400,12 @@
     margin-bottom: 0.4rem;
     border-bottom: 1px solid var(--border);
   }
-  .scan-count { font-size: 0.85rem; color: var(--text); }
+  .scan-count { font-size: var(--fs-md); color: var(--text); }
   .scan-muted { color: var(--text-muted); }
   .scan-legend { display: flex; gap: 0.3rem; }
 
   .scan-chip {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-family: inherit;
     padding: 0.15rem 0.45rem;
     border-radius: 3px;
@@ -443,7 +443,7 @@
     border: none;
     color: var(--text);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     text-align: left;
     cursor: pointer;
   }
@@ -451,7 +451,7 @@
 
   .scan-chevron {
     color: var(--text-muted);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     width: 0.8rem;
     flex-shrink: 0;
   }
@@ -473,13 +473,13 @@
     white-space: nowrap;
   }
   .scan-group-plays {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     flex-shrink: 0;
   }
 
   .scan-group-count {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-family: inherit;
     padding: 0.15rem 0.45rem;
     border-radius: 3px;
@@ -511,7 +511,7 @@
     cursor: pointer;
   }
   .scan-pair:hover { background: var(--bg-hover); }
-  .scan-pair--checked { background: rgba(29, 185, 84, 0.06); }
+  .scan-pair--checked { background: var(--accent-a05); }
 
   .scan-check {
     width: 16px;
@@ -522,7 +522,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     flex-shrink: 0;
   }
   .scan-check--active {
@@ -537,12 +537,12 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
-  .scan-pair-target { color: var(--accent); font-size: 0.76rem; }
+  .scan-pair-target { color: var(--accent); font-size: var(--fs-sm); }
   .scan-pair-arrow {
     display: block;
-    font-size: 0.6rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     line-height: 1;
   }
@@ -554,20 +554,20 @@
     white-space: nowrap;
   }
   .scan-album-hint {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     flex-shrink: 0;
   }
 
   .scan-confidence {
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     padding: 0.05rem 0.28rem;
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.08);
     color: var(--text-muted);
     flex-shrink: 0;
   }
-  .scan-confidence--position { background: rgba(29, 185, 84, 0.15); color: var(--accent); }
+  .scan-confidence--position { background: var(--accent-a15); color: var(--accent); }
   .scan-confidence--duplicate { background: rgba(255, 176, 46, 0.15); color: #ffb02e; }
 
   .scan-pair-row {
@@ -581,7 +581,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     padding: 0.3rem 0.35rem;
     border-radius: var(--radius);
@@ -597,7 +597,7 @@
     display: inline-flex;
     align-items: baseline;
     gap: 0.35rem;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: #ffb02e;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
@@ -620,7 +620,7 @@
     border: none;
     border-radius: var(--radius);
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     font-family: inherit;
     cursor: pointer;
   }

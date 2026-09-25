@@ -105,11 +105,11 @@
     background: transparent;
     color: var(--text);
     font-family: var(--font-sans);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     cursor: pointer;
   }
   .ctx-item:hover:not(:disabled) { background: var(--bg-hover); }
   .ctx-item:disabled { opacity: 0.4; cursor: not-allowed; }
-  .ctx-item--danger { color: #ff4444; }
+  .ctx-item--danger { color: var(--danger); }
   .ctx-item--danger:hover:not(:disabled) { background: rgba(255, 68, 68, 0.08); }
 </style>

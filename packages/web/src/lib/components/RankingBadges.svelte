@@ -242,7 +242,7 @@
     cursor: pointer;
   }
   .ranking-badge--link:hover {
-    background: rgba(29, 185, 84, 0.06);
+    background: var(--accent-a05);
   }
   .ranking-badge--top3:hover {
     background: color-mix(in srgb, var(--medal-color, #1db954) 10%, var(--bg-card));
@@ -267,7 +267,7 @@
     line-height: 1;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
   }
   .ranking-value {
     font-family: var(--font-mono);
@@ -292,7 +292,7 @@
   /* etiqueta "MAX" delante del pico histórico, en lugar del antiguo triángulo */
   .ranking-peak-tag {
     font-size: 0.85em;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     opacity: 0.75;
     margin-right: 0.2em;
   }

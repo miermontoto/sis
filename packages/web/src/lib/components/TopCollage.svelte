@@ -88,12 +88,12 @@
     top: 0.35rem;
     left: 0.45rem;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     font-weight: 700;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   }
   .tile--lead .tile-rank {
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
   }
   /* sonando ahora: el ecualizador en la esquina superior derecha (abajo está
      la caption y a la izquierda el puesto) y el mismo anillo verde que las
@@ -131,7 +131,7 @@
     color: #fff;
   }
   .tile-name {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -139,17 +139,17 @@
   }
   .tile-stat {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: rgba(255, 255, 255, 0.75);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .tile--lead .tile-name {
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
   }
   .tile--lead .tile-stat {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
   }
   .tile:hover .tile-name {
     color: var(--accent);
@@ -165,21 +165,21 @@
       display: none;
     }
     .tile-name {
-      font-size: 0.68rem;
+      font-size: var(--fs-xs);
     }
     .tile-rank {
-      font-size: 0.7rem;
+      font-size: var(--fs-xs);
       top: 0.2rem;
       left: 0.3rem;
     }
     .tile--lead .tile-name {
-      font-size: 0.85rem;
+      font-size: var(--fs-md);
     }
     .tile--lead .tile-stat {
-      font-size: 0.65rem;
+      font-size: var(--fs-xs);
     }
     .tile--lead .tile-rank {
-      font-size: 0.95rem;
+      font-size: var(--fs-md);
     }
   }
 
@@ -190,7 +190,7 @@
       display: none;
     }
     .tile--lead .tile-name {
-      font-size: 0.75rem;
+      font-size: var(--fs-sm);
     }
   }
 </style>

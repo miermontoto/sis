@@ -165,7 +165,7 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
     white-space: nowrap;
@@ -177,18 +177,18 @@
     flex-shrink: 0;
     padding: 0 0.25rem;
     border-radius: var(--radius);
-    background: rgba(29, 185, 84, 0.12);
+    background: var(--accent-a10);
     color: var(--accent);
     font-family: var(--font-mono);
-    font-size: 0.5rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .user-menu-id {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -201,7 +201,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.1rem 0.6rem 0.4rem;
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -217,7 +217,7 @@
     gap: 0.55rem;
     padding: 0.45rem 0.6rem;
     border-radius: var(--radius);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text);
     text-decoration: none;
     transition: background 0.05s, color 0.05s;

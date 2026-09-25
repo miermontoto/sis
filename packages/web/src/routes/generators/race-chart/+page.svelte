@@ -348,10 +348,10 @@
   }
 
   .control-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .toggle-group {
@@ -366,7 +366,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -401,7 +401,7 @@
     background: transparent;
     color: var(--text);
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -416,7 +416,7 @@
   }
 
   .frame-label {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
     min-width: 80px;
     text-align: right;
@@ -427,7 +427,7 @@
     text-align: center;
     color: var(--text-muted);
     padding: 4rem 1rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     display: flex;
     justify-content: center;
     align-items: center;

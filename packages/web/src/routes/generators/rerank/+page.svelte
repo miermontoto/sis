@@ -672,10 +672,10 @@
   }
 
   .control-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .toggle-group { display: flex; gap: 0.2rem; }
@@ -687,7 +687,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -702,7 +702,7 @@
     color: #000;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     align-self: flex-start;
     transition: all 0.05s;
   }
@@ -717,7 +717,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -730,11 +730,11 @@
     border-radius: var(--radius);
     padding: 0.5rem 0.8rem;
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     margin-bottom: 0.75rem;
   }
 
-  .notice--error { border-color: #e34234; color: #e34234; }
+  .notice--error { border-color: var(--negative); color: var(--negative); }
   .notice--ok { border-color: #1db954; }
   .notice a { color: inherit; }
 
@@ -749,21 +749,21 @@
   .stat { display: flex; flex-direction: column; gap: 0.1rem; }
 
   .stat-label {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .stat-value {
-    font-size: 1.4rem;
+    font-size: var(--fs-xl);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
   }
 
-  .stat-unit { font-size: 0.9rem; font-weight: 400; color: var(--text-muted); }
-  .stat-sub { font-size: 0.72rem; color: var(--text-muted); }
+  .stat-unit { font-size: var(--fs-md); font-weight: 400; color: var(--text-muted); }
+  .stat-sub { font-size: var(--fs-xs); color: var(--text-muted); }
 
   .highlights {
     display: grid;
@@ -775,17 +775,17 @@
   .highlight { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
 
   .highlight-label {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
   }
 
   .highlight-row {
     display: flex;
     align-items: baseline;
     gap: 0.35rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     min-width: 0;
   }
 
@@ -798,7 +798,7 @@
   }
 
   .highlight-meta {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -806,7 +806,7 @@
 
   .summary-hint {
     margin: 0.85rem 0 0;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -819,7 +819,7 @@
   }
 
   .counter {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-right: auto;
     font-variant-numeric: tabular-nums;
@@ -843,7 +843,7 @@
   }
 
   .row--up { border-left-color: #1db954; }
-  .row--down { border-left-color: #e34234; }
+  .row--down { border-left-color: var(--negative); }
   .row.dragging { opacity: 0.4; cursor: grabbing; }
 
   /* durante el arrastre nada del tablero captura el gesto, salvo la propia fila
@@ -904,7 +904,7 @@
     color: var(--text);
     text-decoration: none;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -913,7 +913,7 @@
   .name:hover { color: var(--accent); }
 
   .subtitle {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -924,7 +924,7 @@
     width: 5rem;
     flex-shrink: 0;
     text-align: right;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -939,20 +939,20 @@
   }
 
   .move-from {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
 
   .badge {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
   }
 
   .badge--up { color: #1db954; }
-  .badge--down { color: #e34234; }
+  .badge--down { color: var(--negative); }
   .badge--flat { color: var(--text-muted); }
   .badge--cost { color: var(--accent); }
 
@@ -965,13 +965,13 @@
   }
 
   .cost-main {
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--accent);
     font-variant-numeric: tabular-nums;
   }
 
-  .cost-sub, .cost-free { font-size: 0.68rem; color: var(--text-muted); }
+  .cost-sub, .cost-free { font-size: var(--fs-xs); color: var(--text-muted); }
 
   .row-tools {
     display: flex;
@@ -988,7 +988,7 @@
     color: var(--text-muted);
     border-radius: 3px;
     cursor: pointer;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     line-height: 1;
     display: flex;
     align-items: center;
@@ -1005,7 +1005,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--text);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     font-family: inherit;
   }
 
@@ -1020,11 +1020,11 @@
     margin-bottom: 0.75rem;
   }
 
-  .plan-header h2 { margin: 0; font-size: 1.05rem; }
+  .plan-header h2 { margin: 0; font-size: var(--fs-base); }
 
   .plan-sub {
     margin: 0.15rem 0 0;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -1043,10 +1043,10 @@
     margin-bottom: 0.3rem;
   }
 
-  .plan-goal-name { font-weight: 600; font-size: 0.88rem; }
+  .plan-goal-name { font-weight: 600; font-size: var(--fs-md); }
 
   .plan-goal-meta {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -1057,7 +1057,7 @@
     display: flex;
     align-items: baseline;
     gap: 0.4rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     min-width: 0;
   }
 
@@ -1078,7 +1078,7 @@
   .plan-track-meta {
     flex: 1;
     min-width: 0;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1086,7 +1086,7 @@
   }
 
   .plan-track-len {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;

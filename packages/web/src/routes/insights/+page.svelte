@@ -485,7 +485,7 @@
     --chart-min: 16rem;
   }
   .r2-badge {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 400;
     color: var(--text-muted);
     margin-left: 0.4rem;

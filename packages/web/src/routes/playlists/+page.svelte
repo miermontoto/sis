@@ -631,7 +631,7 @@
 {/if}
 
 <style>
-  h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+  h2 { margin: 0 0 1rem; font-size: var(--fs-lg); }
 
   .tabs {
     display: flex;
@@ -646,7 +646,7 @@
     border-bottom: 2px solid transparent;
     padding: 0.6rem 1.2rem;
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     transition: all 0.05s;
   }
@@ -670,7 +670,7 @@
   .library-count {
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
 
   .library-grid {
@@ -717,7 +717,7 @@
 
   .library-name {
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -727,7 +727,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -740,7 +740,7 @@
     color: orange;
     padding: 0.1rem 0.4rem;
     border-radius: 999px;
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
   }
 
   .loading {
@@ -784,8 +784,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    color: #e74c3c;
-    font-size: 0.9rem;
+    color: var(--danger);
+    font-size: var(--fs-md);
   }
 
   .strategy-grid {
@@ -818,17 +818,17 @@
   }
 
   .strategy-icon {
-    font-size: 1.4rem;
+    font-size: var(--fs-xl);
     opacity: 0.7;
   }
 
   .strategy-label {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
   }
 
   .strategy-desc {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -845,14 +845,14 @@
   }
 
   .filter-row .filter-label {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--track-tight);
     color: var(--text-muted);
   }
 
   .hint {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     opacity: 0.6;
   }
 
@@ -864,7 +864,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     outline: none;
     max-width: 300px;
   }
@@ -895,7 +895,7 @@
     padding: 0.4rem 1rem;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     transition: all 0.05s;
   }
 
@@ -917,7 +917,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     outline: none;
     width: 200px;
   }
@@ -927,11 +927,11 @@
   }
 
   .artist-badge {
-    background: rgba(29, 185, 84, 0.15);
+    background: var(--accent-a15);
     color: var(--accent);
     padding: 0.3rem 0.6rem;
     border-radius: 999px;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     display: flex;
     align-items: center;
     gap: 0.3rem;
@@ -942,7 +942,7 @@
     border: none;
     color: var(--accent);
     cursor: pointer;
-    font-size: 1rem;
+    font-size: var(--fs-base);
     padding: 0;
     line-height: 1;
   }
@@ -959,7 +959,7 @@
     padding: 0.4rem 0.6rem;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -981,7 +981,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     width: 60px;
     outline: none;
   }
@@ -1003,7 +1003,7 @@
   .action-btn {
     padding: 0.55rem 1.2rem;
     border-radius: var(--radius);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     border: none;
     transition: all 0.05s;
@@ -1041,13 +1041,13 @@
 
   .action-btn.small {
     padding: 0.3rem 0.7rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
 
   .action-btn.danger {
     background: transparent;
     border: 1px solid rgba(231, 76, 60, 0.3);
-    color: #e74c3c;
+    color: var(--danger);
   }
 
   .action-btn.danger:hover {
@@ -1055,8 +1055,8 @@
   }
 
   .error {
-    color: #e74c3c;
-    font-size: 0.85rem;
+    color: var(--danger);
+    font-size: var(--fs-md);
     margin-top: 1rem;
   }
 
@@ -1083,7 +1083,7 @@
     cursor: pointer;
     width: 100%;
     text-align: left;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     transition: background 0.05s;
   }
 
@@ -1101,24 +1101,24 @@
   }
 
   .playlist-badge {
-    background: rgba(29, 185, 84, 0.15);
+    background: var(--accent-a15);
     color: var(--accent);
     padding: 0.15rem 0.5rem;
     border-radius: 999px;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     text-transform: capitalize;
     white-space: nowrap;
   }
 
   .playlist-meta {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     white-space: nowrap;
   }
 
   .playlist-date {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     white-space: nowrap;
   }
 
@@ -1133,7 +1133,7 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0 1rem 0.75rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -1156,7 +1156,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.2rem 0.4rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
   }
 

@@ -88,7 +88,7 @@
   }
 
   .shortcuts-title {
-    font-size: 0.95rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
   }
@@ -97,7 +97,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.25rem;
+    font-size: var(--fs-lg);
     cursor: pointer;
     padding: 0;
     line-height: 1;
@@ -120,9 +120,9 @@
   }
 
   .shortcuts-group-title {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
     padding: 0.75rem 0 0.35rem;
   }
@@ -136,7 +136,7 @@
   }
 
   .shortcut-desc {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text);
   }
 
@@ -148,7 +148,7 @@
   }
 
   .shortcut-plus {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 
@@ -157,7 +157,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.1rem 0.4rem;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-family: var(--font-sans);
     color: var(--text-muted);
     min-width: 1.4rem;

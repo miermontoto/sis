@@ -124,12 +124,12 @@
     border-radius: var(--radius);
     color: var(--text);
     padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
   .group-label {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--track-wide);
     color: var(--text-muted);
     margin-top: 0.3rem;
   }
@@ -165,19 +165,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .result-name {
     flex: 1;
     min-width: 0;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .result-meta {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     white-space: nowrap;
   }
@@ -201,7 +201,7 @@
     cursor: default;
   }
   .hint {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     padding: 0.3rem 0;
   }

@@ -1287,10 +1287,10 @@
   }
 
   .prefs-subtitle {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     margin-top: 1.25rem;
     margin-bottom: 0.25rem;
@@ -1303,7 +1303,7 @@
   /* nota neutra dentro de una sección (cargando, lista vacía): ocupa lo mismo
      que una pref-row para que la sección no dé un salto al llegar los datos */
   .section-note {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     padding: 0.75rem 0;
   }
@@ -1315,7 +1315,7 @@
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text);
     font-family: var(--font-mono);
   }
@@ -1364,13 +1364,13 @@
   }
 
   .pref-label {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
-    letter-spacing: 0.02em;
+    letter-spacing: var(--track-tight);
   }
 
   .pref-desc {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-top: 0.15rem;
   }
@@ -1398,7 +1398,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     transition: all 0.05s;
     white-space: nowrap;
   }
@@ -1418,7 +1418,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding: 0.4rem 0.7rem;
     outline: none;
     cursor: pointer;
@@ -1434,7 +1434,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding: 0.4rem 0.7rem;
     outline: none;
     width: 180px;
@@ -1454,22 +1454,22 @@
     display: inline-block;
     padding: 0.1rem 0.45rem;
     border-radius: var(--radius);
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: var(--track-tight);
     margin-left: 0.4rem;
     vertical-align: middle;
   }
 
   .user-badge--admin {
-    background: rgba(29, 185, 84, 0.15);
+    background: var(--accent-a15);
     color: var(--accent);
   }
 
   .user-badge--inactive {
     background: rgba(255, 68, 68, 0.12);
-    color: #ff4444;
+    color: var(--danger);
   }
 
   .action-btn {
@@ -1482,7 +1482,7 @@
     background: var(--accent);
     color: #000;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     text-decoration: none;
     transition: background 0.05s;
@@ -1518,8 +1518,8 @@
   }
 
   .action-btn--danger:hover {
-    border-color: #e5484d;
-    color: #e5484d;
+    border-color: var(--danger);
+    color: var(--danger);
     background: transparent;
   }
 
@@ -1533,7 +1533,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     transition: all 0.05s;
     white-space: nowrap;
   }
@@ -1563,7 +1563,7 @@
     align-items: center;
     gap: 0.4rem;
     color: var(--accent);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
@@ -1579,18 +1579,18 @@
   }
 
   .import-stat-value {
-    font-size: 1.1rem;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
 
   .import-stat-label {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
   .import-error {
     color: var(--danger);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     border-top: 1px solid var(--border);
     padding-top: 0.75rem;
     margin-top: 0.25rem;
@@ -1609,12 +1609,12 @@
   }
 
   .lastfm-progress {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
   .lastfm-note {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--accent);
     padding-top: 0.5rem;
   }
@@ -1629,7 +1629,7 @@
 
   .token-value {
     font-family: monospace;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     background: var(--bg);
     border: 1px solid var(--border);

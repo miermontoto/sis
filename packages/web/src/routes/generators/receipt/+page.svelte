@@ -417,13 +417,13 @@
 
   .group-label {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 
   .rate {
     color: var(--text);
     font-family: ui-monospace, Menlo, monospace;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
   }
 
   .chip-row {
@@ -438,7 +438,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     transition: all 0.05s;
   }
   .chip:hover { border-color: var(--text-muted); color: var(--text); }

@@ -62,7 +62,7 @@
     color: var(--text-muted);
   }
   .week-value {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -96,9 +96,9 @@
   }
   .week-label {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
   }
   .week-day--today .week-label {
     color: var(--accent);

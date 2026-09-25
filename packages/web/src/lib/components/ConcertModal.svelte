@@ -398,14 +398,14 @@
   }
   .concert-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--fs-base);
     font-weight: 600;
   }
   .concert-close {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1.5rem;
+    font-size: var(--fs-xl);
     cursor: pointer;
     padding: 0;
     line-height: 1;
@@ -418,7 +418,7 @@
     padding: 0.75rem 1.25rem;
     border-bottom: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.02);
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     color: var(--accent);
   }
   .concert-target span { color: var(--text); }
@@ -428,7 +428,7 @@
     border: none;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     cursor: pointer;
     padding: 0;
   }
@@ -445,7 +445,7 @@
     border-radius: 999px;
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     padding: 0.2rem 0.8rem;
     cursor: pointer;
     transition: color 0.05s, border-color 0.05s;
@@ -468,14 +468,14 @@
     border-radius: var(--radius);
     color: var(--text);
     font: inherit;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     padding: 0.2rem 0.45rem;
   }
   .concert-year:focus { outline: none; border-color: var(--accent); }
   .concert-year:disabled { opacity: 0.6; }
   .concert-filter-hint {
     margin-left: auto;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
   .concert-show-all {
@@ -484,7 +484,7 @@
     padding: 0;
     color: var(--accent);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     cursor: pointer;
   }
   .concert-show-all:hover { text-decoration: underline; }
@@ -492,8 +492,8 @@
   .concert-error {
     margin: 0.75rem 1.25rem 0;
     padding: 0.5rem 0.75rem;
-    color: #ff4444;
-    font-size: 0.82rem;
+    color: var(--danger);
+    font-size: var(--fs-sm);
     background: rgba(255, 68, 68, 0.1);
     border-radius: var(--radius);
   }
@@ -501,7 +501,7 @@
   .concert-empty {
     padding: 1.5rem 1.25rem;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     text-align: center;
   }
 
@@ -536,7 +536,7 @@
   .concert-item:disabled { opacity: 0.45; cursor: default; }
 
   .concert-item-date {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -545,13 +545,13 @@
   }
   .concert-item-info { flex: 1; min-width: 0; }
   .concert-item-venue {
-    font-size: 0.88rem;
+    font-size: var(--fs-md);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .concert-item-meta {
-    font-size: 0.74rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     margin-top: 0.1rem;
   }
@@ -560,7 +560,7 @@
     margin-right: 0.35rem;
   }
   .concert-item-action {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--accent);
     flex-shrink: 0;
   }
@@ -573,7 +573,7 @@
     gap: 0.75rem;
     padding: 0.6rem;
     border-top: 1px solid var(--border);
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
   .concert-pager button {
@@ -582,7 +582,7 @@
     border-radius: var(--radius);
     color: var(--text-muted);
     font: inherit;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     padding: 0.15rem 0.6rem;
     cursor: pointer;
   }
@@ -602,7 +602,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
     flex: 1;
     min-width: 0;
@@ -615,7 +615,7 @@
     border-radius: var(--radius);
     color: var(--text);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding: 0.4rem 0.55rem;
     width: 100%;
     box-sizing: border-box;
@@ -639,7 +639,7 @@
     border-radius: var(--radius);
     padding: 0.3rem 0.9rem;
     font: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     transition: all 0.05s;
   }

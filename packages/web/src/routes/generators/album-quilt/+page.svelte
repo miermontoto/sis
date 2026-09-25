@@ -261,7 +261,7 @@
 
   .control-group label {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -270,7 +270,7 @@
 
   .group-label {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
 
   .chip-row {
@@ -285,7 +285,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     transition: all 0.05s;
   }
 

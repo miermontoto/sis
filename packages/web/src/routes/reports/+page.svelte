@@ -99,13 +99,13 @@
     color: inherit;
   }
   .report-latest-title {
-    font-size: 1.4rem;
+    font-size: var(--fs-xl);
     font-weight: 700;
     line-height: 1.2;
   }
   .report-latest-range {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
   }
   .report-latest-cta {
     display: inline-flex;
@@ -113,9 +113,9 @@
     gap: 0.2rem;
     margin-top: 0.5rem;
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--accent);
   }
   /* el selector global lleva margen inferior: aquí va alineado con el título de sección */
@@ -138,7 +138,7 @@
   .report-history-label { flex: 1; }
   .report-history-range {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
   }
   .report-history-more {
     align-self: center;

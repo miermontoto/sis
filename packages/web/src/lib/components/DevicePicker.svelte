@@ -168,7 +168,7 @@
   .dp-status {
     padding: 1rem;
     text-align: center;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     color: var(--text-muted);
   }
 
@@ -195,11 +195,11 @@
   }
 
   .dp-item--active {
-    background: rgba(29, 185, 84, 0.06);
+    background: var(--accent-a05);
   }
 
   .dp-item--active:hover {
-    background: rgba(29, 185, 84, 0.1);
+    background: var(--accent-a10);
   }
 
   .dp-icon {
@@ -217,7 +217,7 @@
   }
 
   .dp-item-name {
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -225,7 +225,7 @@
   }
 
   .dp-item-type {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     text-transform: capitalize;
   }

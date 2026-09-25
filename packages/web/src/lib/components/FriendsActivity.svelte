@@ -123,9 +123,9 @@
 
   .friends-label {
     display: block;
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     margin-bottom: 0.35rem;
     transition: color 0.15s;
@@ -133,7 +133,7 @@
 
   .friends-empty {
     display: block;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-style: italic;
   }
@@ -175,7 +175,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     font-weight: 600;
   }
 
@@ -194,18 +194,18 @@
   }
 
   .tooltip-name {
-    font-size: 0.75rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text);
   }
 
   .tooltip-track {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 
   .tooltip-idle {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-style: italic;
   }

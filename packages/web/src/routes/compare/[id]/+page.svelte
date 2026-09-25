@@ -317,17 +317,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.4rem;
+    font-size: var(--fs-xl);
     font-weight: 600;
   }
 
   .compare-name {
     font-weight: 700;
-    font-size: 1rem;
+    font-size: var(--fs-base);
   }
 
   .compare-meta {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
   }
 
@@ -340,7 +340,7 @@
   }
 
   .compare-percent {
-    font-size: 2.4rem;
+    font-size: var(--fs-2xl);
     font-weight: 800;
     font-family: var(--font-mono);
     color: var(--accent);
@@ -378,9 +378,9 @@
   }
 
   .breakdown-label {
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
   }
 
@@ -400,7 +400,7 @@
   }
 
   .breakdown-value {
-    font-size: 0.62rem;
+    font-size: var(--fs-2xs);
     font-family: var(--font-mono);
     color: var(--text-muted);
     text-align: right;
@@ -427,7 +427,7 @@
 
   .h2h-value {
     font-family: var(--font-mono);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
   }
 
@@ -441,9 +441,9 @@
   }
 
   .h2h-label {
-    font-size: 0.68rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     text-align: center;
   }
@@ -461,9 +461,9 @@
   }
 
   .compare-section h2 {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     margin-bottom: 0.75rem;
   }
@@ -504,7 +504,7 @@
   }
 
   .shared-name {
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -513,7 +513,7 @@
   }
 
   .shared-ranks {
-    font-size: 0.65rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
   }
@@ -550,9 +550,9 @@
   }
 
   .side-label {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track);
     color: var(--text-muted);
     margin-bottom: 0.25rem;
   }
@@ -581,7 +581,7 @@
 
   .side-rank {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     width: 1.4rem;
     text-align: right;
@@ -601,7 +601,7 @@
   }
 
   .side-name {
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -610,14 +610,14 @@
   }
 
   .side-stat {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
     flex-shrink: 0;
   }
 
   .side-hint {
-    font-size: 0.68rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     margin-top: 0.5rem;
   }

@@ -627,7 +627,7 @@
     padding: 0.2rem 0.6rem;
     border-radius: var(--radius);
     cursor: pointer;
-    font-size: 0.78rem;
+    font-size: var(--fs-sm);
     font-weight: 500;
     transition: all 0.05s;
   }

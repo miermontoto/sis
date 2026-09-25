@@ -153,7 +153,7 @@
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     transition: all 0.05s;
   }
 
@@ -166,7 +166,7 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     color: var(--text-muted);
     cursor: pointer;
   }
@@ -228,21 +228,21 @@
 
   .result-name {
     flex: 1;
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .result-meta {
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     flex-shrink: 0;
   }
 
   .hint {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: var(--fs-md);
     padding: 0.5rem 0;
   }
 </style>

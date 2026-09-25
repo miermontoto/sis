@@ -140,7 +140,7 @@
     color: var(--text-muted);
     border-radius: 6px;
     padding: 0.1rem 0.5rem;
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     font-family: inherit;
   }
