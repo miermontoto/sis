@@ -80,6 +80,12 @@ export interface PlayContextResponse {
   error?: string;
 }
 
+// respuesta de encolar. Un álbum son N llamadas a spotify (una por tema), y `queued`
+// dice cuántos entraron antes de parar: un fallo a mitad deja el disco a medias
+export interface QueueResponse extends PlayContextResponse {
+  queued?: number;
+}
+
 export interface FriendActivity {
   spotifyId: string;
   displayName: string | null;

@@ -2,7 +2,7 @@ import type {
   RankingMetric, DateRangeParams,
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
-  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, PlaybackQueueResponse, FriendsActivityResponse,
+  NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, QueueResponse, PlaybackQueueResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
   AccoladesResponse, Rankings, EntityCard, RankingHistoryPointWithCrossovers, HealthData, EntityType,
@@ -204,7 +204,11 @@ export const api = {
   playbackVolume: (volumePercent: number) =>
     apiMutate<{ success: boolean; volume_percent: number }>('PUT', '/now-playing/volume', { volume_percent: volumePercent }),
   queueTrack: (trackId: string) =>
-    apiMutate<{ success: boolean }>('POST', '/now-playing/queue', { uri: `spotify:track:${trackId}` }),
+    apiMutate<QueueResponse>('POST', '/now-playing/queue', { uri: `spotify:track:${trackId}` }),
+  // un álbum entero: el servidor lo encola tema a tema y en orden (spotify no acepta
+  // más de un uri por llamada ni un contexto en la cola)
+  queueAlbum: (albumId: string) =>
+    apiMutate<QueueResponse>('POST', `/now-playing/queue/album/${encodeURIComponent(albumId)}`),
 
   // pertenencia a playlists de un lote de temas (id → playlists, los vacíos
   // incluidos). Una sola petición por lista, contra las playlists ya sincronizadas

@@ -31,9 +31,10 @@
   import TrackItem from '$lib/components/TrackItem.svelte';
   import ImagePicker from '$lib/components/ImagePicker.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import { isSpotifyId } from '$lib/utils/entity-context';
+  import { isSpotifyId, queueEntity } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
+  import IconQueue from '$lib/icons/IconQueue.svelte';
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
@@ -551,7 +552,10 @@
       <EntityActionsMenu
         title="Actions"
         actions={[
-          ...(isSpotifyId(albumId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') }] : []),
+          ...(isSpotifyId(albumId) ? [
+            { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('album', albumId) },
+            { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') },
+          ] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
           // una entrada por modal, no por pestaña ni por paso: el picker ya trae
           // portada/color y el modal de merges su botón de auto-merge

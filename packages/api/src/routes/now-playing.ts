@@ -5,13 +5,15 @@ import { pollingState, tracks, artists, trackArtists, albums } from '../db/schem
 import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
+import { ensureFullAlbumTracks } from '../services/ingestion.js';
+import { isNonSpotifyId, syntheticIdPredicate } from '../services/ids.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
 import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import { PLAYLIST_MEMBERSHIP_MAX_IDS } from '@sis/shared';
-import type { SpotifyDevice, PlayContextRequest, LandedPlay } from '@sis/shared';
+import type { SpotifyDevice, PlayContextRequest, PlayContextResponse, QueueResponse, LandedPlay } from '@sis/shared';
 import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
@@ -526,35 +528,66 @@ nowPlaying.get('/queue', async (c) => {
 
 // --- add to queue ---
 
+// encola UN uri (spotify no acepta más por llamada) y traduce su respuesta; lo
+// comparten el tema suelto y el álbum
+async function queueUri(userId: number, uri: string): Promise<PlayContextResponse> {
+  const res = await spotifyFetchRaw('/me/player/queue', { userId, method: 'POST', params: { uri } });
+  if (!res) return { success: false, error: 'rate_limited' };
+  if (res.status === 404) {
+    const text = await res.text();
+    return { success: false, error: text.includes('NO_ACTIVE_DEVICE') ? 'no_active_device' : 'not_found' };
+  }
+  return res.ok ? { success: true } : { success: false, error: 'spotify_error' };
+}
+
 nowPlaying.post('/queue', async (c) => {
-  const userId = c.get('userId');
   const { uri } = await c.req.json<{ uri: string }>();
 
   if (!uri?.startsWith('spotify:')) {
     return c.json({ success: false, error: 'invalid_uri' }, 400);
   }
 
-  const res = await spotifyFetchRaw('/me/player/queue', {
-    userId,
-    method: 'POST',
-    params: { uri },
-  });
+  const result = await queueUri(c.get('userId'), uri);
+  // el rate limit es el único fallo con status propio: el resto viaja como
+  // success:false con 200, que es lo que esperan los apks publicados
+  return c.json(result, result.error === 'rate_limited' ? 429 : 200);
+});
 
-  if (!res) return c.json({ success: false, error: 'rate_limited' }, 429);
+// un álbum son N llamadas y en SERIE: la cola de spotify respeta el orden de llegada,
+// y en paralelo el disco sonaría barajado. El tracklist es el local tras completarlo
+// con ensureFullAlbumTracks (lo mismo que hace su página, y sale por un count indexado
+// si ya estaba entero), sin sintéticos, que no existen en spotify. Al primer fallo se
+// para: seguir encolaría el disco con huecos, y `queued` dice hasta dónde llegó
+nowPlaying.post('/queue/album/:id', async (c) => {
+  const userId = c.get('userId');
+  const albumId = c.req.param('id');
 
-  if (res.status === 404) {
-    const text = await res.text();
-    if (text.includes('NO_ACTIVE_DEVICE')) {
-      return c.json({ success: false, error: 'no_active_device' });
-    }
-    return c.json({ success: false, error: 'not_found' });
+  // un álbum lógico (collection:) o sintético no tiene uri que encolar
+  if (isNonSpotifyId(albumId)) {
+    return c.json({ success: false, error: 'invalid_uri', queued: 0 } satisfies QueueResponse, 400);
   }
 
-  if (res.status === 204 || res.ok) {
-    return c.json({ success: true });
-  }
+  const db = getDb();
+  const album = db.get(sql`SELECT total_tracks AS totalTracks FROM albums WHERE spotify_id = ${albumId}`) as { totalTracks: number | null } | undefined;
+  if (!album) return c.json({ success: false, error: 'not_found', queued: 0 } satisfies QueueResponse, 404);
+  try { await ensureFullAlbumTracks(albumId, album.totalTracks, userId); } catch {}
 
-  return c.json({ success: false, error: 'spotify_error' });
+  // lo que siga sin numerar (spotify no lo listó, o su llamada falló) va al final: en
+  // SQLite los NULL ordenan primero y el disco arrancaría por ahí
+  const trackIds = (db.all(sql`
+    SELECT spotify_id AS id FROM tracks
+    WHERE album_id = ${albumId} AND NOT ${syntheticIdPredicate('spotify_id')}
+    ORDER BY disc_number IS NULL, disc_number, track_number
+  `) as { id: string }[]).map(r => r.id);
+  if (trackIds.length === 0) return c.json({ success: false, error: 'not_found', queued: 0 } satisfies QueueResponse);
+
+  let queued = 0;
+  for (const id of trackIds) {
+    const result = await queueUri(userId, `spotify:track:${id}`);
+    if (!result.success) return c.json({ ...result, queued } satisfies QueueResponse);
+    queued++;
+  }
+  return c.json({ success: true, queued } satisfies QueueResponse);
 });
 
 export default nowPlaying;

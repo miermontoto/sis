@@ -32,6 +32,25 @@ export interface EntityContext {
 export const trackEntity = (t: { id: string; name: string; album: { imageUrl: string | null } | null; artists: { id: string }[] }): EntityContext =>
   ({ type: 'track', id: t.id, name: t.name, imageUrl: t.album?.imageUrl ?? null, parentArtistId: t.artists[0]?.id });
 
+/** Encola un tema o un álbum entero (el servidor lo manda tema a tema, en orden).
+ *  Lo comparten el menú contextual de las filas y el del hero del álbum. */
+export async function queueEntity(type: 'album' | 'track', id: string): Promise<void> {
+  const { api } = await import('$lib/api');
+  const { toastStore } = await import('$lib/stores/toast.svelte');
+  const { nowPlayingStore } = await import('$lib/stores/now-playing.svelte');
+  try {
+    const res = type === 'track' ? await api.queueTrack(id) : await api.queueAlbum(id);
+    // spotify pone lo encolado justo detrás del tema actual, así que el "next" del
+    // sidebar acaba de quedarse obsoleto (también si un álbum se quedó a medias)
+    if (res.success || res.queued) nowPlayingStore.refreshQueue();
+    toastStore.show(res.success
+      ? (type === 'album' ? `Added ${res.queued} ${res.queued === 1 ? 'track' : 'tracks'} to queue` : 'Added to queue')
+      : res.error === 'no_active_device' ? 'No active Spotify device' : 'Failed to add to queue');
+  } catch {
+    toastStore.show('Failed to add to queue');
+  }
+}
+
 /** Acciones del menú contextual de una entidad.
  *  `relations: false` las omite para quien ya pinta las suyas (las filas de la sección
  *  de relaciones), que si no acaban con dos puertas al mismo sitio. */
@@ -49,24 +68,13 @@ export function entityContextActions(entity: EntityContext, { relations = true }
         nowPlayingStore.playContext(opts);
       },
     });
-    if (entity.type === 'track') {
+    // un artista no se encola: spotify no acepta un contexto en la cola
+    if (entity.type !== 'artist') {
+      const type = entity.type;
       actions.push({
         label: 'Add to queue',
         icon: IconQueue,
-        onClick: async () => {
-          const { api } = await import('$lib/api');
-          const { toastStore } = await import('$lib/stores/toast.svelte');
-          const { nowPlayingStore } = await import('$lib/stores/now-playing.svelte');
-          try {
-            await api.queueTrack(entity.id);
-            // spotify pone lo encolado justo detrás del tema actual, así que el
-            // "next" del sidebar acaba de quedarse obsoleto
-            nowPlayingStore.refreshQueue();
-            toastStore.show(`Added to queue`);
-          } catch {
-            toastStore.show('Failed to add to queue');
-          }
-        },
+        onClick: () => queueEntity(type, entity.id),
       });
     }
   }
