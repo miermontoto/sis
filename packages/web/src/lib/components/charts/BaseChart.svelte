@@ -1,7 +1,36 @@
+<script module lang="ts">
+  import * as echarts from 'echarts/core';
+
+  // zrender da a cada línea de texto la altura del ANCHO de '国', suponiendo que
+  // un glifo cjk mide 1em. Sin fuentes cjk (el escritorio de desarrollo, muchos
+  // linux) el navegador pinta el glifo de reserva de la monospace, de 0.6em, y
+  // todas las líneas de todos los charts salían al 60% de su alto: etiquetas
+  // pisándose, líneas partidas una encima de otra y `hideOverlap` escondiendo
+  // etiquetas de la dona. Esa sonda se responde con el tamaño de la fuente, lo
+  // que mide en cualquier sistema con cjk; el resto sigue midiéndolo el canvas.
+  // Va en el módulo porque zrender cachea cada medida: tiene que estar antes del
+  // primer chart
+  const LINE_HEIGHT_PROBE = '国';
+  // el mismo patrón con el que zrender saca el tamaño de un shorthand de fuente
+  const FONT_SIZE_PX = /((?:\d+)?\.?\d*)px/;
+  const DEFAULT_FONT = '12px sans-serif';
+  let measureCtx: CanvasRenderingContext2D | null = null;
+  // el canvas normaliza `font` al asignarlo: se compara contra lo último pedido
+  let measureFont = '';
+
+  echarts.setPlatformAPI({
+    measureText(text: string, font = DEFAULT_FONT) {
+      if (text === LINE_HEIGHT_PROBE) return { width: Number(FONT_SIZE_PX.exec(font)?.[1]) || parseFloat(DEFAULT_FONT) };
+      measureCtx ??= document.createElement('canvas').getContext('2d')!;
+      if (measureFont !== font) measureCtx.font = measureFont = font;
+      return measureCtx.measureText(text);
+    },
+  });
+</script>
+
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { ChartClickEvent } from '$lib/utils/chart';
-  import * as echarts from 'echarts/core';
   import { CanvasRenderer } from 'echarts/renderers';
   import { BarChart, LineChart, HeatmapChart, PieChart, RadarChart, GraphChart } from 'echarts/charts';
   import {
