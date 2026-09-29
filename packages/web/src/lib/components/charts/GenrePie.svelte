@@ -2,7 +2,7 @@
   // dona de distribución de géneros: insights, dashboard y detalle de playlist
   // pintan la misma serie `pie`, así que vive aquí y no tres veces inline
   import BaseChart from './BaseChart.svelte';
-  import { PIE_TOOLTIP, PIE_COLORS, AXIS_LABEL } from '$lib/utils/chart';
+  import { PIE_TOOLTIP, PIE_COLORS, PIE_LABEL, PIE_LABEL_LINE, fitPieLabels } from '$lib/utils/chart';
   import type { GenreItem } from '$lib/api';
   import type { EChartsOption } from 'echarts';
 
@@ -19,43 +19,32 @@
   const CARD_BG = '#0f1214';
   // el radio en % es sobre el lado menor, que en estas cards siempre es el alto:
   // el anillo salía igual de gordo en el rail (400px) que en insights (800px) y
-  // echarts recortaba los nombres con puntos suspensivos. se mide el ancho y el
-  // anillo cede lo que haga falta, así que la banda de etiquetas no se estrecha.
-  // la banda es fija en px, no una fracción del ancho: con una fracción el anillo
-  // se quedaba en ~88px de radio en una card de 674px con media card vacía
-  const HEIGHT_FRACTION = 0.4;
-  // hueco por lado para etiqueta + línea: el género más largo a 11px más la guía
-  const LABEL_BAND_PX = 150;
+  // echarts recortaba los nombres con puntos suspensivos. Después fue una banda
+  // fija de 150px por lado para las etiquetas, que en un móvil dejaba el anillo
+  // en 23px de radio aunque los géneros fueran cortos. Ahora se miden las
+  // etiquetas y el anillo es el mayor que las deja enteras (ver fitPieLabels)
   // proporción del agujero, la de los radios originales (40% / 70%)
   const INNER_RATIO = 0.57;
   const FALLBACK_RADIUS = ['40%', '70%'];
-  // por debajo de este ancho un género largo ("alternative metal", 17 caracteres)
-  // no cabe a 11px y echarts lo recorta con puntos suspensivos; a 10px entra
-  const NARROW_WIDTH = 520;
-  const NARROW_LABEL_SIZE = 10;
 
   let width = $state(0);
 
-  let radius = $derived.by(() => {
-    if (!width) return FALLBACK_RADIUS; // antes del primer layout
-    const outer = Math.min(parseFloat(height) * HEIGHT_FRACTION, width / 2 - LABEL_BAND_PX);
-    return [outer * INNER_RATIO, outer];
-  });
+  let slices = $derived(genres.map((g) => ({ name: g.genre, value: g.play_count })));
+  // antes del primer layout no hay ancho que repartir
+  let fit = $derived(width ? fitPieLabels(slices, width, parseFloat(height)) : null);
 
   let option = $derived<EChartsOption>({
     tooltip: { ...PIE_TOOLTIP, formatter: `{b}: {c}${unit ? ` ${unit}` : ''} ({d}%)` },
     series: [{
       type: 'pie',
-      radius,
+      radius: fit ? [fit.outer * INNER_RATIO, fit.outer] : FALLBACK_RADIUS,
+      center: [fit?.cx ?? '50%', '50%'],
       avoidLabelOverlap: true,
       itemStyle: { borderRadius: 2, borderColor: CARD_BG, borderWidth: 2 },
-      label: { ...AXIS_LABEL, ...(width && width < NARROW_WIDTH ? { fontSize: NARROW_LABEL_SIZE } : {}) },
+      label: { ...PIE_LABEL, ...(fit ? { fontSize: fit.fontSize } : {}) },
+      labelLine: PIE_LABEL_LINE,
       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },
-      data: genres.map((g, i) => ({
-        name: g.genre,
-        value: g.play_count,
-        itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] },
-      })),
+      data: slices.map((s, i) => ({ ...s, itemStyle: { color: PIE_COLORS[i % PIE_COLORS.length] } })),
     }],
   });
 </script>

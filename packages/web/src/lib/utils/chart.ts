@@ -479,3 +479,73 @@ export const PIE_COLORS = ['#1db954', '#1ed760', '#2ecc71', '#27ae60', '#16a085'
 
 // más porciones que colores y dos del mismo tono compiten en la misma dona
 export const PIE_MAX_SLICES = PIE_COLORS.length;
+
+// --- Dona con etiquetas fuera ---
+// echarts pone cada etiqueta a un lado del anillo según el ángulo medio de su
+// porción, la separa con la guía (dos tramos y un hueco) y recorta con puntos
+// suspensivos (o parte en líneas) lo que no quepa hasta `bleedMargin` del borde. Al repartirlas en
+// vertical las realinea sobre una elipse de semieje horizontal `r + length`, que
+// nunca las lleva más lejos que una porción a las 3 o a las 9: ése es el caso a
+// cubrir. En vez de reservarles una banda fija, se mide la etiqueta más ancha de
+// cada lado y se despeja el mayor anillo que las deja enteras.
+
+/** guía y márgenes de las etiquetas. Van también a la serie, para que el
+ *  cálculo no dependa de que echarts mantenga sus defaults. `break`: si aun
+ *  así no cabe (anillo en el mínimo), la etiqueta se parte en líneas en vez de
+ *  perder caracteres */
+export const PIE_LABEL_LINE = { length: 15, length2: 15 } as const;
+export const PIE_LABEL = { ...AXIS_LABEL, distanceToLabelLine: 5, bleedMargin: 10, overflow: 'break' } as const;
+// tamaños de etiqueta por preferencia: se baja al siguiente sólo si con el
+// anterior el anillo quedaría por debajo del mínimo
+const PIE_LABEL_FONT_SIZES = [AXIS_LABEL.fontSize, 10] as const;
+// por debajo de este radio exterior la banda del anillo (0.43 del radio, ~10px)
+// ya no deja comparar porciones: antes que encogerlo más, las etiquetas que no
+// quepan se parten en dos líneas. Es un suelo, no una reserva: con 40 los
+// géneros reales de un móvil (tres de ~20 caracteres a la izquierda) cabían con
+// 29px de anillo y en su lugar se partían y echarts escondía la que chocaba
+export const PIE_MIN_OUTER_RADIUS = 24;
+// echarts arranca a las 12 (startAngle 90) en sentido horario; en coordenadas
+// de canvas, con la y hacia abajo, eso es -π/2 y creciendo
+const PIE_START_ANGLE = -Math.PI / 2;
+// una porción con el ángulo medio justo en vertical puede caer a cualquiera de
+// los dos lados por redondeo: cuenta para ambos
+const PIE_SIDE_EPSILON = 1e-9;
+
+export interface PieFit {
+  /** radio exterior del anillo, px */
+  outer: number;
+  /** centro horizontal, px: lo que va centrado es el conjunto anillo + etiquetas */
+  cx: number;
+  fontSize: number;
+}
+
+/** Mayor anillo de una dona de `width`×`height` px que deja enteras las etiquetas de `slices`. */
+export function fitPieLabels(slices: readonly { name: string; value: number }[], width: number, height: number): PieFit {
+  // lo que separa el anillo del borde del canvas además del propio texto
+  const gutter = PIE_LABEL_LINE.length + PIE_LABEL_LINE.length2 + PIE_LABEL.distanceToLabelLine + PIE_LABEL.bleedMargin;
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  let before = 0;
+  const cosines = slices.map((s) => {
+    const mid = PIE_START_ANGLE + (2 * Math.PI * (before + s.value / 2)) / total;
+    before += s.value;
+    return Math.cos(mid);
+  });
+
+  const fitAt = (fontSize: number) => {
+    const font = `${fontSize}px ${PIE_LABEL.fontFamily}`;
+    const widths = slices.map((s) => Math.ceil(measureTextWidth(s.name, font)));
+    const widest = (onSide: (cos: number) => boolean) => Math.max(0, ...widths.filter((_, i) => onSide(cosines[i])));
+    const left = widest((cos) => cos < PIE_SIDE_EPSILON);
+    const right = widest((cos) => cos > -PIE_SIDE_EPSILON);
+    // en vertical manda la etiqueta de arriba: a `length` del anillo más media línea
+    const outer = Math.min((width - left - right) / 2 - gutter, height / 2 - PIE_LABEL_LINE.length - fontSize / 2);
+    return { fontSize, outer, left, right };
+  };
+
+  const fits = PIE_LABEL_FONT_SIZES.map(fitAt);
+  const fit = fits.find((f) => f.outer >= PIE_MIN_OUTER_RADIUS) ?? fits[fits.length - 1];
+  const outer = Math.max(fit.outer, PIE_MIN_OUTER_RADIUS);
+  // el ancho que sobra se reparte a partes iguales a los dos lados
+  const slack = width - fit.left - fit.right - 2 * (gutter + outer);
+  return { outer, cx: fit.left + gutter + outer + slack / 2, fontSize: fit.fontSize };
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fitSeries, aggregateSeries, periodToMonth, periodToQuarter, periodToYear, niceAxisMax, measureTextWidth, truncateToWidth, MIN_BAR_SLOT_PX, type SeriesPoint } from './chart';
+import { fitSeries, aggregateSeries, periodToMonth, periodToQuarter, periodToYear, niceAxisMax, measureTextWidth, truncateToWidth, fitPieLabels, MIN_BAR_SLOT_PX, AXIS_LABEL, PIE_LABEL, PIE_LABEL_LINE, PIE_MIN_OUTER_RADIUS, type SeriesPoint } from './chart';
 
 // bug: en las vistas de detalle el ancho de barra del activity chart era
 // plotWidth/N sin suelo mínimo, así que en viewports estrechos con series
@@ -147,5 +147,71 @@ describe('truncateToWidth', () => {
     expect(truncateToWidth(NAME, FONT, 1)).toBe('');
     expect(truncateToWidth(NAME, FONT, 0)).toBe('');
     expect(truncateToWidth(NAME, FONT, -10)).toBe('');
+  });
+});
+
+// bug: la dona de géneros reservaba 150px fijos por lado para las etiquetas, así
+// que en la card de un móvil (~346px) el anillo se quedaba en 23px de radio
+// aunque los géneros fueran cortos. Ahora se miden las etiquetas: el invariante
+// es que la más ancha de cada lado entra entera hasta `bleedMargin` del borde,
+// que es donde echarts empieza a recortar con puntos suspensivos
+describe('fitPieLabels', () => {
+  const PHONE_CARD = 346;
+  const RAIL_CARD = 430;
+  const HEIGHT = 220;
+  const OLD_LABEL_BAND = 150;
+  const GUTTER = PIE_LABEL_LINE.length + PIE_LABEL_LINE.length2 + PIE_LABEL.distanceToLabelLine + PIE_LABEL.bleedMargin;
+  const labelWidth = (name: string, fontSize: number) => Math.ceil(measureTextWidth(name, `${fontSize}px ${PIE_LABEL.fontFamily}`));
+
+  // desde las 12 en sentido horario: la grande ocupa la derecha, las otras dos la izquierda
+  const SHORT = [{ name: 'rap', value: 60 }, { name: 'trap', value: 25 }, { name: 'drill', value: 15 }];
+  // con la etiqueta larga en una porción de la izquierda
+  const LOPSIDED = [{ name: 'hip hop', value: 120 }, { name: 'alternative metal', value: 40 }];
+
+  it('en un móvil el anillo crece hasta lo que dejan las etiquetas, no una banda fija', () => {
+    const fit = fitPieLabels(SHORT, PHONE_CARD, HEIGHT);
+    // precondición del bug: con la banda fija el anillo apenas existía
+    expect(PHONE_CARD / 2 - OLD_LABEL_BAND).toBeLessThan(PIE_MIN_OUTER_RADIUS);
+    expect(fit.outer).toBeGreaterThan(PHONE_CARD / 2 - OLD_LABEL_BAND);
+    expect(fit.fontSize).toBe(AXIS_LABEL.fontSize);
+  });
+
+  it('la etiqueta más ancha de cada lado entra entera', () => {
+    const fit = fitPieLabels(LOPSIDED, PHONE_CARD, HEIGHT);
+    const right = labelWidth('hip hop', fit.fontSize);
+    const left = labelWidth('alternative metal', fit.fontSize);
+    expect(fit.cx + fit.outer + GUTTER + right).toBeLessThanOrEqual(PHONE_CARD);
+    expect(fit.cx - fit.outer - GUTTER - left).toBeGreaterThanOrEqual(0);
+  });
+
+  it('el anillo se aparta del lado de las etiquetas largas en vez de encogerse', () => {
+    const fit = fitPieLabels(LOPSIDED, PHONE_CARD, HEIGHT);
+    const longest = labelWidth('alternative metal', fit.fontSize);
+    expect(fit.cx).toBeGreaterThan(PHONE_CARD / 2);
+    // centrado, el anillo tendría que dejar sitio a la larga en los dos lados
+    expect(fit.outer).toBeGreaterThan(PHONE_CARD / 2 - GUTTER - longest);
+  });
+
+  it('con ancho de sobra manda el alto y el conjunto queda centrado', () => {
+    const wide = 1200;
+    const fit = fitPieLabels(SHORT, wide, HEIGHT);
+    expect(fit.outer).toBe(HEIGHT / 2 - PIE_LABEL_LINE.length - AXIS_LABEL.fontSize / 2);
+    const left = fit.cx - fit.outer - GUTTER - labelWidth('drill', fit.fontSize);
+    const right = wide - (fit.cx + fit.outer + GUTTER + labelWidth('rap', fit.fontSize));
+    expect(left).toBeCloseTo(right);
+  });
+
+  it('baja un punto la fuente antes de dejar el anillo por debajo del mínimo', () => {
+    // medio píxel más estrecha de lo que el anillo mínimo necesita con las etiquetas a tamaño normal
+    const narrow = 2 * (GUTTER + PIE_MIN_OUTER_RADIUS) + labelWidth('alternative metal', AXIS_LABEL.fontSize) + labelWidth('hip hop', AXIS_LABEL.fontSize) - 1;
+    const fit = fitPieLabels(LOPSIDED, narrow, HEIGHT);
+    expect(fit.fontSize).toBeLessThan(AXIS_LABEL.fontSize);
+    expect(fit.outer).toBeGreaterThanOrEqual(PIE_MIN_OUTER_RADIUS);
+    // la bajada es por falta de sitio, no por ser estrecha: en el rail vuelve a su tamaño
+    expect(fitPieLabels(LOPSIDED, RAIL_CARD, HEIGHT).fontSize).toBe(AXIS_LABEL.fontSize);
+  });
+
+  it('nunca baja del radio mínimo: por debajo, las etiquetas se parten', () => {
+    expect(fitPieLabels(LOPSIDED, 200, HEIGHT).outer).toBe(PIE_MIN_OUTER_RADIUS);
   });
 });
