@@ -319,6 +319,7 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 - Svelte 5 runes ($state, $derived, $effect)
 - ECharts tree-shaken imports via echarts/core
 - ECharts HTML tooltips: echarts sets `white-space:nowrap` **inline** on the tooltip element, so a class rule (via `className`) can't override it silently. Style the box through `tooltip.extraCssText` (appended to that same inline style) — see `RankingBadges.svelte`
+- ECharts text layout: zrender takes a line's **height** from the width of `'国'` (assumes CJK = 1em). Without CJK fonts (Juan's Arch desktop, headless chromium) that glyph is the mono fallback at 0.6em, so every label box was 60% tall: overlaps, `hideOverlap` hiding pie labels. `BaseChart`'s module script answers that probe with the font size via `setPlatformAPI`; don't remove it. An `axisLabel` without `fontFamily` makes `containLabel` reserve space in sans-serif while mono is drawn (clipped axis): `valueAxis`/`secondaryValueAxis` merge the override for that reason. The genre donut's ring comes from `fitPieLabels` (measured labels, ECharts' own label geometry), never a reserved band
 
 ## Git & deploy workflow
 
