@@ -268,7 +268,6 @@
                     {:else}
                       <span class="song-unmatched">Not in your library</span>
                     {/if}
-                    {#if song.coverArtist}<span class="song-tag">{song.coverArtist} cover</span>{/if}
                     {#if song.info}<span class="song-info">{song.info}</span>{/if}
                   {/snippet}
                   {#snippet meta()}
@@ -397,21 +396,10 @@
   .song-unmatched {
     font-style: italic;
   }
-  .song-tag,
   .song-info {
     margin-left: 0.45rem;
     font-size: var(--fs-xs);
     color: var(--text-muted);
-  }
-  .song-tag {
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: var(--track);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0 0.3rem;
-  }
-  .song-info {
     font-style: italic;
   }
 
