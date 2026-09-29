@@ -175,20 +175,24 @@ export function categoryAxis(data: string[], overrides?: Record<string, any>): S
   };
 }
 
-export function valueAxis(overrides?: Record<string, any>): SingleYAxis {
+// el `axisLabel` de un override se funde con el del eje, no lo sustituye: un
+// `{ formatter }` a secas perdía la fuente, y `containLabel` reservaba el hueco
+// midiendo en sans-serif mientras se pintaba en mono, más ancha (el eje derecho
+// del activity chart salía cortado por el borde: 59px reservados, 75px pintados)
+export function valueAxis({ axisLabel, ...overrides }: Record<string, any> = {}): SingleYAxis {
   return {
     type: 'value',
     splitLine: { ...SPLIT_LINE },
-    axisLabel: { ...AXIS_LABEL },
+    axisLabel: { ...AXIS_LABEL, ...axisLabel },
     ...overrides,
   };
 }
 
-export function secondaryValueAxis(overrides?: Record<string, any>): SingleYAxis {
+export function secondaryValueAxis({ axisLabel, ...overrides }: Record<string, any> = {}): SingleYAxis {
   return {
     type: 'value',
     splitLine: { show: false },
-    axisLabel: { color: '#4a5a5a', fontSize: 11, fontFamily: MONO_STACK },
+    axisLabel: { color: '#4a5a5a', fontSize: 11, fontFamily: MONO_STACK, ...axisLabel },
     ...overrides,
   };
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDuration } from '$lib/utils/format';
-  import { dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, type ChartEvent, tooltipPoints, type TooltipParams } from '$lib/utils/chart';
+  import { dualAxisGrid, TOOLTIP_BASE, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, fitSeries, eventsMarkLine, type ChartEvent, tooltipPoints, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from './BaseChart.svelte';
   import ReleaseRail from './ReleaseRail.svelte';
   import type * as echarts from 'echarts/core';
@@ -84,8 +84,8 @@
       tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const pp = tooltipPoints(params); return pp.map(p => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:#6a7a7a">${pp[0].name}</span>`; } },
       xAxis: categoryAxis(periodKeys),
       yAxis: [
-        valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: durFmt } }),
-        secondaryValueAxis({ axisLabel: { color: '#4a5a5a', fontSize: 11, formatter: durFmt } }),
+        valueAxis({ axisLabel: { formatter: durFmt } }),
+        secondaryValueAxis({ axisLabel: { formatter: durFmt } }),
       ],
       series: [
         barSeries(values, { markLine }),
