@@ -13,6 +13,7 @@
   import MetricMeta from '$lib/components/MetricMeta.svelte';
   import GranularityPicker from '$lib/components/GranularityPicker.svelte';
   import GenrePie from '$lib/components/charts/GenrePie.svelte';
+  import CollapsibleCard from '$lib/components/CollapsibleCard.svelte';
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
@@ -51,6 +52,8 @@
   const REPORT_GRANULARITY_KEY = 'sis:latestReportGranularity';
   // alto de la dona de géneros del rail, el mismo que la de insights
   const GENRE_PIE_HEIGHT = '220px';
+  // en una sola columna la dona va plegada hasta que se abre (ver CollapsibleCard)
+  const GENRES_COLLAPSE_KEY = 'sis:collapse:topGenres';
 
   // los buckets diarios de /listening-time son UTC: las claves se calculan igual
   const utcDayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -578,14 +581,16 @@
     <!-- sin artistas etiquetados no hay géneros: sección fuera -->
     {#if loadingGenres || genres.length > 0}
       <section class="detail-section">
-        <div class="card">
-          <h3 class="section-title"><a href="/insights" class="section-link">Top genres this week</a></h3>
+        <CollapsibleCard storageKey={GENRES_COLLAPSE_KEY}>
+          {#snippet title()}
+            <h3 class="section-title"><a href="/insights" class="section-link">Top genres this week</a></h3>
+          {/snippet}
           {#if loadingGenres}
             <div class="ghost-line ghost-line--chart"></div>
           {:else}
             <GenrePie {genres} unit="plays" height={GENRE_PIE_HEIGHT} />
           {/if}
-        </div>
+        </CollapsibleCard>
       </section>
     {/if}
   {:else if key === 'rankChanges'}
