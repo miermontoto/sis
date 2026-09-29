@@ -2245,24 +2245,10 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     margin-bottom: 1rem;
   }
 
-  /* baseline: el pie del wordmark se apoya en la línea base del título */
-  .mobile-header-title {
-    display: inline-flex;
-    align-items: baseline;
-    font-size: var(--fs-lg);
-    font-weight: 600;
-    color: var(--text);
-    white-space: nowrap;
-  }
-
   .mobile-header-logo {
     display: inline-flex;
     font-size: var(--fs-lg);
-  }
-
-  .mobile-header-sep {
-    color: var(--border);
-    margin: 0 0.25rem;
+    color: var(--text);
   }
 
   .mobile-header-right {

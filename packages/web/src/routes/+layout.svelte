@@ -439,10 +439,6 @@
     }
   }
 
-  let pageTitle = $derived(
-    nav.find(n => isNavActive(n.href))?.label ?? null
-  );
-
   let miniActing = $state(false);
 
   async function miniTogglePlay() {
@@ -785,7 +781,7 @@
     </aside>
     <main class="main-content">
       <div class="mobile-header">
-        <span class="mobile-header-title"><span class="mobile-header-logo"><Wordmark /></span>{#if pageTitle}<span class="mobile-header-sep"></span>{pageTitle}{/if}</span>
+        <span class="mobile-header-logo"><Wordmark /></span>
         <div class="mobile-header-right">
           <button class="mobile-search-bar" onclick={() => showSearch = true}>
             Search...
