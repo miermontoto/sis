@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { api, invalidateCache, getRankingMetric, getSessionTrackingDisplay, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric, type GenreItem, type ReportResponse, type WeekStartOption, type Granularity } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, getSessionTrackingDisplay, getSessionRankDisplay, onSessionRankDisplayChange, getWeekStart, type TopTrackItem, type TopArtistItem, type TopAlbumItem, type HistoryItem, type HealthData, type StreaksData, type RankingMetric, type GenreItem, type ReportResponse, type WeekStartOption, type Granularity } from '$lib/api';
   import { REPORT_GENRES_LIMIT, nextMilestone, isGranularity } from '@sis/shared';
   import TrackList from '$lib/components/TrackList.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
@@ -13,7 +13,6 @@
   import MetricMeta from '$lib/components/MetricMeta.svelte';
   import GranularityPicker from '$lib/components/GranularityPicker.svelte';
   import GenrePie from '$lib/components/charts/GenrePie.svelte';
-  import CollapsibleCard from '$lib/components/CollapsibleCard.svelte';
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
@@ -52,8 +51,6 @@
   const REPORT_GRANULARITY_KEY = 'sis:latestReportGranularity';
   // alto de la dona de géneros del rail, el mismo que la de insights
   const GENRE_PIE_HEIGHT = '220px';
-  // en una sola columna la dona va plegada hasta que se abre (ver CollapsibleCard)
-  const GENRES_COLLAPSE_KEY = 'sis:collapse:topGenres';
 
   // los buckets diarios de /listening-time son UTC: las claves se calculan igual
   const utcDayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -78,6 +75,10 @@
   let weekStart = $state<WeekStartOption>('monday');
   // orden configurable de las secciones del dashboard (settings, como las vistas de detalle)
   let layout = $state<DetailLayout>(defaultLayout('dashboard'));
+  // con los cambios de ranking apagados ('none') la sección no existe: vacía,
+  // emparejaría a los géneros con un hueco invisible (ver .section-grid)
+  let rankDisplay = $state(getSessionRankDisplay());
+  $effect(() => onSessionRankDisplayChange(() => { rankDisplay = getSessionRankDisplay(); }));
 
   // estado de carga por petición independiente
   let loadingTracks = $state(true);
@@ -578,25 +579,26 @@
       </section>
     {/if}
   {:else if key === 'topGenres'}
-    <!-- sin artistas etiquetados no hay géneros: sección fuera -->
+    <!-- sin artistas etiquetados no hay géneros: sección fuera. géneros y
+         ranking changes son medias: contiguas en una sola columna, comparten fila -->
     {#if loadingGenres || genres.length > 0}
-      <section class="detail-section">
-        <CollapsibleCard storageKey={GENRES_COLLAPSE_KEY}>
-          {#snippet title()}
-            <h3 class="section-title"><a href="/insights" class="section-link">Top genres this week</a></h3>
-          {/snippet}
+      <section class="detail-section detail-section--half">
+        <div class="card">
+          <h3 class="section-title"><a href="/insights" class="section-link">Top genres this week</a></h3>
           {#if loadingGenres}
             <div class="ghost-line ghost-line--chart"></div>
           {:else}
             <GenrePie {genres} unit="plays" height={GENRE_PIE_HEIGHT} />
           {/if}
-        </CollapsibleCard>
+        </div>
       </section>
     {/if}
   {:else if key === 'rankChanges'}
-    <section class="detail-section">
-      <RecentRankChanges />
-    </section>
+    {#if rankDisplay !== 'none'}
+      <section class="detail-section detail-section--half">
+        <RecentRankChanges />
+      </section>
+    {/if}
   {:else if key === 'recentPlays'}
     <section class="detail-section">
       <div class="card">
@@ -644,7 +646,10 @@
   {/each}
 </div>
 
-<aside class="detail-rail">
+<!-- el rail también es .section-grid: en una sola columna va debajo del main y
+     sus medias contiguas comparten fila; con el rail a la derecha (≥1800px) es
+     una columna flex y de la rejilla sólo toma el gap -->
+<aside class="detail-rail dash-rail section-grid">
   {#each layout.rail as key (key)}
     {@render section(key)}
   {/each}
@@ -660,6 +665,12 @@
     /* en una columna el rail va debajo: el hueco entre ambos lo pone la
        rejilla principal, que no tiene gap tras su última fila */
     margin-bottom: var(--detail-gap);
+  }
+
+  /* dos medias lado a lado (géneros y ranking changes) miden lo mismo; la card de
+     ranking changes la pinta su componente, de ahí el :global */
+  .dash-rail > .detail-section--half > :global(.card) {
+    height: 100%;
   }
 
   /* año + selector de entidad a la derecha del título */

@@ -4,7 +4,6 @@
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import DisplacedTooltip from '$lib/components/DisplacedTooltip.svelte';
-  import CollapsibleCard from '$lib/components/CollapsibleCard.svelte';
   import EntityTypePicker, { ENTITY_LABELS, isEntityType } from '$lib/components/EntityTypePicker.svelte';
   import type { EntityType } from '$lib/utils/entity-context';
 
@@ -27,8 +26,6 @@
   // por defecto: es el ranking que más se mueve en una semana
   const ENTITY_FILTER_KEY = 'sis:rankChangesEntity';
   const ENTITY_FILTER_DEFAULT: EntityType = 'artist';
-  // en una sola columna la card va plegada hasta que se abre (ver CollapsibleCard)
-  const COLLAPSE_KEY = 'sis:collapse:rankChanges';
 
   let items = $state<RecentRankChangeItem[]>([]);
   let loading = $state(true);
@@ -108,13 +105,11 @@
 </script>
 
 {#if displayMode !== 'none'}
-  <CollapsibleCard storageKey={COLLAPSE_KEY}>
-    {#snippet title()}
+  <div class="card changes-card">
+    <div class="section-header changes-header">
       <h3 class="section-title"><a href="/top?range=all" class="section-link">Recent ranking changes</a></h3>
-    {/snippet}
-    {#snippet actions()}
       <EntityTypePicker value={entityFilter} onchange={setEntityFilter} variant="pills" iconsOnly />
-    {/snippet}
+    </div>
 
     {#if loading}
       <div class="changes-list">
@@ -164,7 +159,7 @@
         {/each}
       </div>
     {/if}
-  </CollapsibleCard>
+  </div>
 {/if}
 
 {#if displacedHover}
@@ -179,6 +174,12 @@
 {/if}
 
 <style>
+  /* título + filtros: en el rail (400px) los botones bajan de línea */
+  .changes-header {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+
   .changes-empty {
     font-size: var(--fs-sm);
     color: var(--text-muted, #666);

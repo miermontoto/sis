@@ -9,10 +9,6 @@ export type EntityKind = 'artist' | 'album' | 'track';
 export type LayoutKind = EntityKind | 'dashboard';
 export type LayoutColumn = 'main' | 'rail';
 
-// a partir de este ancho el rail se pone a la derecha; por debajo va al final
-// de la única columna. réplica del `@media (min-width: 1800px)` de app.css
-export const RAIL_COLUMN_QUERY = '(min-width: 1800px)';
-
 export interface SectionDef {
   key: string;
   label: string;
