@@ -103,9 +103,10 @@ app.route('/api/lastfm', lastfm);
 app.route('/api/mierid', mierid);
 app.route('/api/listen-token', listenTokenRoutes);
 
-// API de scrobbling compatible listenbrainz — fuera de /api/* a propósito: los
-// clientes (pano scrobbler, web scrobbler…) apuntan su base URL al origen y
-// añaden /1/...; autentica por token de scrobbling, no por sesión
+// API de scrobbling compatible listenbrainz — fuera de /api/* a propósito: cada
+// cliente compone la url a su manera (pano añade 1/… al origen, navidrome espera
+// <origen>/1/ y web scrobbler postea a la url tal cual, /1/submit-listens incluido;
+// ver el hint de settings); autentica por token de scrobbling, no por sesión
 app.route('/1', listenbrainzApi);
 
 // rutas públicas (share links) — fuera de /api/* para quedar estructuralmente

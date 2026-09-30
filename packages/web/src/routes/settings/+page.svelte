@@ -16,7 +16,7 @@
   import IconDownload from '$lib/icons/IconDownload.svelte';
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
   import { listLoginSessions, logoutOtherSessions, type SessionInfo, type UserRecord } from '$lib/api';
-  import { isForeignInstance, isNativeApp, instanceLabel } from '$lib/instance';
+  import { isForeignInstance, isNativeApp, instanceLabel, instanceOrigin } from '$lib/instance';
 
   let health = $state<HealthData | null>(null);
   let me = $state<MeResponse | null>(null);
@@ -314,8 +314,17 @@
     }
   }
 
-  // token de scrobbling (endpoint compatible listenbrainz): clientes push como
-  // Pano Scrobbler / Web Scrobbler apuntan al origen del sitio con este token
+  // url de scrobbling por cliente: cada uno compone la ruta a su manera (pano añade
+  // 1/… al origen, navidrome espera <origen>/1/, web scrobbler postea a la url tal
+  // cual). el origen es el de la instancia: en el apk page.url es https://localhost
+  const SCROBBLER_URLS = [
+    { client: 'Web Scrobbler', path: '/1/submit-listens' },
+    { client: 'Pano Scrobbler', path: '' },
+    { client: 'Navidrome', path: '/1/' },
+  ];
+  const scrobbleOrigin = $derived(instanceOrigin() || page.url.origin);
+  // token de scrobbling (endpoint compatible listenbrainz) que mandan los clientes push
+  // (pano scrobbler, web scrobbler, navidrome…) junto a su url de SCROBBLER_URLS
   let listenToken = $state<ListenTokenStatus | null>(null);
   let listenTokenVisible = $state(false);
   let listenTokenBusy = $state(false);
@@ -986,7 +995,12 @@
           <div class="pref-info">
             <div class="pref-label lastfm-label"><IconWifi size={16} /> Scrobblers</div>
             <div class="pref-desc">
-              Push plays from any ListenBrainz-compatible client (Pano Scrobbler, Web Scrobbler, Navidrome…) — set the API URL to <strong>{page.url.origin}</strong> and authenticate with your token
+              Push plays from any ListenBrainz-compatible client and authenticate with your token. Each client takes the API URL in its own shape:
+              <ul class="scrobbler-urls">
+                {#each SCROBBLER_URLS as s (s.client)}
+                  <li>{s.client}: <strong>{scrobbleOrigin}{s.path}</strong></li>
+                {/each}
+              </ul>
             </div>
           </div>
           <div class="pref-control lastfm-control">
@@ -1617,6 +1631,12 @@
     font-size: var(--fs-sm);
     color: var(--accent);
     padding-top: 0.5rem;
+  }
+
+  .scrobbler-urls {
+    margin: 0.35rem 0 0;
+    padding-left: 1.1rem;
+    word-break: break-all;
   }
 
   .token-reveal {
