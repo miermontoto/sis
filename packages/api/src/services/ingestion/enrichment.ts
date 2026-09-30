@@ -9,6 +9,7 @@ import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAl
 import { MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE } from '../../constants.js';
 import { createLogger } from '../logger.js';
 import { serviceUserAgent } from '../public-origin.js';
+import { searchVerifiedRecording } from './identity.js';
 
 const log = createLogger('metadata');
 const now = () => new Date().toISOString();
@@ -442,18 +443,13 @@ export async function enrichImportTrackDurations() {
 
   let updated = 0;
   for (const track of missing) {
-    const query = `recording:${track.name} AND artist:${track.artist_name}`;
-    const url = `${MB_API_BASE}/recording?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
-
     try {
-      const res = await fetch(url, {
-        headers: { 'User-Agent': serviceUserAgent(), 'Accept': 'application/json' },
-      });
+      // la misma búsqueda verificada que la identidad (título Y crédito, frases citadas):
+      // el top hit por score era a menudo otro tema, y su mbid acababa en un merge físico
+      const result = await searchVerifiedRecording(track.name, track.artist_name);
 
-      if (res.ok) {
-        const data = await res.json() as { recordings?: { id: string; score: number; length?: number }[] };
-        const recording = data.recordings?.[0];
-        const matched = recording && recording.score >= MB_MIN_SCORE ? recording : null;
+      if (result) {
+        const matched = result.recording;
         // identidad gratis: la búsqueda ya está pagada, capturar el mbid del match
         // aunque no traiga length (la acreción nunca pisa un mbid previo)
         if (matched) {

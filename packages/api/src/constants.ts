@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w40k';
+export const VERSION = '26w40l';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -179,9 +179,13 @@ export const MB_API_BASE = 'https://musicbrainz.org/ws/2';
 export const MB_DELAY_MS = 1100;
 // score mínimo de una búsqueda musicbrainz para dar el match por bueno
 export const MB_MIN_SCORE = 80;
-// resultados que se piden a la búsqueda: se acepta el primero cuyo título y artista
-// coinciden con los nuestros, no el mejor puntuado a secas
-export const MB_SEARCH_LIMIT = 5;
+// resultados que se piden a la búsqueda: de los que coinciden en título y artista se
+// queda el de más lanzamientos de estudio, no el mejor puntuado a secas. 25 porque
+// los directos llenan las primeras posiciones y el orden entre empates no es estable
+// (el estudio de "Lisztomania" ha salido entre el 4º y el 6º)
+export const MB_SEARCH_LIMIT = 25;
+// lanzamientos de estudio mínimos para aceptar un recording (ver searchVerifiedRecording)
+export const MB_MIN_STUDIO_RELEASES = 2;
 
 // harvest de isrcs vía /tracks de spotify: lotes de 50 (límite del endpoint),
 // capado por ciclo para no monopolizar la cuota de la API en el backfill inicial

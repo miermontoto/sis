@@ -11,7 +11,7 @@ import { spotifyFetch } from '../spotify-client.js';
 import { mbRecordingQuery, sameTitle } from '@sis/shared';
 import type { SpotifyTracksBatchResponse } from '../../types/spotify.js';
 import {
-  MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, MB_SEARCH_LIMIT,
+  MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, MB_SEARCH_LIMIT, MB_MIN_STUDIO_RELEASES,
   ISRC_HARVEST_BATCH_SIZE, ISRC_HARVEST_MAX_BATCHES, MB_IDENTITY_MAX_PER_CYCLE,
   TRACK_DEDUP_DURATION_TOLERANCE_MS, ISRC_DEDUP_MAX_PER_CYCLE,
 } from '../../constants.js';
@@ -73,7 +73,11 @@ interface MbRecording {
   id: string;
   title: string;
   score: number;
+  length?: number;
+  video?: boolean;
+  disambiguation?: string;
   'artist-credit'?: { name?: string; artist?: { id?: string; name?: string } }[];
+  releases?: { status?: string; 'release-group'?: { 'primary-type'?: string; 'secondary-types'?: string[] } }[];
 }
 interface MbRecordingSearch {
   recordings?: MbRecording[];
@@ -85,6 +89,49 @@ async function mbFetch<T>(path: string): Promise<T | null> {
   });
   if (!res.ok) return null;
   return await res.json() as T;
+}
+
+// búsqueda /recording de (título, artista) con el match verificado. el score no basta:
+// una query sin citar devolvía otro tema al 100, y un mbid equivocado arrastra un isrc
+// equivocado y con él un merge físico en un tema que no es. sólo vale un resultado cuyo
+// título Y artista son los nuestros. el crédito se busca por nombre porque el primero es
+// a menudo otro acto (un "J Balvin, Bad Bunny" dejó a Bad Bunny con el mbid de J Balvin,
+// y la búsqueda de bolos por ese mbid devolvía la gira de J Balvin).
+//
+// y aun verificado, título + crédito no identifica la GRABACIÓN: "Lisztomania" de Phoenix
+// devuelve 43 recordings (12 empatados al score 100, en un orden que cambia entre consultas
+// y con directos por delante del estudio) y "Enter Sandman" 761.
+// De los verificados vale el que acumula más lanzamientos de estudio (oficiales, álbum /
+// single / EP, sin tipo secundario: live, compilation, dj-mix, demo…), con al menos
+// MB_MIN_STUDIO_RELEASES, y nunca uno cuya desambiguación lo marca como versión: un
+// directo de B-side sale en singles de estudio (el "Enter Sandman" de Irvine Meadows 1996
+// ganaba así con 498s). Medido el 2026-09-30 sobre 54 temas de spotify de duración
+// conocida: 17 aciertos y 3 fallos (dos a menos de 30s, otra edición del tema), contra 20/9
+// del primer verificado y 33/11 del top-1 sin citar. Los que se quedan sin match no
+// cuestan nada; un recording equivocado acaba en un merge.
+// null = sin respuesta (reintentar); `recording` undefined = respondida sin match fiable
+const MB_STUDIO_PRIMARY_TYPES = new Set(['Album', 'Single', 'EP']);
+const MB_VARIANT_DISAMBIGUATION = /\b(live|demo|remix|instrumental|acoustic|a ?cappella|karaoke)\b/i;
+const studioReleaseCount = (r: MbRecording) => r.releases?.filter(rel =>
+  rel.status === 'Official'
+  && MB_STUDIO_PRIMARY_TYPES.has(rel['release-group']?.['primary-type'] ?? '')
+  && !rel['release-group']?.['secondary-types']?.length).length ?? 0;
+
+export async function searchVerifiedRecording(title: string, artistName: string): Promise<{ recording?: MbRecording; artistMbid?: string } | null> {
+  const query = mbRecordingQuery(title, artistName);
+  const data = await mbFetch<MbRecordingSearch>(`/recording?query=${encodeURIComponent(query)}&fmt=json&limit=${MB_SEARCH_LIMIT}`);
+  if (!data) return null;
+  const wanted = normalizeArtistName(artistName);
+  const ownCredit = (r: MbRecording) =>
+    r['artist-credit']?.find(c => normalizeArtistName(c.artist?.name ?? c.name ?? '') === wanted);
+  const [recording] = (data.recordings ?? [])
+    .filter(r => !r.video && !MB_VARIANT_DISAMBIGUATION.test(r.disambiguation ?? '')
+      && r.score >= MB_MIN_SCORE && sameTitle(r.title, title) && ownCredit(r) !== undefined)
+    .map(r => ({ r, studio: studioReleaseCount(r) }))
+    .filter(c => c.studio >= MB_MIN_STUDIO_RELEASES)
+    .sort((a, b) => b.studio - a.studio)
+    .map(c => c.r);
+  return { recording, artistMbid: recording && ownCredit(recording)?.artist?.id };
 }
 
 // identidad musicbrainz de tracks sintéticos, en dos fases capadas por ciclo:
@@ -112,28 +159,15 @@ export async function enrichImportTrackIdentity(): Promise<void> {
   for (const track of noMbid) {
     budget--;
     try {
-      const query = mbRecordingQuery(track.name, track.artist_name);
-      const data = await mbFetch<MbRecordingSearch>(`/recording?query=${encodeURIComponent(query)}&fmt=json&limit=${MB_SEARCH_LIMIT}`);
-      // el score no basta: una query sin citar devolvía otro tema al 100, y un mbid
-      // equivocado arrastra un isrc equivocado y con él un merge físico en un tema
-      // que no es. sólo vale un resultado cuyo título Y artista son los nuestros.
-      // el crédito se busca por nombre porque el primero es a menudo otro acto (un
-      // "J Balvin, Bad Bunny" dejó a Bad Bunny con el mbid de J Balvin, y la
-      // búsqueda de bolos por ese mbid devolvía la gira de J Balvin)
-      const wanted = normalizeArtistName(track.artist_name);
-      const ownCredit = (r: MbRecording) =>
-        r['artist-credit']?.find(c => normalizeArtistName(c.artist?.name ?? c.name ?? '') === wanted);
-      const recording = data?.recordings?.find(r =>
-        r.score >= MB_MIN_SCORE && sameTitle(r.title, track.name) && ownCredit(r) !== undefined);
-      if (recording) {
-        db.run(sql`UPDATE tracks SET mbid = ${recording.id}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
+      const result = await searchVerifiedRecording(track.name, track.artist_name);
+      if (result?.recording) {
+        db.run(sql`UPDATE tracks SET mbid = ${result.recording.id}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
         // el mbid de artista se acreta del mismo crédito, ya verificado
-        const artistMbid = ownCredit(recording)?.artist?.id;
-        if (artistMbid) {
-          db.run(sql`UPDATE artists SET mbid = COALESCE(mbid, ${artistMbid}) WHERE spotify_id = ${track.artist_id}`);
+        if (result.artistMbid) {
+          db.run(sql`UPDATE artists SET mbid = COALESCE(mbid, ${result.artistMbid}) WHERE spotify_id = ${track.artist_id}`);
         }
         found++;
-      } else if (data) {
+      } else if (result) {
         // búsqueda respondida sin match fiable: centinela para no repetirla
         db.run(sql`UPDATE tracks SET mbid = '', updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
       }
