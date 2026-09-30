@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
-import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveDuplicateTrackId, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanCrossTrackDuplicates, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion.js';
+import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveDuplicateTrackId, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanCrossTrackDuplicates, cleanStartEndTwins, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
 import { checkChartClosings, checkDailyEvents } from './notification-events.js';
@@ -198,12 +198,13 @@ function startTokenlessEnrichment() {
       logMetadata.error('error identidad:', err);
     }
     // dedup de plays también en el ciclo diario (además del boot): los scrobbles
-    // push (/1/submit-listens) pueden duplicar un play que el polling registró
-    // con timestamp de fin — el gemelo inicio/fin se limpia con los cleanups
-    // existentes, que antes solo corrían al arrancar
+    // push (/1/submit-listens) y los de last.fm pueden duplicar un play que el
+    // polling registró con timestamp de fin. ese gemelo inicio/fin, a una duración
+    // de distancia, sólo lo alcanza cleanStartEndTwins (ver dedup.ts)
     try {
       cleanDuplicatePlays();
       cleanBasicExtendedDuplicates();
+      cleanStartEndTwins();
       cleanCrossTrackDuplicates();
     } catch (err) {
       logMetadata.error('error dedup de plays:', err);
@@ -512,6 +513,7 @@ export function startPolling() {
   cleanStaleShortDurations();
   cleanDuplicatePlays();
   cleanBasicExtendedDuplicates();
+  cleanStartEndTwins();
   cleanCrossTrackDuplicates();
   mergeImportTracks();
   cleanNonMusicImports();

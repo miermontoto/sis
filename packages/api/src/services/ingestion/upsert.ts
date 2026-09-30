@@ -370,8 +370,9 @@ function findNearbyPlay(db: ReturnType<typeof getDb>, trackId: string, playedAt:
   `) as { id: number; duration_played_ms: number | null } | undefined;
 }
 
-// insertar reproducción de archivo local (llamado desde polling cuando el track cambia)
-export function insertLocalPlay(trackId: string, playedAt: string, userId: number, durationMs?: number): boolean {
+// insertar reproducción de archivo local (llamado desde polling cuando el track cambia) o
+// un scrobble a mano ('manual'). las dos marcan el ARRANQUE del play (ver playWindow)
+export function insertLocalPlay(trackId: string, playedAt: string, userId: number, durationMs?: number, source: 'spotify' | 'manual' = 'spotify'): boolean {
   const db = getDb();
 
   const existing = findNearbyPlay(db, trackId, playedAt, userId);
@@ -389,7 +390,7 @@ export function insertLocalPlay(trackId: string, playedAt: string, userId: numbe
         playedAt,
         userId,
         durationPlayedMs: durationMs ?? null,
-        source: 'spotify',
+        source,
       })
       .run();
     return true;

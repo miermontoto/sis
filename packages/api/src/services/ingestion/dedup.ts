@@ -535,11 +535,23 @@ const playBaseName = (s: string) =>
 // etiquetadas `source='import'` marcan el INICIO —85 contra 6—. Asumir el fin para todas
 // invalidaba la prueba en 24 filas del barrido de 2026-09-16 (que se sostenían igual por la
 // vía 1). `playWindow` es quien lo resuelve: no vuelvas a asumir una única semántica.
-// ventana [inicio, fin] que ocupó un play. `source='import'` marca el INICIO; el resto
-// (spotify y el import antiguo, source NULL) marca el FIN. Medido, no supuesto: ver el
-// comentario de cleanCrossTrackDuplicates.
+// fuentes cuyo `played_at` es el INICIO del play: 'import' (medido, 85 contra 6; es mixta:
+// son sobre todo plays locales retroetiquetados, y un export de spotify subido por
+// /api/import marca el fin), los scrobbles de last.fm (el `uts` de la api es el arranque:
+// en prod, 8 de 8 gemelos con spotify caen justo una duración por detrás), los listens de
+// listenbrainz (el spec y los clientes, web scrobbler y pano, mandan el arranque) y los
+// scrobbles a mano ('manual'). 'spotify' marca el FIN en los plays de recently-played,
+// pero insertLocalPlay (archivos locales) la escribe al arranque; el import antiguo,
+// source NULL, marca el FIN
+const START_STAMPED_SOURCES = new Set(['import', 'lastfm', 'listenbrainz', 'manual']);
+// las que marcan el arranque por PROTOCOLO (lo manda el cliente): las únicas que
+// cleanStartEndTwins puede dar por gemelas de un play de spotify
+const SCROBBLE_SOURCES = ['lastfm', 'listenbrainz'];
+
+// ventana [inicio, fin] que ocupó un play según la semántica de su fuente. Medido, no
+// supuesto: ver el comentario de cleanCrossTrackDuplicates.
 function playWindow(ts: number, durationS: number, source: string | null): [number, number] {
-  return source === 'import' ? [ts, ts + durationS] : [ts - durationS, ts];
+  return source && START_STAMPED_SOURCES.has(source) ? [ts, ts + durationS] : [ts - durationS, ts];
 }
 
 export function cleanCrossTrackDuplicates() {
@@ -600,6 +612,55 @@ export function cleanCrossTrackDuplicates() {
     db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
   }
   logCleanup.info(`eliminados ${doomed.length} plays duplicados entre filas de track distintas`);
+}
+
+// el mismo play registrado por dos fuentes de semántica OPUESTA: el scrobble (last.fm,
+// listenbrainz) marca el arranque y spotify el final, así que las dos filas
+// del MISMO track quedan a una duración de distancia. cleanDuplicatePlays mira
+// ±DEDUP_WINDOW_S y no llega, cleanBasicExtendedDuplicates exige la duración medida del
+// gemelo (el poll de recently-played no la trae) y cleanCrossTrackDuplicates sólo cruza
+// tracks distintos. La prueba es el reloj: el arranque de la fila de spotify (su marca
+// menos lo que sonó, o el track entero si no se midió) cae a START_END_TWIN_TOLERANCE_S
+// del scrobble. Dos escuchas del mismo tema no arrancan a la vez, y un replay seguido
+// queda una duración entera más allá. Se borra el scrobble: spotify trae el id real, la
+// marca de fin y a veces la duración medida. Sólo se cruzan filas cuya marca se sabe: el
+// scrobble por protocolo y, del otro lado, recently-played (id real de spotify) o el import
+// antiguo (NULL). Una fila 'spotify' sobre un id sintético es un archivo local que
+// insertLocalPlay marca al arranque, un scrobble a mano también, e 'import' mezcla las dos
+// semánticas: con cualquiera de ellas un replay seguido parecería un gemelo y se borraría
+// un play real. Los CROSS JOIN fijan el plan: arrancando por
+// b el planner recorría el historial entero (40s medidos contra 48ms anclando en a y
+// acotando b por played_at sobre idx_lh_user_track_played_at).
+const START_END_TWIN_TOLERANCE_S = 15;
+
+export function cleanStartEndTwins() {
+  const db = getDb();
+  const scrobbles = sql.join(SCROBBLE_SOURCES.map(s => sql`${s}`), sql`, `);
+  const tolerance = sql.raw(String(START_END_TWIN_TOLERANCE_S));
+  const toDelete = db.all(sql`
+    SELECT DISTINCT a.id
+    FROM listening_history a
+    CROSS JOIN tracks t ON t.spotify_id = a.track_id
+    CROSS JOIN listening_history b ON b.user_id = a.user_id AND b.track_id = a.track_id
+      AND b.played_at > a.played_at
+      AND b.played_at <= strftime('%Y-%m-%dT%H:%M:%fZ', a.played_at, '+' || (t.duration_ms / 1000 + ${tolerance}) || ' seconds')
+    WHERE a.source IN (${scrobbles})
+      AND (b.source IS NULL OR (b.source = 'spotify' AND NOT ${syntheticIdPredicate('b.track_id')}))
+      AND COALESCE(b.duration_played_ms, t.duration_ms) > 0
+      AND abs(
+        strftime('%s', a.played_at)
+        - (strftime('%s', b.played_at) - COALESCE(b.duration_played_ms, t.duration_ms) / 1000.0)
+      ) <= ${tolerance}
+  `) as { id: number }[];
+
+  if (toDelete.length === 0) return;
+
+  const ids = toDelete.map(r => r.id);
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = ids.slice(i, i + 500);
+    db.run(sql`DELETE FROM listening_history WHERE id IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+  }
+  logCleanup.info(`eliminados ${ids.length} scrobbles gemelos de un play de spotify (inicio/fin)`);
 }
 
 // ventana de tolerancia al comparar el hueco entre plays con la duración del track

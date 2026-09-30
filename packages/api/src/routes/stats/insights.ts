@@ -133,7 +133,8 @@ insights.post('/history', async (c) => {
     const dur = s.durationPlayedMs != null
       ? (trackDur ? Math.min(s.durationPlayedMs, trackDur) : s.durationPlayedMs)
       : trackDur ?? undefined;
-    if (insertLocalPlay(s.trackId, s.playedAt, userId, dur)) inserted++;
+    // 'manual': no es un play de spotify y marca el arranque, no el fin
+    if (insertLocalPlay(s.trackId, s.playedAt, userId, dur, 'manual')) inserted++;
   }
 
   if (inserted > 0) invalidateReportCacheForUser(userId);
