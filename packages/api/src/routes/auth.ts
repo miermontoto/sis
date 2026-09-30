@@ -11,66 +11,72 @@ import { isLastfmConfigured, getAuthSession } from '../services/lastfm-client.js
 import { findLastfmAccountByUsername, upsertLastfmAccount } from '../services/lastfm-sync.js';
 import { isMieridConfigured, createPkcePair, buildAuthorizeUrl, exchangeCode, fetchIdentity, findMieridAccountBySub, upsertMieridAccount, type MieridIdentity } from '../services/mierid-client.js';
 import type { SpotifyTokenResponse } from '../types/spotify.js';
-import crypto from 'crypto';
 import { MOBILE_SCHEME, DEFAULT_SPOTIFY_REDIRECT_URI } from '../constants.js';
 import { createLogger } from '../services/logger.js';
 
 const log = createLogger('auth');
 const auth = new Hono();
 
-// almacenar state para prevenir CSRF
-const pendingStates = new Set<string>();
+// vida de un login oauth en vuelo (spotify / last.fm / mier.info)
+const LOGIN_STATE_TTL_MS = 10 * 60_000;
+
+// solo rutas relativas del propio sitio, para evitar open redirect: "//host" y
+// "/\host" también empiezan por "/" y el browser los trata como otro origen
+const SAFE_RETURN_TO = /^\/(?![/\\])/;
+
+// un login oauth en vuelo. viaja en el payload del state (server-side, de un solo
+// uso, previene CSRF) y NO en cookies: el callback cae siempre en el host de
+// SPOTIFY_REDIRECT_URI (sis.fm) pero el login puede empezar en el alias
+// (sis.mier.info), y una cookie puesta al empezar no llega al callback (se perdían
+// returnTo y el flag móvil de los apks que apuntan al alias)
+interface LoginFlow {
+  returnTo: string;
+  // flujo móvil (apk): el callback redirige al deep link de la app en vez de a la spa
+  mobile: boolean;
+  // vincular la cuenta externa a la sesión actual en vez de entrar con ella. se
+  // DECLARA (link=1, sólo el Connect de settings) en vez de deducirse de que haya
+  // sesión en el host del callback: con sesión en sis.fm, un login empezado en el
+  // alias acababa en /settings?mierid=linked (2026-09-30)
+  link: boolean;
+  // verifier pkce de mier.info: emitir y canjear el state recupera el verifier y
+  // valida csrf en un único movimiento
+  verifier?: string;
+}
+
+const loginStates = createOneTimeCodeStore<LoginFlow>({ ttlMs: LOGIN_STATE_TTL_MS });
 
 // oauth móvil: el callback emite un código de un solo uso que viaja en el deep
 // link; la app lo canjea por la cookie de sesión en POST /auth/mobile/exchange
 const mobileAuthCodes = createOneTimeCodeStore<string>({ ttlMs: 60_000 });
 
-// cookies previas al redirect de autorización (returnTo + flag móvil),
-// compartidas por los flujos de spotify y last.fm
-function setLoginCookies(c: Context): void {
-  // guardar returnTo en cookie para recuperar después del callback
+// state del redirect de autorización, con la intención del login leída de su query
+// (returnTo, mobile, link)
+function issueLoginState(c: Context, verifier?: string): string {
   const returnTo = c.req.query('returnTo') || '/';
-  setCookie(c, 'sis_return_to', returnTo, {
-    httpOnly: true,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 10 * 60, // 10 min, mismo que el state
+  return loginStates.issue({
+    returnTo: SAFE_RETURN_TO.test(returnTo) ? returnTo : '/',
+    mobile: c.req.query('mobile') === '1',
+    link: c.req.query('link') === '1',
+    verifier,
   });
-
-  // flag de flujo móvil (apk): el callback redirige al deep link de la app en
-  // vez de a la spa. cookie del browser del sistema, misma vida que el state.
-  if (c.req.query('mobile') === '1') {
-    setCookie(c, 'sis_mobile', '1', {
-      httpOnly: true,
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 10 * 60,
-    });
-  }
 }
 
-// sesión sis con la que VINCULAR una cuenta externa (last.fm / mier.info). en el
-// flujo móvil (cookie sis_mobile) se ignora a propósito: el custom tab comparte
-// las cookies de chrome, así que una sesión web previa en el móvil convertía el
-// login de la app en "vincular a ese usuario" y el callback acababa en /settings
-// dentro del browser en vez de entregar el código a la app (2026-09-21)
-function linkingSession(c: Context): Session | null {
-  if (getCookie(c, 'sis_mobile') === '1') return null;
+// sesión sis a la que VINCULAR la cuenta externa (last.fm / mier.info), sólo si el
+// login lo pidió. la sesión sale de la cookie del callback, no del inicio, para que
+// un link iniciado por otro no acabe en tu cuenta. en el flujo móvil nunca: el
+// custom tab comparte las cookies de chrome, así que una sesión web previa en el
+// móvil convertía el login de la app en "vincular a ese usuario" y el callback
+// acababa en /settings dentro del browser en vez de entregar el código a la app
+// (2026-09-21)
+function linkingSession(c: Context, flow: LoginFlow): Session | null {
+  if (!flow.link || flow.mobile) return null;
   const sessionCookie = getCookie(c, 'sis_session');
   return sessionCookie ? validateSession(sessionCookie) : null;
 }
 
-function issueState(): string {
-  const state = crypto.randomBytes(16).toString('hex');
-  pendingStates.add(state);
-  // limpiar states viejos después de 10 min
-  setTimeout(() => pendingStates.delete(state), 10 * 60_000);
-  return state;
-}
-
 // tramo final común de los callbacks: sesión + cookie, polling y redirect
 // (deep link móvil o returnTo web)
-function finishLogin(c: Context, userId: number): Response {
+function finishLogin(c: Context, userId: number, flow: LoginFlow): Response {
   const sessionToken = createSession(userId, c.req.header('user-agent'));
   const isSecure = (process.env.SPOTIFY_REDIRECT_URI || '').startsWith('https');
   setCookie(c, 'sis_session', sessionToken, {
@@ -84,24 +90,16 @@ function finishLogin(c: Context, userId: number): Response {
   // reiniciar polling para incluir al nuevo usuario
   restartPolling();
 
-  // recuperar returnTo y limpiar cookie
-  const returnTo = getCookie(c, 'sis_return_to') || '/';
-  deleteCookie(c, 'sis_return_to', { path: '/' });
-
   // flujo móvil: entregar un código de un solo uso a la app via deep link; la
   // sesión ya existe — la app la canjea por su cookie en /auth/mobile/exchange
-  if (getCookie(c, 'sis_mobile') === '1') {
-    deleteCookie(c, 'sis_mobile', { path: '/' });
+  if (flow.mobile) {
     const code = mobileAuthCodes.issue(sessionToken);
     log.info('login completado, entregando código a la app');
     return c.redirect(`${MOBILE_SCHEME}://auth/callback?code=${code}`);
   }
 
-  // solo permitir rutas relativas para evitar open redirect
-  const safePath = returnTo.startsWith('/') ? returnTo : '/';
-
   log.info('login completado exitosamente');
-  return c.redirect(safePath);
+  return c.redirect(flow.returnTo);
 }
 
 auth.get('/login', (c) => {
@@ -112,15 +110,12 @@ auth.get('/login', (c) => {
     return c.json({ error: 'faltan variables de entorno SPOTIFY_CLIENT_ID o SPOTIFY_REDIRECT_URI' }, 500);
   }
 
-  setLoginCookies(c);
-  const state = issueState();
-
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
     scope: SPOTIFY_SCOPES,
     redirect_uri: redirectUri,
-    state,
+    state: issueLoginState(c),
   });
 
   return c.redirect(`${SPOTIFY_AUTH_URL}?${params.toString()}`);
@@ -139,10 +134,10 @@ auth.get('/callback', async (c) => {
     return c.json({ error: 'faltan parámetros code o state' }, 400);
   }
 
-  if (!pendingStates.has(state)) {
+  const flow = loginStates.redeem(state);
+  if (!flow) {
     return c.json({ error: 'state inválido, posible CSRF' }, 403);
   }
-  pendingStates.delete(state);
 
   const clientId = process.env.SPOTIFY_CLIENT_ID!;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!;
@@ -213,7 +208,7 @@ auth.get('/callback', async (c) => {
 
   // crear sesión (spotifyId/isAdmin se resuelven desde users al validar)
   log.info(`sesión creada para usuario ${me.id} (id: ${user.id})`);
-  return finishLogin(c, user.id);
+  return finishLogin(c, user.id, flow);
 });
 
 // --- last.fm: sso + vinculación de cuenta ---
@@ -233,11 +228,9 @@ auth.get('/lastfm/login', (c) => {
     return c.json({ error: 'faltan variables de entorno LASTFM_API_KEY o LASTFM_API_SECRET' }, 503);
   }
 
-  setLoginCookies(c);
-
   // last.fm no soporta state propio: viaja como query param del callback
   const cb = new URL(lastfmCallbackUrl());
-  cb.searchParams.set('state', issueState());
+  cb.searchParams.set('state', issueLoginState(c));
 
   const params = new URLSearchParams({
     api_key: process.env.LASTFM_API_KEY!,
@@ -251,10 +244,10 @@ auth.get('/lastfm/callback', async (c) => {
   const state = c.req.query('state');
 
   if (!token) return c.json({ error: 'falta parámetro token de last.fm' }, 400);
-  if (!state || !pendingStates.has(state)) {
+  const flow = state ? loginStates.redeem(state) : null;
+  if (!flow) {
     return c.json({ error: 'state inválido, posible CSRF' }, 403);
   }
-  pendingStates.delete(state);
 
   let lfm: { name: string; key: string };
   try {
@@ -264,12 +257,10 @@ auth.get('/lastfm/callback', async (c) => {
     return c.json({ error: 'error al verificar identidad con last.fm' }, 500);
   }
 
-  // modo vinculación: con sesión sis activa (y fuera del flujo móvil), conectar
-  // la cuenta al usuario actual
-  const current = linkingSession(c);
+  // modo vinculación: pedido desde settings y con sesión sis activa, conectar la
+  // cuenta al usuario actual. sin sesión, un login normal
+  const current = linkingSession(c, flow);
   if (current) {
-    deleteCookie(c, 'sis_return_to', { path: '/' });
-    deleteCookie(c, 'sis_mobile', { path: '/' });
     const owner = findLastfmAccountByUsername(lfm.name);
     if (owner && owner.userId !== current.userId) {
       log.warn(`last.fm ${lfm.name} ya vinculado al usuario ${owner.userId}`);
@@ -302,7 +293,7 @@ auth.get('/lastfm/callback', async (c) => {
   upsertLastfmAccount(user.id, lfm.name, lfm.key);
 
   log.info(`sesión creada para usuario last.fm ${lfm.name} (id: ${user.id})`);
-  return finishLogin(c, user.id);
+  return finishLogin(c, user.id, flow);
 });
 
 // --- id.mier.info: sso propio + vinculación de cuenta ---
@@ -314,11 +305,6 @@ function mieridCallbackUrl(): string {
   return new URL('/auth/mierid/callback', spotifyCb).toString();
 }
 
-// el state del flujo oidc lleva el verifier pkce como payload: emitirlo y
-// canjearlo en el store de un solo uso valida csrf y recupera el verifier
-// en un único movimiento (misma vida que los states de spotify/last.fm)
-const mieridStates = createOneTimeCodeStore<string>({ ttlMs: 10 * 60_000 });
-
 // público (fuera del gate /api/*): el login decide si mostrar el botón
 auth.get('/mierid/enabled', (c) => c.json({ enabled: isMieridConfigured() }));
 
@@ -327,10 +313,8 @@ auth.get('/mierid/login', (c) => {
     return c.json({ error: 'faltan variables de entorno MIERID_CLIENT_ID o MIERID_CLIENT_SECRET' }, 503);
   }
 
-  setLoginCookies(c);
   const { verifier, challenge } = createPkcePair();
-  const state = mieridStates.issue(verifier);
-  return c.redirect(buildAuthorizeUrl(mieridCallbackUrl(), state, challenge));
+  return c.redirect(buildAuthorizeUrl(mieridCallbackUrl(), issueLoginState(c, verifier), challenge));
 });
 
 auth.get('/mierid/callback', async (c) => {
@@ -345,14 +329,15 @@ auth.get('/mierid/callback', async (c) => {
     return c.json({ error: 'faltan parámetros code o state' }, 400);
   }
 
-  const verifier = mieridStates.redeem(state);
-  if (!verifier) {
+  // un state sin verifier es de otro proveedor: tampoco vale aquí
+  const flow = loginStates.redeem(state);
+  if (!flow?.verifier) {
     return c.json({ error: 'state inválido, posible CSRF' }, 403);
   }
 
   let identity: MieridIdentity;
   try {
-    identity = await fetchIdentity(await exchangeCode(code, verifier, mieridCallbackUrl()));
+    identity = await fetchIdentity(await exchangeCode(code, flow.verifier, mieridCallbackUrl()));
   } catch (err) {
     log.error('error al verificar identidad con id.mier.info:', err);
     return c.json({ error: 'error al verificar identidad con id.mier.info' }, 500);
@@ -361,12 +346,10 @@ auth.get('/mierid/callback', async (c) => {
   // handle legible para placeholders y logs; el vínculo real siempre es el sub
   const handle = identity.username ?? identity.sub;
 
-  // modo vinculación: con sesión sis activa (y fuera del flujo móvil), conectar
-  // la cuenta al usuario actual
-  const current = linkingSession(c);
+  // modo vinculación: pedido desde settings y con sesión sis activa, conectar la
+  // cuenta al usuario actual. sin sesión, un login normal
+  const current = linkingSession(c, flow);
   if (current) {
-    deleteCookie(c, 'sis_return_to', { path: '/' });
-    deleteCookie(c, 'sis_mobile', { path: '/' });
     const owner = findMieridAccountBySub(identity.sub);
     if (owner && owner.userId !== current.userId) {
       log.warn(`cuenta mier.info ${handle} ya vinculada al usuario ${owner.userId}`);
@@ -398,7 +381,7 @@ auth.get('/mierid/callback', async (c) => {
   upsertMieridAccount(user.id, identity.sub, identity.username);
 
   log.info(`sesión creada para usuario mier.info ${handle} (id: ${user.id})`);
-  return finishLogin(c, user.id);
+  return finishLogin(c, user.id, flow);
 });
 
 // canje del código del deep link por la cookie de sesión (apk). la llamada

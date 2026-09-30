@@ -941,7 +941,7 @@
                 {/if}
                 <button class="action-btn action-btn--danger" disabled={lastfmBusy || backfill?.running} onclick={disconnectLastfm}>Disconnect</button>
               {:else}
-                <a href="/auth/lastfm/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
+                <a href="/auth/lastfm/login?returnTo=%2Fsettings&link=1" class="action-btn">Connect</a>
               {/if}
             </div>
           </div>
@@ -971,7 +971,7 @@
               {#if mieridStatus.account}
                 <button class="action-btn action-btn--danger" disabled={mieridBusy} onclick={disconnectMierid}>Disconnect</button>
               {:else}
-                <a href="/auth/mierid/login?returnTo=%2Fsettings" class="action-btn">Connect</a>
+                <a href="/auth/mierid/login?returnTo=%2Fsettings&link=1" class="action-btn">Connect</a>
               {/if}
             </div>
           </div>
