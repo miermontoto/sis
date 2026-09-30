@@ -123,6 +123,10 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
   // elección, el fondo cae a image_url (barrido de spotify). sale del mismo pool de
   // artist_images, así que no necesita historial propio
   try { sqlite.exec('ALTER TABLE artists ADD COLUMN background_url TEXT'); } catch {}
+  // cola de resolveImportArtists: cuándo se buscó en spotify un artista import: sin
+  // encontrarlo (NULL = nunca, va primero). sustituye al rename a unresolved:, que
+  // cambiaba la PK con track_artists apuntándola y la FK lo rechazaba
+  try { sqlite.exec('ALTER TABLE artists ADD COLUMN resolve_checked_at TEXT'); } catch {}
   // color manual del álbum (#rrggbb) para las gráficas y el tinte del hero. NULL = el que
   // se extrae de la portada en el cliente, que sigue siendo el valor por defecto
   try { sqlite.exec('ALTER TABLE albums ADD COLUMN color TEXT'); } catch {}

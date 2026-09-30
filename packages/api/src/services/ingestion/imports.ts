@@ -20,6 +20,16 @@ export const normalizeArtistName = (s: string) =>
 
 const RESOLVE_BATCH_LIMIT = 50;
 const SEARCH_DELAY_MS = 500;
+// un artista import: sin match en spotify vuelve a la cola pasado este tiempo
+const RESOLVE_RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
+
+// artistas import: que un bolo, una colección o una relación siguen nombrando: son FKs
+// reales, así que borrarlos tumbaría el DELETE entero, y cleanOrphanImports corre en el
+// arranque sin try
+const ANNOTATED_ARTIST = sql.raw(`spotify_id IN (SELECT artist_id FROM concerts
+  UNION SELECT artist_id FROM album_collections
+  UNION SELECT artist_a FROM artist_relations
+  UNION SELECT artist_b FROM artist_relations)`);
 
 // eliminar entidades import: huérfanas (tracks/track_artists ya re-apuntados)
 export function cleanOrphanImports() {
@@ -27,11 +37,13 @@ export function cleanOrphanImports() {
   db.run(
     sql`DELETE FROM artist_images WHERE artist_id IN (
       SELECT spotify_id FROM artists WHERE spotify_id LIKE 'import:%'
-        AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists))`
+        AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)
+        AND NOT ${ANNOTATED_ARTIST})`
   );
   const orphanArtists = db.run(
     sql`DELETE FROM artists WHERE spotify_id LIKE 'import:%'
-      AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)`
+      AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)
+      AND NOT ${ANNOTATED_ARTIST}`
   );
   const orphanAlbums = db.run(
     sql`DELETE FROM albums WHERE spotify_id LIKE 'import:%'
@@ -92,16 +104,27 @@ export function cleanNonMusicImports() {
     + (staleRules ? `, ${staleRules} merge rules colgadas` : ''));
 }
 
+// resolver artistas import: buscándolos en spotify por nombre. el que no tiene un
+// candidato con su mismo nombre se sella en resolve_checked_at y vuelve a la cola
+// pasado RESOLVE_RECHECK_MS (el catálogo crece). su id NO cambia: antes se renombraba
+// a unresolved:, pero track_artists apunta a esa PK y con foreign_keys = ON el UPDATE
+// fallaba fuera del try, así que el primer artista sin match cortaba el lote entero
+// en cada ciclo y los que iban detrás no se resolvían nunca
 export async function resolveImportArtists(userId: number) {
   if (isRateLimited()) return;
 
   const db = getDb();
+  const recheckBefore = new Date(Date.now() - RESOLVE_RECHECK_MS).toISOString();
   const pending = db.all(
     sql`SELECT spotify_id, name FROM artists WHERE spotify_id LIKE 'import:%'
       AND spotify_id IN (SELECT DISTINCT artist_id FROM track_artists)
-    ORDER BY (SELECT count(*) FROM track_artists WHERE artist_id = artists.spotify_id) DESC
+      AND (resolve_checked_at IS NULL OR resolve_checked_at < ${recheckBefore})
+    ORDER BY resolve_checked_at ASC,
+      (SELECT count(*) FROM track_artists WHERE artist_id = artists.spotify_id) DESC
     LIMIT ${RESOLVE_BATCH_LIMIT}`
   ) as { spotify_id: string; name: string }[];
+  const markChecked = (id: string) =>
+    db.run(sql`UPDATE artists SET resolve_checked_at = ${now()} WHERE spotify_id = ${id}`);
 
   if (pending.length === 0) return;
   logResolve.info(`${pending.length} artistas import: por resolver...`);
@@ -119,19 +142,9 @@ export async function resolveImportArtists(userId: number) {
       continue;
     }
 
-    if (!data.artists?.items?.length) {
-      const newId = row.spotify_id.replace('import:', 'unresolved:');
-      db.run(sql`UPDATE artists SET spotify_id = ${newId}, updated_at = ${now()} WHERE spotify_id = ${row.spotify_id}`);
-      db.run(sql`UPDATE track_artists SET artist_id = ${newId} WHERE artist_id = ${row.spotify_id}`);
-      await sleep(SEARCH_DELAY_MS);
-      continue;
-    }
-
-    const found = data.artists.items[0];
-    if (normalizeArtistName(found.name) !== normalizeArtistName(row.name)) {
-      const newId = row.spotify_id.replace('import:', 'unresolved:');
-      db.run(sql`UPDATE artists SET spotify_id = ${newId}, updated_at = ${now()} WHERE spotify_id = ${row.spotify_id}`);
-      db.run(sql`UPDATE track_artists SET artist_id = ${newId} WHERE artist_id = ${row.spotify_id}`);
+    const found = data.artists?.items?.[0];
+    if (!found || normalizeArtistName(found.name) !== normalizeArtistName(row.name)) {
+      markChecked(row.spotify_id);
       await sleep(SEARCH_DELAY_MS);
       continue;
     }
@@ -142,45 +155,52 @@ export async function resolveImportArtists(userId: number) {
     ) as { spotify_id: string } | undefined;
 
     try {
-      if (existing) {
-        // el artista real ya existe: re-apuntar track_artists y eliminar el import:
-        db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
-          AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
-        db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
-        rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
-        db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
-        db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
-        // actualizar imagen si el real no la tiene (el historial la registra igual:
-        // es una foto observada aunque no acabe siendo la que se muestra)
-        if (found.images[0]?.url) {
-          db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${found.id}, ${found.images[0].url}, 'spotify')`);
-          db.run(sql`UPDATE artists SET image_url = ${found.images[0].url}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
+      // en una transacción: si el DELETE final choca con una FK (un bolo, una colección o
+      // una relación que nombran al import:), se deshace el re-apuntado entero y el artista
+      // sigue enlazado en vez de quedar huérfano con lo que lo nombra colgando
+      db.transaction(() => {
+        if (existing) {
+          // el artista real ya existe: re-apuntar track_artists y eliminar el import:
+          db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
+            AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
+          db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+          rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
+          db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
+          db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
+          // actualizar imagen si el real no la tiene (el historial la registra igual:
+          // es una foto observada aunque no acabe siendo la que se muestra)
+          if (found.images[0]?.url) {
+            db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${found.id}, ${found.images[0].url}, 'spotify')`);
+            db.run(sql`UPDATE artists SET image_url = ${found.images[0].url}, updated_at = ${now()} WHERE spotify_id = ${found.id} AND (image_url IS NULL OR image_url = '')`);
+          }
+        } else {
+          // crear artista con ID real, migrar track_artists, eliminar import:
+          db.insert(artists)
+            .values({
+              spotifyId: found.id,
+              name: found.name,
+              imageUrl: found.images[0]?.url ?? null,
+              genres: found.genres,
+              popularity: found.popularity,
+              updatedAt: now(),
+            })
+            .onConflictDoNothing()
+            .run();
+          if (found.images[0]?.url) {
+            db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${found.id}, ${found.images[0].url}, 'spotify')`);
+          }
+          db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
+            AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
+          db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+          rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
+          db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
+          db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
         }
-      } else {
-        // crear artista con ID real, migrar track_artists, eliminar import:
-        db.insert(artists)
-          .values({
-            spotifyId: found.id,
-            name: found.name,
-            imageUrl: found.images[0]?.url ?? null,
-            genres: found.genres,
-            popularity: found.popularity,
-            updatedAt: now(),
-          })
-          .onConflictDoNothing()
-          .run();
-        if (found.images[0]?.url) {
-          db.run(sql`INSERT OR IGNORE INTO artist_images (artist_id, image_url, source) VALUES (${found.id}, ${found.images[0].url}, 'spotify')`);
-        }
-        db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
-          AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
-        db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
-        rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
-        db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
-        db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
-      }
+      });
     } catch (err) {
       logResolve.error(`error resolviendo artista "${row.name}":`, err);
+      // sellado también: un fallo que se repite ocuparía la cabeza de la cola cada ciclo
+      markChecked(row.spotify_id);
       await sleep(SEARCH_DELAY_MS);
       continue;
     }

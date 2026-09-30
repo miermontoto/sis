@@ -28,6 +28,9 @@ export const artists = sqliteTable('artists', {
   // imagen de fondo del detalle, elegida a mano del pool de artist_images.
   // NULL = sin elección: el fondo cae a imageUrl
   backgroundUrl: text('background_url'),
+  // cola de resolveImportArtists: último intento sin match en spotify de un artista
+  // import:. NULL = nunca buscado
+  resolveCheckedAt: text('resolve_checked_at'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 
