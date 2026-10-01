@@ -12,7 +12,7 @@ import { dbRead } from '../db/read-pool.js';
 import { getDb } from '../db/connection.js';
 import { getUserSettingsForUser } from './records-cache.js';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
-import { REPORT_CACHE_TTL_MS, REPORT_CACHE_MAX_PER_USER } from '../constants.js';
+import { REPORT_CACHE_TTL_MS, REPORT_CACHE_MAX_PER_USER, PERIOD_CLOSE_GRACE_MS } from '../constants.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('report-cache');
@@ -83,10 +83,12 @@ export async function getReportCached(userId: number, granularity: Granularity, 
 }
 
 /** Hornea los últimos periodos cerrados (semana, mes y año) de un usuario con sus
- *  ajustes de chart, si no están frescos. Arranque diferido + tick horario. */
+ *  ajustes de chart, si no están frescos. Arranque diferido + tick horario. Un periodo
+ *  cuenta como cerrado PERIOD_CLOSE_GRACE_MS después de su fin, la misma regla que la
+ *  push del report: hornearlo antes lo guardaría sin sus últimos plays todo el TTL. */
 export async function warmLatestReports(userId: number, spotifyId: string): Promise<void> {
   const { weekStart, sort } = getUserSettingsForUser(getDb(), spotifyId);
-  const now = new Date();
+  const now = new Date(Date.now() - PERIOD_CLOSE_GRACE_MS);
   for (const granularity of GRANULARITIES) {
     const period = adjacentPeriod(periodForDate(now, granularity, weekStart), granularity, weekStart, -1);
     if (!period) continue;

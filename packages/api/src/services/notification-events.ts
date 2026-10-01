@@ -1,23 +1,25 @@
 // detección de eventos de notificación push.
 // tres puntos de enganche producen los tipos de evento (NotificationType):
 //  - emitRecordEvents: diff de la cache de records -> 'record'
-//  - checkChartClosings: cierre de semana time-driven -> 'chart_closing' | 'number_one'
+//  - checkPeriodClosings: cierre de semana / mes / año time-driven -> 'report_ready' | 'number_one'
 //  - checkDailyEvents: cambio de día time-driven -> 'release_anniversary' | 'first_listen_anniversary' | 'milestone'
 // el envío real (sendPush) es credential-gated y fire-and-forget: nunca bloquea
 // ni lanza hacia el polling / recomputo de cache.
 import { eq, sql } from 'drizzle-orm';
+import { adjacentPeriod, periodForDate } from '@sis/shared';
 import { getDb } from '../db/connection.js';
 import { getChart } from '../db/queries/index.js';
-import { periodExpr, userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter } from '../db/queries/helpers.js';
+import { userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter } from '../db/queries/helpers.js';
 import type { Db, EntityType } from '../db/queries/index.js';
 import { fetchEntityMetadata } from '../db/queries/charts.js';
 import { userSettings } from '../db/schema.js';
 import { sendPush, hasDeliverableChannel } from './push-dispatch.js';
+import { getReportCached } from './report-cache.js';
 import {
   RECORDS_LIMIT,
   RECORD_NOTIFY_CATEGORIES,
   NOTIFICATION_MAX_PER_DAY,
-  NOTIFY_CHART_TOP_N,
+  PERIOD_CLOSE_GRACE_MS,
   ANNIVERSARY_MIN_PLAYS,
   MILESTONE_THRESHOLDS,
 } from '../constants.js';
@@ -25,7 +27,7 @@ import {
   resolveLocale,
   recordMessage,
   numberOneMessage,
-  chartClosingMessage,
+  reportReadyMessage,
   playlistRegeneratedMessage,
   releaseAnniversaryMessage,
   firstListenAnniversaryMessage,
@@ -33,6 +35,7 @@ import {
 } from './notification-messages.js';
 import type { NotifyLocale } from './notification-messages.js';
 import type {
+  Granularity,
   NotificationType,
   PushPayload,
   RecordsResponse,
@@ -48,23 +51,25 @@ const log = createLogger('notify');
 // --- constantes locales (sin magic strings) ---
 
 const GRANULARITY_WEEK = 'week' as const;
-// el chart-closing de fase 1 opera solo sobre tracks
+// granularidades cuyo cierre dispara la push de su report
+const REPORT_GRANULARITIES: readonly Granularity[] = ['week', 'month', 'year'];
+// el número 1 nuevo se mira sólo en el chart semanal de tracks
 const CHART_ENTITY_TYPE = 'track' as const;
-// prefijo del campo dedup `period` para eventos de cierre de semana ('week:2026-W25')
-const PERIOD_PREFIX_WEEK = 'week:';
-// entity_id vacío (NOT NULL) para eventos sin entidad (chart_closing); el UNIQUE dedup
+// entity_id vacío (NOT NULL) para eventos sin entidad (report_ready); el UNIQUE dedup
 const EMPTY_ENTITY = '';
 // weekStart por defecto (coincide con DEFAULTS de routes/settings.ts)
 const DEFAULT_WEEK_START: WeekStartOption = 'friday';
-// deep link del recap de cierre de semana: el report de la semana cerrada
-const REPORT_WEEK_ROUTE = '/reports/week/';
+// deep link de la push: el report del periodo cerrado (/reports/<granularidad>/<periodo>)
+const REPORTS_ROUTE = '/reports/';
+// el report de la push se lee en el reloj horneado (UTC): la push no pinta el reloj por horas
+const REPORT_TZ_OFFSET = 0;
 // ventana de throttle: 24h para datetime('now', ...)
 const THROTTLE_WINDOW = '-1 day';
 
 // tipos de evento (literales de NotificationType)
 const EVENT_RECORD: NotificationType = 'record';
 const EVENT_NUMBER_ONE: NotificationType = 'number_one';
-const EVENT_CHART_CLOSING: NotificationType = 'chart_closing';
+const EVENT_REPORT_READY: NotificationType = 'report_ready';
 const EVENT_PLAYLIST_REGENERATED: NotificationType = 'playlist_regenerated';
 const EVENT_RELEASE_ANNIVERSARY: NotificationType = 'release_anniversary';
 const EVENT_FIRST_LISTEN_ANNIVERSARY: NotificationType = 'first_listen_anniversary';
@@ -94,7 +99,9 @@ const ENTITY_TYPE_MAP: readonly [keyof RecordsResponse, string][] = [
 const PREF_ENABLED = 'notificationsEnabled';
 const PREF_RECORDS = 'notifyRecords';
 const PREF_NUMBER_ONE = 'notifyNumberOne';
-const PREF_CHART_CLOSINGS = 'notifyChartClosings';
+// push de reports (semana, mes y año): la clave es la del antiguo recap semanal, para
+// que quien lo apagó lo siga teniendo apagado
+const PREF_REPORTS = 'notifyChartClosings';
 const PREF_ANNIVERSARIES = 'notifyAnniversaries';
 const PREF_MILESTONES = 'notifyMilestones';
 const PREF_LOCALE = 'locale';
@@ -142,7 +149,7 @@ function dispatchEvent(
   if (!hasDeliverableChannel(userId)) return;
 
   // 2. throttle diario compartido entre los tipos frecuentes (records, aniversarios,
-  //    milestones); los eventos de cierre de semana —number_one/chart_closing— son
+  //    milestones); los eventos de cierre de periodo —number_one/report_ready— son
   //    poco frecuentes y lo saltan. el conteo se limita a filas de THROTTLED_TYPES
   //    para no mezclar con los tipos exentos.
   if (THROTTLED_TYPES.includes(type)) {
@@ -217,84 +224,60 @@ export function emitRecordEvents(userId: number, spotifyId: string, prev: Record
   }
 }
 
-// --- B) cierre de semana time-driven -> chart_closing / number_one ---
+// --- B) cierre de periodo time-driven -> report_ready / number_one ---
 
-// etiqueta de la semana actual reutilizando periodExpr() EXACTO: una subquery aliasada
-// 'lh' con played_at = datetime('now') hace que el mismo strftime weekStart-aware
-// produzca la etiqueta de la semana en curso (mismo formato que el chart real).
-function currentWeekLabel(db: Db, weekStart: WeekStartOption): string | null {
-  const pExpr = periodExpr(GRANULARITY_WEEK, weekStart);
-  const row = db.all(sql`
-    SELECT ${pExpr} as period FROM (SELECT datetime('now') as played_at) lh
-  `)[0] as { period: string } | undefined;
-  return row?.period ?? null;
+// número 1 nuevo del chart semanal de tracks recién cerrado: la entrada rank 1 que no
+// era #1 la semana anterior
+function emitNumberOne(userId: number, locale: NotifyLocale, weekStart: WeekStartOption, sort: RankingMetric, closedLabel: string): void {
+  const entries = getChart(getDb(), CHART_ENTITY_TYPE, GRANULARITY_WEEK, weekStart, closedLabel, sort, userId).entries;
+  const top1 = entries.find(e => e.rank === 1);
+  if (!top1 || top1.previousRank === 1) return;
+
+  const period = `${GRANULARITY_WEEK}:${closedLabel}`;
+  const msg = numberOneMessage(locale, top1);
+  const payload: PushPayload = {
+    title: msg.title,
+    body: msg.body,
+    data: {
+      type: EVENT_NUMBER_ONE,
+      entityType: CHART_ENTITY_TYPE,
+      entityId: top1.entityId,
+      period,
+      route: entityRoute(CHART_ENTITY_TYPE, top1.entityId),
+    },
+  };
+  dispatchEvent(userId, EVENT_NUMBER_ONE, top1.entityId, period, top1.rank, payload);
 }
 
-// construye los eventos del chart final de la semana recién cerrada
-function emitChartClosing(
-  userId: number,
-  settings: Map<string, string>,
-  weekStart: WeekStartOption,
-  sort: RankingMetric,
-  closedLabel: string,
-): void {
-  const db = getDb();
-  const locale = resolveLocale(settings.get(PREF_LOCALE));
+// push del report de cada periodo recién cerrado. hornea (o lee de la cache) el mismo
+// report que abre su deep link, así que al pulsarla ya está listo; un periodo sin plays
+// no avisa de nada. en secuencia, como el tick horario: el 1 de enero cierran semana,
+// mes y año a la vez y en paralelo ocuparían el pool de lectura entero
+async function emitReportsReady(userId: number, locale: NotifyLocale, closings: { granularity: Granularity; closed: string }[], weekStart: WeekStartOption, sort: RankingMetric): Promise<void> {
+  for (const { granularity, closed } of closings) {
+    try {
+      const report = await getReportCached(userId, granularity, closed, weekStart, sort, REPORT_TZ_OFFSET);
+      if (!report || report.summary.plays === 0) continue;
 
-  // chart final de la semana cerrada (tracks, orden del usuario). entries vienen
-  // ordenadas por rank ascendente.
-  const chart = getChart(db, CHART_ENTITY_TYPE, GRANULARITY_WEEK, weekStart, closedLabel, sort, userId);
-  const entries = chart.entries;
-  if (entries.length === 0) return;
-
-  const period = PERIOD_PREFIX_WEEK + closedLabel;
-
-  // top-N que muestra el recap. sirve además para deduplicar: number_one se omite
-  // cuando el recap se envía y su entidad ya aparece aquí, porque entonces el recap
-  // ya la cubre (evita notificaciones redundantes a la vez).
-  const recapEnabled = boolPref(settings, PREF_CHART_CLOSINGS, true);
-  const top = entries.slice(0, NOTIFY_CHART_TOP_N);
-  const topIds = new Set(top.map(e => e.entityId));
-
-  // chart_closing: recap del top-N (bypassa throttle)
-  if (recapEnabled) {
-    const msg = chartClosingMessage(locale, top);
-    const payload: PushPayload = {
-      title: msg.title,
-      body: msg.body,
-      data: { type: EVENT_CHART_CLOSING, period, route: REPORT_WEEK_ROUTE + closedLabel },
-    };
-    dispatchEvent(userId, EVENT_CHART_CLOSING, EMPTY_ENTITY, period, null, payload);
-  }
-
-  // number_one: la entrada rank 1 que no era #1 la semana anterior (nuevo líder).
-  // se omite cuando el recap se envía: el #1 siempre encabeza su top-N, así que
-  // "nuevo número 1" sería redundante con el recap que ya lo muestra primero.
-  if (boolPref(settings, PREF_NUMBER_ONE, true)) {
-    const top1 = entries.find(e => e.rank === 1);
-    if (top1 && top1.previousRank !== 1 && !(recapEnabled && topIds.has(top1.entityId))) {
-      const msg = numberOneMessage(locale, top1);
+      // dedup period = '<granularidad>:<periodo>' ('month:2026-09')
+      const period = `${granularity}:${closed}`;
+      const msg = reportReadyMessage(locale, granularity, closed, report);
       const payload: PushPayload = {
         title: msg.title,
         body: msg.body,
-        data: {
-          type: EVENT_NUMBER_ONE,
-          entityType: CHART_ENTITY_TYPE,
-          entityId: top1.entityId,
-          period,
-          route: entityRoute(CHART_ENTITY_TYPE, top1.entityId),
-        },
+        data: { type: EVENT_REPORT_READY, period, route: `${REPORTS_ROUTE}${granularity}/${closed}` },
       };
-      dispatchEvent(userId, EVENT_NUMBER_ONE, top1.entityId, period, top1.rank, payload);
+      dispatchEvent(userId, EVENT_REPORT_READY, EMPTY_ENTITY, period, null, payload);
+    } catch (err) {
+      log.error(`error en la push del report ${granularity} ${closed} del usuario ${userId}:`, err);
     }
   }
-
 }
 
-// comprueba si la semana ha cambiado desde el último tick y, en tal caso, dispara los
-// eventos de cierre de la semana previa. es time-driven: debe llamarse en cada ciclo de
-// polling AUNQUE no haya datos nuevos.
-export function checkChartClosings(userId: number, spotifyId: string): void {
+// comprueba si la semana, el mes o el año han cambiado desde el último tick y, en tal
+// caso, dispara los eventos de cierre del periodo previo. es time-driven: debe llamarse
+// en cada ciclo de polling AUNQUE no haya datos nuevos.
+export function checkPeriodClosings(userId: number, spotifyId: string): void {
   const db = getDb();
   const settings = getUserSettingsMap(db, spotifyId);
 
@@ -302,43 +285,57 @@ export function checkChartClosings(userId: number, spotifyId: string): void {
   if (!boolPref(settings, PREF_ENABLED, false)) return;
 
   // sin canal entregable (sin dispositivo activo o sin credenciales) no tocamos
-  // notification_period_state: un instante transitorio no debe avanzar/consumir la semana
-  // cerrada (recomputable luego vía getChart), de modo que el cierre se reintente cuando
-  // existan dispositivo + credenciales.
+  // notification_period_state: un instante transitorio no debe avanzar/consumir el periodo
+  // cerrado (recomputable luego), de modo que el cierre se reintente cuando existan
+  // dispositivo + credenciales.
   if (!hasDeliverableChannel(userId)) return;
 
   const weekStart = (settings.get(PREF_WEEK_START) as WeekStartOption) || DEFAULT_WEEK_START;
   const sort: RankingMetric = settings.get(PREF_RANKING_METRIC) === 'plays' ? 'plays' : 'time';
+  const locale = resolveLocale(settings.get(PREF_LOCALE));
+  const reportsEnabled = boolPref(settings, PREF_REPORTS, true);
+  // el periodo vigente se mira PERIOD_CLOSE_GRACE_MS atrás: un periodo no se da por
+  // cerrado hasta que han aterrizado sus últimos plays. misma regla UTC que el report
+  const asOf = new Date(Date.now() - PERIOD_CLOSE_GRACE_MS);
+  const closings: { granularity: Granularity; closed: string }[] = [];
 
-  const current = currentWeekLabel(db, weekStart);
-  if (!current) return;
+  for (const granularity of REPORT_GRANULARITIES) {
+    const current = periodForDate(asOf, granularity, weekStart);
+    const stored = db.all(sql`
+      SELECT last_period as p FROM notification_period_state
+      WHERE user_id = ${userId} AND granularity = ${granularity}
+    `)[0] as { p: string } | undefined;
 
-  const stored = db.all(sql`
-    SELECT last_period as p FROM notification_period_state
-    WHERE user_id = ${userId} AND granularity = ${GRANULARITY_WEEK}
-  `)[0] as { p: string } | undefined;
+    // primera vez: inicializar sin disparar (evita firing en primer arranque / backfill)
+    if (!stored) {
+      db.run(sql`
+        INSERT OR IGNORE INTO notification_period_state (user_id, granularity, last_period)
+        VALUES (${userId}, ${granularity}, ${current})
+      `);
+      continue;
+    }
 
-  // primera vez: inicializar sin disparar (evita firing en primer arranque / backfill)
-  if (!stored) {
+    // sin cambio de periodo: nada que cerrar
+    if (stored.p === current) continue;
+
+    // persistir el periodo actual ANTES del envío: la push del report es asíncrona y el
+    // siguiente tick no debe repetirla. si se saltaron varios (app caída), sólo se avisa
+    // del inmediatamente anterior al actual
     db.run(sql`
-      INSERT OR IGNORE INTO notification_period_state (user_id, granularity, last_period)
-      VALUES (${userId}, ${GRANULARITY_WEEK}, ${current})
+      UPDATE notification_period_state SET last_period = ${current}
+      WHERE user_id = ${userId} AND granularity = ${granularity}
     `);
-    return;
+    const closed = adjacentPeriod(current, granularity, weekStart, -1);
+    if (!closed) continue;
+
+    if (reportsEnabled) closings.push({ granularity, closed });
+    // el report semanal ya nombra su tema número 1: el aviso suelto sólo va sin él
+    if (granularity === GRANULARITY_WEEK && !reportsEnabled && boolPref(settings, PREF_NUMBER_ONE, true)) {
+      emitNumberOne(userId, locale, weekStart, sort, closed);
+    }
   }
 
-  // sin cambio de semana: nada que cerrar
-  if (stored.p === current) return;
-
-  // la semana recién cerrada = la almacenada. si se saltaron varias (app caída), solo
-  // dispara la inmediatamente anterior y salta a la actual.
-  emitChartClosing(userId, settings, weekStart, sort, stored.p);
-
-  // persistir la semana actual (avanza aunque se hayan saltado semanas)
-  db.run(sql`
-    UPDATE notification_period_state SET last_period = ${current}
-    WHERE user_id = ${userId} AND granularity = ${GRANULARITY_WEEK}
-  `);
+  if (closings.length > 0) void emitReportsReady(userId, locale, closings, weekStart, sort);
 }
 
 // --- C) eventos diarios time-driven -> release_anniversary / first_listen_anniversary / milestone ---

@@ -843,7 +843,7 @@
         <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
           <div class="pref-info">
             <div class="pref-label">New #1</div>
-            <div class="pref-desc">When a new track tops your weekly chart</div>
+            <div class="pref-desc">When a new track tops your weekly chart. Only sent with new reports off, since the weekly report already names it</div>
           </div>
           <div class="pref-control">
             <div class="segmented">
@@ -854,8 +854,8 @@
         </div>
         <div class="pref-row row-border" class:pref-row--disabled={!notifEnabledPref}>
           <div class="pref-info">
-            <div class="pref-label">Weekly recap</div>
-            <div class="pref-desc">A summary of your top tracks when the week's chart closes</div>
+            <div class="pref-label">New reports</div>
+            <div class="pref-desc">When your weekly, monthly or yearly report is ready: listening time and your #1 artist and track</div>
           </div>
           <div class="pref-control">
             <div class="segmented">

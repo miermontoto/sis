@@ -5,7 +5,7 @@ import { spotifyFetch } from './spotify-client.js';
 import { insertPlay, insertLocalPlay, upsertTrack, enrichArtistMetadata, enrichAlbumMetadata, fixVideoCovers, recoverSingleCovers, enrichLocalAlbumCovers, enrichImportTrackDurations, resolveLocalFileIds, resolveDuplicateTrackId, resolveImportArtists, resolveImportAlbums, fixTrackAlbumAssignments, fixTrackArtistAssociations, deduplicateTracks, deduplicateAlbums, deduplicateAlbumShells, deduplicateEmptyAlbumShells, deduplicateLocalAlbums, deduplicateSyntheticTracks, pruneOrphanSearchIndex, cleanOrphanImports, cleanDuplicatePlays, cleanBasicExtendedDuplicates, cleanCrossTrackDuplicates, cleanStartEndTwins, cleanStaleShortDurations, mergeImportTracks, cleanNonMusicImports, harvestTrackIsrcs, enrichImportTrackIdentity, mergeTracksByIdentity, mergeDuplicateTracksByIsrc } from './ingestion.js';
 import { getStoredTokens } from './token-manager.js';
 import { getAllActiveUsersWithTokens, getUserById } from './user-manager.js';
-import { checkChartClosings, checkDailyEvents } from './notification-events.js';
+import { checkPeriodClosings, checkDailyEvents } from './notification-events.js';
 import {
   CURRENTLY_PLAYING_INTERVAL_MS,
   CURRENTLY_PLAYING_MIN_MS,
@@ -366,13 +366,13 @@ export function triggerCurrentlyPlayingPoll(userId: number, delayMs = CURRENTLY_
 }
 
 async function pollRecentlyPlayed(userId: number) {
-  // cierre de chart y eventos diarios (time-driven): deben correr cada ciclo aún sin
+  // cierre de periodo y eventos diarios (time-driven): deben correr cada ciclo aún sin
   // datos nuevos, por eso van antes del early-return de recently-played. guardados
   // para que nunca rompan el polling.
   try {
     const spotifyId = getUserById(userId)?.spotifyId;
     if (spotifyId) {
-      checkChartClosings(userId, spotifyId);
+      checkPeriodClosings(userId, spotifyId);
       checkDailyEvents(userId, spotifyId);
     }
   } catch (err) {

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w40o';
+export const VERSION = '26w40p';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -311,8 +311,11 @@ export const NOTIFICATION_MAX_PER_DAY = 15;
 // categorías de records cuyo top-10 se vigila para disparar un 'record'
 export const RECORD_NOTIFY_CATEGORIES = ['peakWeekPlays', 'mostWeeksAtNo1', 'longestChartRun'] as const;
 
-// número de entradas del top incluidas en el recap de 'chart_closing'
-export const NOTIFY_CHART_TOP_N = 3;
+// margen tras el fin de una semana / mes / año antes de darlo por cerrado (push del
+// report y horneado del último cerrado): sus últimos plays aterrizan con el poll de
+// recently-played, así que se esperan dos ciclos para no hornear un report al que le
+// faltan los minutos finales y servirlo así durante REPORT_CACHE_TTL_MS
+export const PERIOD_CLOSE_GRACE_MS = 2 * RECENTLY_PLAYED_INTERVAL_MS;
 
 // mínimo de plays de una entidad para que dispare eventos de aniversario
 // (evita notificar aniversarios de cosas escuchadas de pasada)

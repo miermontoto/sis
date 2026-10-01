@@ -1,7 +1,7 @@
 // tipos de eventos de notificación push
 // - record: una entidad entra por primera vez al top-10 de una categoría de records
 // - number_one: nuevo número 1 en el chart semanal recién cerrado
-// - chart_closing: recap del top-N del chart semanal recién cerrado
+// - report_ready: el report de una semana / mes / año recién cerrado ya está horneado
 // - playlist_regenerated: una playlist generada se auto-regeneró en segundo plano
 // - release_anniversary: un álbum/single escuchado cumple años desde su publicación
 // - first_listen_anniversary: aniversario de la primera escucha de un artista
@@ -9,7 +9,7 @@
 export type NotificationType =
   | 'record'
   | 'number_one'
-  | 'chart_closing'
+  | 'report_ready'
   | 'playlist_regenerated'
   | 'release_anniversary'
   | 'first_listen_anniversary'
@@ -44,6 +44,8 @@ export interface NotificationPreferences {
   notificationsEnabled: boolean;
   notifyRecords: boolean;
   notifyNumberOne: boolean;
+  // push de report_ready (semana, mes y año): la clave conserva el nombre del antiguo
+  // recap semanal para no perder el valor que cada usuario ya tenía guardado
   notifyChartClosings: boolean;
   notifyAnniversaries: boolean;
   notifyMilestones: boolean;
