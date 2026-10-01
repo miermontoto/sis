@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { api, createFetchController, getWeekStart, getRankingMetric, getArtistBackdrop, type ReportResponse, type ReportFacts, type Granularity, type WeekStartOption, type RankingMetric, type ArtistBackdrop, type ListeningTimeItem } from '$lib/api';
   import { collectionsStore } from '$lib/stores/collections.svelte';
+  import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { isGranularity, isPeriodKey, isClosedPeriod } from '@sis/shared';
   import { isAbortError } from '$lib/utils/errors';
   import { periodLabel } from '$lib/utils/periods';
@@ -86,6 +87,14 @@
   });
 
   let gran = $derived<Granularity>(isGranularity(granularity) ? granularity : 'week');
+
+  // abrir el report del periodo recién cerrado lo da por visto: retira su aviso del
+  // dashboard (y el banner de /charts, que comparte el marcador). Llegue por ese aviso,
+  // por la push o a mano; el store se rellena tras el login, de ahí el efecto
+  $effect(() => {
+    const seen = closedChartsStore.charts.find((c) => c.granularity === granularity && c.period === period);
+    if (seen) untrack(() => closedChartsStore.dismiss(seen.granularity));
+  });
   let topArtist = $derived(report?.top.artists[0] ?? null);
   let backdropUrl = $derived(topArtist?.artist?.imageUrl ?? null);
 

@@ -16,7 +16,7 @@
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
-  import { GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
+  import { GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
@@ -623,17 +623,21 @@
 {#snippet subMilestone()}{formatNumber(milestone - (health?.totalPlays ?? 0))} to {formatNumber(milestone)}{/snippet}
 
 <div class="detail-main dash-main section-grid">
+  <!-- aviso de periodos recién cerrados: enlaza a su report, que es la lectura de
+       ese periodo (el chart sigue a un click desde el report). Abrir el report lo da
+       por visto, igual que el "view" del banner de /charts -->
   {#if closedChartsStore.charts.length > 0}
-    <div class="card closed-charts-card">
-      <div class="closed-charts-header">
+    <div class="card new-reports-card">
+      <div class="new-reports-header">
         <IconChart />
-        <span>Charts ready to view</span>
-        <button class="closed-charts-dismiss" onclick={() => closedChartsStore.dismissAll()} title="Dismiss">&times;</button>
+        <span>New reports</span>
+        <button class="new-reports-dismiss" onclick={() => closedChartsStore.dismissAll()} title="Dismiss">&times;</button>
       </div>
-      <div class="closed-charts-list">
-        {#each closedChartsStore.charts as chart}
-          <a href="/charts?granularity={chart.granularity}&period={chart.period}" class="closed-chart-link">
-            {chart.label}
+      <div class="new-reports-list">
+        {#each closedChartsStore.charts as closed (closed.granularity)}
+          <a href="/reports/{closed.granularity}/{closed.period}" class="new-report-link">
+            {GRANULARITY_LABELS[closed.granularity]} report
+            <span class="new-report-range">{periodDateRange(closed.period, closed.granularity, weekStart)}</span>
             <IconChevronRight />
           </a>
         {/each}
@@ -692,11 +696,11 @@
     gap: 0.3rem;
   }
 
-  .closed-charts-card {
+  .new-reports-card {
     border-color: var(--accent-a25);
     background: var(--accent-a05);
   }
-  .closed-charts-header {
+  .new-reports-header {
     font-family: var(--font-mono);
     display: flex;
     align-items: center;
@@ -708,7 +712,7 @@
     letter-spacing: var(--track);
     margin-bottom: 0.5rem;
   }
-  .closed-charts-dismiss {
+  .new-reports-dismiss {
     margin-left: auto;
     background: none;
     border: none;
@@ -718,15 +722,15 @@
     padding: 0 0.2rem;
     line-height: 1;
   }
-  .closed-charts-dismiss:hover {
+  .new-reports-dismiss:hover {
     color: var(--text);
   }
-  .closed-charts-list {
+  .new-reports-list {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
-  .closed-chart-link {
+  .new-report-link {
     font-family: var(--font-mono);
     display: flex;
     align-items: center;
@@ -737,15 +741,18 @@
     padding: 0.3rem 0;
     transition: color 0.05s;
   }
-  .closed-chart-link:hover {
+  .new-report-link:hover {
     color: var(--accent);
   }
-  .closed-chart-link :global(svg) {
+  .new-report-range {
+    color: var(--text-muted);
+  }
+  .new-report-link :global(svg) {
     margin-left: auto;
     opacity: 0;
     transition: opacity 0.05s;
   }
-  .closed-chart-link:hover :global(svg) {
+  .new-report-link:hover :global(svg) {
     opacity: 1;
   }
 

@@ -1,6 +1,6 @@
 import type { Granularity, WeekStartOption } from '$lib/api';
 import { getWeekStart, setLastPeriod } from '$lib/api';
-import { periodForDate, periodBounds } from '@sis/shared';
+import { periodForDate, periodBounds, adjacentPeriod } from '@sis/shared';
 import { formatMonthYear } from './format';
 
 const GRANULARITIES: Granularity[] = ['week', 'month', 'year'];
@@ -84,12 +84,13 @@ function granLabel(gran: Granularity): string {
 }
 
 /**
- * Periodo cerrado más reciente: el inmediatamente anterior al actual.
- * Es un periodo pasado y absoluto, no depende de la hora local de cada
- * dispositivo (a diferencia de `current`).
+ * Periodo cerrado más reciente: el inmediatamente anterior al actual, en UTC como
+ * el servidor (no con el día local de `computeCurrentPeriod`). El aviso enlaza al
+ * report, que sólo existe para periodos cerrados en UTC: con el día local, al este
+ * de Greenwich el aviso aparecía horas antes de que su report se pudiera abrir.
  */
 function justClosedPeriod(gran: Granularity, ws: WeekStartOption): string | null {
-  return prevPeriod(computeCurrentPeriod(gran, ws), gran);
+  return adjacentPeriod(periodForDate(new Date(), gran, ws), gran, ws, -1);
 }
 
 /**
