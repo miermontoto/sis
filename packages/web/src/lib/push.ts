@@ -1,4 +1,14 @@
+import type { PluginListenerHandle } from '@capacitor/core';
 import { registerDeviceToken, getVapidPublicKey } from './api/notifications.js';
+
+// listeners del registro nativo: initPush los recrea en cada llamada sin tocar el de
+// las pulsaciones (un removeAllListeners se lo llevaría por delante)
+let registrationListeners: PluginListenerHandle[] = [];
+let tapListening = false;
+
+// sólo rutas internas: un data.route que no empiece por una única barra se ignora
+const isAppRoute = (route: unknown): route is string =>
+  typeof route === 'string' && route.startsWith('/') && !route.startsWith('//');
 
 // convierte la clave VAPID (base64url) al Uint8Array que espera
 // pushManager.subscribe como applicationServerKey.
@@ -26,14 +36,16 @@ export async function initPush(): Promise<boolean> {
     const perm = await PushNotifications.requestPermissions();
     if (perm.receive !== 'granted') return false;
     // evita listeners duplicados si initPush se llama más de una vez
-    await PushNotifications.removeAllListeners();
-    // el token FCM llega de forma asíncrona por el evento 'registration'
-    await PushNotifications.addListener('registration', (t) => {
-      void registerDeviceToken(t.value, 'android');
-    });
-    await PushNotifications.addListener('registrationError', (e) => {
-      console.error('[push] error de registro nativo:', e.error);
-    });
+    await Promise.all(registrationListeners.map((h) => h.remove()));
+    registrationListeners = await Promise.all([
+      // el token FCM llega de forma asíncrona por el evento 'registration'
+      PushNotifications.addListener('registration', (t) => {
+        void registerDeviceToken(t.value, 'android');
+      }),
+      PushNotifications.addListener('registrationError', (e) => {
+        console.error('[push] error de registro nativo:', e.error);
+      }),
+    ]);
     await PushNotifications.register();
     return true;
   }
@@ -72,4 +84,19 @@ export async function initPush(): Promise<boolean> {
   // para web el token es el PushSubscription serializado (JSON.stringify)
   await registerDeviceToken(JSON.stringify(sub), 'web');
   return true;
+}
+
+// al pulsar una push en el apk navega a su data.route, como hace el service worker
+// (push-sw.js) en web. Se registra al arrancar la app y no en initPush, que sólo corre
+// al activar el master: capacitor retiene la pulsación que abrió la app en frío hasta
+// que haya un listener, así que llega igual aunque se registre tras el login.
+export async function listenPushTaps(navigate: (route: string) => void): Promise<void> {
+  const { Capacitor } = await import('@capacitor/core');
+  if (!Capacitor.isNativePlatform() || tapListening) return;
+  tapListening = true;
+  const { PushNotifications } = await import('@capacitor/push-notifications');
+  await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
+    const route: unknown = notification.data?.route;
+    if (isAppRoute(route)) navigate(route);
+  });
 }

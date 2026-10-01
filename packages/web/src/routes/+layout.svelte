@@ -326,6 +326,8 @@
             sessionRankDisplay = getSessionRankDisplay();
             sidebarCollapsed = getSidebarCollapsed();
             closedChartsStore.refresh();
+            // pulsar una push en el apk lleva a su ruta (en web lo hace el service worker)
+            void import('$lib/push').then(({ listenPushTaps }) => listenPushTaps((route) => goto(route)));
             // el índice de colecciones se carga una vez: es lo que deja al menú contextual
             // decidir de forma síncrona si ofrece "add to collection". Sólo tras el gate:
             // pedido en onMount corría también en /login y su 401 lo recargaba en bucle
