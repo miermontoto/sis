@@ -9,12 +9,11 @@
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
-  import { formatDuration, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
-  import { medalColor } from '$lib/utils/medals';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
-  import CollectionBadge from '$lib/components/CollectionBadge.svelte';
+  import TrackItem from '$lib/components/TrackItem.svelte';
+  import MetricMeta from '$lib/components/MetricMeta.svelte';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
@@ -31,7 +30,6 @@
   import ImagePicker from '$lib/components/ImagePicker.svelte';
   import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
-  import { openEntityContextMenu } from '$lib/utils/entity-context';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
   import Accolades from '$lib/components/Accolades.svelte';
@@ -501,35 +499,30 @@
               <RankingChart items={albumChartItems} entityType="album" {metric} mode={view} />
             </div>
           {:else}
+          <!-- la fila compartida, como los top tracks de al lado: montada a mano se
+               quedaba sin ecualizador de lo que suena y sin parpadeo de cifras -->
           <div class="track-list">
             {#each d.topAlbums as item, i}
               {#if item.album}
-                <a
+                <TrackItem
                   href="/album/{item.albumId}"
-                  class="track-item"
-                  oncontextmenu={openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId })}
+                  rank={i + 1}
+                  globalRank={albumGlobalRanks?.[item.albumId]}
+                  imageUrl={item.album.imageUrl}
+                  name={item.album.name}
+                  isLive={item.albumId === nowPlayingStore.albumId}
+                  entity={{ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId }}
                 >
-                  <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                  {#if item.album.imageUrl}
-                    <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
-                  {:else}
-                    <div class="track-art"></div>
-                  {/if}
-                  <div class="track-info">
-                    <div class="track-name">{item.album.name}<CollectionBadge id={item.albumId} /></div>
-                    <div class="track-artist">{item.album.releaseDate ?? ''}</div>
-                  </div>
-                  {#if artistShowAlbumAccolades}
-                    <Accolades entityType="album" entityId={item.albumId} />
-                  {/if}
-                  {#if albumGlobalRanks?.[item.albumId] != null}
-                    <span class="global-rank" title="All-time rank" style:color={medalColor(albumGlobalRanks[item.albumId])}>#{albumGlobalRanks[item.albumId]}</span>
-                  {/if}
-                  <div class="track-meta">
-                    <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                    <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                  </div>
-                </a>
+                  {#snippet subtitle()}{item.album?.releaseDate ?? ''}{/snippet}
+                  {#snippet extra()}
+                    {#if artistShowAlbumAccolades}
+                      <Accolades entityType="album" entityId={item.albumId} />
+                    {/if}
+                  {/snippet}
+                  {#snippet meta()}
+                    <MetricMeta playCount={item.playCount} totalMs={item.totalMs} {metric} flash={statFlashStore.isFlashing(item.albumId)} />
+                  {/snippet}
+                </TrackItem>
               {/if}
             {/each}
           </div>
