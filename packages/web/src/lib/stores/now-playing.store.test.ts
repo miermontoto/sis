@@ -183,3 +183,48 @@ describe('nowPlayingStore.progressMsAt', () => {
     expect(nowPlayingStore.progressMsAt(Date.now())).toBe(121_000);
   });
 });
+
+describe('nowPlayingStore.isLive', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  const liveIds = {
+    track: ['track-canonical'],
+    album: ['album-canonical', 'collection:3'],
+    artist: ['artist-added', 'artist-canonical'],
+  };
+
+  it('enciende el tema y el álbum crudos más sus canónicos y su colección', () => {
+    nowPlayingStore.data = { ...makeResponse('track-e', 'Song'), liveIds };
+    expect(nowPlayingStore.isLive('track', 'track-e')).toBe(true);
+    expect(nowPlayingStore.isLive('track', 'track-canonical')).toBe(true);
+    expect(nowPlayingStore.isLive('album', 'album-1')).toBe(true);
+    expect(nowPlayingStore.isLive('album', 'collection:3')).toBe(true);
+    expect(nowPlayingStore.isLive('album', 'album-other')).toBe(false);
+    expect(nowPlayingStore.isLive('album', null)).toBe(false);
+  });
+
+  it('en artistas manda la lista del usuario: un crédito quitado no se enciende', () => {
+    nowPlayingStore.data = { ...makeResponse('track-f', 'Song'), liveIds };
+    expect(nowPlayingStore.isLive('artist', 'artist-added')).toBe(true);
+    expect(nowPlayingStore.isLive('artist', 'artist-canonical')).toBe(true);
+    // artist-1 es el crédito de spotify que el usuario sacó de la lista
+    expect(nowPlayingStore.isLive('artist', 'artist-1')).toBe(false);
+  });
+
+  it('sin liveIds (api anterior o tema fuera de la biblioteca) casan los crudos', () => {
+    nowPlayingStore.data = makeResponse('track-g', 'Song');
+    expect(nowPlayingStore.isLive('track', 'track-g')).toBe(true);
+    expect(nowPlayingStore.isLive('album', 'album-1')).toBe(true);
+    expect(nowPlayingStore.isLive('artist', 'artist-1')).toBe(true);
+    expect(nowPlayingStore.isLive('album', 'collection:3')).toBe(false);
+  });
+
+  it('en pausa no enciende nada', () => {
+    nowPlayingStore.data = { ...makeResponse('track-h', 'Song'), isPlaying: false, liveIds };
+    expect(nowPlayingStore.isLive('track', 'track-h')).toBe(false);
+    expect(nowPlayingStore.isLive('album', 'collection:3')).toBe(false);
+    expect(nowPlayingStore.isLive('artist', 'artist-added')).toBe(false);
+  });
+});

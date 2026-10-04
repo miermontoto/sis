@@ -1,4 +1,4 @@
-import { api, getNowPlayingUpNext, onNowPlayingUpNextChange, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem } from '$lib/api';
+import { api, getNowPlayingUpNext, onNowPlayingUpNextChange, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem, type EntityType } from '$lib/api';
 import { MIN_PLAY_MS } from '@sis/shared';
 import { playUpdatesStore } from './play-updates.svelte';
 import { playlistMembershipStore } from './playlist-membership.svelte';
@@ -302,6 +302,18 @@ export const nowPlayingStore = {
   get trackId() { return _data?.playing && _data.isPlaying ? _data.track?.id ?? null : null; },
   get albumId() { return _data?.playing && _data.isPlaying ? _data.track?.album?.id ?? null : null; },
   get artistIds() { return _data?.playing && _data.isPlaying ? _data.track?.artists?.map(a => a.id) ?? [] : []; },
+  // ¿suena esta fila? trackId/albumId/artistIds son los ids crudos de spotify y no
+  // casan con lo que enseñan las listas (canónicos de merge, colecciones, créditos
+  // corregidos), que el servidor resuelve en liveIds. Tema y álbum suman los crudos
+  // porque la página del crudo también cuenta el play; los artistas los REEMPLAZAN,
+  // porque una corrección de créditos también quita
+  isLive: (type: EntityType, id: string | null | undefined): boolean => {
+    if (!id || !_data?.playing || !_data.isPlaying || !_data.track) return false;
+    const resolved = _data.liveIds?.[type];
+    if (type === 'artist') return (resolved ?? _data.track.artists.map(a => a.id)).includes(id);
+    const raw = type === 'track' ? _data.track.id : _data.track.album?.id;
+    return id === raw || (resolved ?? []).includes(id);
+  },
   get isPlaying() { return !!(_data?.playing && _data.isPlaying); },
   get isLiked() { return playlistMembershipStore.isLiked(_data?.track?.id) === true; },
   get likeLoading() { return _likeLoading; },

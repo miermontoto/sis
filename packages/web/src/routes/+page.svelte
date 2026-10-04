@@ -452,7 +452,7 @@
             imageUrl: item.album?.imageUrl,
             name: item.album?.name ?? '',
             stat: value(item.playCount, item.totalMs),
-            isLive: item.albumId === nowPlayingStore.albumId,
+            isLive: nowPlayingStore.isLive('album', item.albumId),
             oncontextmenu: openEntityContextMenu({ type: 'album', id: item.albumId, name: item.album?.name ?? '', imageUrl: item.album?.imageUrl ?? null, parentArtistId: item.artists?.[0]?.id }),
           }))} />
         {:else}
@@ -473,7 +473,7 @@
             imageUrl: item.artist?.imageUrl,
             name: item.artist?.name ?? '',
             stat: value(item.playCount, item.totalMs),
-            isLive: nowPlayingStore.artistIds.includes(item.artistId),
+            isLive: nowPlayingStore.isLive('artist', item.artistId),
             oncontextmenu: openEntityContextMenu({ type: 'artist', id: item.artistId, name: item.artist?.name ?? '', imageUrl: item.artist?.imageUrl ?? null }),
           }))} />
         {:else}

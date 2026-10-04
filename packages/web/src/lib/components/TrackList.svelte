@@ -86,7 +86,7 @@
       imageHref={track.album ? `/album/${track.album.id}` : undefined}
       name={track.name}
       nameHref={isTopTrack(item) ? `/track/${item.trackId}` : ('track' in item && item.track ? `/track/${item.track.id}` : undefined)}
-      isLive={trackId === nowPlayingStore.trackId}
+      isLive={nowPlayingStore.isLive('track', trackId)}
       focusId={focusKey ?? undefined}
       highlighted={focusId != null && focusKey === focusId}
       dimmed={dimUnplayed && isTopTrack(item) && item.playCount === 0}

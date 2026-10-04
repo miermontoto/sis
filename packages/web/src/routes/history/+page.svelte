@@ -364,7 +364,7 @@
   <div class="track-list">
     {#each items as item, idx}
       {#if item.track}
-        {@const live = item.track.id === nowPlayingStore.trackId}
+        {@const live = nowPlayingStore.isLive('track', item.track.id)}
         <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
         <div
           class="track-item"

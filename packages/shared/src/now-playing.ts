@@ -1,4 +1,5 @@
 import type { TrackInfo } from './entities.js';
+import type { EntityType } from './settings.js';
 
 export interface NowPlayingResponse {
   playing: boolean;
@@ -24,6 +25,13 @@ export interface NowPlayingResponse {
   // scrobble de last.fm/listenbrainz no cambian el track sonando. Sin `since`
   // viene vacío: esa lectura es la línea base, no un delta
   landedPlays?: LandedPlay[];
+  // ids bajo los que el tema que suena cuenta en las listas de ESTE usuario, por
+  // tipo: canónicos de merge, la colección (`collection:N`) que sustituye a su
+  // álbum y los artistas de sus créditos corregidos. Las filas enseñan esos ids,
+  // no los crudos de `track`, así que "¿suena esta fila?" se pregunta aquí
+  // (nowPlayingStore.isLive). Ausente en APIs anteriores o con un tema que no
+  // está en la biblioteca: entonces casan los ids crudos
+  liveIds?: Record<EntityType, string[]>;
 }
 
 // un play ya registrado, con las entidades que toca. Mismos ids crudos que

@@ -376,7 +376,7 @@
           onUploadBackground={handleBackgroundUpload}
         />
         <div class="detail-header-info">
-          <h1>{d.artist.name}{#if nowPlayingStore.artistIds.includes(artistId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="artist" target={mergedInto} />{/if}</h1>
+          <h1>{d.artist.name}{#if nowPlayingStore.isLive('artist', artistId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="artist" target={mergedInto} />{/if}</h1>
         </div>
       </div>
       <div class="hero-actions">
@@ -510,7 +510,7 @@
                   globalRank={albumGlobalRanks?.[item.albumId]}
                   imageUrl={item.album.imageUrl}
                   name={item.album.name}
-                  isLive={item.albumId === nowPlayingStore.albumId}
+                  isLive={nowPlayingStore.isLive('album', item.albumId)}
                   entity={{ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId }}
                 >
                   {#snippet subtitle()}{item.album?.releaseDate ?? ''}{/snippet}

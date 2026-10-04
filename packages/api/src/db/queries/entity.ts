@@ -295,3 +295,34 @@ export function deleteHistoryEntries(db: Db, userId: number, ids: number[]): num
   `);
   return result.changes;
 }
+
+/** Ids bajo los que cuenta un tema en las listas de ESTE usuario, por tipo de entidad:
+ *  lo que enciende "suena ahora" en una fila. Las listas enseñan el id ya resuelto
+ *  (canónico del merge, `collection:N`) y los artistas a los que el usuario acredita el
+ *  tema, así que comparar con los ids crudos de spotify dejaba a oscuras todo lo
+ *  mergeado, coleccionado o con créditos corregidos. Cada tipo sale de la MISMA cadena
+ *  de joins que su ranking (`resolvedPlayJoins`), para que "dónde cuenta" y "dónde se
+ *  enciende" no se separen:
+ *    - track:  el tema y su canónico.
+ *    - album:  el álbum de su track canónico, el canónico de ese álbum y la colección
+ *              que lo sustituye (el `resolvedEntityId` sólo da el último nivel, y la
+ *              página del canónico también cuenta el play).
+ *    - artist: los artistas de SU lista (créditos corregidos o los del catálogo) y sus
+ *              canónicos. Una corrección también quita: el que sacó de la lista no
+ *              cuenta el play y no se enciende.
+ *  null = el tema no está en la biblioteca (lectura en vivo de algo nunca ingestado):
+ *  no hay nada que resolver y el cliente se queda con los ids crudos. */
+export function getTrackLiveIds(db: Db, trackId: string, userId: number): Record<EntityType, string[]> | null {
+  const from = sql`FROM (SELECT ${trackId} AS track_id) lh`;
+  const ids = (rows: Record<string, string | null>[]) =>
+    [...new Set(rows.flatMap(r => Object.values(r)).filter((id): id is string => !!id))];
+
+  const track = db.all(sql`SELECT lh.track_id AS raw, ${resolvedEntityId('track')} AS resolved ${from} ${resolvedPlayJoins('track', userId)}`) as Record<string, string | null>[];
+  if (track.length === 0) return null;
+  const album = db.all(sql`
+    SELECT t.album_id AS raw, mr_album.target_id AS merged, ${resolvedEntityId('album')} AS resolved
+    ${from} ${resolvedPlayJoins('album', userId)}
+  `) as Record<string, string | null>[];
+  const artist = db.all(sql`SELECT ta.artist_id AS raw, ${resolvedEntityId('artist')} AS resolved ${from} ${resolvedPlayJoins('artist', userId)}`) as Record<string, string | null>[];
+  return { track: ids(track), album: ids(album), artist: ids(artist) };
+}

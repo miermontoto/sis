@@ -211,9 +211,7 @@
   }
 
   function isEntityLive(id: string): boolean {
-    if (activeType === 'tracks') return id === nowPlayingStore.trackId;
-    if (activeType === 'albums') return id === nowPlayingStore.albumId;
-    return nowPlayingStore.artistIds.includes(id);
+    return nowPlayingStore.isLive(toSingular(activeType), id);
   }
 
   let currentIndex = $derived(periods.indexOf(selectedPeriod));

@@ -988,7 +988,7 @@
     <div class="track-list">
       {#each topArtists.slice(0, visibleCount) as item, i}
         {#if item.artist}
-          {@const live = nowPlayingStore.artistIds.includes(item.artistId)}
+          {@const live = nowPlayingStore.isLive('artist', item.artistId)}
           <a
             href="/artist/{item.artistId}"
             class="track-item"
@@ -1026,7 +1026,7 @@
     <div class="track-list">
       {#each topAlbums.slice(0, visibleCount) as item, i}
         {#if item.album}
-          {@const live = item.albumId === nowPlayingStore.albumId}
+          {@const live = nowPlayingStore.isLive('album', item.albumId)}
           <a
             href="/album/{item.albumId}"
             class="track-item"

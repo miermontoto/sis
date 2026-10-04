@@ -9,6 +9,7 @@ import { ensureFullAlbumTracks } from '../services/ingestion.js';
 import { isNonSpotifyId, syntheticIdPredicate } from '../services/ids.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
+import { getTrackLiveIds } from '../db/queries/entity.js';
 import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
 import type { AppVariables } from '../app.js';
@@ -139,6 +140,7 @@ nowPlaying.get('/', (c) => {
       artists: artistList.map(a => ({ id: a!.spotifyId, name: a!.name })),
     },
     updatedAt: state.lastCurrentlyPlayingAt,
+    liveIds: getTrackLiveIds(db, track.spotifyId, userId) ?? undefined,
     ...tail,
   });
 });
@@ -221,6 +223,9 @@ nowPlaying.get('/live', async (c) => {
       artists: (item.artists ?? []).map((a) => ({ id: a.id, name: a.name })),
     },
     updatedAt: new Date().toISOString(),
+    // spotify da el id crudo: un tema aún sin ingestar no se resuelve y el cliente se
+    // queda con los ids de la respuesta hasta el siguiente poll
+    liveIds: getTrackLiveIds(getDb(), item.id, userId) ?? undefined,
     ...tail,
   });
 });

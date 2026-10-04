@@ -377,7 +377,7 @@
         <div class="detail-image detail-image--placeholder"></div>
       {/if}
       <div class="detail-header-info">
-        <h1>{data.track.name}{#if trackId === nowPlayingStore.trackId} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="track" target={mergedInto} />{/if}</h1>
+        <h1>{data.track.name}{#if nowPlayingStore.isLive('track', trackId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="track" target={mergedInto} />{/if}</h1>
         <p class="detail-subtitle">
           {#each data.track.artists as artist, i}
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
