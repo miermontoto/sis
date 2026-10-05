@@ -349,7 +349,7 @@
      de 1800px, una sola columna (main y luego rail) por debajo. el div también
      evita que los snippets, como hijos directos de PullToRefresh, se interpreten
      como props implícitas del componente -->
-<div class="detail-body">
+<div class="detail-body dash-body">
 
 <!-- filas fantasma de una lista de temas mientras carga -->
 {#snippet trackGhost(count: number, ranked: boolean)}
@@ -666,6 +666,12 @@
 </PullToRefresh>
 
 <style>
+  /* alto de la tira de días: lo leen WeekStrip y su fantasma, para que la carga
+     no salte al llegar los datos */
+  .dash-body {
+    --week-strip-h: 7.5rem;
+  }
+
   /* la rejilla de dos columnas es `.section-grid` (app.css), compartida con el
      perfil; aquí sólo el hueco hasta el rail */
   .dash-main {
@@ -875,7 +881,7 @@
     height: 13.75rem;
   }
   .week-ghost {
-    height: 7.5rem;
+    height: var(--week-strip-h);
     border-radius: var(--radius);
   }
   .collage-ghost {
@@ -904,16 +910,48 @@
       grid-template-columns: 1fr;
       gap: 0.6rem;
     }
-  }
 
-  @media (max-width: 600px) {
-    /* cinco cifras en dos columnas: la última ocupa la fila entera en vez de
-       quedarse sola a un lado */
-    .dash-stats {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* en un móvil la primera pantalla eran las cinco cifras (333px, tarjetas de
+       106px) y la tira: los tops empezaban por debajo del pliegue. todo más
+       prieto, empezando por el hueco entre secciones */
+    .dash-body {
+      --detail-gap: 1rem;
+      --week-strip-h: 5.5rem;
     }
-    .dash-stats > :nth-child(odd):last-child {
-      grid-column: 1 / -1;
+    /* cinco cifras en una rejilla de seis, sin huecos ni una suelta: las tres
+       de ritmo diario (plays, tiempo, racha) a tercios y las dos de más
+       recorrido (semana y total), que traen las líneas de contexto largas, a
+       mitades. `order` sólo reordena aquí: en ancho siguen en una fila */
+    .dash-stats {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.375rem;
+    }
+    .dash-stats > .stat-card {
+      grid-column: span 2;
+      padding: 0.6rem 0.25rem;
+    }
+    .dash-stats > .stat-card:nth-child(3),
+    .dash-stats > .stat-card:nth-child(5) {
+      grid-column: span 3;
+      order: 1;
+    }
+    /* un tercio deja ~100px de texto: "LISTENED TODAY" y "7.8h yesterday" no
+       caben con el tracking de las etiquetas ni con el de los botones (la
+       tarjeta de tiempo lo es). si aun así parte (un móvil de 360px, la unidad
+       en minutos), que parta en dos líneas parejas y la de contexto por sus
+       piezas ("▼ 16%" / "vs last week"), no a mitad de frase */
+    .dash-stats .stat-label {
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+    .dash-stats .stat-sub {
+      letter-spacing: 0;
+      margin-top: 0.2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      column-gap: 0.3rem;
+      row-gap: 0;
+      text-wrap: balance;
     }
   }
 </style>

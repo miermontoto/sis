@@ -47,11 +47,13 @@
 </div>
 
 <style>
+  /* el alto lo decide el dashboard (`--week-strip-h`), que lo comparte con el
+     fantasma de carga y lo baja en un móvil */
   .week-strip {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 0.5rem;
-    height: 7.5rem;
+    height: var(--week-strip-h, 7.5rem);
   }
   .week-day {
     display: flex;
@@ -73,6 +75,14 @@
   .week-day:hover .week-value,
   .week-day--today .week-value {
     opacity: 1;
+  }
+  /* la de hoy es la única cifra siempre visible, y en un móvil la columna
+     (~40px) no da para "121 min": salía "121 …". desborda centrada sobre las
+     de los vecinos, que sin hover van ocultas, y como mucho ("1.440 min") cabe
+     en el padding de la tarjeta */
+  .week-day--today .week-value {
+    max-width: none;
+    overflow: visible;
   }
   .week-bar-track {
     flex: 1;
