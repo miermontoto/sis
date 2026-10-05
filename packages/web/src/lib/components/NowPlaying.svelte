@@ -233,10 +233,12 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
       </div>
       <div class="np-info">
         <a href="/track/{data.track.id}" class="np-track marquee-line" use:marquee={data.track.name}><span>{data.track.name}</span></a>
-        <div class="np-artist">
-          {#each data.track.artists as artist, i}
-            <a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
-          {/each}
+        <div class="np-artist marquee-line" use:marquee={data.track.id}>
+          <span>
+            {#each data.track.artists as artist, i}
+              <a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
+            {/each}
+          </span>
         </div>
       </div>
     </div>
@@ -590,12 +592,11 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     color: var(--text-muted);
   }
 
+  /* el recorte y el marquee los pone `.marquee-line` (app.css): un
+     text-overflow aquí, scoped, ganaría al `clip` del marquee */
   .np-artist {
     font-size: var(--fs-sm);
     color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .np-artist-link {
