@@ -9,7 +9,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   MonthCountEntry, YearEndFinish, RankingMetric,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, trackArtistsFor, primaryArtistOf, artistNameOf } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { RECORDS_LIMIT } from '../../constants.js';
 
@@ -33,8 +33,8 @@ export function entityCtx(entity: Ent, userId: number) {
       `,
       finalName: sql`t.name`,
       finalImg: sql`al.image_url`,
-      finalArtistId: sql`(SELECT ta_p.artist_id FROM track_artists ta_p WHERE ta_p.track_id = eid AND ta_p.position = 0 LIMIT 1)`,
-      finalArtistName: sql`(SELECT a_p.name FROM track_artists ta_p JOIN artists a_p ON a_p.spotify_id = ta_p.artist_id WHERE ta_p.track_id = eid AND ta_p.position = 0 LIMIT 1)`,
+      finalArtistId: primaryArtistOf(sql`eid`, userId),
+      finalArtistName: artistNameOf(primaryArtistOf(sql`eid`, userId)),
     };
   }
   if (entity === 'album') {
@@ -45,14 +45,14 @@ export function entityCtx(entity: Ent, userId: number) {
       finalJoin: sql`JOIN albums al ON al.spotify_id = eid`,
       finalName: sql`al.name`,
       finalImg: sql`al.image_url`,
-      finalArtistId: albumArtistId(sql`eid`),
-      finalArtistName: albumArtistName(sql`eid`),
+      finalArtistId: albumArtistId(sql`eid`, userId),
+      finalArtistName: albumArtistName(sql`eid`, userId),
     };
   }
   // artist
   return {
     eidExpr: resolvedEntityId('artist'),
-    extraJoins: sql`JOIN track_artists ta ON ta.track_id = lh.track_id ${entityMergeJoin('artist', userId)}`,
+    extraJoins: sql`JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id ${entityMergeJoin('artist', userId)}`,
     filter: sql``,
     finalJoin: sql`JOIN artists a ON a.spotify_id = eid`,
     finalName: sql`a.name`,
@@ -312,7 +312,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
                  ORDER BY COUNT(*) DESC
                ) AS rn
         FROM listening_history lh
-        JOIN track_artists ta ON ta.track_id = lh.track_id AND ta.position = 0
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id AND ta.position = 0
         JOIN artists a ON a.spotify_id = ta.artist_id
         WHERE lh.user_id = ${userId}
           AND ${hasCover(sql`a.image_url`)}

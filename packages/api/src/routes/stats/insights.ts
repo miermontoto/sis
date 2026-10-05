@@ -51,7 +51,7 @@ insights.get('/history', async (c) => {
     tzOffsetMinutes: Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0,
   });
 
-  const trackMap = await dbRead('enrichTracksBatch', rows.map(r => r.track_id));
+  const trackMap = await dbRead('enrichTracksBatch', rows.map(r => r.track_id), userId);
   const items = rows.map((row) => ({
     id: row.id,
     playedAt: row.played_at,

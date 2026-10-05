@@ -17,7 +17,7 @@ import {
   REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT,
 } from '@sis/shared';
 import type { Db, SqlChunk, AggregateRow } from './helpers.js';
-import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges } from './helpers.js';
+import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges, trackArtistsFor, trackArtistsWhere } from './helpers.js';
 import { getTopEntities, getPrevPeriodEntities, getGlobalSeries } from './entity.js';
 import { getChartPeaks } from './charts.js';
 import { getTopGenres } from './inline.js';
@@ -139,7 +139,7 @@ function buildFacts(db: Db, userId: number, start: string, end: string, daily: L
   const maxHour = Math.max(...clock);
   const first = edgePlay(db, userId, start, end, 'first');
   const last = edgePlay(db, userId, start, end, 'last');
-  const tracks = enrichTracksBatch(db, [first?.track_id, last?.track_id].filter((id): id is string => !!id));
+  const tracks = enrichTracksBatch(db, [first?.track_id, last?.track_id].filter((id): id is string => !!id), userId);
   const toRef = (row: { track_id: string; played_at: string } | undefined): ReportPlayRef | null =>
     row ? { playedAt: row.played_at, track: tracks.get(row.track_id) ?? null } : null;
 
@@ -182,8 +182,8 @@ function getTops(db: Db, userId: number, granularity: Granularity, period: strin
   return {
     artists: topWithChanges(artistRows, artistRows.map(r => formatTopArtistRow(db, r)), prevIds('artist'), peaks('artist', artistRows)) as TopArtistItem[],
     // los álbumes llevan sus artistas: la fila los muestra bajo el nombre, como los temas
-    albums: topWithChanges(albumRows, albumRows.map(r => formatTopAlbumRow(db, r)), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
-    tracks: topWithChanges(trackRows, formatTopTrackRows(db, trackRows), prevIds('track'), peaks('track', trackRows)) as TopTrackItem[],
+    albums: topWithChanges(albumRows, albumRows.map(r => formatTopAlbumRow(db, r, userId)), prevIds('album'), peaks('album', albumRows)) as TopAlbumItem[],
+    tracks: topWithChanges(trackRows, formatTopTrackRows(db, trackRows, userId), prevIds('track'), peaks('track', trackRows)) as TopTrackItem[],
   };
 }
 
@@ -203,10 +203,10 @@ function genreCoverage(db: Db, userId: number, start: string, end: string, total
   const row = db.get(sql`
     SELECT count(*) AS c FROM listening_history lh
     WHERE ${periodWhere(userId, start, end)} AND EXISTS (
-      SELECT 1 FROM track_artists ta
+      SELECT 1 FROM ${trackArtistsWhere(userId, col => sql`${col('track_id')} = lh.track_id`)} ta
       LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
       JOIN artists a ON a.spotify_id = COALESCE(mr_artist.target_id, ta.artist_id)
-      WHERE ta.track_id = lh.track_id AND json_array_length(a.genres) > 0
+      WHERE json_array_length(a.genres) > 0
     )
   `) as { c: number } | undefined;
   return pct(row?.c ?? 0, totalPlays);
@@ -247,7 +247,7 @@ function getDecades(db: Db, userId: number, start: string, end: string, totalPla
       SELECT ${decadeExpr} AS decade, ${resolvedEntityId('artist')} AS artist_id, count(*) AS plays
       FROM listening_history lh
       ${albumJoins(userId)}
-      JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id AND ta.position = 0
       ${entityMergeJoin('artist', userId)}
       WHERE ${periodWhere(userId, start, end)} AND length(al.release_date) >= ${RELEASE_YEAR_CHARS}
       GROUP BY 1, 2
@@ -355,7 +355,7 @@ function albumDiscovery(db: Db, userId: number, start: string, end: string, sort
 // como topArtistsAggregate); totales y estreno se sacan en memoria
 function artistDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
   const artistTracks = sql`
-    SELECT ta2.track_id FROM track_artists ta2 WHERE ta2.artist_id IN (${mergeGroup('artist', userId, sql`p.id`)})`;
+    SELECT ta2.track_id FROM ${trackArtistsWhere(userId, col => sql`${col('artist_id')} IN (${mergeGroup('artist', userId, sql`p.id`)})`)} ta2`;
   const rows = db.all(sql`
     WITH p AS (
       SELECT am.artist_id AS id, sum(pt.cnt) AS plays, sum(pt.ms) AS total_ms
@@ -368,7 +368,7 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string, sor
       ) pt
       JOIN (
         SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist')} AS artist_id
-        FROM track_artists ta ${entityMergeJoin('artist', userId)}
+        FROM ${trackArtistsFor(userId)} ta ${entityMergeJoin('artist', userId)}
       ) am ON am.track_id = pt.track_id
       GROUP BY am.artist_id
     )
@@ -390,19 +390,19 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string, sor
 const newPick = (ref: ReportEntityRef | null, plays: number, totalMs: number, artists?: { id: string; name: string }[]): ReportNewPick | null =>
   ref ? { ...ref, plays, totalMs, artists } : null;
 
-const albumArtistRefs = (db: Db, albumId: string) => getAlbumArtists(db, albumId).map(a => ({ id: a.artist_id, name: a.name }));
+const albumArtistRefs = (db: Db, albumId: string, userId: number) => getAlbumArtists(db, albumId, undefined, userId).map(a => ({ id: a.artist_id, name: a.name }));
 
-function albumPick(db: Db, t: DiscoveryTop | undefined): ReportNewPick | null {
+function albumPick(db: Db, t: DiscoveryTop | undefined, userId: number): ReportNewPick | null {
   if (!t?.top_id) return null;
   const album = lookupAlbum(db, t.top_id);
   if (!album) return null;
-  const artists = albumArtistRefs(db, t.top_id);
+  const artists = albumArtistRefs(db, t.top_id, userId);
   return newPick({ id: t.top_id, name: album.name, imageUrl: album.imageUrl }, t.top_plays ?? 0, t.top_ms ?? 0, artists);
 }
 
-function trackPick(db: Db, t: DiscoveryTop | undefined): ReportNewPick | null {
+function trackPick(db: Db, t: DiscoveryTop | undefined, userId: number): ReportNewPick | null {
   if (!t?.top_id) return null;
-  const track = enrichTracksBatch(db, [t.top_id]).get(t.top_id);
+  const track = enrichTracksBatch(db, [t.top_id], userId).get(t.top_id);
   if (!track) return null;
   return newPick({ id: t.top_id, name: track.name, imageUrl: track.album?.imageUrl ?? null }, t.top_plays ?? 0, t.top_ms ?? 0, track.artists.map(a => ({ id: a.id, name: a.name })));
 }
@@ -417,8 +417,8 @@ function getDiscovery(db: Db, userId: number, start: string, end: string, sort: 
     tracks: toDiscoveryStat(tracks),
     topNew: {
       artist: artists.top ? newPick(artistRef(db, artists.top.id), artists.top.plays, artists.top.total_ms) : null,
-      album: albumPick(db, albums),
-      track: trackPick(db, tracks),
+      album: albumPick(db, albums, userId),
+      track: trackPick(db, tracks, userId),
     },
   };
 }
@@ -428,7 +428,7 @@ function getDiscovery(db: Db, userId: number, start: string, end: string, sort: 
 function monthlyLeaders(db: Db, userId: number, start: string, end: string, sort: Sort, type: 'artist' | 'track'): Map<string, string> {
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const joins = type === 'artist'
-    ? sql`JOIN tracks t ON t.spotify_id = lh.track_id JOIN track_artists ta ON ta.track_id = lh.track_id AND ta.position = 0 ${entityMergeJoin('artist', userId)}`
+    ? sql`JOIN tracks t ON t.spotify_id = lh.track_id JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id AND ta.position = 0 ${entityMergeJoin('artist', userId)}`
     : sql`JOIN tracks t ON t.spotify_id = lh.track_id ${entityMergeJoin('track', userId)}`;
   const rows = db.all(sql`
     WITH m AS (
@@ -448,7 +448,7 @@ function getMonths(db: Db, userId: number, start: string, end: string, sort: Sor
   const series = getGlobalSeries(db, start, 'month', inclusiveEnd(end), userId);
   const artistByMonth = monthlyLeaders(db, userId, start, end, sort, 'artist');
   const trackByMonth = monthlyLeaders(db, userId, start, end, sort, 'track');
-  const tracks = enrichTracksBatch(db, [...trackByMonth.values()]);
+  const tracks = enrichTracksBatch(db, [...trackByMonth.values()], userId);
   return series.map(s => ({
     month: s.period,
     plays: s.play_count,
@@ -476,7 +476,7 @@ function getMilestones(db: Db, userId: number, start: string, end: string, perio
     `) as { track_id: string; played_at: string } | undefined;
     return row ? [{ n, ...row }] : [];
   });
-  const tracks = enrichTracksBatch(db, hits.map(h => h.track_id));
+  const tracks = enrichTracksBatch(db, hits.map(h => h.track_id), userId);
   return hits.map(h => ({ n: h.n, playedAt: h.played_at, track: tracks.get(h.track_id) ?? null }));
 }
 

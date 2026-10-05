@@ -19,6 +19,7 @@
   import { GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { collectionsStore } from '$lib/stores/collections.svelte';
+  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
@@ -240,13 +241,15 @@
   }
 
   // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o sea
-  // todo ranking de álbum. El dashboard carga en onMount, así que necesita su propio
-  // efecto: se salta el valor inicial y relee en cada mutación posterior
-  let lastCollectionVersion = collectionsStore.changeVersion;
+  // todo ranking de álbum, y unos créditos corregidos a qué artista cuenta cada play.
+  // El dashboard carga en onMount, así que necesita su propio efecto: se salta el
+  // valor inicial y relee en cada mutación posterior
+  const attributionVersion = () => `${collectionsStore.changeVersion}:${creditsModal.changeVersion}`;
+  let lastAttributionVersion = attributionVersion();
   $effect(() => {
-    const version = collectionsStore.changeVersion;
-    if (version === lastCollectionVersion) return;
-    lastCollectionVersion = version;
+    const version = attributionVersion();
+    if (version === lastAttributionVersion) return;
+    lastAttributionVersion = version;
     untrack(() => loadData());
   });
 

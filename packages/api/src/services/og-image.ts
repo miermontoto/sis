@@ -113,7 +113,7 @@ export async function generateOgImage(token: string, user: User, range: TimeRang
     dbRead('getProfileSummary', user.id, rangeStart, null),
     dbRead('getTopEntities', 'album', rangeStart, 'time', 3, null, user.id),
   ]);
-  const albums = await Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row)));
+  const albums = await Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row, user.id)));
 
   const { pad, avatarSize, coverSize, coverGap, coverRadius, brandWidth } = LAYOUT;
   const name = escapeXml(user.displayName ?? user.spotifyId);

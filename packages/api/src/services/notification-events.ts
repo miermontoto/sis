@@ -9,7 +9,7 @@ import { eq, sql } from 'drizzle-orm';
 import { adjacentPeriod, periodForDate } from '@sis/shared';
 import { getDb } from '../db/connection.js';
 import { getChart } from '../db/queries/index.js';
-import { userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter } from '../db/queries/helpers.js';
+import { userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter, trackArtistsFor } from '../db/queries/helpers.js';
 import type { Db, EntityType } from '../db/queries/index.js';
 import { fetchEntityMetadata } from '../db/queries/charts.js';
 import { userSettings } from '../db/schema.js';
@@ -376,7 +376,7 @@ function emitReleaseAnniversaries(db: Db, userId: number, locale: NotifyLocale, 
   `) as { id: string; releaseDate: string; plays: number }[];
   if (rows.length === 0) return;
 
-  const metaMap = fetchEntityMetadata(db, 'album', rows.map(r => r.id));
+  const metaMap = fetchEntityMetadata(db, 'album', rows.map(r => r.id), userId);
   for (const row of rows) {
     const meta = metaMap.get(row.id);
     if (!meta) continue;
@@ -408,7 +408,7 @@ function emitFirstListenAnniversaries(db: Db, userId: number, locale: NotifyLoca
     WITH plays_dedup AS (
       SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at
       FROM listening_history lh
-      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
       ${entityMergeJoin('artist', userId)}
       WHERE lh.user_id = ${userId}
     )
@@ -422,7 +422,7 @@ function emitFirstListenAnniversaries(db: Db, userId: number, locale: NotifyLoca
   `) as { id: string; firstPlayed: string; plays: number }[];
   if (rows.length === 0) return;
 
-  const metaMap = fetchEntityMetadata(db, 'artist', rows.map(r => r.id));
+  const metaMap = fetchEntityMetadata(db, 'artist', rows.map(r => r.id), userId);
   for (const row of rows) {
     const meta = metaMap.get(row.id);
     if (!meta) continue;
@@ -461,7 +461,7 @@ function emitMilestones(db: Db, userId: number, locale: NotifyLocale, cutoff: st
         WITH plays_dedup AS (
           SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at
           FROM listening_history lh
-          JOIN track_artists ta ON ta.track_id = lh.track_id
+          JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
           ${entityMergeJoin('artist', userId)}
           WHERE lh.user_id = ${userId}
         )
@@ -498,7 +498,7 @@ function emitMilestones(db: Db, userId: number, locale: NotifyLocale, cutoff: st
   const metaByType = new Map<EntityType, ReturnType<typeof fetchEntityMetadata>>();
   for (const entityType of MILESTONE_ENTITY_TYPES) {
     const ids = crossings.filter(c => c.entityType === entityType).map(c => c.id);
-    if (ids.length > 0) metaByType.set(entityType, fetchEntityMetadata(db, entityType, ids));
+    if (ids.length > 0) metaByType.set(entityType, fetchEntityMetadata(db, entityType, ids, userId));
   }
 
   for (const { entityType, id, threshold } of crossings) {

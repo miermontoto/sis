@@ -86,7 +86,7 @@ export async function hydrateConcerts(userId: number, rows: ConcertRow[]): Promi
   // metadatos de los tracks resueltos en un solo batch: la vista de detalle
   // pinta cada canción como una fila de lista normal (carátula + artistas)
   const resolvedIds = (songRows as ConcertSongRow[]).map(r => r.track_id).filter((id): id is string => id !== null);
-  const tracks = resolvedIds.length > 0 ? await dbRead('enrichTracksBatch', resolvedIds) : new Map();
+  const tracks = resolvedIds.length > 0 ? await dbRead('enrichTracksBatch', resolvedIds, userId) : new Map();
 
   const playsByKey = new Map(playRows.map(p => [`${p.concert_id}:${p.position}`, p.plays]));
   const songsByConcert = new Map<number, ConcertSong[]>();

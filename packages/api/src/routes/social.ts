@@ -121,19 +121,20 @@ social.get('/compare/:spotifyId', async (c) => {
   const comparison = await dbRead('composeComparison', { topArtistsA, topArtistsB, topTracksA, topTracksB, topAlbumsA, topAlbumsB });
 
   // un formateador por tipo en vez de nombre suelto + flag `batch`: cada uno conserva
-  // su tipo de retorno concreto, que es lo que CompareResponse espera lado a lado
+  // su tipo de retorno concreto, que es lo que CompareResponse espera lado a lado.
+// cada lado con los créditos de su dueño: son sus cifras, con sus correcciones
   const side = (rows: AggregateRow[]) => rows.slice(0, COMPARE_SIDE_LIMIT);
   const formatArtists = (rows: AggregateRow[]) => Promise.all(side(rows).map(row => dbRead('formatTopArtistRow', row)));
-  const formatAlbums = (rows: AggregateRow[]) => Promise.all(side(rows).map(row => dbRead('formatTopAlbumRow', row)));
-  const formatTracks = (rows: AggregateRow[]) => dbRead('formatTopTrackRows', side(rows));
+  const formatAlbums = (rows: AggregateRow[], owner: number) => Promise.all(side(rows).map(row => dbRead('formatTopAlbumRow', row, owner)));
+  const formatTracks = (rows: AggregateRow[], owner: number) => dbRead('formatTopTrackRows', side(rows), owner);
 
   const [myTopArtists, theirTopArtists, myTopTracks, theirTopTracks, myTopAlbums, theirTopAlbums] = await Promise.all([
     formatArtists(comparison.myTopArtists),
     formatArtists(comparison.theirTopArtists),
-    formatTracks(comparison.myTopTracks),
-    formatTracks(comparison.theirTopTracks),
-    formatAlbums(comparison.myTopAlbums),
-    formatAlbums(comparison.theirTopAlbums),
+    formatTracks(comparison.myTopTracks, viewerId),
+    formatTracks(comparison.theirTopTracks, target.id),
+    formatAlbums(comparison.myTopAlbums, viewerId),
+    formatAlbums(comparison.theirTopAlbums, target.id),
   ]);
 
   const summaryOf = (u: { spotifyId: string; displayName: string | null; imageUrl: string | null }, s: ProfileSummaryRow) => ({

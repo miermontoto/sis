@@ -167,7 +167,7 @@ collections.post('/:id{[0-9]+}/members', async (c) => {
   // que es el que se va a guardar y el que acabará contando (ver isEligibleMember)
   const memberId = canonicalMemberId(db, body.entityType, body.entityId, userId);
   const collection = getCollectionRow(db, id, userId)!;
-  if (!isEligibleMember(db, body.entityType, memberId, artistMergeGroup(db, collection.artist_id, userId))) {
+  if (!isEligibleMember(db, body.entityType, memberId, artistMergeGroup(db, collection.artist_id, userId), userId)) {
     const artist = db.all(sql`SELECT name FROM artists WHERE spotify_id = ${collection.artist_id}`)[0] as { name: string } | undefined;
     return c.json({ error: `not credited to ${artist?.name ?? 'this artist'}` }, 422);
   }

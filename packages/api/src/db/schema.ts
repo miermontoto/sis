@@ -428,3 +428,23 @@ export const albumCollectionMembers = sqliteTable('album_collection_members', {
   primaryKey({ columns: [table.collectionId, table.memberType, table.memberId] }),
   uniqueIndex('idx_acm_unique_member').on(table.userId, table.memberType, table.memberId),
 ]);
+
+// créditos corregidos por el usuario (shared/credits.ts): si un tema o un álbum tiene
+// filas aquí para un usuario, ESAS son su lista de artistas para él —sustitución
+// entera, con la posición 0 como principal—. Sin FK en subject_id ni en artist_id: el
+// tema, el álbum y el artista pueden fusionarse o renombrarse físicamente (con
+// foreign_keys = ON una FK tumbaría el barrido entero), y los barridos los re-apuntan
+// (reassignTrackRefs/reassignAlbumRefs, resolveImportArtists).
+// subject_* y no entity_*: por lo mismo que album_collection_members (el GROUP BY
+// entity_id de las queries de ranking se volvería ambiguo).
+export const creditOverrides = sqliteTable('credit_overrides', {
+  userId: integer('user_id').notNull().references(() => users.id),
+  subjectType: text('subject_type').notNull(), // 'track' | 'album'
+  subjectId: text('subject_id').notNull(),
+  artistId: text('artist_id').notNull(),
+  position: integer('position').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.subjectType, table.subjectId, table.artistId] }),
+  index('idx_credit_overrides_artist').on(table.userId, table.subjectType, table.artistId),
+]);

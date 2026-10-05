@@ -38,12 +38,16 @@ export function cleanOrphanImports() {
     sql`DELETE FROM artist_images WHERE artist_id IN (
       SELECT spotify_id FROM artists WHERE spotify_id LIKE 'import:%'
         AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)
-        AND NOT ${ANNOTATED_ARTIST})`
+        AND NOT ${ANNOTATED_ARTIST}
+        AND spotify_id NOT IN (SELECT artist_id FROM credit_overrides))`
   );
+  // un artista que sólo nombra una lista de créditos corregidos sigue referenciado:
+  // borrarlo dejaría esa lista contando escuchas para un id sin fila
   const orphanArtists = db.run(
     sql`DELETE FROM artists WHERE spotify_id LIKE 'import:%'
       AND spotify_id NOT IN (SELECT DISTINCT artist_id FROM track_artists)
-      AND NOT ${ANNOTATED_ARTIST}`
+      AND NOT ${ANNOTATED_ARTIST}
+      AND spotify_id NOT IN (SELECT artist_id FROM credit_overrides)`
   );
   const orphanAlbums = db.run(
     sql`DELETE FROM albums WHERE spotify_id LIKE 'import:%'
@@ -102,6 +106,13 @@ export function cleanNonMusicImports() {
   const staleRules = dropOrphanMergeRules(db, 'track');
   logCleanup.info(`eliminados ${trash.length} tracks no-música (${deletedPlays} plays)`
     + (staleRules ? `, ${staleRules} merge rules colgadas` : ''));
+}
+
+// las listas de créditos corregidos que nombran al artista se van con él. OR IGNORE +
+// limpieza: si una lista ya tenía al destino, queda una sola vez (en su posición)
+function repointCreditArtist(db: ReturnType<typeof getDb>, fromId: string, toId: string) {
+  db.run(sql`UPDATE OR IGNORE credit_overrides SET artist_id = ${toId} WHERE artist_id = ${fromId}`);
+  db.run(sql`DELETE FROM credit_overrides WHERE artist_id = ${fromId}`);
 }
 
 // resolver artistas import: buscándolos en spotify por nombre. el que no tiene un
@@ -164,6 +175,7 @@ export async function resolveImportArtists(userId: number) {
           db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
             AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
           db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+          repointCreditArtist(db, row.spotify_id, found.id);
           rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
           db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
           db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);
@@ -192,6 +204,7 @@ export async function resolveImportArtists(userId: number) {
           db.run(sql`DELETE FROM track_artists WHERE artist_id = ${row.spotify_id}
             AND track_id IN (SELECT track_id FROM track_artists WHERE artist_id = ${found.id})`);
           db.run(sql`UPDATE track_artists SET artist_id = ${found.id} WHERE artist_id = ${row.spotify_id}`);
+          repointCreditArtist(db, row.spotify_id, found.id);
           rewriteMergeRules(db, 'artist', row.spotify_id, found.id);
           db.run(sql`DELETE FROM artist_images WHERE artist_id = ${row.spotify_id}`);
           db.run(sql`DELETE FROM artists WHERE spotify_id = ${row.spotify_id}`);

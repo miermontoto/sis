@@ -151,8 +151,8 @@ export async function buildProfile(target: User, range: TimeRange): Promise<Prof
 
   const [topArtists, topTracks, topAlbums] = await Promise.all([
     Promise.all(artistRows.map(row => dbRead('formatTopArtistRow', row))),
-    dbRead('formatTopTrackRows', trackRows),
-    Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row))),
+    dbRead('formatTopTrackRows', trackRows, target.id),
+    Promise.all(albumRows.map(row => dbRead('formatTopAlbumRow', row, target.id))),
   ]);
 
   return {

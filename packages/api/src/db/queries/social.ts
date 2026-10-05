@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, AggregateRow } from './helpers.js';
-import { rangeWhere, userFilter, playDuration } from './helpers.js';
+import { rangeWhere, userFilter, playDuration, primaryArtistOf } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { getStreakDays } from './inline.js';
 import { SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from '../../constants.js';
@@ -32,7 +32,7 @@ export function getProfileSummary(db: Db, userId: number, rangeStart: string | n
     SELECT
       count(*) as play_count,
       coalesce(sum(${playDuration()}), 0) as total_ms,
-      (SELECT count(DISTINCT (SELECT min(ta.artist_id) FROM track_artists ta WHERE ta.track_id = pt.track_id AND ta.position = 0))
+      (SELECT count(DISTINCT ${primaryArtistOf(sql`pt.track_id`, userId)})
        FROM (SELECT DISTINCT lh.track_id FROM listening_history lh WHERE 1=1 ${wr} ${uf}) pt) as distinct_artists,
       count(DISTINCT lh.track_id) as distinct_tracks,
       count(DISTINCT t.album_id) as distinct_albums,

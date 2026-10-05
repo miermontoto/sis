@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { playDuration } from './helpers.js';
+import { playDuration, trackArtistsFor } from './helpers.js';
 import type { PlaylistPresenceItem } from '@sis/shared';
 
 export interface LibraryPlaylistRow {
@@ -161,7 +161,7 @@ export function getArtistPlaylistPresence(db: Db, artistId: string, userId: numb
     SELECT DISTINCT sp.id, sp.spotify_id as spotifyId, sp.name, sp.image_url as imageUrl
     FROM spotify_playlist_tracks spt
     JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-    JOIN track_artists ta ON ta.track_id = spt.track_id AND ta.artist_id = ${artistId}
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = spt.track_id AND ta.artist_id = ${artistId}
     ORDER BY sp.name ASC
   `) as PlaylistPresenceItem[];
 }

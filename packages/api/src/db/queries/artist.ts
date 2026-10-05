@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, artistPlaysPredicate, resolvedPlayJoins, playDuration, artistCreditedAlbums } from './helpers.js';
+import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, artistPlaysPredicate, resolvedPlayJoins, playDuration, artistCreditedAlbums, trackArtistsFor } from './helpers.js';
 
 /** Top tracks de un artista. Usa IDs pre-resueltos para incluir plays mergeados. Agrupa por track canónico (merge-aware). */
 export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number, artistIds?: string[]) {
@@ -8,7 +8,7 @@ export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string 
   const ob = orderByCol(sort);
   const uf = userFilter(userId);
   const ids = artistIds ?? [artistId];
-  const tracksFilter = tracksWithArtistIn(ids);
+  const tracksFilter = tracksWithArtistIn(ids, userId);
 
   return db.all(sql`
     SELECT ${resolvedEntityId('track')} as track_id, count(*) as play_count, sum(${playDuration()}) as total_ms
@@ -38,10 +38,10 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
       FROM listening_history lh
       ${resolvedPlayJoins('album', userId)}
       WHERE t.spotify_id IN (
-        SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${artistCmp}
+        SELECT DISTINCT ta_sub.track_id FROM ${trackArtistsFor(userId)} ta_sub WHERE ta_sub.artist_id ${artistCmp}
       ) AND t.album_id IS NOT NULL ${wr} ${uf}
         ${artistPlaysPredicate(ids, userId)}
-        AND t.album_id IN ${artistCreditedAlbums(ids)}
+        AND t.album_id IN ${artistCreditedAlbums(ids, userId)}
       GROUP BY ${resolvedEntityId('album')}
     )
     GROUP BY album_id
@@ -52,7 +52,7 @@ export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string 
 
 /** Lanzamientos conocidos del artista (álbumes y singles con fecha, sin compilations) para marcar
  *  eventos en las gráficas de detalle. Solo cubre álbumes ya ingestados (que el usuario escuchó). */
-export function getArtistReleases(db: Db, artistId: string, artistIds?: string[]) {
+export function getArtistReleases(db: Db, artistId: string, artistIds: string[] | undefined, userId: number) {
   const ids = artistIds ?? [artistId];
 
   return db.all(sql`
@@ -60,7 +60,7 @@ export function getArtistReleases(db: Db, artistId: string, artistIds?: string[]
     FROM albums a
     WHERE a.release_date IS NOT NULL
       AND (a.album_type IS NULL OR a.album_type != 'compilation')
-      AND a.spotify_id IN ${artistCreditedAlbums(ids)}
+      AND a.spotify_id IN ${artistCreditedAlbums(ids, userId)}
     ORDER BY a.release_date
   `) as { id: string; name: string; date: string; album_type: string | null; image_url: string | null }[];
 }

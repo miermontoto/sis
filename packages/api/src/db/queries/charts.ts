@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, ChartPeakStats, RankingMetric, WeekStartOption, Granularity, EntityType } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr, albumArtistId, albumArtistName } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr, albumArtistId, albumArtistName, trackArtistsFor } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 import { ChartPeaksAccumulator, peakSlices, periodYear, type ChartRankSlice, type PeakSlice, type RankSliceRow } from '../../services/chart-peaks.js';
 
@@ -42,7 +42,7 @@ export function getRawRanking(db: Db, entityType: EntityType, granularity: Granu
         SELECT DISTINCT ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms, ${pExpr} as p
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId} AND ${pExpr} = ${period}
       )
@@ -80,7 +80,7 @@ export function getChartFirstPeriods(db: Db, entityType: EntityType, granularity
       SELECT ${resolvedEntityId('artist')} as entity_id, min(${pExpr}) as first_period
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
       ${entityMergeJoin('artist', userId)}
       WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) IN (${idsIn})
       GROUP BY entity_id
@@ -127,7 +127,7 @@ export function getChartRankSlice(db: Db, entityType: EntityType, granularity: G
           SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms
           FROM listening_history lh
           JOIN tracks t ON t.spotify_id = lh.track_id
-          JOIN track_artists ta ON ta.track_id = lh.track_id
+          JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
           ${entityMergeJoin('artist', userId)}
           WHERE lh.user_id = ${userId} ${window}
         )
@@ -175,7 +175,7 @@ export function chartPeakSlices(db: Db, entityType: EntityType, granularity: Gra
 // batch fetch de metadata para un conjunto de entidades (reemplaza N+1 queries individuales)
 export interface EntityMeta { name: string; imageUrl: string | null; artistName: string | null; artistId: string | null; artists: { id: string; name: string }[]; }
 
-export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[]): Map<string, EntityMeta> {
+export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[], userId: number): Map<string, EntityMeta> {
   const result = new Map<string, EntityMeta>();
   if (ids.length === 0) return result;
 
@@ -192,7 +192,7 @@ export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[
     // todos los artistas de cada track en una sola query (evita N+1); el de position 0 hace de principal
     const artistRows = db.all(sql`
       SELECT ta.track_id, a.spotify_id as artist_id, a.name as artist_name
-      FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
+      FROM ${trackArtistsFor(userId)} ta JOIN artists a ON a.spotify_id = ta.artist_id
       WHERE ta.track_id IN (${placeholders})
       ORDER BY ta.track_id, ta.position
     `) as any[];
@@ -207,8 +207,8 @@ export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[
     // tiene son temas propios, y de ahí el fallback de los helpers de artista
     const rows = db.all(sql`
       SELECT al.spotify_id as id, al.name, al.image_url,
-             ${albumArtistName(sql`al.spotify_id`)} as artist_name,
-             ${albumArtistId(sql`al.spotify_id`)} as artist_id
+             ${albumArtistName(sql`al.spotify_id`, userId)} as artist_name,
+             ${albumArtistId(sql`al.spotify_id`, userId)} as artist_id
       FROM albums al WHERE al.spotify_id IN (${placeholders})
     `) as any[];
     for (const r of rows) result.set(r.id, { name: r.name, imageUrl: r.image_url, artistName: r.artist_name, artistId: r.artist_id, artists: r.artist_id ? [{ id: r.artist_id, name: r.artist_name }] : [] });
@@ -247,7 +247,7 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
 
   // batch fetch de metadata para entries + dropouts en una sola query
   const allIds = [...entityIds, ...dIds];
-  const metaMap = fetchEntityMetadata(db, entityType, allIds);
+  const metaMap = fetchEntityMetadata(db, entityType, allIds, userId);
   if (aborted()) return empty;
 
   // enriquecer entries (sin historial — peakRank/weeksOnChart se cargan async)
@@ -344,7 +344,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
         SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) = ${entityId}
       )
@@ -364,7 +364,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
         SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as eid, lh.id as play_id, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId}
       )

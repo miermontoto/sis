@@ -177,7 +177,7 @@ library.get('/library/:id', (c) => {
       playCount: t.play_count,
       totalMs: t.total_ms,
       lastPlayed: t.last_played,
-      track: enrichTrack(db, t.track_id),
+      track: enrichTrack(db, t.track_id, userId),
     })),
     genres,
     series,

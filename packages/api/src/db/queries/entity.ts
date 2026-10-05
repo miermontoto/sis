@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
-import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration } from './helpers.js';
+import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration, trackArtistsFor } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 import { resolveEntityIds } from './merge.js';
 
@@ -16,7 +16,7 @@ export function getEntityStats(db: Db, entityType: EntityType, entityId: string,
              min(lh.played_at) as first_played, max(lh.played_at) as last_played
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE ${tracksWithArtistIn(ids)} ${wr} ${uf}
+      WHERE ${tracksWithArtistIn(ids, userId)} ${wr} ${uf}
     `)[0] as StatsRow;
   }
 
@@ -50,7 +50,7 @@ function topArtistsAggregate(db: Db, playsWhere: SqlChunk, ob: SqlChunk, limit: 
     ) pt
     JOIN (
       SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist')} as entity_id
-      FROM track_artists ta
+      FROM ${trackArtistsFor(userId)} ta
       ${entityMergeJoin('artist', userId)}
     ) am ON am.track_id = pt.track_id
     GROUP BY entity_id
@@ -116,7 +116,7 @@ export function getEntitySeries(db: Db, entityType: EntityType, entityId: string
       SELECT ${dateTrunc} as period, count(*) as play_count, sum(${playDuration()}) as total_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE ${tracksWithArtistIn(ids)} ${wr} ${uf}
+      WHERE ${tracksWithArtistIn(ids, userId)} ${wr} ${uf}
       GROUP BY period
       ORDER BY period ASC
     `) as SeriesRow[];
@@ -198,7 +198,7 @@ export function getRecentPlays(db: Db, entityType: EntityType, entityId: string,
       SELECT lh.id, lh.played_at, lh.track_id
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE ${tracksWithArtistIn(ids)} ${uf}
+      WHERE ${tracksWithArtistIn(ids, userId)} ${uf}
       ORDER BY +lh.played_at DESC
       LIMIT ${limit}
     `) as RecentPlayRow[];
@@ -238,7 +238,7 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
   // no dos filtros que se acumulan como el resto
   const needsTrackJoin = albumIds || artistIds || collectionScope;
   const trackJoin = needsTrackJoin ? sql`JOIN tracks t ON t.spotify_id = lh.track_id` : sql``;
-  const artistJoin = artistIds ? sql`JOIN track_artists ta ON ta.track_id = lh.track_id` : sql``;
+  const artistJoin = artistIds ? sql`JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id` : sql``;
 
   const albumWhere = albumIds
     ? (albumIds.length === 1

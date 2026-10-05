@@ -33,6 +33,9 @@ export type { MergeInfo } from './merge.js';
 export { getArtistRelations, getRelationStats } from './relations.js';
 export type { RelatedArtistRow, RelationStatsRow } from './relations.js';
 
+// créditos corregidos por el usuario (la capa que los aplica vive en helpers.ts)
+export { getEntityCredits } from './credits.js';
+
 // entity formatters
 export { lookupArtist, lookupAlbum, formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, formatRecentPlays, formatArtistTrackRows, formatArtistAlbumRow } from './formatters.js';
 

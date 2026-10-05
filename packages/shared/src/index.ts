@@ -66,6 +66,10 @@ export { COLLECTION_ID_PREFIX, collectionKey, isCollectionKey, parseCollectionKe
 // relaciones soft entre artistas
 export type { RelatedArtist, ArtistRelationRule, EntityRelation, RelationKind } from './relations.js';
 
+// atribuciones corregidas por el usuario (artistas de un tema o un álbum)
+export type { CreditSubjectType, CreditArtist, EntityCredits, CreditsInput } from './credits.js';
+export { isCreditSubjectType, CREDITS_MAX_ARTISTS } from './credits.js';
+
 // proyecciones de ranking
 export type { RankProjection, ProjectionResult, ProjectedRankingsResponse, RecentRankChange, RecentRankChangeItem, RecentRankChangesResponse } from './projections.js';
 

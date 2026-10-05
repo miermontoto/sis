@@ -13,6 +13,7 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
+  import CreditsModal from '$lib/components/CreditsModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import Wordmark from '$lib/components/Wordmark.svelte';
@@ -837,6 +838,8 @@
       entity={{ type: collectionModal.target.entityType, id: collectionModal.target.entity.id, name: collectionModal.target.entity.name, imageUrl: collectionModal.target.entity.imageUrl }}
     />
   {/if}
+  <!-- se pinta solo con el target del store: sin bind:show que sincronizar -->
+  <CreditsModal />
   {#if relateModal.target}
     <RelateArtistModal
       bind:show={relateModalShow}

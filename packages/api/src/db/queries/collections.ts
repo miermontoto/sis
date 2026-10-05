@@ -13,7 +13,7 @@
 // alcance de sus miembros, y eso es lo que vive aquí.
 import { sql } from 'drizzle-orm';
 import type { Db, Sort, SqlChunk, StatsRow, SeriesRow, RecentPlayRow } from './helpers.js';
-import { rangeWhere, userFilter, getDateTrunc, getDateTruncForDays, playDuration, resolvedPlayJoins, artistCreditedAlbums } from './helpers.js';
+import { rangeWhere, userFilter, getDateTrunc, getDateTruncForDays, playDuration, resolvedPlayJoins, artistCreditedAlbums, trackArtistsFor } from './helpers.js';
 import { collectionKey, COLLECTION_ID_PREFIX } from '@sis/shared';
 import type { AlbumCollectionSummary, CollectionCandidate, CollectionIndexItem, CollectionMember, CollectionMemberType, CollectionRef } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
@@ -233,7 +233,7 @@ export function getCollectionMembers(db: Db, collectionId: number, userId: numbe
   const albumIds = rows.filter(r => r.member_type === 'album').map(r => r.member_id);
   const trackIds = rows.filter(r => r.member_type === 'track').map(r => r.member_id);
   const plays = memberPlays(db, albumIds, trackIds, userId, albumOwners(db, albumIds, userId));
-  const artistsByMember = memberArtists(db, albumIds, trackIds);
+  const artistsByMember = memberArtists(db, albumIds, trackIds, userId);
 
   return rows.map(r => {
     const stat = plays.get(`${r.member_type}:${r.member_id}`);
@@ -311,7 +311,7 @@ function memberPlays(db: Db, albumIds: string[], trackIds: string[], userId: num
   return out;
 }
 
-function memberArtists(db: Db, albumIds: string[], trackIds: string[]): Map<string, { id: string; name: string }[]> {
+function memberArtists(db: Db, albumIds: string[], trackIds: string[], userId: number): Map<string, { id: string; name: string }[]> {
   const out = new Map<string, { id: string; name: string }[]>();
   const push = (key: string, id: string, name: string) => {
     const list = out.get(key);
@@ -325,7 +325,7 @@ function memberArtists(db: Db, albumIds: string[], trackIds: string[]): Map<stri
     const rows = db.all(sql`
       SELECT t.album_id AS eid, a.spotify_id AS id, a.name, count(*) AS n
       FROM tracks t
-      JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id AND ta.position = 0
       JOIN artists a ON a.spotify_id = ta.artist_id
       WHERE t.album_id IN (${idList(albumIds)})
       GROUP BY t.album_id, a.spotify_id
@@ -337,7 +337,7 @@ function memberArtists(db: Db, albumIds: string[], trackIds: string[]): Map<stri
   if (trackIds.length > 0) {
     const rows = db.all(sql`
       SELECT ta.track_id AS eid, a.spotify_id AS id, a.name
-      FROM track_artists ta
+      FROM ${trackArtistsFor(userId)} ta
       JOIN artists a ON a.spotify_id = ta.artist_id
       WHERE ta.track_id IN (${idList(trackIds)})
       ORDER BY ta.track_id, ta.position
@@ -515,12 +515,12 @@ export function getCollectionRefs(db: Db, entityType: CollectionMemberType, enti
  *   - tema: acreditado en CUALQUIER posición. Una colaboración es de los dos, igual
  *     que un disco a dos nombres.
  *  `artistIds` es el grupo de merge del artista de la colección. */
-export function isEligibleMember(db: Db, entityType: CollectionMemberType, entityId: string, artistIds: string[]): boolean {
+export function isEligibleMember(db: Db, entityType: CollectionMemberType, entityId: string, artistIds: string[], userId: number): boolean {
   if (artistIds.length === 0) return false;
   const ids = idList(artistIds);
   const row = entityType === 'album'
-    ? db.all(sql`SELECT 1 AS ok FROM albums WHERE spotify_id = ${entityId} AND spotify_id IN ${artistCreditedAlbums(artistIds)}`)[0]
-    : db.all(sql`SELECT 1 AS ok FROM track_artists WHERE track_id = ${entityId} AND artist_id IN (${ids}) LIMIT 1`)[0];
+    ? db.all(sql`SELECT 1 AS ok FROM albums WHERE spotify_id = ${entityId} AND spotify_id IN ${artistCreditedAlbums(artistIds, userId)}`)[0]
+    : db.all(sql`SELECT 1 AS ok FROM ${trackArtistsFor(userId)} WHERE track_id = ${entityId} AND artist_id IN (${ids}) LIMIT 1`)[0];
   return !!row;
 }
 
@@ -534,7 +534,7 @@ export function getEligibleCollections(db: Db, entityType: CollectionMemberType,
   const rows = db.all(sql`${COLLECTION_SELECT} WHERE ac.user_id = ${userId} ORDER BY ac.created_at ASC`) as CollectionRow[];
   const memberId = canonicalMemberId(db, entityType, entityId, userId);
   return rows
-    .filter(r => isEligibleMember(db, entityType, memberId, artistMergeGroup(db, r.artist_id, userId)))
+    .filter(r => isEligibleMember(db, entityType, memberId, artistMergeGroup(db, r.artist_id, userId), userId))
     .map(r => hydrateSummary(db, r, userId));
 }
 
@@ -574,10 +574,10 @@ export function getCollectionCandidates(db: Db, collectionId: number, userId: nu
       SELECT t.album_id AS album_id, count(*) AS play_count, sum(${playDuration()}) AS total_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE lh.user_id = ${userId} AND t.album_id IN ${artistCreditedAlbums(artistIds)}
+      WHERE lh.user_id = ${userId} AND t.album_id IN ${artistCreditedAlbums(artistIds, userId)}
       GROUP BY t.album_id
     ) p ON p.album_id = a.spotify_id
-    WHERE a.spotify_id IN ${artistCreditedAlbums(artistIds)}
+    WHERE a.spotify_id IN ${artistCreditedAlbums(artistIds, userId)}
       -- otra colección no es candidata: anidar colecciones contaría sus plays dos veces
       AND a.album_type IS NOT ${COLLECTION_ALBUM_TYPE}
       -- un alias de merge no es candidato: lo que se guarda es su canónico, y
@@ -602,10 +602,10 @@ export function getCollectionCandidates(db: Db, collectionId: number, userId: nu
       SELECT lh.track_id AS track_id, count(*) AS play_count, sum(${playDuration()}) AS total_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE lh.user_id = ${userId} AND lh.track_id IN (SELECT track_id FROM track_artists WHERE artist_id IN (${ids}))
+      WHERE lh.user_id = ${userId} AND lh.track_id IN (SELECT track_id FROM ${trackArtistsFor(userId)} WHERE artist_id IN (${ids}))
       GROUP BY lh.track_id
     ) p ON p.track_id = t.spotify_id
-    WHERE t.spotify_id IN (SELECT track_id FROM track_artists WHERE artist_id IN (${ids}))
+    WHERE t.spotify_id IN (SELECT track_id FROM ${trackArtistsFor(userId)} WHERE artist_id IN (${ids}))
       AND t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
       ${q.trim() ? sql`AND lower(t.name) LIKE ${term}` : sql``}
     ORDER BY play_count DESC, t.name ASC

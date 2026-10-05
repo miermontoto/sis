@@ -53,7 +53,7 @@ generated.post('/generate', async (c) => {
   // enriquecer tracks
   const enrichedTracks = trackIds.map((id, i) => ({
     position: i + 1,
-    track: enrichTrack(db, id),
+    track: enrichTrack(db, id, userId),
   }));
 
   // si es preview, retornar sin crear
@@ -195,7 +195,7 @@ generated.get('/:id', (c) => {
 
   const tracks = trackRows.map(tr => ({
     position: tr.position,
-    track: enrichTrack(db, tr.track_id),
+    track: enrichTrack(db, tr.track_id, userId),
   }));
 
   return c.json({

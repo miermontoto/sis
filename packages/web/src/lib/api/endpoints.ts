@@ -16,6 +16,7 @@ import type {
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates, CollectionIndexItem,
+  CreditSubjectType, EntityCredits,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
 
@@ -469,6 +470,16 @@ export const api = {
 
   deleteAlbumRating: (albumId: string) =>
     apiMutate<{ success: boolean }>('DELETE', `/ratings/album/${encodeURIComponent(albumId)}`),
+
+  // créditos corregidos (lista de artistas de un tema o un álbum, sólo para este usuario)
+  entityCredits: (type: CreditSubjectType, id: string) =>
+    apiFetch<EntityCredits>(`/credits/${type}/${encodeURIComponent(id)}`),
+
+  setEntityCredits: (type: CreditSubjectType, id: string, artistIds: string[]) =>
+    apiMutate<EntityCredits>('PUT', `/credits/${type}/${encodeURIComponent(id)}`, { artistIds }),
+
+  resetEntityCredits: (type: CreditSubjectType, id: string) =>
+    apiMutate<EntityCredits>('DELETE', `/credits/${type}/${encodeURIComponent(id)}`),
 
   // las subidas van por fetch directo (FormData, no JSON), así que invalidan a mano
   uploadAlbumCover: (albumId: string, file: File) =>

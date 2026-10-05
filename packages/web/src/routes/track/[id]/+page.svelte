@@ -30,6 +30,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
@@ -38,6 +39,7 @@
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import PlaylistPopover from '$lib/components/PlaylistPopover.svelte';
   import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
@@ -173,6 +175,8 @@
     const id = trackId;
     void mergeModal.changeVersion;
     void collectionsStore.changeVersion;
+    // créditos corregidos: los artistas del hero salen de ellos
+    void creditsModal.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
       data = null;
@@ -499,6 +503,7 @@
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
           { label: 'Relations', icon: IconMerge, onClick: () => { showMergeModal = true; } },
           { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+          { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'track', entity: { id: trackId, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null } }) },
         ]}
       />
     </div>

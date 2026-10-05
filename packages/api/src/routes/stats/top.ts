@@ -13,8 +13,9 @@ const LOOKBACK_QUALIFYING_RANGES = new Set<string>(['3months', '6months', 'year'
 // El formateo se recibe como callback en vez de como nombre suelto + flag `batch`:
 // así el par (entidad, formateador) queda fijado en la propia ruta y el dispatch es
 // estático. `object[]` es lo que de verdad necesita el handler — sólo decora cada
-// fila con los campos de rank change antes de serializarla.
-type FormatTopRows = (rows: AggregateRow[]) => Promise<object[]>;
+// fila con los campos de rank change antes de serializarla. Recibe el usuario porque
+// los créditos de cada fila son los suyos (ver trackArtistsFor).
+type FormatTopRows = (rows: AggregateRow[], userId: number) => Promise<object[]>;
 
 async function handleTopEntities(c: Context, entityType: EntityType, format: FormatTopRows) {
   const { range, limit, rangeStart, rangeEnd, sort } = parseParams(c);
@@ -33,7 +34,7 @@ async function handleTopEntities(c: Context, entityType: EntityType, format: For
     ? buildRankChangeMap(await dbRead('getPrevPeriodEntities', entityType, prev.prevStart, prev.prevEnd, sort, userId))
     : new Map<string, number>();
 
-  const formatted = await format(rows);
+  const formatted = await format(rows, userId);
 
   return c.json(formatted.map((f, i) => ({
     ...f,
@@ -43,9 +44,9 @@ async function handleTopEntities(c: Context, entityType: EntityType, format: For
 
 // los tracks se formatean en batch: enrichTracksBatch resuelve álbum y artistas de
 // todas las filas en dos queries. artistas y álbumes van fila a fila.
-top.get('/top-tracks', (c) => handleTopEntities(c, 'track', rows => dbRead('formatTopTrackRows', rows)));
+top.get('/top-tracks', (c) => handleTopEntities(c, 'track', (rows, userId) => dbRead('formatTopTrackRows', rows, userId)));
 top.get('/top-artists', (c) => handleTopEntities(c, 'artist', rows => Promise.all(rows.map(row => dbRead('formatTopArtistRow', row)))));
-top.get('/top-albums', (c) => handleTopEntities(c, 'album', rows => Promise.all(rows.map(row => dbRead('formatTopAlbumRow', row)))));
+top.get('/top-albums', (c) => handleTopEntities(c, 'album', (rows, userId) => Promise.all(rows.map(row => dbRead('formatTopAlbumRow', row, userId)))));
 
 top.get('/top-genres', async (c) => {
   const { limit, rangeStart, rangeEnd } = parseParams(c);

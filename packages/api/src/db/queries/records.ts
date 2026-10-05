@@ -8,7 +8,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, RankingMetric, WeekStartOption, EntityType,
 } from '@sis/shared';
-import { albumArtistId, albumArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr } from './helpers.js';
+import { albumArtistId, albumArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr, trackArtistsFor, primaryArtistOf, artistNameOf } from './helpers.js';
 import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
@@ -80,9 +80,8 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     )
     SELECT w.*, fw.debut_week,
            t.name, al.image_url,
-           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = w.eid AND ta.position = 0 LIMIT 1) as artist_id,
-           (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE ta.track_id = w.eid AND ta.position = 0 LIMIT 1) as artist_name
+           ${primaryArtistOf(sql`w.eid`, userId)} as artist_id,
+           ${artistNameOf(primaryArtistOf(sql`w.eid`, userId))} as artist_name
     FROM weekly w
     JOIN first_week fw ON fw.eid = w.eid
     JOIN tracks t ON t.spotify_id = w.eid
@@ -94,9 +93,8 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
   // (nombre/artista/álbum del track target), no bajo su id de origen.
   base.inMostPlaylists = db.all(sql`
     SELECT COALESCE(mr_track.target_id, spt.track_id) as entityId, t.name, al.image_url as imageUrl,
-           (SELECT ta.artist_id FROM track_artists ta WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistId,
-           (SELECT a.name FROM track_artists ta JOIN artists a ON a.spotify_id = ta.artist_id
-            WHERE ta.track_id = t.spotify_id AND ta.position = 0 LIMIT 1) as artistName,
+           ${primaryArtistOf(sql`t.spotify_id`, userId)} as artistId,
+           ${artistNameOf(primaryArtistOf(sql`t.spotify_id`, userId))} as artistName,
            COUNT(DISTINCT spt.playlist_id) as value
     FROM spotify_playlist_tracks spt
     JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
@@ -142,8 +140,8 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     )
     SELECT w.*, fw.debut_week,
            al.name, al.image_url,
-           ${albumArtistId(sql`w.eid`)} as artist_id,
-           ${albumArtistName(sql`w.eid`)} as artist_name
+           ${albumArtistId(sql`w.eid`, userId)} as artist_id,
+           ${albumArtistName(sql`w.eid`, userId)} as artist_name
     FROM weekly w
     JOIN first_week fw ON fw.eid = w.eid
     JOIN albums al ON al.spotify_id = w.eid
@@ -167,8 +165,8 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
       HAVING value > 1
     )
     SELECT ap.eid as entityId, al.name, al.image_url as imageUrl,
-           ${albumArtistId(sql`ap.eid`)} as artistId,
-           ${albumArtistName(sql`ap.eid`)} as artistName,
+           ${albumArtistId(sql`ap.eid`, userId)} as artistId,
+           ${albumArtistName(sql`ap.eid`, userId)} as artistName,
            ap.value as value
     FROM album_playlists ap
     JOIN albums al ON al.spotify_id = ap.eid
@@ -202,7 +200,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
       SELECT DISTINCT ${week} as w, ${resolvedEntityId('artist')} as eid, lh.id as play_id, ${playDuration()} as duration_ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
-      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
       ${mrArtistJoin}
       WHERE lh.user_id = ${userId}
     ),
@@ -243,7 +241,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     )
     SELECT ${resolvedTa} as artistId, a.name, a.image_url as imageUrl, COUNT(DISTINCT wt.tid) as count
     FROM weekly_tracks wt
-    JOIN track_artists ta ON ta.track_id = wt.tid AND ta.position = 0
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = wt.tid AND ta.position = 0
     ${artistResolveJoin}
     JOIN artists a ON a.spotify_id = ${resolvedTa}
     WHERE wt.rank = 1
@@ -262,9 +260,12 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
       GROUP BY w, aid
     )
     SELECT ${resolvedTa} as artistId, a.name, a.image_url as imageUrl, COUNT(DISTINCT wa.aid) as count
+    -- CROSS JOIN fija el orden (los #1 semanales primero, unos cientos de filas): con
+    -- créditos corregidos la tabla de créditos es un UNION sin estadísticas y el planner lo ponía
+    -- delante, de 1s a 14s
     FROM weekly_albums wa
-    JOIN tracks t2 ON t2.album_id = wa.aid
-    JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
+    CROSS JOIN tracks t2 ON t2.album_id = wa.aid
+    CROSS JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t2.spotify_id AND ta.position = 0
     ${artistResolveJoin}
     JOIN artists a ON a.spotify_id = ${resolvedTa}
     WHERE wa.rank = 1
@@ -278,7 +279,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
            COUNT(DISTINCT spt.playlist_id) as value
     FROM spotify_playlist_tracks spt
     JOIN spotify_playlists sp ON sp.id = spt.playlist_id AND sp.user_id = ${userId}
-    JOIN track_artists ta ON ta.track_id = spt.track_id AND ta.position = 0
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = spt.track_id AND ta.position = 0
     ${artistResolveJoin}
     JOIN artists a ON a.spotify_id = ${resolvedTa}
     GROUP BY ${resolvedTa}

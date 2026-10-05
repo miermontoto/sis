@@ -2,10 +2,12 @@ import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.sv
 import { mergeModal } from '$lib/stores/merge-modal.svelte';
 import { collectionModal } from '$lib/stores/collection-modal.svelte';
 import { collectionsStore } from '$lib/stores/collections.svelte';
+import { creditsModal } from '$lib/stores/credits-modal.svelte';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
 import IconLink from '$lib/icons/IconLink.svelte';
 import IconAlbum from '$lib/icons/IconAlbum.svelte';
+import IconArtist from '$lib/icons/IconArtist.svelte';
 
 // `collection:` entra en la misma familia que local:/import:: un álbum lógico tiene
 // fila en `albums` pero no existe en spotify, así que no hay nada que abrir, encolar
@@ -94,6 +96,18 @@ export function entityContextActions(entity: EntityContext, { relations = true }
         entity: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
         artistId: entity.parentArtistId!,
         artistName: collectionsStore.artistName(entity.parentArtistId),
+      }),
+    });
+  }
+  // créditos corregidos: a quién cuenta este tema, o de quién es este álbum. Un álbum
+  // lógico no tiene créditos propios (su artista es el dueño de la colección)
+  if ((entity.type === 'album' || entity.type === 'track') && !entity.id.startsWith('collection:')) {
+    actions.push({
+      label: 'Credits',
+      icon: IconArtist,
+      onClick: () => creditsModal.open({
+        type: entity.type as 'album' | 'track',
+        entity: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },
       }),
     });
   }

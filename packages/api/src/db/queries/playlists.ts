@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort, EntityType } from './helpers.js';
-import { getRangeStart, orderByCol, userFilter, rangeWhere, playDuration, resolvedPlayJoins, entityGroupCol, entityMergeJoin } from './helpers.js';
+import { getRangeStart, orderByCol, userFilter, rangeWhere, playDuration, resolvedPlayJoins, entityGroupCol, entityMergeJoin, trackArtistsFor } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { getRawRanking } from './charts.js';
 import type { TimeRange } from '../../constants.js';
@@ -124,7 +124,7 @@ export function strategyTopArtist(db: Db, userId: number, params: TopArtistParam
     SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     ${trackJoins(userId)}
-    JOIN track_artists ta ON ta.track_id = lh.track_id
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
     WHERE ta.artist_id = ${params.artistId} ${rw} ${uf} ${NO_LOCAL}
     GROUP BY entity_id
     ORDER BY ${ob} DESC
@@ -146,7 +146,7 @@ export function strategyTopGenre(db: Db, userId: number, params: TopGenreParams)
     SELECT ${trackGroupCol()} as entity_id, count(*) as play_count, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     ${trackJoins(userId)}
-    JOIN track_artists ta ON ta.track_id = lh.track_id
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
     JOIN artists a ON a.spotify_id = ta.artist_id
     JOIN json_each(a.genres) g
     WHERE g.value = ${params.genre} ${rw} ${uf} ${NO_LOCAL}
@@ -249,7 +249,7 @@ export function resolveEntitiesToTracks(
       SELECT lh.track_id, ta.artist_id, COUNT(*) as plays,
              ROW_NUMBER() OVER (PARTITION BY ta.artist_id ORDER BY COUNT(*) DESC) as rn
       FROM listening_history lh
-      JOIN track_artists ta ON ta.track_id = lh.track_id AND ta.position = 0
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id AND ta.position = 0
       WHERE lh.user_id = ${userId}
         AND ta.artist_id IN (${idList})
         AND lh.track_id NOT LIKE 'local:%'

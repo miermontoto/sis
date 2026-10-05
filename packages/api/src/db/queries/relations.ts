@@ -5,7 +5,7 @@
 // relaciones del detalle — las soft y las hard, que se pintan juntas.
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType } from './helpers.js';
-import { playDuration, trackJoinResolvingMerges, albumPlaysPredicate } from './helpers.js';
+import { playDuration, trackJoinResolvingMerges, albumPlaysPredicate, trackArtistsFor } from './helpers.js';
 import { getEntityMergeGroup } from './merge.js';
 
 export interface RelatedArtistRow {
@@ -91,7 +91,7 @@ export function getRelationStats(db: Db, type: EntityType, ids: string[], userId
       FROM (
         SELECT DISTINCT lh.id as play_id, rel.root_id as root_id, ${playDuration()} as ms
         FROM rel
-        CROSS JOIN track_artists ta ON ta.artist_id = rel.member_id
+        CROSS JOIN ${trackArtistsFor(userId)} ta ON ta.artist_id = rel.member_id
         CROSS JOIN listening_history lh ON lh.track_id = ta.track_id AND lh.user_id = ${userId}
         CROSS JOIN tracks t ON t.spotify_id = lh.track_id
       )

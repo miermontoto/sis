@@ -194,7 +194,7 @@ records.get('/projected-rankings', (c) => {
       }
     }
     if (allIds.size > 0) {
-      displacedMetaByType.set(entityType, fetchEntityMetadata(db, entityType as 'track' | 'artist' | 'album', [...allIds]));
+      displacedMetaByType.set(entityType, fetchEntityMetadata(db, entityType as 'track' | 'artist' | 'album', [...allIds], userId));
     }
   }
 

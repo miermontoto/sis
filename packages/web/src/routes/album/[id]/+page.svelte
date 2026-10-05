@@ -33,6 +33,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId, queueEntity } from '$lib/utils/entity-context';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconQueue from '$lib/icons/IconQueue.svelte';
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
@@ -40,6 +41,7 @@
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconPalette from '$lib/icons/IconPalette.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
+  import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import { parseCollectionKey, collectionKey, type CollectionMember } from '$lib/api';
@@ -324,6 +326,8 @@
     // alguien acaba de tocar una colección: la línea de pertenencia y los badges de
     // esta página dependen de ella
     void collectionsStore.changeVersion;
+    // créditos corregidos: los artistas del hero y de cada fila
+    void creditsModal.changeVersion;
     if (!initialized || !id) return;
     // resetear al cambiar de álbum para mostrar spinner
     if (id !== prevId) {
@@ -565,6 +569,7 @@
           ...(collectionId === null ? [
             { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
             { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+            { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'album', entity: { id: albumId, name: data.album.name, imageUrl: data.album.imageUrl } }) },
           ] : [
             { label: 'Rename', icon: IconEdit, onClick: renameCollection },
             { label: 'Delete collection', icon: IconTrash, danger: true, onClick: deleteCollection },

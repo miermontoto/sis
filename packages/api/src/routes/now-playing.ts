@@ -10,6 +10,7 @@ import { isNonSpotifyId, syntheticIdPredicate } from '../services/ids.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
 import { getTrackLiveIds } from '../db/queries/entity.js';
+import { trackArtistsFor } from '../db/queries/helpers.js';
 import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
 import type { AppVariables } from '../app.js';
@@ -57,21 +58,33 @@ function readHistoryTail(userId: number | undefined, since: string | undefined) 
       lh.track_id AS trackId,
       lh.played_at AS playedAt,
       COALESCE(lh.duration_played_ms, t.duration_ms, 0) AS playedMs,
-      t.album_id AS albumId,
-      (SELECT GROUP_CONCAT(ta.artist_id) FROM track_artists ta WHERE ta.track_id = lh.track_id) AS artistIds
+      t.album_id AS albumId
     FROM listening_history lh
     LEFT JOIN tracks t ON t.spotify_id = lh.track_id
     WHERE lh.user_id = ${userId} AND lh.played_at > ${since}
     ORDER BY lh.played_at DESC
     LIMIT ${HISTORY_TAIL_LIMIT}
-  `) as Array<{ trackId: string; playedAt: string; playedMs: number; albumId: string | null; artistIds: string | null }>;
+  `) as Array<{ trackId: string; playedAt: string; playedMs: number; albumId: string | null }>;
+
+  // los créditos van en una lectura aparte y por lote, no correlados por fila: son los
+  // del usuario (trackArtistsFor), y ese UNION dentro de una subconsulta correlada se
+  // rematerializaría en cada fila
+  const artistsByTrack = new Map<string, string[]>();
+  if (rows.length > 0) {
+    const credits = db.all(sql`
+      SELECT ta.track_id AS trackId, ta.artist_id AS artistId FROM ${trackArtistsFor(userId)} ta
+      WHERE ta.track_id IN (${sql.join([...new Set(rows.map(r => r.trackId))].map(id => sql`${id}`), sql`, `)})
+      ORDER BY ta.position
+    `) as { trackId: string; artistId: string }[];
+    credits.forEach(cr => artistsByTrack.set(cr.trackId, [...(artistsByTrack.get(cr.trackId) ?? []), cr.artistId]));
+  }
 
   // el LIMIT se queda con los más NUEVOS (de ahí el DESC), pero la lista se
   // entrega en orden cronológico, como ocurrieron
   const landedPlays: LandedPlay[] = rows.reverse().map(r => ({
     trackId: r.trackId,
     albumId: r.albumId,
-    artistIds: r.artistIds ? r.artistIds.split(',') : [],
+    artistIds: artistsByTrack.get(r.trackId) ?? [],
     playedAt: r.playedAt,
     playedMs: r.playedMs,
   }));

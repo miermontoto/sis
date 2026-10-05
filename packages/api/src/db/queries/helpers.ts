@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm';
-import type { getDb } from '../connection.js';
+import { getDb } from '../connection.js';
 import { TIME_RANGES, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import type { TimeRange } from '../../constants.js';
 import { COLLECTION_ID_PREFIX } from '@sis/shared';
-import type { EntityType, RankingMetric } from '@sis/shared';
+import type { EntityType, RankingMetric, CreditSubjectType } from '@sis/shared';
 
 export type Db = ReturnType<typeof getDb>;
 export type SqlChunk = ReturnType<typeof sql>;
@@ -183,6 +183,87 @@ export function resolvedEntityId(type: EntityType): SqlChunk {
   return sql`COALESCE(${COLLECTION_ID_PREFIX} || acm_track.collection_id, ${COLLECTION_ID_PREFIX} || acm_album.collection_id, ${alias}.target_id, ${sourceCol(type)})`;
 }
 
+// --- créditos corregidos por el usuario (credit_overrides, ver shared/credits.ts) ---
+
+/** ¿Tiene el usuario alguna lista corregida de este tipo? Es lo que decide si las
+ *  queries llevan la relación corregida o la tabla a secas: casi nadie corrige nada, y
+ *  así su SQL —y su plan— es byte a byte el de siempre. Se consulta en cada query en vez
+ *  de cachearse porque cada worker tiene su conexión y la mutación ocurre en el main
+ *  thread: una cache en memoria no se enteraría. Es una bajada de PK, microsegundos. */
+export function hasCreditOverrides(userId: number, type: CreditSubjectType): boolean {
+  return getDb().get(sql`SELECT 1 AS ok FROM credit_overrides WHERE user_id = ${userId} AND subject_type = ${type} LIMIT 1`) !== undefined;
+}
+
+/** `track_artists` tal como la ve el usuario: los temas que corrigió llevan SU lista
+ *  (con sus posiciones: la 0 es el principal) y el resto la del catálogo. Va en el
+ *  lugar de la tabla —`JOIN ${trackArtistsFor(userId)} ta ON …`— y expone sus mismas
+ *  tres columnas, así que el resto de la query no cambia.
+ *
+ *  COSTE MEDIDO (copia de prod, 349k plays, 200 temas corregidos): top artists
+ *  all-time 282 → 286ms, stats de artista 55 → 53ms (el `artist_id = X` baja a los dos
+ *  brazos del UNION y cada uno usa su índice), join por play 1.15 → 1.03s. Sin
+ *  correcciones no hay coste: devuelve el nombre de la tabla.
+ *
+ *  Sólo para lo que atribuye escuchas o pinta créditos a ESE usuario. Los barridos del
+ *  catálogo (dedup, identity, import) siguen sobre la tabla: una corrección privada no
+ *  es evidencia sobre qué grabación es qué. `null` = sin usuario (los créditos del
+ *  catálogo), para los formateadores que también sirven superficies sin sesión. */
+export function trackArtistsFor(userId: number | null): SqlChunk {
+  if (userId === null || !hasCreditOverrides(userId, 'track')) return sql`track_artists`;
+  return sql`(
+    SELECT track_id, artist_id, position FROM track_artists
+    WHERE track_id NOT IN (SELECT subject_id FROM credit_overrides WHERE user_id = ${userId} AND subject_type = 'track')
+    UNION ALL
+    SELECT subject_id, artist_id, position FROM credit_overrides WHERE user_id = ${userId} AND subject_type = 'track'
+  )`;
+}
+
+type CreditCol = 'track_id' | 'artist_id' | 'position';
+
+/** trackArtistsFor con el filtro metido DENTRO de cada brazo del UNION: la forma para
+ *  las subconsultas correladas (`EXISTS (… WHERE ta.track_id = lh.track_id)`), donde el
+ *  planner no baja al UNION un término que nombra la fila de fuera y, sin esto, cada
+ *  fila rematerializa la tabla entera. `where` recibe un accesor de columna porque los
+ *  dos brazos no se llaman igual (`subject_id` es el `track_id` de la corrección). Sin
+ *  correcciones es una subconsulta simple sobre la tabla, que SQLite aplana. */
+export function trackArtistsWhere(userId: number | null, where: (col: (c: CreditCol) => SqlChunk) => SqlChunk): SqlChunk {
+  const catalog = sql`SELECT ta_w.track_id, ta_w.artist_id, ta_w.position FROM track_artists ta_w
+    WHERE ${where(c => sql.raw(`ta_w.${c}`))}`;
+  if (userId === null || !hasCreditOverrides(userId, 'track')) return sql`(${catalog})`;
+  return sql`(${catalog}
+      AND ta_w.track_id NOT IN (SELECT subject_id FROM credit_overrides WHERE user_id = ${userId} AND subject_type = 'track')
+    UNION ALL
+    SELECT co_w.subject_id, co_w.artist_id, co_w.position FROM credit_overrides co_w
+    WHERE co_w.user_id = ${userId} AND co_w.subject_type = 'track'
+      AND ${where(c => sql.raw(c === 'track_id' ? 'co_w.subject_id' : `co_w.${c}`))})`;
+}
+
+/** Artista principal (posición 0) de UN tema tal como lo ve el usuario, para las
+ *  búsquedas correladas por fila ("el artista de esta fila"). NO pasa por
+ *  trackArtistsFor a propósito: dentro de una subconsulta correlada el UNION ALL no
+ *  recibe el `track_id = <fila>` (sólo baja a sus brazos lo que es constante) y se
+ *  rematerializa entero en cada fila —el resumen de perfil pasó de 0.6s a 277s—. Aquí
+ *  son dos bajadas de PK: la lista corregida si la hay, si no la del catálogo. */
+export function primaryArtistOf(trackExpr: SqlChunk, userId: number | null): SqlChunk {
+  const catalog = sql`(SELECT MIN(ta_pa.artist_id) FROM track_artists ta_pa WHERE ta_pa.track_id = ${trackExpr} AND ta_pa.position = 0)`;
+  if (userId === null || !hasCreditOverrides(userId, 'track')) return catalog;
+  return sql`COALESCE(
+    (SELECT co_pa.artist_id FROM credit_overrides co_pa WHERE co_pa.user_id = ${userId} AND co_pa.subject_type = 'track'
+     AND co_pa.subject_id = ${trackExpr} AND co_pa.position = 0),
+    ${catalog})`;
+}
+
+/** Nombre del artista `idExpr` (el complemento de primaryArtistOf en las filas). */
+export function artistNameOf(idExpr: SqlChunk): SqlChunk {
+  return sql`(SELECT a_nm.name FROM artists a_nm WHERE a_nm.spotify_id = ${idExpr})`;
+}
+
+// álbumes con créditos corregidos por el usuario: su lista manda sobre `artist_ids` y
+// sobre las heurísticas de mayoría (ver artistCreditedAlbums)
+function albumOverrideIds(userId: number): SqlChunk {
+  return sql`(SELECT subject_id FROM credit_overrides WHERE user_id = ${userId} AND subject_type = 'album')`;
+}
+
 // --- helpers de SQL dinámico según tipo de entidad ---
 
 export function playDuration(): SqlChunk {
@@ -209,30 +290,32 @@ export function resolvedPlayJoins(entityType: EntityType, userId: number): SqlCh
   }
   if (entityType === 'artist') {
     return sql`JOIN tracks t ON t.spotify_id = lh.track_id
-      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
       ${entityMergeJoin('artist', userId)}`;
   }
   return sql`JOIN tracks t ON t.spotify_id = lh.track_id
     ${entityMergeJoin('track', userId)}`;
 }
 
-/** Artista de una fila del eje álbum: el de posición 0 de sus temas y, si no lo hay,
- *  el dueño de la colección. Un álbum lógico (`collection:N`) SÍ tiene fila en
- *  `albums` —de ahí le vienen nombre, portada y color— pero no tiene temas propios,
- *  así que la subconsulta de siempre devolvía NULL y la fila salía sin artista. */
-export function albumArtistId(eidExpr: SqlChunk): SqlChunk {
-  return sql`COALESCE(
-    (SELECT ta.artist_id FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-     WHERE t2.album_id = ${eidExpr} LIMIT 1),
+/** Artista de una fila del eje álbum: el principal de su lista corregida si el usuario
+ *  la corrigió, si no el de posición 0 de sus temas y, si no lo hay, el dueño de la
+ *  colección. Un álbum lógico (`collection:N`) SÍ tiene fila en `albums` —de ahí le
+ *  vienen nombre, portada y color— pero no tiene temas propios, así que la subconsulta
+ *  de siempre devolvía NULL y la fila salía sin artista. */
+export function albumArtistId(eidExpr: SqlChunk, userId: number): SqlChunk {
+  const override = hasCreditOverrides(userId, 'album')
+    ? sql`(SELECT co.artist_id FROM credit_overrides co WHERE co.user_id = ${userId} AND co.subject_type = 'album'
+       AND co.subject_id = ${eidExpr} ORDER BY co.position LIMIT 1),`
+    : sql``;
+  // primer tema del álbum que tenga principal (el JOIN de siempre se saltaba los que no)
+  return sql`COALESCE(${override}
+    (SELECT pa FROM (SELECT ${primaryArtistOf(sql`t2.spotify_id`, userId)} AS pa FROM tracks t2 WHERE t2.album_id = ${eidExpr})
+     WHERE pa IS NOT NULL LIMIT 1),
     (SELECT ac.artist_id FROM album_collections ac WHERE ${COLLECTION_ID_PREFIX} || ac.id = ${eidExpr}))`;
 }
 
-export function albumArtistName(eidExpr: SqlChunk): SqlChunk {
-  return sql`COALESCE(
-    (SELECT a.name FROM tracks t2 JOIN track_artists ta ON ta.track_id = t2.spotify_id AND ta.position = 0
-     JOIN artists a ON a.spotify_id = ta.artist_id WHERE t2.album_id = ${eidExpr} LIMIT 1),
-    (SELECT a2.name FROM album_collections ac JOIN artists a2 ON a2.spotify_id = ac.artist_id
-     WHERE ${COLLECTION_ID_PREFIX} || ac.id = ${eidExpr}))`;
+export function albumArtistName(eidExpr: SqlChunk, userId: number): SqlChunk {
+  return artistNameOf(albumArtistId(eidExpr, userId));
 }
 
 /** AND t.album_id IS NOT NULL — necesario para queries de álbumes, vacío para otros tipos.
@@ -274,8 +357,8 @@ function idCmp(ids: string[]): SqlChunk {
  *  Filtra sobre lh.track_id (no t.spotify_id) para que el planner ataque listening_history
  *  por idx_lh_user_track en vez de escanearla; con el JOIN t.spotify_id = lh.track_id de los
  *  call sites ambas formas son equivalentes. */
-export function tracksWithArtistIn(ids: string[]): SqlChunk {
-  return sql`lh.track_id IN (SELECT DISTINCT ta_sub.track_id FROM track_artists ta_sub WHERE ta_sub.artist_id ${idCmp(ids)})`;
+export function tracksWithArtistIn(ids: string[], userId: number): SqlChunk {
+  return sql`lh.track_id IN (SELECT DISTINCT ta_sub.track_id FROM ${trackArtistsFor(userId)} ta_sub WHERE ta_sub.artist_id ${idCmp(ids)})`;
 }
 
 /** Predicado driving sobre lh.track_id para queries de álbum que resuelven track merges:
@@ -295,10 +378,11 @@ export function albumPlaysPredicate(albumIds: string[], userId: number): SqlChun
 /** Ídem para artista, en queries que resuelven track merges (el filtro por track_artists
  *  a secas no basta como superset: un source mergeado hacia un track del artista cuenta). */
 export function artistPlaysPredicate(artistIds: string[], userId: number): SqlChunk {
+  const credits = trackArtistsFor(userId);
   return sql`AND lh.track_id IN (
-    SELECT track_id FROM track_artists WHERE artist_id ${idCmp(artistIds)}
+    SELECT ta_d.track_id FROM ${credits} ta_d WHERE ta_d.artist_id ${idCmp(artistIds)}
     UNION
-    SELECT mr_p.source_id FROM merge_rules mr_p JOIN track_artists ta_p ON ta_p.track_id = mr_p.target_id
+    SELECT mr_p.source_id FROM merge_rules mr_p JOIN ${credits} ta_p ON ta_p.track_id = mr_p.target_id
     WHERE mr_p.entity_type = 'track' AND mr_p.user_id = ${userId} AND ta_p.artist_id ${idCmp(artistIds)}
   )`;
 }
@@ -382,25 +466,38 @@ export function albumIdIn(ids: string[], tableAlias = 't'): SqlChunk {
  *
  *  El arm de respaldo ancla primero en el artista (subquery por `idx_ta_artist_position`) y
  *  agrupa después: agrupar de entrada todos los álbumes candidatos son ~11k por página de
- *  artista y cuesta 80ms en vez de 22ms, trabajo que ni depende del artista. */
-export function artistCreditedAlbums(artistIds: string[]): SqlChunk {
+ *  artista y cuesta 80ms en vez de 22ms, trabajo que ni depende del artista.
+ *
+ *  Por encima de las tres, los **créditos corregidos del usuario**: un álbum cuya lista
+ *  corrigió sale de las tres vías y entra sólo por la suya. Es lo que permite QUITAR un
+ *  disco de un artista, que por cualquiera de las heurísticas volvería a colarse. */
+export function artistCreditedAlbums(artistIds: string[], userId: number): SqlChunk {
   const cmp = idCmp(artistIds);
+  const credits = trackArtistsFor(userId);
+  const overridden = hasCreditOverrides(userId, 'album');
   // conjunto motor común a (2) y (3): álbumes donde el artista lidera algún tema
   const ledAlbums = sql`
-    SELECT t_s.album_id FROM track_artists ta_s
+    SELECT t_s.album_id FROM ${credits} ta_s
     JOIN tracks t_s ON t_s.spotify_id = ta_s.track_id
     WHERE ta_s.artist_id ${cmp} AND ta_s.position = 0 AND t_s.album_id IS NOT NULL`;
+  const notOverridden = (col: SqlChunk) => overridden ? sql`AND ${col} NOT IN ${albumOverrideIds(userId)}` : sql``;
+  const overrideArm = overridden
+    ? sql`UNION
+    SELECT co_cr.subject_id FROM credit_overrides co_cr
+    WHERE co_cr.user_id = ${userId} AND co_cr.subject_type = 'album' AND co_cr.artist_id ${cmp}`
+    : sql``;
   return sql`(
     SELECT a_cr.spotify_id FROM albums a_cr, json_each(a_cr.artist_ids) je_cr
-    WHERE je_cr.value ${cmp}
+    WHERE je_cr.value ${cmp} ${notOverridden(sql`a_cr.spotify_id`)}
     UNION
     SELECT t_cr.album_id FROM tracks t_cr
-    JOIN track_artists ta_cr ON ta_cr.track_id = t_cr.spotify_id AND ta_cr.position = 0
+    JOIN ${credits} ta_cr ON ta_cr.track_id = t_cr.spotify_id AND ta_cr.position = 0
     JOIN albums a_nc ON a_nc.spotify_id = t_cr.album_id
-    WHERE t_cr.album_id IN (${ledAlbums})
+    WHERE t_cr.album_id IN (${ledAlbums}) ${notOverridden(sql`t_cr.album_id`)}
     GROUP BY t_cr.album_id
     HAVING SUM(CASE WHEN ta_cr.artist_id ${cmp} THEN 1 ELSE 0 END) * 2 >
       CASE WHEN MAX(json_extract(a_nc.artist_ids, '$[0]')) IS NULL THEN COUNT(*)
            ELSE COALESCE(MAX(a_nc.total_tracks), COUNT(*)) END
+    ${overrideArm}
   )`;
 }

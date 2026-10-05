@@ -1,15 +1,28 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, userFilter, albumIdIn, albumPlaysPredicate, playDuration } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn, albumPlaysPredicate, playDuration, hasCreditOverrides, trackArtistsFor } from './helpers.js';
 import { parseCollectionKey } from '@sis/shared';
 import { getCollectionArtists } from './collections.js';
 
 /** Artistas principales de un álbum. Usa artist_ids de Spotify si están disponibles, sino heurística por track artists.
- *  Una clave `collection:N` (álbum lógico) responde con su artista dueño: es el único crédito que tiene. */
-export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
+ *  Una clave `collection:N` (álbum lógico) responde con su artista dueño: es el único crédito que tiene.
+ *  Por delante de todo, la lista que corrigió `userId` si la hay (ver shared/credits.ts);
+ *  `null` = los créditos del catálogo. */
+export function getAlbumArtists(db: Db, albumId: string, ids: string[] | undefined, userId: number | null) {
   const collectionId = parseCollectionKey(albumId);
   if (collectionId !== null) return getCollectionArtists(db, collectionId);
   const albumIds = ids ?? [albumId];
+
+  if (userId !== null && hasCreditOverrides(userId, 'album')) {
+    const corrected = db.all(sql`
+      SELECT a.spotify_id as artist_id, a.name, a.image_url
+      FROM credit_overrides co
+      JOIN artists a ON a.spotify_id = co.artist_id
+      WHERE co.user_id = ${userId} AND co.subject_type = 'album' AND co.subject_id = ${albumId}
+      ORDER BY co.position
+    `) as { artist_id: string; name: string; image_url: string | null }[];
+    if (corrected.length > 0) return corrected;
+  }
 
   // intentar usar artist_ids almacenados del album (datos de spotify)
   const album = db.all(sql`
@@ -41,7 +54,7 @@ export function getAlbumArtists(db: Db, albumId: string, ids?: string[]) {
   return db.all(sql`
     SELECT ta.artist_id, a.name, a.image_url, count(DISTINCT t.spotify_id) as track_count
     FROM tracks t
-    JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id AND ta.position = 0
     JOIN artists a ON a.spotify_id = ta.artist_id
     WHERE ${albumIdIn(albumIds)}
     GROUP BY ta.artist_id

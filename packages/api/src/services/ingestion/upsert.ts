@@ -340,6 +340,7 @@ export function reassignTrackRefs(db: ReturnType<typeof getDb>, sourceTrackId: s
   // la fila y devuelve playing:false si no está) y sacaba al usuario del feed social
   db.run(sql`UPDATE polling_state SET last_currently_playing_track_id = ${targetTrackId}
     WHERE last_currently_playing_track_id = ${sourceTrackId}`);
+  reassignCreditOverrides(db, 'track', sourceTrackId, targetTrackId);
   rewriteMergeRules(db, 'track', sourceTrackId, targetTrackId);
   db.run(sql`DELETE FROM tracks WHERE spotify_id = ${sourceTrackId}`);
 }
@@ -357,8 +358,20 @@ export function reassignAlbumRefs(db: ReturnType<typeof getDb>, sourceAlbumId: s
   db.run(sql`DELETE FROM album_covers WHERE album_id = ${sourceAlbumId}`);
   db.run(sql`UPDATE OR IGNORE album_ratings SET album_id = ${targetAlbumId} WHERE album_id = ${sourceAlbumId}`);
   db.run(sql`DELETE FROM album_ratings WHERE album_id = ${sourceAlbumId}`);
+  reassignCreditOverrides(db, 'album', sourceAlbumId, targetAlbumId);
   rewriteMergeRules(db, 'album', sourceAlbumId, targetAlbumId);
   db.run(sql`DELETE FROM albums WHERE spotify_id = ${sourceAlbumId}`);
+}
+
+// créditos corregidos (credit_overrides): la lista de cada usuario se va con la fila
+// que sobrevive, salvo que ese usuario ya tenga una propia en el destino —manda la
+// suya y la del origen se descarta: mezclarlas daría una lista que nadie escribió—.
+// Barrido global a propósito, como el resto del cuerpo: la fila desaparece para todos.
+function reassignCreditOverrides(db: ReturnType<typeof getDb>, type: 'track' | 'album', sourceId: string, targetId: string) {
+  db.run(sql`UPDATE credit_overrides SET subject_id = ${targetId}
+    WHERE subject_type = ${type} AND subject_id = ${sourceId}
+      AND user_id NOT IN (SELECT user_id FROM credit_overrides WHERE subject_type = ${type} AND subject_id = ${targetId})`);
+  db.run(sql`DELETE FROM credit_overrides WHERE subject_type = ${type} AND subject_id = ${sourceId}`);
 }
 
 function findNearbyPlay(db: ReturnType<typeof getDb>, trackId: string, playedAt: string, userId: number) {

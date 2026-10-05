@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
 import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers, RecentRankChange, RecentRankChangeItem } from '@sis/shared';
-import { getRangeStart, entityGroupCol, entityMergeJoin, resolvedEntityId, userFilter, resolvedPlayJoins, albumNullFilter, playDuration } from './helpers.js';
+import { getRangeStart, entityGroupCol, entityMergeJoin, resolvedEntityId, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, trackArtistsFor } from './helpers.js';
 import { fetchEntityMetadata } from './charts.js';
 
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
@@ -22,7 +22,7 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
         SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId}
       ),
@@ -158,7 +158,7 @@ function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: n
         SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId}
       )
@@ -333,7 +333,7 @@ export function getRecentRankChanges(
   }
 
   // una sola resolución de metadata para entidades devueltas + desplazadas
-  const metaMap = fetchEntityMetadata(db, entityType, [...new Set([...ordered.map(([eid]) => eid), ...displacedIds])]);
+  const metaMap = fetchEntityMetadata(db, entityType, [...new Set([...ordered.map(([eid]) => eid), ...displacedIds])], userId);
 
   return ordered.map(([entityId, changes]) => {
     const meta = metaMap.get(entityId);
@@ -381,7 +381,7 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
         SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId}
       )
@@ -450,7 +450,7 @@ export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, 
         SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
         WHERE lh.user_id = ${userId}
       )
@@ -539,7 +539,7 @@ export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, 
 
   // batch-resolve metadata for all crossover entities
   if (crossoverEids.size > 0) {
-    const metaMap = fetchEntityMetadata(db, entityType, [...crossoverEids]);
+    const metaMap = fetchEntityMetadata(db, entityType, [...crossoverEids], userId);
     for (const point of result) {
       if (!point.crossovers) continue;
       for (const e of point.crossovers.surpassedBy) {

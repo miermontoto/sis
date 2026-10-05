@@ -237,7 +237,7 @@ function toGeneratedPlaylist(row: any, params: Record<string, unknown>, trackIds
     autoRegenerate: !!row.auto_regenerate,
     regenerateIntervalMs: row.regenerate_interval_ms ?? null,
     lastRegeneratedAt: updatedAt,
-    tracks: trackIds.map((tid, i) => ({ position: i + 1, track: enrichTrack(db, tid) })),
+    tracks: trackIds.map((tid, i) => ({ position: i + 1, track: enrichTrack(db, tid, row.user_id ?? null) })),
     createdAt: row.created_at,
     updatedAt,
   };

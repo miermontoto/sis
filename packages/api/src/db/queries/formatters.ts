@@ -6,6 +6,8 @@ import { enrichTracksBatch } from './track.js';
 import { getAlbumArtists } from './album.js';
 
 // --- formatters para filas de top-* endpoints ---
+// `userId` decide qué créditos lleva cada fila (los corregidos de ese usuario, ver
+// trackArtistsFor); `null` = los del catálogo, para las superficies sin sesión.
 
 /** Buscar y formatear un artista por spotifyId */
 export function lookupArtist(db: Db, spotifyId: string): FormattedArtist | null {
@@ -23,8 +25,8 @@ export function lookupAlbum(db: Db, spotifyId: string): FormattedAlbum | null {
 }
 
 /** Formatear múltiples filas de top-tracks en batch (2 queries en vez de N*5) */
-export function formatTopTrackRows(db: Db, rows: { entity_id: string; play_count: number; total_ms: number }[]) {
-  const trackMap = enrichTracksBatch(db, rows.map(r => r.entity_id));
+export function formatTopTrackRows(db: Db, rows: { entity_id: string; play_count: number; total_ms: number }[], userId: number | null) {
+  const trackMap = enrichTracksBatch(db, rows.map(r => r.entity_id), userId);
   return rows.map(row => {
     // el EnrichedTrack se pasa entero (igual que en formatRecentPlays): recortarlo a mano
     // dejaba fuera el `id` que TrackInfo declara, y los consumidores que lo leen —el
@@ -51,19 +53,19 @@ export function formatTopArtistRow(db: Db, row: { entity_id: string; play_count:
 /** Formatear fila de top-albums */
 // los artistas van en la fila: fuera del detalle de un artista, un álbum sin
 // su artista debajo del nombre no se sabe de quién es
-export function formatTopAlbumRow(db: Db, row: { entity_id: string; play_count: number; total_ms: number }) {
+export function formatTopAlbumRow(db: Db, row: { entity_id: string; play_count: number; total_ms: number }, userId: number | null) {
   return {
     albumId: row.entity_id,
     playCount: row.play_count,
     totalMs: row.total_ms,
     album: lookupAlbum(db, row.entity_id),
-    artists: getAlbumArtists(db, row.entity_id).map(a => ({ id: a.artist_id, name: a.name })),
+    artists: getAlbumArtists(db, row.entity_id, undefined, userId).map(a => ({ id: a.artist_id, name: a.name })),
   };
 }
 
 /** Formatear múltiples recent plays en batch */
-export function formatRecentPlays(db: Db, rows: { id: number; played_at: string; track_id: string }[]) {
-  const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id));
+export function formatRecentPlays(db: Db, rows: { id: number; played_at: string; track_id: string }[], userId: number | null) {
+  const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id), userId);
   return rows.map(row => ({
     id: row.id,
     playedAt: row.played_at,
@@ -72,8 +74,8 @@ export function formatRecentPlays(db: Db, rows: { id: number; played_at: string;
 }
 
 /** Formatear múltiples artist top-tracks en batch */
-export function formatArtistTrackRows(db: Db, rows: { track_id: string; play_count: number; total_ms: number }[]) {
-  const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id));
+export function formatArtistTrackRows(db: Db, rows: { track_id: string; play_count: number; total_ms: number }[], userId: number | null) {
+  const trackMap = enrichTracksBatch(db, rows.map(r => r.track_id), userId);
   // mismo criterio que formatTopTrackRows: EnrichedTrack entero, sin recortes
   return rows.map(row => ({
     trackId: row.track_id,

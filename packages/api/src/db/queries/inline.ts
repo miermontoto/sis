@@ -1,7 +1,7 @@
 // Queries que antes estaban inline en stats.ts, extraídas para el worker pool
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { rangeWhere, userFilter } from './helpers.js';
+import { rangeWhere, userFilter, trackArtistsFor, albumArtistId, albumArtistName } from './helpers.js';
 
 export function getTopGenres(db: Db, rangeStart: string | null, rangeEnd: string | null, limit: number, userId: number) {
   const rw = rangeWhere(rangeStart, rangeEnd);
@@ -10,7 +10,7 @@ export function getTopGenres(db: Db, rangeStart: string | null, rangeEnd: string
   return db.all(sql`
     SELECT genre.value as genre, count(*) as play_count
     FROM listening_history lh
-    JOIN track_artists ta ON ta.track_id = lh.track_id
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
     LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
     JOIN artists a ON a.spotify_id = COALESCE(mr_artist.target_id, ta.artist_id)
     JOIN json_each(a.genres) genre
@@ -79,7 +79,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
     LEFT JOIN (
       SELECT ta.artist_id, COUNT(*) as play_count
       FROM listening_history lh
-      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
       WHERE lh.user_id = ${userId}
       GROUP BY ta.artist_id
     ) s ON s.artist_id = a.spotify_id
@@ -89,7 +89,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       JOIN (
         SELECT ta.artist_id, COUNT(*) as play_count
         FROM listening_history lh
-        JOIN track_artists ta ON ta.track_id = lh.track_id
+        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         WHERE lh.user_id = ${userId}
         GROUP BY ta.artist_id
       ) sc ON sc.artist_id = mr.source_id
@@ -104,14 +104,8 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
 
   const albumRows = db.all(sql`
     SELECT al.spotify_id as id, al.name, al.image_url as imageUrl,
-           (SELECT ar.spotify_id FROM tracks t2
-            JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-            JOIN artists ar ON ar.spotify_id = ta2.artist_id
-            WHERE t2.album_id = al.spotify_id LIMIT 1) as artistId,
-           (SELECT ar.name FROM tracks t2
-            JOIN track_artists ta2 ON ta2.track_id = t2.spotify_id AND ta2.position = 0
-            JOIN artists ar ON ar.spotify_id = ta2.artist_id
-            WHERE t2.album_id = al.spotify_id LIMIT 1) as artistName,
+           ${albumArtistId(sql`al.spotify_id`, userId)} as artistId,
+           ${albumArtistName(sql`al.spotify_id`, userId)} as artistName,
            COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
     FROM albums al
     LEFT JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'album') si
@@ -154,7 +148,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
     LEFT JOIN albums al ON al.spotify_id = t.album_id
     LEFT JOIN (
       SELECT track_id, MIN(artist_id) as artist_id
-      FROM track_artists WHERE position = 0 GROUP BY track_id
+      FROM ${trackArtistsFor(userId)} WHERE position = 0 GROUP BY track_id
     ) pa ON pa.track_id = t.spotify_id
     LEFT JOIN artists ar ON ar.spotify_id = pa.artist_id
     LEFT JOIN (
@@ -238,7 +232,7 @@ export function getDiscoverySeries(db: Db, entityType: string, granularity: stri
     rows = db.all(sql`
       SELECT ${dateTrunc} as period, COUNT(DISTINCT COALESCE(mr_artist.target_id, ta.artist_id)) as distinct_count
       FROM listening_history lh
-      JOIN track_artists ta ON ta.track_id = lh.track_id
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
       LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
       WHERE 1=1 ${uf} ${rw}
       GROUP BY period ORDER BY period
@@ -276,10 +270,10 @@ export function lookupTrackById(db: Db, id: string) {
   `)[0] as { spotify_id: string; name: string; duration_ms: number; track_number: number | null; explicit: boolean | null; album_id: string | null } | undefined;
 }
 
-export function getTrackArtists(db: Db, trackId: string) {
+export function getTrackArtists(db: Db, trackId: string, userId: number) {
   return db.all(sql`
     SELECT a.spotify_id, a.name, a.image_url
-    FROM track_artists ta
+    FROM ${trackArtistsFor(userId)} ta
     JOIN artists a ON a.spotify_id = ta.artist_id
     WHERE ta.track_id = ${trackId}
     ORDER BY ta.position ASC

@@ -560,4 +560,19 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
   try { sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_acm_unique_member ON album_collection_members(user_id, member_type, member_id)'); } catch {}
+
+  // créditos corregidos por el usuario: la lista de artistas de un tema o un álbum que
+  // sustituye a la del catálogo sólo para él. Ver shared/credits.ts y trackArtistsFor
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS credit_overrides (
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      subject_type TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      artist_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, subject_type, subject_id, artist_id)
+    )`);
+  } catch {}
+  try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_credit_overrides_artist ON credit_overrides(user_id, subject_type, artist_id)'); } catch {}
 }

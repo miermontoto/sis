@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { rangeWhere, userFilter, playDuration, trackJoinResolvingMerges, artistPlaysPredicate } from './helpers.js';
+import { rangeWhere, userFilter, playDuration, trackJoinResolvingMerges, artistPlaysPredicate, trackArtistsFor, primaryArtistOf } from './helpers.js';
 import { versionBaseKey, versionKeys } from '../../services/versions.js';
 import type { TrackVersion } from '@sis/shared';
 
@@ -13,13 +13,16 @@ export interface EnrichedTrack {
 }
 
 /** Enriquecer track con metadata completa (álbum + artistas) — versión single (legacy) */
-export function enrichTrack(db: Db, trackId: string): EnrichedTrack | null {
-  const batch = enrichTracksBatch(db, [trackId]);
+export function enrichTrack(db: Db, trackId: string, userId: number | null): EnrichedTrack | null {
+  const batch = enrichTracksBatch(db, [trackId], userId);
   return batch.get(trackId) ?? null;
 }
 
-/** Enriquecer múltiples tracks en batch — 2 queries en vez de N*5 */
-export function enrichTracksBatch(db: Db, trackIds: string[]): Map<string, EnrichedTrack> {
+/** Enriquecer múltiples tracks en batch — 2 queries en vez de N*5.
+ *  Los artistas son los que ve `userId` (sus créditos corregidos, ver trackArtistsFor):
+ *  si la fila dijera otra cosa que las cifras, el tema contaría para un artista y se
+ *  pintaría con otro. `null` = los del catálogo. */
+export function enrichTracksBatch(db: Db, trackIds: string[], userId: number | null): Map<string, EnrichedTrack> {
   const result = new Map<string, EnrichedTrack>();
   if (trackIds.length === 0) return result;
 
@@ -37,7 +40,7 @@ export function enrichTracksBatch(db: Db, trackIds: string[]): Map<string, Enric
   // 2. Artistas de todos los tracks en una sola query
   const artistRows = db.all(sql`
     SELECT ta.track_id, ta.position, a.spotify_id as artist_id, a.name as artist_name
-    FROM track_artists ta
+    FROM ${trackArtistsFor(userId)} ta
     JOIN artists a ON a.spotify_id = ta.artist_id
     WHERE ta.track_id IN (${sql.join(uniqueIds.map(id => sql`${id}`), sql`, `)})
     ORDER BY ta.track_id, ta.position
@@ -92,7 +95,7 @@ export function getTrackAlbumBreakdown(db: Db, trackId: string, rangeStart: stri
 export function getTrackVersions(db: Db, trackId: string, userId: number): TrackVersion[] {
   // artista principal + nombre/álbum del track actual
   const current = db.get(sql`
-    SELECT (SELECT MIN(artist_id) FROM track_artists WHERE track_id = t.spotify_id AND position = 0) as artist_id,
+    SELECT ${primaryArtistOf(sql`t.spotify_id`, userId)} as artist_id,
            t.name as name, t.duration_ms as duration_ms,
            al.spotify_id as album_id, al.name as album_name, al.image_url as album_image
     FROM tracks t
@@ -124,7 +127,7 @@ export function getTrackVersions(db: Db, trackId: string, userId: number): Track
     WHERE lh.user_id = ${userId}
       ${artistPlaysPredicate([current.artist_id], userId)}
       AND t.spotify_id IN (
-        SELECT track_id FROM track_artists WHERE artist_id = ${current.artist_id} AND position = 0
+        SELECT track_id FROM ${trackArtistsFor(userId)} WHERE artist_id = ${current.artist_id} AND position = 0
       )
     GROUP BY t.spotify_id
   `) as { spotify_id: string; name: string; duration_ms: number; album_id: string | null; album_name: string | null; album_image: string | null; play_count: number; total_ms: number | null }[];
