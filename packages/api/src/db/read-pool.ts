@@ -6,6 +6,7 @@ import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import type { Db } from './queries/helpers.js';
+import { withSpan } from '@platform/observability';
 import { createLogger } from '../services/logger.js';
 
 const logWorker = createLogger('worker');
@@ -107,26 +108,31 @@ export async function initReadWorker() {
  * Los args no deben incluir `db` — el worker/dispatch inyecta su propia conexión.
  */
 export function dbRead<K extends QueryName>(fn: K, ...args: QueryArgs<K>): Promise<QueryResult<K>> {
-  // modo directo (dev)
-  if (directFns) {
-    try {
-      const handler = directFns[fn];
-      if (!handler) throw new Error(`unknown function: ${fn}`);
-      return Promise.resolve(handler(args));
-    } catch (err) {
-      return Promise.reject(err);
+  // span por lectura dentro de la traza activa: en prod mide cola + ejecución en el worker
+  // (sus statements no se trazan, el worker no comparte el contexto); en dev las queries
+  // cuelgan de él. fuera de una traza no abre nada.
+  return withSpan(`dbRead ${fn}`, () => {
+    // modo directo (dev)
+    if (directFns) {
+      try {
+        const handler = directFns[fn];
+        if (!handler) throw new Error(`unknown function: ${fn}`);
+        return Promise.resolve(handler(args));
+      } catch (err) {
+        return Promise.reject(err);
+      }
     }
-  }
 
-  // modo pool (prod)
-  if (pool.length === 0) throw new Error('read pool not initialized');
-  const pw = pickWorker();
-  pw.busy++;
-  const id = ++msgId;
-  // no usar `resolve`/`reject` a secas: `resolve` es el import de 'path' de arriba
-  return new Promise<QueryResult<K>>((onResult, onError) => {
-    pending.set(id, { resolve: onResult, reject: onError });
-    pw.worker.postMessage({ id, fn, args });
+    // modo pool (prod)
+    if (pool.length === 0) throw new Error('read pool not initialized');
+    const pw = pickWorker();
+    pw.busy++;
+    const id = ++msgId;
+    // no usar `resolve`/`reject` a secas: `resolve` es el import de 'path' de arriba
+    return new Promise<QueryResult<K>>((onResult, onError) => {
+      pending.set(id, { resolve: onResult, reject: onError });
+      pw.worker.postMessage({ id, fn, args });
+    });
   });
 }
 

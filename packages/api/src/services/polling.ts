@@ -1,4 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
+import { withSpan } from '@platform/observability';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
@@ -164,7 +165,8 @@ let tokenlessEnrichTimer: ReturnType<typeof setInterval> | null = null;
 // las cuentas last.fm no requieren tokens de spotify (usuarios solo-last.fm)
 function startLastfmPolling() {
   if (lastfmSyncTimer || !isLastfmConfigured()) return;
-  const tick = () => syncAllLastfmAccounts().catch(err => logLastfm.error('error en sync:', err));
+  const tick = () =>
+    withSpan('poll lastfm', () => syncAllLastfmAccounts(), { root: true }).catch(err => logLastfm.error('error en sync:', err));
   lastfmSyncTimer = setInterval(tick, LASTFM_POLL_INTERVAL_MS);
   tick();
   log.info(`last.fm sync cada ${LASTFM_POLL_INTERVAL_MS / 1000}s`);
@@ -213,8 +215,10 @@ function startTokenlessEnrichment() {
     enrichLocalAlbumCovers().catch(err => logMetadata.error('error portadas:', err));
     if (isLastfmConfigured()) enrichLastfmGenres().catch(err => logLastfmMeta.error('error géneros:', err));
   };
-  run();
-  tokenlessEnrichTimer = setInterval(run, METADATA_REFRESH_INTERVAL_MS);
+  // cada pasada es una traza propia: aquí viven las queries pesadas (dedup, merges)
+  const traced = () => withSpan('job tokenless-enrichment', run, { root: true });
+  traced();
+  tokenlessEnrichTimer = setInterval(traced, METADATA_REFRESH_INTERVAL_MS);
   log.info('enrichment sin-token activo (musicbrainz + last.fm)');
 }
 
@@ -451,7 +455,10 @@ function startPollingForUser(userId: number) {
 
   const timers: UserTimers = {
     currentlyPlaying: null,
-    recentlyPlayed: setInterval(() => pollRecentlyPlayed(userId), RECENTLY_PLAYED_INTERVAL_MS),
+    recentlyPlayed: setInterval(
+      () => withSpan('poll recently-played', () => pollRecentlyPlayed(userId), { root: true, attributes: { 'user.id': userId } }),
+      RECENTLY_PLAYED_INTERVAL_MS,
+    ),
   };
   userTimers.set(userId, timers);
 

@@ -5,45 +5,7 @@
 // El formato de salida es exactamente el de antes —`[scope] mensaje`— para no romper
 // los greps sobre los logs del contenedor, y se respeta el canal: info/debug a stdout,
 // warn/error a stderr.
-
-const LEVELS = { debug: 10, info: 20, warn: 30, error: 40, silent: 100 } as const;
-
-export type LogLevel = keyof typeof LEVELS;
-
-const DEFAULT_LEVEL: LogLevel = 'info';
-
-function resolveThreshold(): number {
-  const raw = process.env.LOG_LEVEL?.toLowerCase();
-  // un LOG_LEVEL inválido no debe dejar el proceso mudo: cae al nivel por defecto
-  return LEVELS[raw as LogLevel] ?? LEVELS[DEFAULT_LEVEL];
-}
-
-// se lee una vez al cargar el módulo: el nivel no cambia en caliente
-const threshold = resolveThreshold();
-
-export interface Logger {
-  /** ruido de cada ciclo (polling, cache hits): oculto salvo LOG_LEVEL=debug */
-  debug(...args: unknown[]): void;
-  /** eventos que interesan en operación normal (arranque, totales de un job) */
-  info(...args: unknown[]): void;
-  warn(...args: unknown[]): void;
-  error(...args: unknown[]): void;
-  /** sub-scope por entidad: createLogger('poll').child(userId) escribe `[poll:12]` */
-  child(suffix: string | number): Logger;
-}
-
-export function createLogger(scope: string): Logger {
-  const tag = `[${scope}]`;
-  const emit = (level: LogLevel, sink: (...a: unknown[]) => void) =>
-    LEVELS[level] < threshold
-      ? () => {}
-      : (...args: unknown[]) => sink(tag, ...args);
-
-  return {
-    debug: emit('debug', console.log),
-    info: emit('info', console.log),
-    warn: emit('warn', console.warn),
-    error: emit('error', console.error),
-    child: (suffix) => createLogger(`${scope}:${suffix}`),
-  };
-}
+//
+// La implementación vive ahora en @platform/observability con el mismo contrato: añade
+// el trace id de la request activa a cada línea, LOG_FORMAT=json y el export otlp.
+export { createLogger, type Logger, type LogLevel } from '@platform/observability';

@@ -1,6 +1,7 @@
 // entrypoint de la api: carga env, inicializa db + read worker y arranca el
 // servidor http con shutdown graceful (boilerplate en @platform/core-api).
 import { loadAppEnv, startApiServer } from '@platform/core-api';
+import { initTelemetry } from '@platform/observability';
 import app from './app.js';
 import { getDb, closeDb } from './db/connection.js';
 import { initReadWorker, closeReadWorker } from './db/read-pool.js';
@@ -12,6 +13,8 @@ import { createLogger } from './services/logger.js';
 const log = createLogger('sis');
 // .env desde raíz de la app (dev en monorepo) o cwd (docker); .env.local sobrescribe
 loadAppEnv(import.meta.url);
+// trazas + logs (export otlp solo si hay OTEL_EXPORTER_OTLP_ENDPOINT)
+initTelemetry({ service: 'sis', version: VERSION });
 
 // inicializar db (ejecuta migraciones) y worker de lectura
 getDb();
