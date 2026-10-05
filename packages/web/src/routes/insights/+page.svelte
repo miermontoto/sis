@@ -10,6 +10,7 @@
   import GenrePie from '$lib/components/charts/GenrePie.svelte';
   import { getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
+  import { canvasColors } from '$lib/stores/theme.svelte';
   import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -253,15 +254,16 @@
     grid: { ...GRID },
     xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}`), splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
     yAxis: { type: 'category', data: dayNames, inverse: true, splitArea: { show: true }, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE } },
-    visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: ['#0f1214', '#0d3320', '#1a6b3f', '#1db954'] } },
+    visualMap: { min: 0, max: maxHeatmapValue, show: false, inRange: { color: [...canvasColors().heat] } },
     series: [{ type: 'heatmap', data: pulseHeatmapData(heatmapMapped, currentHeatmapIdx) as any, itemStyle: { borderRadius: 1 } }],
   });
 
-  const polarBase = {
+  // derivado y no constante: el spread de TOOLTIP_BASE lee el color del tema activo
+  let polarBase = $derived({
     polar: { radius: ['12%', '75%'] },
-    radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, splitLine: { lineStyle: { color: '#1e2a2a' } } },
+    radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, splitLine: { ...AXIS_LINE } },
     tooltip: { ...TOOLTIP_BASE, trigger: 'item' as const, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.name}<br/>Plays: <b>${p.value}</b>`; } },
-  };
+  });
   const polarAngle = (data: string[], n: number, overrides?: Record<string, any>) => ({
     type: 'category' as const, data, startAngle: 90 + 180 / n, axisLabel: { ...AXIS_LABEL }, axisLine: { ...AXIS_LINE }, ...overrides,
   });
@@ -498,7 +500,7 @@
   }
   .ghost-chart {
     border-radius: var(--radius);
-    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
+    background: var(--shimmer);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }

@@ -3,6 +3,7 @@
   // pintan la misma serie `pie`, así que vive aquí y no tres veces inline
   import BaseChart from './BaseChart.svelte';
   import { PIE_TOOLTIP, PIE_COLORS, PIE_LABEL, PIE_LABEL_LINE, fitPieLabels } from '$lib/utils/chart';
+  import { canvasColors } from '$lib/stores/theme.svelte';
   import type { GenreItem } from '$lib/api';
   import type { EChartsOption } from 'echarts';
 
@@ -15,8 +16,6 @@
 
   let { genres, height = '220px', unit = '' }: Props = $props();
 
-  // el borde entre porciones es del color del fondo de la card, no una línea
-  const CARD_BG = '#0f1214';
   // el radio en % es sobre el lado menor, que en estas cards siempre es el alto:
   // el anillo salía igual de gordo en el rail (400px) que en insights (800px) y
   // echarts recortaba los nombres con puntos suspensivos. Después fue una banda
@@ -40,7 +39,8 @@
       radius: fit ? [fit.outer * INNER_RATIO, fit.outer] : FALLBACK_RADIUS,
       center: [fit?.cx ?? '50%', '50%'],
       avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 2, borderColor: CARD_BG, borderWidth: 2 },
+      // el borde entre porciones es del color del fondo de la card, no una línea
+      itemStyle: { borderRadius: 2, borderColor: canvasColors().card, borderWidth: 2 },
       label: { ...PIE_LABEL, ...(fit ? { fontSize: fit.fontSize } : {}) },
       labelLine: PIE_LABEL_LINE,
       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },

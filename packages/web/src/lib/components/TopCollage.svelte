@@ -57,7 +57,7 @@
     position: relative;
     overflow: hidden;
     border-radius: var(--radius);
-    background: var(--bg-elevated, #1e2a2a);
+    background: var(--bg-placeholder);
     text-decoration: none;
     color: inherit;
     /* la caption se ancla abajo y la celda es cuadrada: min 0 para que la
@@ -81,7 +81,7 @@
     transform: scale(1.04);
   }
   .tile-img--empty {
-    background: linear-gradient(135deg, #1e2a2a, #253030);
+    background: linear-gradient(135deg, var(--bg-placeholder), var(--bg-placeholder-hi));
   }
   .tile-rank {
     position: absolute;

@@ -158,7 +158,7 @@
   }
 
   .toggle-btn:hover { border-color: var(--text-muted); color: var(--text); }
-  .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+  .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
   .check-row { display: flex; gap: 0.75rem; }
 

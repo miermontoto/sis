@@ -236,7 +236,7 @@
     transition: background 0.05s, border-color 0.05s, transform 0.05s;
   }
   .ranking-badge--active {
-    border-color: #1db954;
+    border-color: var(--accent);
   }
   .ranking-badge--link {
     cursor: pointer;
@@ -254,7 +254,7 @@
     width: 28px;
     height: var(--rb-value);
     border-radius: var(--radius);
-    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
+    background: var(--shimmer);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
     display: inline-block;
@@ -279,7 +279,7 @@
     color: var(--accent);
   }
   .ranking-badge--active .ranking-value {
-    color: #1db954;
+    color: var(--accent);
   }
   .ranking-peak {
     font-family: var(--font-mono);
@@ -316,7 +316,7 @@
     width: 100%;
     height: 100%;
     border-radius: var(--radius);
-    background: linear-gradient(90deg, #161a1d 25%, #1e2a2a 50%, #161a1d 75%);
+    background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-placeholder) 50%, var(--bg-hover) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
@@ -334,20 +334,20 @@
     object-fit: cover;
   }
   :global(.xo-artist) {
-    color: #6a7a7a;
+    color: var(--text-muted);
   }
   :global(.xo-up) {
-    color: #1db954;
+    color: var(--accent);
   }
   :global(.xo-down) {
-    color: #ff6b6b;
+    color: var(--negative);
   }
   :global(.xo-sep) {
     margin-top: 5px;
   }
   :global(.xo-more) {
     font-size: 10px;
-    color: #6a7a7a;
+    color: var(--text-muted);
   }
   /* el nombre es el único hijo de la fila que cede: min-width 0 para que el flex lo deje
      encoger y partir en líneas, y anywhere por si un título sin espacios no cabe ni así */

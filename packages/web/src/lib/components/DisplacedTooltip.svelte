@@ -45,10 +45,10 @@
     transform: translateX(-100%);
     z-index: 1000;
     padding: 0.4rem 0.5rem;
-    background: var(--bg-elevated, #1e1e1e);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow-color) 40%, transparent);
     white-space: nowrap;
     min-width: max-content;
   }
@@ -63,7 +63,7 @@
   }
 
   .displaced-arrow {
-    color: #1db954;
+    color: var(--accent);
     font-size: var(--fs-2xs);
     flex-shrink: 0;
   }
@@ -85,7 +85,7 @@
   }
 
   .displaced-name:hover {
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .displaced-more {

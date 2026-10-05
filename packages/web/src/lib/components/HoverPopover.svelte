@@ -98,8 +98,8 @@
     align-self: center;
   }
   .hover-root--gold {
-    --hover-tone: #f5a623;
-    --hover-tone-soft: rgba(245, 166, 35, 0.08);
+    --hover-tone: var(--warning);
+    --hover-tone-soft: color-mix(in srgb, var(--warning) 8%, transparent);
   }
 
   .hover-trigger {
@@ -137,7 +137,7 @@
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 1px solid var(--accent-a25);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow-color) 50%, transparent);
     animation: hover-pop 0.14s ease-out;
   }
   /* puente invisible que evita cerrar el popover al moverse del trigger al contenido */
@@ -163,7 +163,7 @@
     letter-spacing: var(--track);
     color: var(--text-muted);
     padding: 0.2rem 0.4rem 0.4rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--fg-a05);
     margin-bottom: 0.3rem;
   }
   .hover-popover :global(.popover-title--gap) {

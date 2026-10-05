@@ -729,7 +729,7 @@
   }
 
   .toggle-btn:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text); }
-  .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+  .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .toggle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
   .ghost-btn {
@@ -927,7 +927,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-hover, #161a1d);
+    background: var(--bg-hover);
     color: var(--text-muted);
     font-size: var(--fs-3xl);
     font-weight: 600;
@@ -1042,7 +1042,7 @@
     border-radius: var(--radius);
     border: 1px solid var(--accent);
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     cursor: pointer;
     font-weight: 600;
     transition: all 0.05s;

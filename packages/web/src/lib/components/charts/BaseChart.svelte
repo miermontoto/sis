@@ -29,8 +29,9 @@
 </script>
 
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
   import type { ChartClickEvent } from '$lib/utils/chart';
+  import { canvasColors, type CanvasPalette } from '$lib/stores/theme.svelte';
   import { CanvasRenderer } from 'echarts/renderers';
   import { BarChart, LineChart, HeatmapChart, PieChart, RadarChart, GraphChart } from 'echarts/charts';
   import {
@@ -80,34 +81,41 @@
   let container = $state<HTMLElement | null>(null);
   let chart: echarts.ECharts | null = null;
 
-  // tema oscuro consistente con el CSS
+  // tema de echarts consistente con el CSS, sacado de la paleta del tema activo
   const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
-  const darkTheme = {
+  const echartsTheme = ({ text, muted, card, border }: CanvasPalette) => ({
     backgroundColor: 'transparent',
-    textStyle: { color: '#6a7a7a', fontFamily: MONO_STACK },
-    title: { textStyle: { color: '#e0e8e8' } },
-    legend: { textStyle: { color: '#6a7a7a', fontFamily: MONO_STACK } },
+    textStyle: { color: muted, fontFamily: MONO_STACK },
+    title: { textStyle: { color: text } },
+    legend: { textStyle: { color: muted, fontFamily: MONO_STACK } },
     tooltip: {
-      backgroundColor: '#0f1214',
-      borderColor: '#1e2a2a',
-      textStyle: { color: '#e0e8e8', fontFamily: MONO_STACK },
+      backgroundColor: card,
+      borderColor: border,
+      textStyle: { color: text, fontFamily: MONO_STACK },
     },
-  };
+  });
 
-  onMount(() => {
+  // init fija el tema para toda la vida de la instancia, así que el efecto se
+  // suscribe a la paleta y un cambio de tema rehace el chart. la opción se relee
+  // entera: los estilos compartidos de chart.ts son getters y dan ya el color nuevo
+  $effect(() => {
     if (!container) return;
+    const el = container;
+    const palette = canvasColors();
 
-    chart = echarts.init(container, darkTheme);
-    instance = chart;
-    chart.setOption(option);
-    if (onclick) chart.on('click', onclick);
-    if (onmouseover) chart.on('mouseover', onmouseover);
-    if (onmouseout) chart.on('mouseout', onmouseout);
+    untrack(() => {
+      chart = echarts.init(el, echartsTheme(palette));
+      instance = chart;
+      chart.setOption(option);
+      if (onclick) chart.on('click', onclick);
+      if (onmouseover) chart.on('mouseover', onmouseover);
+      if (onmouseout) chart.on('mouseout', onmouseout);
+    });
 
     requestAnimationFrame(() => chart?.resize());
 
     const resizeObserver = new ResizeObserver(() => chart?.resize());
-    resizeObserver.observe(container);
+    resizeObserver.observe(el);
 
     return () => {
       resizeObserver.disconnect();

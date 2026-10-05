@@ -1,13 +1,14 @@
+import { canvasColors } from '$lib/stores/theme.svelte';
+
 export type Rgb = [number, number, number];
 
 const DEFAULT_COLOR: Rgb = [29, 185, 84];
 const HEX_COLOR_RE = /^#?([0-9a-f]{6})$/i;
 const HEX_RADIX = 16;
 
-// fondo real bajo las barras del chart (--bg-card). Los rellenos son
-// semitransparentes, así que el color que se ve es la composición de los dos y
-// es esa, no la del color extraído, la que decide si el texto encima se lee
-const CHART_BG: [number, number, number] = [15, 18, 20];
+// el fondo real bajo las barras del chart es el --bg-card del tema activo. Los
+// rellenos son semitransparentes, así que el color que se ve es la composición de
+// los dos y es esa, no la del color extraído, la que decide si el texto encima se lee
 const LIGHT_TEXT = '#e0e8e8';
 const DARK_TEXT = '#0b0f10';
 // luminancias relativas (wcag) de los dos textos candidatos, precalculadas
@@ -37,8 +38,9 @@ function contrastRatio(luminanceA: number, luminanceB: number): number {
  * el texto oscuro contrasta cuatro veces más que el claro.
  */
 export function readableTextOn(rgb: [number, number, number], alpha: number): string {
+  const bg = hexToRgb(canvasColors().card)!;
   const luminance = LUMINANCE_WEIGHTS.reduce(
-    (acc, weight, i) => acc + weight * linearize(rgb[i] * alpha + CHART_BG[i] * (1 - alpha)),
+    (acc, weight, i) => acc + weight * linearize(rgb[i] * alpha + bg[i] * (1 - alpha)),
     0,
   );
   return contrastRatio(luminance, DARK_TEXT_LUMINANCE) > contrastRatio(luminance, LIGHT_TEXT_LUMINANCE)

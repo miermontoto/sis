@@ -238,7 +238,7 @@
   .cs-shimmer {
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
+    background: var(--shimmer);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
@@ -343,10 +343,10 @@
     to { background: var(--bg-hover); border-color: currentColor; }
   }
   .run-cell--gap {
-    color: #333;
+    color: var(--text-faint);
     cursor: default;
     border-color: transparent;
-    background: rgba(255,255,255,0.02);
+    background: var(--fg-a03);
   }
   .run-times {
     font-size: var(--fs-2xs);
@@ -355,6 +355,6 @@
   }
   .run-gap-count {
     font-size: var(--fs-2xs);
-    color: #444;
+    color: var(--text-faint);
   }
 </style>

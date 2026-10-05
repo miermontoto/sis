@@ -139,7 +139,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow-color) 40%, transparent);
     min-width: 7rem;
   }
   .peak-option {

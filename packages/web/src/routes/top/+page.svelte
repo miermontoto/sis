@@ -13,6 +13,7 @@
   import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
   import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
+  import { canvasColors } from '$lib/stores/theme.svelte';
   import { GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, zoomX, tooltipPoint, tooltipTuplePoints, measureTextWidth, truncateToWidth, niceAxisMax, MONO_STACK, type TooltipParams, type ChartClickEvent } from '$lib/utils/chart';
   import { fitZipf } from '$lib/utils/zipf';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
@@ -136,8 +137,6 @@
   const FILL_HEAD_ALPHA = 0.9;
   const FILL_TAIL_ALPHA = 0.3;
   const DEFAULT_RGB: [number, number, number] = [29, 185, 84];
-  const NAME_OUTSIDE_COLOR = '#e0e8e8';
-  const STAT_COLOR = '#6a7a7a';
 
   let chartHostWidth = $state(0);
 
@@ -184,7 +183,7 @@
         nameWidth,
         inside,
         rgb,
-        nameColor: inside ? readableTextOn(rgb, alpha) : NAME_OUTSIDE_COLOR,
+        nameColor: inside ? readableTextOn(rgb, alpha) : canvasColors().text,
       };
     }).reverse();
   });
@@ -193,7 +192,7 @@
     const rich: Record<string, any> = {};
     barRows.forEach((row, i) => {
       rich[`img${i}`] = {
-        backgroundColor: row.image ? { image: row.image } : '#1e2a2a',
+        backgroundColor: row.image ? { image: row.image } : canvasColors().placeholder,
         width: COVER_SIZE,
         height: COVER_SIZE,
         borderRadius: activeTab === 'artists' ? COVER_SIZE / 2 : 2,
@@ -264,7 +263,7 @@
           show: true,
           position: 'right',
           distance: LABEL_DISTANCE,
-          color: STAT_COLOR,
+          color: canvasColors().muted,
           fontSize: STAT_FONT_SIZE,
           formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return formatChartValue(p.value); },
         },
@@ -449,7 +448,7 @@
           };
         } else {
           rich[richKey] = {
-            backgroundColor: '#1e2a2a',
+            backgroundColor: canvasColors().placeholder,
             width: COVER,
             height: COVER,
             borderRadius: isArtists ? COVER / 2 : 2,
@@ -1152,7 +1151,7 @@
 
   .chart-mode-toggle button.active {
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .vel-loading {
@@ -1194,7 +1193,7 @@
 
   .vel-hidden-chip:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--fg-a03);
   }
 
   .vel-hidden-cover {
@@ -1210,7 +1209,7 @@
   }
 
   .vel-hidden-cover--placeholder {
-    background: #1e2a2a;
+    background: var(--bg-placeholder);
     display: inline-block;
   }
 </style>

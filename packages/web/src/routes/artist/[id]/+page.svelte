@@ -641,7 +641,7 @@
   .view-toggle .show-all-btn.active {
     background: var(--accent);
     border-color: var(--accent);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .chart-card {

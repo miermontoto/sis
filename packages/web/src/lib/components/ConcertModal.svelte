@@ -368,7 +368,7 @@
   .concert-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--scrim);
     z-index: 200;
     display: flex;
     justify-content: center;
@@ -417,7 +417,7 @@
     gap: 0.6rem;
     padding: 0.75rem 1.25rem;
     border-bottom: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--fg-a03);
     font-size: var(--fs-md);
     color: var(--accent);
   }
@@ -494,7 +494,7 @@
     padding: 0.5rem 0.75rem;
     color: var(--danger);
     font-size: var(--fs-sm);
-    background: rgba(255, 68, 68, 0.1);
+    background: var(--danger-a10);
     border-radius: var(--radius);
   }
 
@@ -532,7 +532,7 @@
     cursor: pointer;
     transition: background 0.05s;
   }
-  .concert-item:hover:not(:disabled) { background: rgba(255, 255, 255, 0.04); }
+  .concert-item:hover:not(:disabled) { background: var(--fg-a05); }
   .concert-item:disabled { opacity: 0.45; cursor: default; }
 
   .concert-item-date {

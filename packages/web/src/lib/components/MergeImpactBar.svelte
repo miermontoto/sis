@@ -98,8 +98,8 @@
 
 <style>
   .impact {
-    background: rgba(255, 176, 46, 0.07);
-    border: 1px solid rgba(255, 176, 46, 0.25);
+    background: color-mix(in srgb, var(--warning) 7%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
     border-radius: var(--radius);
     padding: 0.55rem 0.75rem;
     font-size: var(--fs-sm);
@@ -134,7 +134,7 @@
     color: var(--text-muted);
   }
   .impact-rank {
-    color: #ffb02e;
+    color: var(--warning);
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
   }

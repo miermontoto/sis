@@ -374,7 +374,7 @@
 
   .scan-error {
     color: var(--danger);
-    background: rgba(255, 68, 68, 0.1);
+    background: var(--danger-a10);
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
     font-size: var(--fs-md);
@@ -415,7 +415,7 @@
     cursor: pointer;
   }
   .scan-chip:hover { border-color: var(--accent); color: var(--accent); }
-  .scan-chip--duplicate { color: #ffb02e; border-color: rgba(255, 176, 46, 0.35); }
+  .scan-chip--duplicate { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
 
   .scan-groups, .scan-pairs {
     list-style: none;
@@ -528,7 +528,7 @@
   .scan-check--active {
     border-color: var(--accent);
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     font-weight: 700;
   }
 
@@ -563,12 +563,12 @@
     font-size: var(--fs-2xs);
     padding: 0.05rem 0.28rem;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--fg-a08);
     color: var(--text-muted);
     flex-shrink: 0;
   }
   .scan-confidence--position { background: var(--accent-a15); color: var(--accent); }
-  .scan-confidence--duplicate { background: rgba(255, 176, 46, 0.15); color: #ffb02e; }
+  .scan-confidence--duplicate { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 
   .scan-pair-row {
     display: flex;
@@ -598,7 +598,7 @@
     align-items: baseline;
     gap: 0.35rem;
     font-size: var(--fs-xs);
-    color: #ffb02e;
+    color: var(--warning);
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
   }
@@ -616,7 +616,7 @@
     width: 100%;
     padding: 0.6rem;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     border: none;
     border-radius: var(--radius);
     font-weight: 600;

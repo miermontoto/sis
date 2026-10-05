@@ -69,7 +69,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(8, 10, 12, 0.35) 0%, rgba(8, 10, 12, 0.9) 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 35%, transparent) 0%, color-mix(in srgb, var(--bg) 90%, transparent) 100%);
   }
   /* el blur muestrea fuera del elemento (transparente) y dejaría un halo en los bordes.
      se desborda 3 sigma (el radio de blur() es la desviación típica) por arriba y por

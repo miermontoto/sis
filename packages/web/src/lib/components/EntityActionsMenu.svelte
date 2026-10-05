@@ -113,7 +113,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
     overflow: hidden;
     z-index: 50;
   }
@@ -144,6 +144,6 @@
     color: var(--danger);
   }
   .actions-item--danger:hover:not(:disabled) {
-    background: rgba(255, 68, 68, 0.08);
+    background: var(--danger-a10);
   }
 </style>

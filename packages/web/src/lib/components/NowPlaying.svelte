@@ -537,7 +537,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     gap: 0.25rem;
     padding: 0.2rem 0.3rem;
     border-radius: 0 0 var(--radius) var(--radius);
-    background: rgba(8, 10, 12, 0.85);
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
     font-size: var(--fs-2xs);
     color: var(--text);
     animation: np-next-in 0.2s ease-out;
@@ -646,7 +646,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
 
   .ctrl-btn--play {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--fg-a05);
     min-width: 34px;
     min-height: 34px;
   }
@@ -658,7 +658,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
 
   .ctrl-btn--like:hover:not(:disabled) {
     color: var(--like);
-    background: rgba(255, 75, 122, 0.1);
+    background: var(--like-a10);
   }
 
   .ctrl-btn--liked {

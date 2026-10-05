@@ -7,6 +7,7 @@ import type {
 // tree-shaken y los dos paquetes declaran ECElementEvent por separado (llevan
 // clases Group distintas con miembros privados), así que no son intercambiables
 import type { ECElementEvent } from 'echarts/core';
+import { canvasColors } from '$lib/stores/theme.svelte';
 
 // El formatter de tooltip recibe un punto suelto o un array de puntos según el
 // trigger ('item' vs 'axis'), y esa unión es la razón por la que los call sites
@@ -66,17 +67,20 @@ export const SANS_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, Segoe U
 
 export const GRID = { top: 10, bottom: 5, left: 5, right: 0, containLabel: true };
 
-export const AXIS_LINE = { lineStyle: { color: '#1e2a2a' } } as const;
+// los estilos compartidos sacan el color del tema activo en cada lectura (getters):
+// un spread dentro de un $derived suscribe la opción al tema, y lo que echarts lee
+// por referencia lo relee BaseChart al rehacer la instancia cuando cambia
+export const AXIS_LINE = { lineStyle: { get color() { return canvasColors().border; } } };
 
-export const AXIS_LABEL = { color: '#6a7a7a', fontSize: 11, fontFamily: MONO_STACK } as const;
+export const AXIS_LABEL = { get color() { return canvasColors().muted; }, fontSize: 11, fontFamily: MONO_STACK };
 
-export const SPLIT_LINE = { lineStyle: { color: '#1e2a2a', type: 'dashed' } } as const;
+export const SPLIT_LINE = { lineStyle: { get color() { return canvasColors().border; }, type: 'dashed' as const } };
 
 export const TOOLTIP_BASE = {
   trigger: 'axis' as const,
-  backgroundColor: '#0f1214',
-  borderColor: '#1e2a2a',
-  textStyle: { color: '#e0e8e8', fontFamily: MONO_STACK },
+  get backgroundColor() { return canvasColors().card; },
+  get borderColor() { return canvasColors().border; },
+  textStyle: { get color() { return canvasColors().text; }, fontFamily: MONO_STACK },
 };
 
 export const GREEN = '#1db954';
@@ -192,7 +196,7 @@ export function secondaryValueAxis({ axisLabel, ...overrides }: Record<string, a
   return {
     type: 'value',
     splitLine: { show: false },
-    axisLabel: { color: '#4a5a5a', fontSize: 11, fontFamily: MONO_STACK, ...axisLabel },
+    axisLabel: { color: canvasColors().faint, fontSize: 11, fontFamily: MONO_STACK, ...axisLabel },
     ...overrides,
   };
 }
@@ -277,7 +281,7 @@ export function barSeries(data: SeriesDataPoint[], overrides?: Record<string, an
   return {
     type: 'bar' as const,
     data,
-    itemStyle: { color: GREEN, borderRadius: [1, 1, 0, 0], borderColor: '#0f1214', borderWidth: 1 },
+    itemStyle: { color: GREEN, borderRadius: [1, 1, 0, 0], borderColor: canvasColors().card, borderWidth: 1 },
     barMaxWidth: 24,
     ...overrides,
   };
@@ -296,10 +300,11 @@ export function lineSeries(data: SeriesDataPoint[], overrides?: Record<string, a
 }
 
 export function cumulativeLineSeries(data: SeriesDataPoint[], overrides?: Record<string, any>) {
+  const color = `rgba(${canvasColors().fg},0.3)`;
   return lineSeries(data, {
     yAxisIndex: 1,
-    lineStyle: { color: 'rgba(255,255,255,0.3)', width: 2 },
-    itemStyle: { color: 'rgba(255,255,255,0.3)' },
+    lineStyle: { color, width: 2 },
+    itemStyle: { color },
     silent: true,
     ...overrides,
   });
@@ -332,6 +337,7 @@ export function dualAxisGrid(overrides?: Record<string, any>) {
 // filterMode 'filter' hace que el eje Y se reescale a la ventana visible,
 // útil en gráficas acumuladas donde las series arrancan apelotonadas en cero.
 export function zoomX(): NonNullable<EChartsOption['dataZoom']> {
+  const { border, sunken, muted } = canvasColors();
   // cast final: los typings de echarts exigen handleLabel junto a handleStyle en
   // emphasis; solo queremos el color, así que se relaja el chequeo del literal
   return [
@@ -342,15 +348,15 @@ export function zoomX(): NonNullable<EChartsOption['dataZoom']> {
       filterMode: 'filter',
       height: 16,
       bottom: 6,
-      borderColor: '#1e2a2a',
+      borderColor: border,
       backgroundColor: 'transparent',
       fillerColor: 'rgba(29,185,84,0.10)',
-      dataBackground: { lineStyle: { color: '#1e2a2a' }, areaStyle: { color: '#162020' } },
+      dataBackground: { lineStyle: { color: border }, areaStyle: { color: sunken } },
       selectedDataBackground: { lineStyle: { color: GREEN }, areaStyle: { color: 'rgba(29,185,84,0.12)' } },
       handleStyle: { color: GREEN, borderColor: GREEN },
       moveHandleStyle: { color: GREEN },
       emphasis: { handleStyle: { color: GREEN } },
-      textStyle: { color: '#6a7a7a', fontSize: 10 },
+      textStyle: { color: muted, fontSize: 10 },
     },
   ] as unknown as NonNullable<EChartsOption['dataZoom']>;
 }
@@ -404,6 +410,7 @@ export function groupEventsByBucket(events: ChartEvent[], periods: string[]): Ma
 export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
   const byIdx = groupEventsByBucket(events, periods);
   if (!byIdx.size) return undefined;
+  const { fg, text, card, border } = canvasColors();
   return {
     symbol: 'none',
     animation: false,
@@ -412,7 +419,7 @@ export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
       // usuario, no del catálogo, y es lo que explica el pico de escuchas
       const hasConcert = evs.some(e => e.kind === 'concert');
       const hasAlbum = evs.some(e => e.kind === 'album');
-      const color = hasConcert ? 'rgba(29,185,84,0.55)' : hasAlbum ? 'rgba(224,232,232,0.5)' : 'rgba(224,232,232,0.18)';
+      const color = hasConcert ? 'rgba(29,185,84,0.55)' : `rgba(${fg},${hasAlbum ? 0.5 : 0.18})`;
       return {
         xAxis: idx,
         lineStyle: { color, type: 'dashed' as const, width: 1 },
@@ -421,10 +428,10 @@ export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
           formatter: () => evs.map(e => e.label).join('\n'),
           position: 'insideEndTop' as const,
           rotate: 0,
-          color: '#e0e8e8',
+          color: text,
           fontSize: 10,
-          backgroundColor: '#0f1214',
-          borderColor: '#1e2a2a',
+          backgroundColor: card,
+          borderColor: border,
           borderWidth: 1,
           padding: [3, 6],
           borderRadius: 4,
@@ -458,13 +465,14 @@ export function linearRegression(values: number[]): { line: number[]; r2: number
 }
 
 export function trendSeries(line: number[], overrides?: Record<string, any>) {
+  const color = `rgba(${canvasColors().fg},0.25)`;
   return {
     type: 'line' as const,
     data: line,
     smooth: false,
     symbol: 'none',
-    lineStyle: { color: 'rgba(255,255,255,0.25)', width: 1.5, type: 'dashed' as const },
-    itemStyle: { color: 'rgba(255,255,255,0.25)' },
+    lineStyle: { color, width: 1.5, type: 'dashed' as const },
+    itemStyle: { color },
     silent: true,
     tooltip: { show: false },
     ...overrides,
@@ -494,7 +502,16 @@ export const PIE_MAX_SLICES = PIE_COLORS.length;
  *  así no cabe (anillo en el mínimo), la etiqueta se parte en líneas en vez de
  *  perder caracteres */
 export const PIE_LABEL_LINE = { length: 15, length2: 15 } as const;
-export const PIE_LABEL = { ...AXIS_LABEL, distanceToLabelLine: 5, bleedMargin: 10, overflow: 'break' } as const;
+// el color se reenvía con un getter y no con un spread: este objeto se arma una vez
+// al importar el módulo, y un spread congelaría el color del tema de ese momento
+export const PIE_LABEL = {
+  get color() { return AXIS_LABEL.color; },
+  fontSize: AXIS_LABEL.fontSize,
+  fontFamily: AXIS_LABEL.fontFamily,
+  distanceToLabelLine: 5,
+  bleedMargin: 10,
+  overflow: 'break' as const,
+};
 // tamaños de etiqueta por preferencia: se baja al siguiente sólo si con el
 // anterior el anillo quedaría por debajo del mínimo
 const PIE_LABEL_FONT_SIZES = [AXIS_LABEL.fontSize, 10] as const;

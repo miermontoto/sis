@@ -91,7 +91,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow-color) 50%, transparent);
     animation: user-menu-pop 0.12s ease-out;
   }
   /* sidebar: crece hacia arriba y ocupa el ancho del badge */
@@ -131,7 +131,7 @@
     align-items: center;
     gap: 0.55rem;
     padding: 0.5rem 0.55rem 0.55rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--fg-a05);
     margin-bottom: 0.25rem;
   }
 
@@ -251,14 +251,14 @@
   .user-menu-sep {
     height: 1px;
     margin: 0.25rem 0.35rem;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--fg-a05);
   }
 
   .user-menu-item--danger {
     color: var(--danger);
   }
   .user-menu-item--danger:hover {
-    background: rgba(231, 76, 60, 0.1);
+    background: var(--danger-a10);
   }
   .user-menu-item--danger:hover .user-menu-icon {
     color: var(--danger);

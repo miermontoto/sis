@@ -334,7 +334,7 @@
   }
 
   .chip:hover { border-color: var(--text-muted); color: var(--text); }
-  .chip.active { background: var(--accent); border-color: var(--accent); color: #000; }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
   .swatch {
     width: 32px;
@@ -353,7 +353,7 @@
     border-radius: var(--radius);
     border: 1px solid var(--accent);
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     cursor: pointer;
     font-weight: 600;
     transition: all 0.05s;

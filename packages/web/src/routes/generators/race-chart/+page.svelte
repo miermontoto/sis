@@ -7,11 +7,12 @@
   import type { TopItem } from '$lib/utils/library-items';
   import { formatNumber } from '$lib/utils/format';
   import type { EChartsOption } from 'echarts';
+  import { canvasColors } from '$lib/stores/theme.svelte';
   import type * as echarts from 'echarts/core';
 
   const PALETTE = [
     '#1db954', '#ff1493', '#ff8c42', '#3b9bd9', '#a88bff',
-    '#ffd166', '#ef476f', '#06d6a0', '#e0e8e8', '#f95738',
+    '#ffd166', '#ef476f', '#06d6a0', '#9aabab', '#f95738',
     '#00b4d8', '#e63946', '#2a9d8f', '#f4a261', '#6a4c93',
     '#c77dff', '#80ed99', '#ff758f', '#48bfe3', '#fca311',
   ];
@@ -187,7 +188,7 @@
           show: true,
           position: 'right',
           formatter: (params: TooltipParams) => formatMetricValue(tooltipPoint(params).value),
-          color: '#6a7a7a',
+          color: canvasColors().muted,
           fontSize: 11,
         },
         itemStyle: { borderRadius: [0, 2, 2, 0] },
@@ -199,7 +200,7 @@
         style: {
           text: frame.label,
           font: 'bold 28px ui-monospace, SF Mono, Menlo, Consolas, monospace',
-          fill: 'rgba(255,255,255,0.12)',
+          fill: `rgba(${canvasColors().fg},0.12)`,
         },
         z: 100,
       }],
@@ -371,7 +372,7 @@
   }
 
   .toggle-btn:hover { border-color: var(--text-muted); color: var(--text); }
-  .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+  .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
   .slider {
     width: 80px;

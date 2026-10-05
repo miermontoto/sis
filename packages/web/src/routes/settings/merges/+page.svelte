@@ -377,10 +377,10 @@
     border: 1px solid var(--border);
     flex-shrink: 0;
   }
-  .merge-type-pill--artist { color: #a76bff; border-color: rgba(167, 107, 255, 0.4); }
-  .merge-type-pill--relation { color: #4aa8ff; border-color: rgba(74, 168, 255, 0.4); }
+  .merge-type-pill--artist { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 40%, transparent); }
+  .merge-type-pill--relation { color: var(--info); border-color: color-mix(in srgb, var(--info) 40%, transparent); }
   .merge-type-pill--album  { color: var(--accent); border-color: var(--accent-a40); }
-  .merge-type-pill--track  { color: #ffaa00; border-color: rgba(255, 170, 0, 0.4); }
+  .merge-type-pill--track  { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 40%, transparent); }
 
   .merge-side {
     display: inline-flex;

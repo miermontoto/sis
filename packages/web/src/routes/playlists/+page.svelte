@@ -736,8 +736,8 @@
   }
 
   .badge.algo {
-    background: rgba(255, 165, 0, 0.15);
-    color: orange;
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
     padding: 0.1rem 0.4rem;
     border-radius: 999px;
     font-size: var(--fs-xs);
@@ -775,8 +775,8 @@
   }
 
   .scope-banner {
-    background: rgba(231, 76, 60, 0.1);
-    border: 1px solid rgba(231, 76, 60, 0.3);
+    background: var(--danger-a10);
+    border: 1px solid var(--danger-a30);
     border-radius: var(--radius);
     padding: 1rem 1.5rem;
     margin-bottom: 1.5rem;
@@ -901,7 +901,7 @@
 
   .segmented button.active {
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .artist-search {
@@ -965,7 +965,7 @@
 
   .day-btn.active {
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     border-color: var(--accent);
   }
 
@@ -1012,7 +1012,7 @@
 
   .action-btn.primary {
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .action-btn.primary:hover:not(:disabled) {
@@ -1046,12 +1046,12 @@
 
   .action-btn.danger {
     background: transparent;
-    border: 1px solid rgba(231, 76, 60, 0.3);
+    border: 1px solid var(--danger-a30);
     color: var(--danger);
   }
 
   .action-btn.danger:hover {
-    background: rgba(231, 76, 60, 0.1);
+    background: var(--danger-a10);
   }
 
   .error {
@@ -1163,12 +1163,12 @@
   .spotify-link {
     display: flex;
     align-items: center;
-    color: #1db954;
+    color: var(--accent);
     transition: color 0.05s;
   }
 
   .spotify-link:hover {
-    color: #1ed760;
+    color: var(--accent-hover);
   }
 
   .playlist-embed {

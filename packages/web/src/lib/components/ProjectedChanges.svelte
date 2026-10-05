@@ -130,8 +130,8 @@
   .session-card {
     position: relative;
     padding: 0.6rem;
-    background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.02));
-    border: 1px solid rgba(74, 158, 255, 0.15);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--info) 8%, transparent), color-mix(in srgb, var(--info) 2%, transparent));
+    border: 1px solid color-mix(in srgb, var(--info) 15%, transparent);
     border-radius: var(--radius, 8px);
     font-size: var(--fs-xs);
     color: var(--text-secondary, #aaa);
@@ -158,7 +158,7 @@
 
   .session-header:hover .session-title,
   .session-header:hover .session-count {
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .session-list {
@@ -173,7 +173,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--fg-a15) transparent;
   }
 
   .session-list::-webkit-scrollbar {
@@ -181,7 +181,7 @@
   }
 
   .session-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--fg-a15);
     border-radius: 2px;
   }
 
@@ -228,7 +228,7 @@
     height: 100%;
     object-fit: cover;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.05); /* fondo tenue mientras carga */
+    background: var(--fg-a05); /* fondo tenue mientras carga */
   }
 
   /* artistas en círculo, álbumes/tracks con esquinas suaves */
@@ -264,7 +264,7 @@
   }
 
   .session-name:hover {
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .session-change-wrap {
@@ -283,7 +283,7 @@
   }
 
   .session-change.up {
-    color: #1db954;
+    color: var(--accent);
   }
 
   .session-change.down {

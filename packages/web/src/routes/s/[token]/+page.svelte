@@ -289,7 +289,7 @@
   .share-range-btn.active {
     background: var(--accent, #1db954);
     border-color: var(--accent, #1db954);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .share-stats {

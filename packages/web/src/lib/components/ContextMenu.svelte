@@ -90,7 +90,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow-color) 45%, transparent);
     padding: 0.25rem 0;
     z-index: 500;
   }
@@ -111,5 +111,5 @@
   .ctx-item:hover:not(:disabled) { background: var(--bg-hover); }
   .ctx-item:disabled { opacity: 0.4; cursor: not-allowed; }
   .ctx-item--danger { color: var(--danger); }
-  .ctx-item--danger:hover:not(:disabled) { background: rgba(255, 68, 68, 0.08); }
+  .ctx-item--danger:hover:not(:disabled) { background: var(--danger-a10); }
 </style>

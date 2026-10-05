@@ -516,12 +516,12 @@
   }
   .toolbar-btn--danger {
     color: var(--danger);
-    border-color: rgba(231, 76, 60, 0.3);
+    border-color: var(--danger-a30);
   }
   .toolbar-btn--danger:hover:not(:disabled) {
     color: var(--danger);
     border-color: var(--danger);
-    background: rgba(231, 76, 60, 0.08);
+    background: var(--danger-a10);
   }
   .toolbar-btn:disabled {
     opacity: 0.5;

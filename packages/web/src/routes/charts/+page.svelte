@@ -575,7 +575,7 @@
   .banner-action {
     margin-left: auto;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     border: none;
     border-radius: var(--radius);
     padding: 0.25rem 0.7rem;
@@ -789,9 +789,9 @@
     font-size: var(--fs-2xs);
     font-weight: 700;
     letter-spacing: var(--track);
-    color: #f0c040;
-    background: rgba(240, 192, 64, 0.12);
-    border: 1px solid rgba(240, 192, 64, 0.3);
+    color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
     padding: 0;
     border-radius: var(--radius);
     min-width: 2.5rem;

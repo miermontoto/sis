@@ -284,7 +284,7 @@
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 1px solid var(--accent-a25);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow-color) 50%, transparent);
     animation: dp-pop 0.14s ease-out;
     user-select: none;
   }
@@ -367,7 +367,7 @@
   .dp-day--selected:hover:not(:disabled) {
     background: var(--accent);
     border-color: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     font-weight: 600;
   }
   .dp-day:disabled {

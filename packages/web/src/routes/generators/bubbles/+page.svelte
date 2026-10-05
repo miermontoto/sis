@@ -181,7 +181,7 @@
             <circle
               r={node.r}
               fill={node.data.color}
-              stroke={isHovered ? '#fff' : '#000'}
+              stroke={isHovered ? 'var(--text)' : '#000'}
               stroke-opacity={isHovered ? 0.9 : 0.35}
               stroke-width={isHovered ? 2 : 1}
             />
@@ -282,7 +282,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.5rem 0.75rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--shadow-color) 40%, transparent);
     font-size: var(--fs-md);
     white-space: nowrap;
   }

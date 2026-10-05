@@ -43,22 +43,22 @@
     line-height: 1;
   }
   .rank-change.up {
-    color: #1db954;
+    color: var(--accent);
   }
   .rank-change.down {
     color: var(--negative);
   }
   .rank-change.same {
-    color: #666;
+    color: var(--text-muted);
     font-size: var(--fs-sm);
   }
   .rank-change.new {
-    color: #f0c040;
+    color: var(--gold);
     font-size: var(--fs-2xs);
     letter-spacing: var(--track-tight);
   }
   .rank-change.re {
-    color: #4a9eff;
+    color: var(--info);
     font-size: var(--fs-2xs);
     letter-spacing: var(--track-tight);
   }

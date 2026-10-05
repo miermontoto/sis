@@ -29,6 +29,7 @@
   import { formatNumber, formatShortDate } from '$lib/utils/format';
   import { periodLabel } from '$lib/utils/periods';
   import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
+  import { canvasColors } from '$lib/stores/theme.svelte';
   import { fitZipf } from '$lib/utils/zipf';
   import {
     GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, MONO_STACK, zoomX,
@@ -136,9 +137,6 @@
   // extremos de opacidad del degradado de cada barra, de su izquierda a su derecha
   const FILL_HEAD_ALPHA = 0.9;
   const FILL_TAIL_ALPHA = 0.3;
-  const NAME_OUTSIDE_COLOR = '#e0e8e8';
-  const STAT_COLOR = '#6a7a7a';
-  const COVER_PLACEHOLDER = '#1e2a2a';
   // alto por fila y aire de ejes de cada modo
   const BAR_ROW_HEIGHT = 44;
   const BAR_CHART_PADDING = 30;
@@ -197,7 +195,7 @@
         nameWidth,
         inside,
         rgb,
-        nameColor: inside ? readableTextOn(rgb, alpha) : NAME_OUTSIDE_COLOR,
+        nameColor: inside ? readableTextOn(rgb, alpha) : canvasColors().text,
       };
     }).reverse();
   });
@@ -206,7 +204,7 @@
     const rich: Record<string, any> = {};
     barRows.forEach((row, i) => {
       rich[`img${i}`] = {
-        backgroundColor: row.image ? { image: row.image } : COVER_PLACEHOLDER,
+        backgroundColor: row.image ? { image: row.image } : canvasColors().placeholder,
         width: COVER_SIZE,
         height: COVER_SIZE,
         borderRadius: coverRadius,
@@ -277,7 +275,7 @@
           show: true,
           position: 'right',
           distance: LABEL_DISTANCE,
-          color: STAT_COLOR,
+          color: canvasColors().muted,
           fontSize: STAT_FONT_SIZE,
           formatter: (params: TooltipParams) => formatValue(tooltipPoint(params).value),
         },
@@ -393,7 +391,7 @@
         const rich: Record<string, any> = {
           name: { color, fontWeight: 700, fontSize: 11, padding: [0, 0, 0, 6], verticalAlign: 'middle' },
           [richKey]: {
-            backgroundColor: s.imageUrl ? { image: s.imageUrl } : COVER_PLACEHOLDER,
+            backgroundColor: s.imageUrl ? { image: s.imageUrl } : canvasColors().placeholder,
             width: VEL_COVER,
             height: VEL_COVER,
             borderRadius: velRadius,
@@ -583,7 +581,7 @@
 
   .vel-hidden-chip:hover {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--fg-a03);
   }
 
   .vel-hidden-cover {
@@ -599,7 +597,7 @@
   }
 
   .vel-hidden-cover--placeholder {
-    background: #1e2a2a;
+    background: var(--bg-placeholder);
     display: inline-block;
   }
 </style>

@@ -81,7 +81,7 @@
     const markLine = eventsMarkLine(events, periodKeys);
     return {
       grid: dualAxisGrid(),
-      tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const pp = tooltipPoints(params); return pp.map(p => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:#6a7a7a">${pp[0].name}</span>`; } },
+      tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const pp = tooltipPoints(params); return pp.map(p => { const label = p.seriesIndex === 0 ? '' : 'Total: '; return isPlays ? `${label}${p.value} plays` : `${label}${formatDuration(p.value)}`; }).join('<br/>') + `<br/><span style="color:var(--text-muted)">${pp[0].name}</span>`; } },
       xAxis: categoryAxis(periodKeys),
       yAxis: [
         valueAxis({ axisLabel: { formatter: durFmt } }),

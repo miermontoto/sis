@@ -162,9 +162,9 @@
   }
 
   .login-error {
-    background: rgba(255, 170, 0, 0.08);
-    border: 1px solid rgba(255, 170, 0, 0.3);
-    color: #ffaa00;
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+    color: var(--warning);
     padding: 0.7rem 0.9rem;
     border-radius: var(--radius);
     font-size: var(--fs-md);
@@ -180,7 +180,7 @@
     gap: 0.6rem;
     width: 100%;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     font-weight: 600;
     font-size: var(--fs-md);
     padding: 0.8rem 1.5rem;

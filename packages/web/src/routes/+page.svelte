@@ -790,7 +790,7 @@
     border-radius: 50%;
   }
   .report-pick-img--empty {
-    background: linear-gradient(135deg, #1e2a2a, #253030);
+    background: linear-gradient(135deg, var(--bg-placeholder), var(--bg-placeholder-hi));
   }
   .report-pick-text {
     display: flex;
@@ -843,14 +843,14 @@
     opacity: 0.35;
   }
   .ghost-shimmer {
-    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
+    background: var(--shimmer);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
   .ghost-line {
     display: block;
     border-radius: var(--radius);
-    background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
+    background: var(--shimmer);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }

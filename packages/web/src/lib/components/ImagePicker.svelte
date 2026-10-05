@@ -261,7 +261,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
     z-index: 20;
   }
   .picker-thumb {

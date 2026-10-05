@@ -612,7 +612,7 @@
   .merge-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--scrim);
     z-index: 200;
     display: flex;
     justify-content: center;
@@ -668,7 +668,7 @@
     gap: 0.75rem;
     padding: 1rem 1.25rem;
     border-bottom: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--fg-a03);
   }
 
   .merge-thumb {
@@ -721,7 +721,7 @@
     padding: 0.75rem 1.25rem;
     color: var(--danger);
     font-size: var(--fs-md);
-    background: rgba(255, 68, 68, 0.1);
+    background: var(--danger-a10);
   }
 
   .merge-section-title {
@@ -799,7 +799,7 @@
   .merge-check--active {
     border-color: var(--accent);
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     font-weight: 700;
   }
 
@@ -881,7 +881,7 @@
     flex: 1;
     padding: 0.6rem;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     border: none;
     border-radius: var(--radius);
     font-weight: 600;
@@ -901,7 +901,7 @@
     gap: 0.25rem;
     padding: 0.75rem 1.25rem;
     border-bottom: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--fg-a03);
   }
 
   .merge-album-badge {
@@ -1007,7 +1007,7 @@
     font-size: var(--fs-xs);
     padding: 0.05rem 0.3rem;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--fg-a08);
     color: var(--text-muted);
     flex-shrink: 0;
   }
@@ -1018,8 +1018,8 @@
   }
 
   .track-confidence--duplicate {
-    background: rgba(255, 176, 46, 0.15);
-    color: #ffb02e;
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
   }
 
   .merge-remerge-btn {

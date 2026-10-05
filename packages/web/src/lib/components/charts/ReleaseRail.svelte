@@ -110,7 +110,7 @@
     border-radius: 4px;
     overflow: hidden;
     border: 1px solid var(--border);
-    background: #162020;
+    background: var(--bg-sunken);
     transition: transform 0.12s ease, opacity 0.12s ease;
   }
   .release-cover.single {

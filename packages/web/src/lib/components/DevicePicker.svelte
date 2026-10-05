@@ -160,7 +160,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 40%, transparent);
     overflow: hidden;
     z-index: 200;
   }

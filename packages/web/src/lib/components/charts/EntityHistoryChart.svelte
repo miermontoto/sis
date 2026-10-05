@@ -95,7 +95,7 @@
         formatter: (params: TooltipParams) => {
           const p = tooltipPoint(params);
           const val = isPlays ? `${p.value} plays` : formatDuration(p.value);
-          return `${val}<br/><span style="color:#6a7a7a">${names[p.dataIndex] ?? p.name}</span>`;
+          return `${val}<br/><span style="color:var(--text-muted)">${names[p.dataIndex] ?? p.name}</span>`;
         },
       },
       xAxis: categoryAxis(labels),

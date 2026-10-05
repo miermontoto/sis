@@ -59,7 +59,7 @@
   .shortcuts-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--scrim);
     z-index: 200;
     display: flex;
     justify-content: center;

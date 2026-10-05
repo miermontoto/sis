@@ -195,7 +195,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--fg-a15) transparent;
   }
 
   .change-row {
@@ -228,7 +228,7 @@
     height: 100%;
     object-fit: cover;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--fg-a05);
   }
 
   .change-thumb--round .change-thumb-img {
@@ -268,7 +268,7 @@
   }
 
   .change-name:hover {
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .change-artist {
@@ -290,7 +290,7 @@
     font-size: var(--fs-xs);
     font-variant-numeric: tabular-nums;
     text-decoration: none;
-    color: #1db954;
+    color: var(--accent);
   }
 
   .change-badge:hover {

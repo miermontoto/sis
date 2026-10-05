@@ -94,7 +94,7 @@
         ...TOOLTIP_BASE,
         formatter: (params: TooltipParams) => {
           const p = tooltipPoint(params);
-          return `${p.value} show${p.value === 1 ? '' : 's'}<br/><span style="color:#6a7a7a">${p.name}</span>`;
+          return `${p.value} show${p.value === 1 ? '' : 's'}<br/><span style="color:var(--text-muted)">${p.name}</span>`;
         },
       },
       xAxis: categoryAxis(rows.map(y => y.year)),

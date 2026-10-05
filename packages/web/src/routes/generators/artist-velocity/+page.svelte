@@ -6,11 +6,12 @@
   import { formatNumber, formatShortDate } from '$lib/utils/format';
   import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, zoomX, tooltipTuplePoints, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
+  import { canvasColors } from '$lib/stores/theme.svelte';
 
   // paleta fija de colores asignados por orden de selección
   const PALETTE = [
     '#1db954', '#ff1493', '#ff8c42', '#3b9bd9', '#a88bff',
-    '#ffd166', '#ef476f', '#06d6a0', '#e0e8e8', '#f95738',
+    '#ffd166', '#ef476f', '#06d6a0', '#9aabab', '#f95738',
   ];
 
   // cada punto: [periodo ISO, acumulado metric]
@@ -176,7 +177,7 @@
           name: 'days since first listen',
           nameLocation: 'middle',
           nameGap: 28,
-          nameTextStyle: { color: '#666', fontSize: 11 },
+          nameTextStyle: { color: canvasColors().muted, fontSize: 11 },
           axisLine: { ...AXIS_LINE },
           axisLabel: { ...AXIS_LABEL },
           splitLine: { show: false },
@@ -297,7 +298,7 @@
   .mode-btn.active {
     background: var(--accent);
     border-color: var(--accent);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .chips {

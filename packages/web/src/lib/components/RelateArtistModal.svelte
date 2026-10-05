@@ -194,7 +194,7 @@
   .relate-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--scrim);
     z-index: 200;
     display: flex;
     justify-content: center;
@@ -244,7 +244,7 @@
     gap: 0.75rem;
     padding: 1rem 1.25rem;
     border-bottom: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--fg-a03);
   }
 
   .relate-thumb {
@@ -283,7 +283,7 @@
     padding: 0.75rem 1.25rem;
     color: var(--danger);
     font-size: var(--fs-md);
-    background: rgba(255, 68, 68, 0.1);
+    background: var(--danger-a10);
   }
 
   .relate-section-title {

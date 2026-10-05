@@ -48,7 +48,7 @@
 
   let option = $derived<EChartsOption>({
     polar: { radius },
-    radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, splitLine: { lineStyle: { color: '#1e2a2a' } } },
+    radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, splitLine: { ...AXIS_LINE } },
     angleAxis: {
       type: 'category',
       data: labels,
