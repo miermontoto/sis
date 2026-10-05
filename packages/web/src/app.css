@@ -33,10 +33,39 @@
   --negative: var(--danger);
   /* corazón de liked songs */
   --like: #ff4b7a;
-  --like-a10: rgba(255, 75, 122, 0.1);
+  --like-a10: color-mix(in srgb, var(--like) 10%, transparent);
   --gold: #f0c040;
   --silver: #c0c0c0;
   --bronze: #cd7f32;
+  /* texto secundario, entre --text y --text-muted (tickers de sesión), y uno por
+     debajo de --text-muted (ejes secundarios, huecos de las rachas) */
+  --text-secondary: #aaa;
+  --text-faint: #4a5a5a;
+  /* texto sobre un relleno de --accent */
+  --on-accent: #000;
+  /* semánticos sueltos: azul informativo (sesión, proyecciones, re-entradas), ámbar
+     de aviso (duplicados, instancia de prueba, accolades) y el morado de los merges
+     de artista. sus tintes se sacan con color-mix(in srgb, var(--info) N%, transparent) */
+  --info: #4a9eff;
+  --warning: #ffb02e;
+  --purple: #a76bff;
+  /* veladuras del color del texto: hover y fondos tenues que en oscuro aclaran y en
+     claro oscurecen. no escribas rgba(255,255,255,…) a mano */
+  --fg-a03: color-mix(in srgb, var(--text) 3%, transparent);
+  --fg-a05: color-mix(in srgb, var(--text) 5%, transparent);
+  --fg-a08: color-mix(in srgb, var(--text) 8%, transparent);
+  --fg-a15: color-mix(in srgb, var(--text) 15%, transparent);
+  --danger-a10: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-a30: color-mix(in srgb, var(--danger) 30%, transparent);
+  /* carátula sin imagen y el brillo de su shimmer; fondo hundido bajo carátulas pequeñas */
+  --bg-placeholder: #1e2a2a;
+  --bg-placeholder-hi: #253030;
+  --shimmer: linear-gradient(90deg, var(--bg-placeholder) 25%, var(--bg-placeholder-hi) 50%, var(--bg-placeholder) 75%);
+  --bg-sunken: #162020;
+  /* velo de los modales y color base de las sombras: cada sombra lo mezcla con su
+     propio alfa (color-mix), así que el tema claro las suaviza todas desde aquí */
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-color: #000;
   --radius: 2px;
   /* hueco entre secciones de las vistas con rejilla (detalles y dashboard) y entre sus columnas */
   --detail-gap: 1.5rem;
@@ -64,6 +93,40 @@
   --track-wide: 0.08em;
 
   color-scheme: dark;
+}
+
+/* tema claro (<html data-theme="light">, ver stores/theme.svelte.ts): sólo redefine
+   lo que cambia, el resto de tokens se derivan de éstos. el gris frío replica el
+   tinte verdoso del oscuro. el acento baja a un verde que se lee como texto sobre
+   blanco (5:1, las cifras siguen verdes) y --accent-rgb se queda en el verde vivo,
+   porque sólo pinta tintes y bordes. los colores de canvas viven en CANVAS_PALETTES */
+:root[data-theme='light'] {
+  --bg: #f3f6f6;
+  --bg-card: #ffffff;
+  --bg-hover: #e9efef;
+  --border: #d5dfdf;
+  --text: #0d1414;
+  --text-muted: #5a6b6b;
+  --text-secondary: #3d4a4a;
+  --text-faint: #8a9999;
+  --accent: #14803a;
+  --accent-hover: #0f6b30;
+  --on-accent: #fff;
+  --danger: #cd2b31;
+  --like: #e0245e;
+  --gold: #946c00;
+  --silver: #6b7378;
+  --bronze: #a0612a;
+  --info: #1f6fd1;
+  --warning: #a35f00;
+  --purple: #7c3aed;
+  --bg-placeholder: #e3eaea;
+  --bg-placeholder-hi: #edf2f2;
+  --bg-sunken: #eef3f3;
+  --scrim: rgba(13, 20, 20, 0.4);
+  --shadow-color: rgba(13, 20, 20, 0.3);
+
+  color-scheme: light;
 }
 
 * {
@@ -390,7 +453,7 @@ a:hover {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 8px 0 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
   animation: nav-flyout-in 0.12s ease-out;
 }
 
@@ -763,9 +826,9 @@ a.track-item {
   opacity: 0.4;
 }
 .session-group {
-  border: 1px solid rgba(74, 158, 255, 0.15);
+  border: 1px solid color-mix(in srgb, var(--info) 15%, transparent);
   border-radius: var(--radius, 8px);
-  background: rgba(74, 158, 255, 0.03);
+  background: color-mix(in srgb, var(--info) 3%, transparent);
 }
 .session-group--open {
   border-bottom: none;
@@ -1018,7 +1081,7 @@ a.track-item {
 .range-btn.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #000;
+  color: var(--on-accent);
 }
 
 .range-btn--playlist {
@@ -1477,7 +1540,7 @@ a.track-item {
   max-width: 260px;
   max-height: 320px;
   overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow-color) 25%, transparent);
 }
 .like-popover-title {
   font-size: var(--fs-xs);
@@ -1893,7 +1956,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   width: 1.5rem;
   height: 0.85rem;
   border-radius: var(--radius);
-  background: linear-gradient(90deg, #1e2a2a 25%, #253030 50%, #1e2a2a 75%);
+  background: var(--shimmer);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -1931,8 +1994,8 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     display: block;
     width: 100%;
     overflow: hidden;
-    background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.02));
-    border-bottom: 1px solid rgba(74, 158, 255, 0.15);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--info) 8%, transparent), color-mix(in srgb, var(--info) 2%, transparent));
+    border-bottom: 1px solid color-mix(in srgb, var(--info) 15%, transparent);
     mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
   }
@@ -1951,7 +2014,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     padding: 0.35rem 0.6rem;
     white-space: nowrap;
     font-size: var(--fs-xs);
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary);
   }
 
   .mobile-session-label {
@@ -1992,7 +2055,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     height: 100%;
     border-radius: 3px;
     object-fit: cover;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--fg-a05);
   }
 
   /* artistas en círculo, álbumes/tracks con esquinas suaves */
@@ -2017,11 +2080,11 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   }
 
   .mobile-session-entity {
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary);
   }
 
   .mobile-session-item:hover .mobile-session-entity {
-    color: var(--text-primary, #fff);
+    color: var(--text);
   }
 
   .mobile-session-rank {
@@ -2031,7 +2094,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   }
 
   .mobile-session-rank.up {
-    color: #1db954;
+    color: var(--accent);
   }
 
   .mobile-session-rank.down {
@@ -2115,7 +2178,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   .mini-player-btn--play {
     width: 44px;
     height: 44px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--fg-a05);
     color: var(--text);
   }
 
@@ -2130,7 +2193,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
 
   .mini-player-btn--like:hover:not(:disabled) {
     color: var(--like);
-    background: rgba(255, 75, 122, 0.1);
+    background: var(--like-a10);
   }
 
   .mini-player-btn--liked {
@@ -2211,7 +2274,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 -8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
   }
 
   .mobile-tab-popup a {

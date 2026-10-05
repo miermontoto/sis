@@ -15,6 +15,7 @@
   import IconUpload from '$lib/icons/IconUpload.svelte';
   import IconDownload from '$lib/icons/IconDownload.svelte';
   import DetailLayoutEditor from '$lib/components/DetailLayoutEditor.svelte';
+  import { themeStore, THEME_PREFERENCES, type ThemePreference } from '$lib/stores/theme.svelte';
   import { listLoginSessions, logoutOtherSessions, type SessionInfo, type UserRecord } from '$lib/api';
   import { isForeignInstance, isNativeApp, instanceLabel, instanceOrigin } from '$lib/instance';
 
@@ -35,6 +36,8 @@
     { id: 'account', label: 'Account' },
   ] as const;
   type SettingsTab = (typeof TABS)[number]['id'];
+
+  const THEME_LABELS: Record<ThemePreference, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
   // los callbacks de oauth (last.fm, mier.info) vuelven a /settings con un query
   // param: abrimos directamente el panel donde se ve el resultado del enlace
@@ -471,6 +474,19 @@
       <div class="prefs-subtitle">General</div>
       <div class="prefs-list">
         <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Theme</div>
+            <div class="pref-desc">Saved on this device. System follows your OS setting</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              {#each THEME_PREFERENCES as pref (pref)}
+                <button class="segmented-btn" class:segmented-active={themeStore.preference === pref} onclick={() => { themeStore.preference = pref; }}>{THEME_LABELS[pref]}</button>
+              {/each}
+            </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
           <div class="pref-info">
             <div class="pref-label">Ranking metric</div>
             <div class="pref-desc">How tracks, artists and albums are ranked across the app</div>
@@ -1423,7 +1439,7 @@
 
   .segmented-active {
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     font-weight: 500;
   }
 
@@ -1482,7 +1498,7 @@
   }
 
   .user-badge--inactive {
-    background: rgba(255, 68, 68, 0.12);
+    background: var(--danger-a10);
     color: var(--danger);
   }
 
@@ -1494,7 +1510,7 @@
     border-radius: var(--radius);
     border: none;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     cursor: pointer;
     font-size: var(--fs-md);
     font-weight: 500;
@@ -1505,7 +1521,7 @@
 
   .action-btn:hover {
     background: var(--accent-hover);
-    color: #000;
+    color: var(--on-accent);
   }
 
   .action-btn:disabled {

@@ -1,5 +1,8 @@
 <script lang="ts">
   import '../app.css';
+  // el store del tema vive desde el arranque: es quien sigue al sistema (y a otras
+  // pestañas) cuando la preferencia es 'system'
+  import '$lib/stores/theme.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import type { Snippet } from 'svelte';
