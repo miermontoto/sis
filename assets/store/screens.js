@@ -6,6 +6,8 @@
 
   let LANG = 'en';
   const L = (en, es) => (LANG === 'es' ? es : en);
+  // el marco en curso dibuja la dynamic island; el iPhone Duo no (su cámara no va arriba al centro)
+  let ISLAND = true;
   // cifras con el separador de miles del idioma, como toLocaleString en la app
   const N = (n) => n.toLocaleString(LANG === 'es' ? 'es-ES' : 'en-US', { useGrouping: n >= 1000 ? 'always' : false });
 
@@ -122,7 +124,7 @@
   const TABLET_CROP = 80;
   const shell = (dev, o) => {
     const phone = dev.endsWith('phone');
-    const island = dev === 'ios-phone' ? '<div class="island"></div>' : dev === 'android-phone' ? '<div class="punch"></div>' : '';
+    const island = dev === 'ios-phone' ? (ISLAND ? '<div class="island"></div>' : '') : dev === 'android-phone' ? '<div class="punch"></div>' : '';
     const back = o.backdrop ? `<div class="hero-bg" style="background:${o.backdrop}"></div>` : '';
     if (phone) {
       return `<div class="app">${island}${back}${sysbar(dev)}${mobileHeader()}<div class="main m" style="${o.mainStyle ?? ''}">${o.main}</div>${sessionStrip()}${mini()}${tabbar(o.tab)}${homeInd(dev)}</div>`;
@@ -407,11 +409,28 @@
   const TABLET = [slide('dashboard', dashboardTablet), slide('rankings', rankingsTablet), slide('charts', chartsTablet), slide('reports', reportTablet), slide('artist', artistTablet), slide('insights', insightsTablet)];
 
   // marcos: lienzo en px css; export multiplica por scale. rLog = radio de pantalla en px lógicos.
+  // base = dispositivo cuyas pantallas pinta un marco derivado (otro tamaño de iphone, el Duo);
+  // los tamaños de tienda que aceptan están en platform/tooling/store/specs.mjs.
+  // salidas: <tienda>/<idioma>/<slot>/<nn>-<slug>.png, un slot por casilla de subida de la tienda
+  // (nn con dos dígitos: el orden del explorador de archivos es el de subida)
+  const nn = (n) => String(n).padStart(2, '0');
+  const at = (store, lang, slot, name) => `${store}/${lang}/${slot}/${name}.png`;
+  // el iPhone Duo es un solo slot de app store: exterior e interior comparten 10 capturas por
+  // idioma. abren las 5 primeras slides desplegado (01-05) y siguen las 5 últimas plegado (06-10)
+  const DUO_PER_SCREEN = 5;
+
   const FRAMES = {
-    'ios-phone': { w: 428, h: 926, screen: { w: 390, h: 844 }, bezel: 9, rLog: 47, pad: 34, padTop: 50, kicker: 12, head: 27, sub: 15, copyH: 222, bottom: 30, dot: 22, slides: PHONE, out: (n, s, en) => [[`app-store/iphone-${n}-${s}${en}.png`, 3]] },
-    'ios-tablet': { w: 1366, h: 1024, screen: { w: 1366, h: 1024 }, bezel: 14, rLog: 20, pad: 80, padTop: 58, kicker: 14, head: 40, sub: 20, copyH: 190, devW: 1206, dot: 28, slides: TABLET, out: (n, s, en) => [[`app-store/ipad-${n}-${s}${en}.png`, 2]] },
-    'android-phone': { w: 360, h: 640, screen: { w: 360, h: 640 }, bezel: 7, rLog: 22, pad: 26, padTop: 32, kicker: 10, head: 20, sub: 12.5, copyH: 162, bottom: 18, dot: 18, slides: PHONE, out: (n, s, en) => [[`play-store/phone-${n}-${s}${en}.png`, 3]] },
-    'android-tablet': { w: 1280, h: 800, screen: { w: 1280, h: 800 }, bezel: 12, rLog: 16, pad: 72, padTop: 42, kicker: 12, head: 34, sub: 17, copyH: 158, devW: 1136, dot: 26, slides: TABLET, out: (n, s, en) => [[`play-store/tablet-${n}-${s}${en}-7in.png`, 1.5], [`play-store/tablet-${n}-${s}${en}-10in.png`, 2]] },
+    // dynamic island mediano (iPhone 17 Pro, 1206x2622): el obligatorio de app store
+    'ios-phone-m': { base: 'ios-phone', w: 402, h: 874, screen: { w: 402, h: 874 }, bezel: 9, rLog: 55, pad: 32, padTop: 47, kicker: 11, head: 25, sub: 14, copyH: 210, bottom: 28, dot: 21, slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-medium', `${nn(n)}-${s}`), 3]] },
+    // dynamic island grande (iPhone 17 Pro Max, 1320x2868): la casilla de 6,5"/6,7"/6,9" de app
+    // store connect, que no acepta el 1284x2778 del face id grande
+    'ios-phone': { w: 440, h: 956, screen: { w: 440, h: 956 }, bezel: 9, rLog: 55, pad: 34, padTop: 50, kicker: 12, head: 27, sub: 15, copyH: 222, bottom: 30, dot: 22, slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-large', `${nn(n)}-${s}`), 3]] },
+    // iPhone Duo: interior (2007x2853) y exterior (1398x2034), un solo slot de 10 (ver DUO_PER_SCREEN)
+    'ios-duo-inner': { base: 'ios-phone', island: false, w: 669, h: 951, screen: { w: 669, h: 951 }, bezel: 12, rLog: 36, pad: 48, padTop: 56, kicker: 14, head: 36, sub: 19, copyH: 250, bottom: 34, dot: 26, slides: PHONE.slice(0, DUO_PER_SCREEN), out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n)}-inner-${s}`), 3]] },
+    'ios-duo-outer': { base: 'ios-phone', island: false, w: 466, h: 678, screen: { w: 466, h: 678 }, bezel: 9, rLog: 40, pad: 34, padTop: 40, kicker: 11, head: 25, sub: 14, copyH: 184, bottom: 24, dot: 22, slides: PHONE.slice(-DUO_PER_SCREEN), out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n + DUO_PER_SCREEN)}-outer-${s}`), 3]] },
+    'ios-tablet': { w: 1366, h: 1024, screen: { w: 1366, h: 1024 }, bezel: 14, rLog: 20, pad: 80, padTop: 58, kicker: 14, head: 40, sub: 20, copyH: 190, devW: 1206, dot: 28, slides: TABLET, out: (n, s, lang) => [[at('app-store', lang, 'ipad-13', `${nn(n)}-${s}`), 2]] },
+    'android-phone': { w: 360, h: 640, screen: { w: 360, h: 640 }, bezel: 7, rLog: 22, pad: 26, padTop: 32, kicker: 10, head: 20, sub: 12.5, copyH: 162, bottom: 18, dot: 18, slides: PHONE, out: (n, s, lang) => [[at('play-store', lang, 'phone', `${nn(n)}-${s}`), 3]] },
+    'android-tablet': { w: 1280, h: 800, screen: { w: 1280, h: 800 }, bezel: 12, rLog: 16, pad: 72, padTop: 42, kicker: 12, head: 34, sub: 17, copyH: 158, devW: 1136, dot: 26, slides: TABLET, out: (n, s, lang) => [[at('play-store', lang, 'tablet-7in', `${nn(n)}-${s}`), 1.5], [at('play-store', lang, 'tablet-10in', `${nn(n)}-${s}`), 2]] },
   };
   const geom = (f) => {
     if (f.devW) {
@@ -431,8 +450,10 @@
     const bars = Array.from({ length: n }, (_, i) => `<i class="${i === n - 2 ? 'on' : ''}" style="width:${bw}px;height:${(0.25 + r() * 0.75) * f.h * 0.16}px"></i>`).join('');
     return `<div class="eq" style="right:${f.pad}px;top:${f.padTop}px;gap:${bw * 0.7}px;height:${f.h * 0.16}px">${bars}</div>`;
   };
-  const slideHtml = (dev, idx) => {
-    const f = FRAMES[dev];
+  const slideHtml = (key, idx) => {
+    const f = FRAMES[key];
+    const dev = f.base ?? key;
+    ISLAND = f.island ?? true;
     const sl = f.slides[idx];
     const g = geom(f);
     const rIn = f.rLog * g.s;
@@ -447,11 +468,15 @@
     </div>`;
   };
 
-  // feature graphic de play: marca + dashboard recortado
-  const featureHtml = () => {
-    const board = `<div class="app" style="inset:auto;left:0;top:0;width:1180px;height:760px"><div class="body">${sidebar('')}<div class="main">
+  // dashboard de escritorio (feature graphic de play y creative de app store)
+  const DESK_W = 1180;
+  const deskDash = (h) => `<div class="app" style="inset:auto;left:0;top:0;width:${DESK_W}px;height:${h}px"><div class="body">${sidebar('')}<div class="main">
       <div class="stats" style="grid-template-columns:repeat(4,1fr)">${stat('64', 'plays today', '71 yesterday')}${stat(L('24.6h', '24,6h'), 'this week', `${delta(12)} vs last week`)}${stat('42d', 'streak', 'best 180d')}${stat(N(48213), 'total plays', '')}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${card('top tracks this week', topTracks(5, 36))}${card('top artists this week', collage(ARTISTS, true))}</div></div></div></div>`;
+
+  // feature graphic de play: marca + dashboard recortado
+  const featureHtml = () => {
+    const board = deskDash(760);
     return `<div class="slide" style="width:1024px;height:500px;--dot:22px">
       <div style="position:absolute;left:60px;top:0;bottom:0;display:grid;align-content:center;gap:22px;width:360px">
         ${wordmark(64)}
@@ -462,20 +487,44 @@
     </div>`;
   };
 
-  // ---------- manifiesto (lo consume render.mjs) ----------
-  const manifest = () => {
-    const out = [];
-    for (const lang of ['es', 'en']) {
-      const en = lang === 'en' ? '-en' : '';
-      for (const [dev, f] of Object.entries(FRAMES)) {
-        f.slides.forEach((sl, i) => {
-          out.push({ hash: `x.${dev}.${i + 1}.${lang}`, w: f.w, h: f.h, outputs: f.out(i + 1, sl.slug, en).map(([path, scale]) => ({ path, scale })) });
-        });
-      }
-      out.push({ hash: `x.feature.1.${lang}`, w: 1024, h: 500, outputs: [{ path: `play-store/feature-graphic${en}.png`, scale: 1 }] });
-    }
-    return out;
+  // ---------- creative de app store (ios 27+): header 21:9 y resultados de búsqueda 3:2 ----------
+  // el dashboard de escritorio a sangre y atenuado de fondo; lo clave dentro de la safe area de las
+  // plantillas de apple (en px css, export a escala 2; fuente: platform/tooling/store/specs.mjs).
+  // render.mjs falla si algo marcado con [data-safe] se sale de ella.
+  const SAFE = { header: { x: 548.5, y: 246.5, w: 823, h: 330.5 }, search: { x: 418, y: 382.5, w: 1084, h: 515 } };
+  // dashboard escalado a w x h (recortado por abajo)
+  const deskFit = (w, h) => {
+    const s = w / DESK_W;
+    return `<div class="vp" style="width:${DESK_W}px;height:${Math.ceil(h / s)}px;transform:scale(${s})">${deskDash(Math.ceil(h / s))}</div>`;
   };
+  const safeBox = (r, body) => `<div class="cr-safe" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px">${body}</div>`;
+  const creative = (w, h, body) => `<div class="slide creative" style="width:${w}px;height:${h}px;--dot:30px">
+      <div class="cr-backdrop">${deskFit(w, h)}</div><div class="cr-vignette"></div>${body}
+    </div>`;
+  const headerHtml = () =>
+    creative(1920, 823, safeBox(SAFE.header, `
+      <div data-safe="marca">${wordmark(112)}</div>
+      <div class="headline cr-line" data-safe="lema" style="font-size:38px">${L('your music, <em>logged in real time</em>', 'tu música, <em>registrada al momento</em>')}</div>`));
+  const searchHtml = () =>
+    creative(1920, 1280, safeBox(SAFE.search, `
+      <div class="headline cr-line" data-safe="lema" style="font-size:44px">${L('self-hosted <em>listening stats</em>', 'estadísticas de escucha <em>en tu servidor</em>')}</div>
+      <div class="device cr-window" data-safe="dashboard" style="width:${SAFE.search.w}px;height:420px"><div class="screen">${deskFit(SAFE.search.w - 2, 418)}</div></div>`));
+
+  // gráficos sueltos (no son capturas de un dispositivo): creative de app store + feature graphic de play
+  const CREATIVE = {
+    header: { os: 'ios', w: 1920, h: 823, html: headerHtml, title: () => 'header · 3840 × 1646', out: (lang) => [[at('app-store', lang, 'creative', 'header'), 2]] },
+    search: { os: 'ios', w: 1920, h: 1280, html: searchHtml, title: () => `${L('search results', 'resultados de búsqueda')} · 3840 × 2560`, out: (lang) => [[at('app-store', lang, 'creative', 'search'), 2]] },
+    feature: { os: 'android', w: 1024, h: 500, html: featureHtml, title: () => 'feature graphic · 1024 × 500', out: (lang) => [[at('play-store', lang, 'graphics', 'feature-graphic'), 1]] },
+  };
+  const outputs = (pairs) => pairs.map(([path, scale]) => ({ path, scale }));
+
+  // ---------- manifiesto (lo consume render.mjs) ----------
+  const manifest = () =>
+    ['es', 'en'].flatMap((lang) => {
+      const slides = Object.entries(FRAMES).flatMap(([dev, f]) => f.slides.map((sl, i) => ({ hash: `x.${dev}.${i + 1}.${lang}`, w: f.w, h: f.h, outputs: outputs(f.out(i + 1, sl.slug, lang)) })));
+      const graphics = Object.entries(CREATIVE).map(([key, c]) => ({ hash: `x.${key}.1.${lang}`, w: c.w, h: c.h, outputs: outputs(c.out(lang)) }));
+      return [...slides, ...graphics];
+    });
 
   // ---------- galería / export ----------
   const state = { os: 'ios', lang: 'en' };
@@ -486,7 +535,7 @@
   }
   const renderSlide = (dev, i, lang) => {
     LANG = lang;
-    return dev === 'feature' ? featureHtml() : slideHtml(dev, i);
+    return CREATIVE[dev] ? CREATIVE[dev].html() : slideHtml(dev, i);
   };
   const fitThumbs = () => {
     document.querySelectorAll('.thumb .frame').forEach((fr) => {
@@ -497,26 +546,36 @@
     `<figure class="thumb" tabindex="0" data-dev="${dev}" data-i="${i}"><div class="frame" data-w="${w}" style="--ar:${w} / ${h}">${renderSlide(dev, i, lang)}</div><figcaption>${name}</figcaption></figure>`;
   const renderGallery = () => {
     const { os, lang } = state;
-    const en = lang === 'en' ? '-en' : '';
-    const devs = os === 'ios' ? ['ios-phone', 'ios-tablet'] : ['android-phone', 'android-tablet'];
-    const title = { 'ios-phone': 'iPhone · 1284 × 2778', 'ios-tablet': 'iPad · 2732 × 2048', 'android-phone': `${L('phone', 'teléfono')} · 1080 × 1920`, 'android-tablet': 'tablet · 1920 × 1200 / 2560 × 1600' };
+    LANG = lang;
+    const devs = os === 'ios' ? ['ios-phone-m', 'ios-phone', 'ios-duo-inner', 'ios-duo-outer', 'ios-tablet'] : ['android-phone', 'android-tablet'];
+    const title = {
+      'ios-phone-m': `iPhone · 1206 × 2622 (${L('required', 'obligatorio')})`,
+      'ios-phone': 'iPhone · 1320 × 2868',
+      'ios-duo-inner': `iPhone Duo 01–05 · ${L('inner display', 'pantalla interior')} · 2007 × 2853`,
+      'ios-duo-outer': `iPhone Duo 06–10 · ${L('outer display', 'pantalla exterior')} · 1398 × 2034`,
+      'ios-tablet': 'iPad · 2732 × 2048',
+      'android-phone': `${L('phone', 'teléfono')} · 1080 × 1920`,
+      'android-tablet': 'tablet · 1920 × 1200 / 2560 × 1600',
+    };
     const sections = devs
       .map((dev) => {
         const f = FRAMES[dev];
-        const figs = f.slides.map((sl, i) => thumb(dev, i, lang, f.w, f.h, f.out(i + 1, sl.slug, en)[0][0])).join('');
+        const figs = f.slides.map((sl, i) => thumb(dev, i, lang, f.w, f.h, f.out(i + 1, sl.slug, lang)[0][0])).join('');
         return `<section class="g-section"><h2>${title[dev]}</h2><div class="g-grid${dev.endsWith('tablet') ? ' wide' : ''}">${figs}</div></section>`;
       })
       .join('');
-    const feature = os === 'android' ? `<section class="g-section"><h2>feature graphic · 1024 × 500</h2><div class="g-grid wide">${thumb('feature', 0, lang, 1024, 500, `play-store/feature-graphic${en}.png`)}</div></section>` : '';
+    const feature = Object.entries(CREATIVE)
+      .filter(([, c]) => c.os === os)
+      .map(([key, c]) => `<section class="g-section"><h2>${c.title()}</h2><div class="g-grid wide">${thumb(key, 0, lang, c.w, c.h, c.out(lang)[0][0])}</div></section>`)
+      .join('');
     const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-k="${key}" data-v="${v}" aria-pressed="${state[key] === v}">${l}</button>`).join('')}</div>`;
-    LANG = lang;
     document.getElementById('app').innerHTML = `<div class="gallery">
       <header class="g-head"><h1 class="g-title">${wordmark(30)}<small>store screens</small></h1><div class="g-controls">${seg('os', [['ios', 'App Store'], ['android', 'Google Play']])}${seg('lang', [['en', 'English'], ['es', 'Español']])}</div></header>
       ${sections}${feature}</div>`;
     requestAnimationFrame(fitThumbs);
   };
   const openLightbox = (dev, i) => {
-    const f = dev === 'feature' ? { w: 1024, h: 500 } : FRAMES[dev];
+    const f = CREATIVE[dev] ?? FRAMES[dev];
     const k = Math.min((innerWidth - 32) / f.w, (innerHeight - 32) / f.h);
     const lb = document.createElement('div');
     lb.className = 'lightbox';
