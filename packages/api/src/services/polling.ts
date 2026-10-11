@@ -32,7 +32,7 @@ import {
 import { syncAllUsersPlaylists } from './playlist-sync.js';
 import { syncAllUsersLikedTracks } from './liked-sync.js';
 import { runDueRegenerations } from './playlist-auto-regenerate.js';
-import { computeAndCacheRecords } from './records-cache.js';
+import { bakeRecordsForAllUsers } from './records-cache.js';
 import { warmAllLatestReports } from './report-cache.js';
 import { resetDeferredState } from './deferred-startup.js';
 import { isLastfmConfigured } from './lastfm-client.js';
@@ -580,7 +580,7 @@ export function startPolling() {
 
   // records cache — la primera computación se delega al login/navegación del usuario
   recordsCacheTimer = setInterval(
-    () => { try { computeAndCacheRecords(); } catch (err) { logRecordsCache.error('error:', err); } },
+    () => { bakeRecordsForAllUsers().catch(err => logRecordsCache.error('error:', err)); },
     RECORDS_CACHE_INTERVAL_MS,
   );
 
@@ -591,7 +591,7 @@ export function startPolling() {
   // playlist sync (6h) — la primera sync se delega al login/navegación del usuario
   playlistSyncTimer = setInterval(() => {
     syncAllUsersPlaylists()
-      .then(() => { try { computeAndCacheRecords(); } catch {} })
+      .then(() => bakeRecordsForAllUsers())
       .catch(err => logPlaylistSync.error('error:', err));
   }, PLAYLIST_SYNC_INTERVAL_MS);
 

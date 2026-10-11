@@ -5,9 +5,11 @@ import { deleteOtherSessions, listSessions } from '../services/session.js';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { userSettings } from '../db/schema.js';
-import { invalidateRecordsCache, computeAndCacheRecords } from '../services/records-cache.js';
+import { invalidateRecordsCacheForUser, computeAndCacheForUserAsync } from '../services/records-cache.js';
+import { createLogger } from '../services/logger.js';
 import type { AppVariables } from '../app.js';
 
+const log = createLogger('settings');
 const settings = new Hono<{ Variables: AppVariables }>();
 
 const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
@@ -89,10 +91,14 @@ settings.put('/', async (c) => {
     }
   }
 
-  // recomputar records cache si cambiaron settings relevantes
+  // recomputar records cache si cambiaron settings relevantes. son ajustes de ESTE
+  // usuario: antes se vaciaba la cache de todos y se recomputaban todos en el propio
+  // handler, sobre el main thread (~28s congelado por usuario activo)
   if (body.weekStart !== undefined || body.rankingMetric !== undefined || body.recordsUnique !== undefined) {
-    invalidateRecordsCache();
-    try { computeAndCacheRecords(); } catch { /* se recomputa en el siguiente ciclo */ }
+    const userId = c.get('userId');
+    invalidateRecordsCacheForUser(userId);
+    computeAndCacheForUserAsync(userId, spotifyId)
+      .catch(err => log.error(`error horneando records usuario ${userId}:`, err));
   }
 
   return c.json({ ok: true });

@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { dbRead } from '../../db/read-pool.js';
 import { RECORDS_LIMIT, SESSION_GAP_MS, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS, RANKINGS_BATCH_LIMIT } from '../../constants.js';
-import { getCachedRecords, getEntityAccolades } from '../../services/records-cache.js';
+import { getCachedRecords, getEntityAccolades, getUserSettingsForUser, computeAndCacheForUserAsync } from '../../services/records-cache.js';
 import { getRecentRankChangesCached, readRankLimits } from '../../services/recent-changes-cache.js';
 import { computeProjectedRankingsBatch } from '../../db/queries/index.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../../db/schema.js';
@@ -23,6 +23,16 @@ records.get('/records', async (c) => {
 
   const cached = getCachedRecords(userId, weekStart, sort, limit, type, unique);
   if (cached) return c.json(cached);
+  // con los ajustes del usuario la respuesta es justo la que hornea la cache: esperar a
+  // ese horneado (deduplicado por usuario) en vez de lanzar otro escaneo completo por
+  // tipo en paralelo con él, que es lo que pasaba en cada arranque con la cache fría
+  const spotifyId = c.get('spotifyId');
+  const own = getUserSettingsForUser(getDb(), spotifyId);
+  if (own.weekStart === weekStart && own.sort === sort && own.unique === unique) {
+    await computeAndCacheForUserAsync(userId, spotifyId, true);
+    const baked = getCachedRecords(userId, weekStart, sort, limit, type, unique);
+    if (baked) return c.json(baked);
+  }
   return c.json(await dbRead('getRecords', weekStart, sort, limit, type, userId, unique));
 });
 

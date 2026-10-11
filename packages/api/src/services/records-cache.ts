@@ -1,6 +1,5 @@
 import { getDb } from '../db/connection.js';
-import { getRecords } from '../db/queries/index.js';
-import { dbRead } from '../db/read-pool.js';
+import { dbRead, dbReadBackground, promoteBackground } from '../db/read-pool.js';
 import type { RecordsResponse, EntityRecords, Accolade, AccoladesResponse } from '@sis/shared';
 import { ACCOLADE_RECORD_KEYS } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
@@ -79,57 +78,43 @@ function runRecordNotifications(userId: number, spotifyId: string, result: Recor
   notifyBaseline.set(userId, result);
 }
 
-/** Computa records para todos los usuarios activos (síncrono, bloquea el event loop) */
-export function computeAndCacheRecords() {
-  const activeUsers = getAllActiveUsersWithTokens();
-  if (activeUsers.length === 0) return;
-
-  const db = getDb();
-
-  for (const { userId, spotifyId } of activeUsers) {
-    computeAndCacheForUser(db, userId, spotifyId);
+/** Hornea records de todos los usuarios activos, de uno en uno y en la clase background
+ *  del pool: es el tick de 6h y lo que sigue al sync de playlists, que nadie espera.
+ *  Antes era un camino síncrono sobre getDb() que congelaba el servidor entero 25-38s
+ *  cuatro veces al día (686s en 5.7 días en prod). */
+export async function bakeRecordsForAllUsers(): Promise<void> {
+  for (const { userId, spotifyId } of getAllActiveUsersWithTokens()) {
+    await computeAndCacheForUserAsync(userId, spotifyId)
+      .catch(err => log.error(`error horneando records usuario ${userId}:`, err));
   }
-}
-
-export function computeAndCacheForUser(db: ReturnType<typeof getDb>, userId: number, spotifyId: string) {
-  const { weekStart, sort, unique } = getUserSettingsForUser(db, spotifyId);
-  const k = cacheKey(userId, weekStart, sort, unique);
-
-  if (cache.has(k) && !hasNewData(db, userId)) {
-    log.info(`skip user ${userId} — no new data`);
-    return;
-  }
-
-  log.info(`computing records for user ${userId} (${k})...`);
-  const start = performance.now();
-  const result = getRecords(db, weekStart, sort, 50, undefined, userId, unique) as RecordsResponse;
-  const ms = (performance.now() - start).toFixed(0);
-  log.info(`done in ${ms}ms`);
-
-  updateDataTimestamp(db, userId);
-
-  for (const [key] of cache) {
-    if (key.startsWith(`${userId}:`)) cache.delete(key);
-  }
-  cache.set(k, result);
-
-  // notificaciones: 'record' cuando una entidad entra por primera vez al top de una
-  // categoría. el baseline del diff solo avanza si hay dispositivos activos.
-  runRecordNotifications(userId, spotifyId, result);
 }
 
 // horneados en vuelo, por usuario. Un detalle pide accolades de artista, álbum y tema
 // casi a la vez, y el arranque diferido lanza el suyo: sin esto, cada uno arrancaría un
 // escaneo completo del historial (~12s) para acabar escribiendo lo mismo.
 const baking = new Map<number, Promise<void>>();
+// horneados que un request está esperando (accolades o /records en frío): van en la
+// clase heavy del pool, en paralelo. El resto va en background, de uno en uno, y tarda
+// el doble (~30-40s) pero no le quita workers a nadie
+const urgentBakes = new Set<number>();
+
+const bakeTag = (userId: number) => `records:${userId}`;
 
 /** Computa records en worker threads (prod) para no bloquear el event loop principal.
- *  Lanza tracks/albums/artists en paralelo sobre el pool de workers.
- *  Deduplicado por usuario: varias llamadas concurrentes comparten un solo horneado. */
-export function computeAndCacheForUserAsync(userId: number, spotifyId: string): Promise<void> {
+ *  Deduplicado por usuario: varias llamadas concurrentes comparten un solo horneado.
+ *  `waiting` = hay un request esperando el resultado: el horneado (también uno ya en
+ *  curso) pasa de background a heavy. */
+export function computeAndCacheForUserAsync(userId: number, spotifyId: string, waiting = false): Promise<void> {
+  if (waiting) {
+    urgentBakes.add(userId);
+    promoteBackground(bakeTag(userId));
+  }
   const inFlight = baking.get(userId);
   if (inFlight) return inFlight;
-  const p = bakeForUser(userId, spotifyId).finally(() => { baking.delete(userId); });
+  const p = bakeForUser(userId, spotifyId).finally(() => {
+    baking.delete(userId);
+    urgentBakes.delete(userId);
+  });
   baking.set(userId, p);
   return p;
 }
@@ -153,10 +138,13 @@ async function bakeForUser(userId: number, spotifyId: string) {
 
     log.info(`computing records for user ${userId} (${k}) [worker]...`);
     const start = performance.now();
+    const readRecords = (type: EntityTypeFilter) => urgentBakes.has(userId)
+      ? dbRead('getRecords', weekStart, sort, 50, type, userId, unique)
+      : dbReadBackground(bakeTag(userId), 'getRecords', weekStart, sort, 50, type, userId, unique);
     const [trackResult, albumResult, artistResult] = await Promise.all([
-      dbRead('getRecords', weekStart, sort, 50, 'track', userId, unique),
-      dbRead('getRecords', weekStart, sort, 50, 'album', userId, unique),
-      dbRead('getRecords', weekStart, sort, 50, 'artist', userId, unique),
+      readRecords('track'),
+      readRecords('album'),
+      readRecords('artist'),
     ]);
     const result = { ...trackResult, ...albumResult, ...artistResult } as RecordsResponse;
     const ms = (performance.now() - start).toFixed(0);
@@ -249,7 +237,7 @@ export async function getEntityAccolades(entityType: 'track' | 'album' | 'artist
   // (el siguiente tick de polling). Se espera al horneado, deduplicado por usuario.
   let cacheEntry = findUserEntry(userId);
   if (!cacheEntry) {
-    await computeAndCacheForUserAsync(userId, spotifyId);
+    await computeAndCacheForUserAsync(userId, spotifyId, true);
     cacheEntry = findUserEntry(userId);
   }
   if (!cacheEntry) return { metric: 'time', accolades: [] };
@@ -294,15 +282,4 @@ export function invalidateRecordsCacheForUser(userId: number) {
   }
   lastDataTs.delete(userId);
   generation.set(userId, (generation.get(userId) ?? 0) + 1);
-}
-
-/** Invalida la cache de todos los usuarios (fuerza recomputo en el siguiente ciclo) */
-export function invalidateRecordsCache() {
-  cache.clear();
-  lastDataTs.clear();
-  // sólo importan los horneados en vuelo: son los que escribirían un resultado
-  // anterior a esta invalidación
-  for (const userId of baking.keys()) {
-    generation.set(userId, (generation.get(userId) ?? 0) + 1);
-  }
 }
