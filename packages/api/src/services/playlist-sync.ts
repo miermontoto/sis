@@ -72,7 +72,10 @@ export function syncCreatedPlaylistToLibrary(input: {
   return playlistId;
 }
 
-async function syncPlaylistTracks(userId: number, spotifyPlaylistId: string, dbPlaylistId: number): Promise<number> {
+// null = spotify falló a mitad de la paginación: reemplazar con lo recogido dejaría la
+// playlist truncada (y con el snapshot nuevo ya guardado, no se volvería a sincronizar
+// hasta que cambiase en spotify), así que no se toca nada
+async function syncPlaylistTracks(userId: number, spotifyPlaylistId: string, dbPlaylistId: number): Promise<number | null> {
   const collected: { trackId: string; position: number; addedAt: string | null }[] = [];
   let offset = 0;
 
@@ -82,7 +85,8 @@ async function syncPlaylistTracks(userId: number, spotifyPlaylistId: string, dbP
       `/playlists/${spotifyPlaylistId}/tracks`,
       { userId, params: { limit: '100', offset: String(offset) } },
     );
-    if (!res || res.items.length === 0) break;
+    if (!res) return null;
+    if (res.items.length === 0) break;
 
     for (const item of res.items) {
       if (!item.track || item.is_local) continue;
@@ -112,6 +116,11 @@ async function syncPlaylistTracks(userId: number, spotifyPlaylistId: string, dbP
   return collected.length;
 }
 
+// snapshot a NULL = el siguiente sync la ve como cambiada y vuelve a pedir sus tracks
+function resetPlaylistSnapshot(dbPlaylistId: number): void {
+  getDb().run(sql`UPDATE spotify_playlists SET snapshot_id = NULL WHERE id = ${dbPlaylistId}`);
+}
+
 // refresco manual de UNA playlist desde su detalle: re-sincroniza los tracks aunque
 // el snapshot no haya cambiado (lo pide el usuario) sin paginar la biblioteca entera.
 // devuelve false si la playlist no es del usuario o spotify no la sirve
@@ -139,6 +148,10 @@ export async function syncLibraryPlaylist(userId: number, dbPlaylistId: number):
     WHERE id = ${dbPlaylistId}
   `);
   const count = await syncPlaylistTracks(userId, row.spotify_id, dbPlaylistId);
+  if (count === null) {
+    resetPlaylistSnapshot(dbPlaylistId);
+    return false;
+  }
   rebuildPlaylistSearchIndex(db, userId);
   log.info(`~ ${pl.name} (${count} tracks, manual refresh)`);
   return true;
@@ -148,6 +161,12 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
   const db = getDb();
   const seenSpotifyIds = new Set<string>();
   let offset = 0;
+  // la fase de borrado sólo es segura con la biblioteca ENTERA vista: una página fallida
+  // (spotifyFetch devuelve null) cortaba la paginación y se borraban todas las playlists
+  // no vistas — con sus generated_playlists — para re-añadirlas en el siguiente tick
+  // (2026-10-08: 116 borradas; 2026-10-10: 208)
+  let listingComplete = true;
+  let libraryTotal = 0;
 
   log.info(`sincronizando playlists para usuario ${userId}...`);
 
@@ -157,7 +176,12 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
       '/me/playlists',
       { userId, params: { limit: '50', offset: String(offset) } },
     );
-    if (!res || res.items.length === 0) break;
+    if (!res) {
+      listingComplete = false;
+      break;
+    }
+    libraryTotal = res.total;
+    if (res.items.length === 0) break;
 
     for (const pl of res.items) {
       seenSpotifyIds.add(pl.id);
@@ -189,8 +213,9 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
         }).returning().get();
 
         const count = await syncPlaylistTracks(userId, pl.id, row.id);
-        if (count === 0) {
-          // solo tenía tracks locales — eliminar
+        if (!count) {
+          // solo tenía tracks locales, o spotify falló a mitad (el siguiente tick la
+          // vuelve a dar de alta) — eliminar
           db.run(sql`DELETE FROM spotify_playlist_tracks WHERE playlist_id = ${row.id}`);
           db.run(sql`DELETE FROM spotify_playlists WHERE id = ${row.id}`);
           continue;
@@ -212,7 +237,12 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
         `);
 
         const count = await syncPlaylistTracks(userId, pl.id, existing.id);
-        log.info(`~ ${pl.name} (${count} tracks, snapshot changed)`);
+        if (count === null) {
+          resetPlaylistSnapshot(existing.id);
+          log.warn(`~ ${pl.name}: spotify falló a mitad de los tracks, se reintenta en el próximo sync`);
+        } else {
+          log.info(`~ ${pl.name} (${count} tracks, snapshot changed)`);
+        }
       } else {
         // sin cambios — solo actualizar timestamp
         db.run(sql`UPDATE spotify_playlists SET last_synced_at = ${now} WHERE id = ${existing.id}`);
@@ -221,6 +251,12 @@ export async function syncUserPlaylists(userId: number): Promise<void> {
 
     offset += res.items.length;
     if (!res.next) break;
+  }
+
+  if (!listingComplete || seenSpotifyIds.size < libraryTotal) {
+    log.warn(`usuario ${userId}: biblioteca incompleta (${seenSpotifyIds.size}/${libraryTotal}), no se borra ninguna playlist`);
+    rebuildPlaylistSearchIndex(db, userId);
+    return;
   }
 
   // eliminar playlists que ya no están en spotify
