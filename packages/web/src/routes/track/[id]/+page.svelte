@@ -169,6 +169,8 @@
   });
   onDestroy(() => {
     shortcutStore.unregisterPageShortcuts();
+    // salir de la página cancela su carga (ver el detalle de artista)
+    fetchCtrl.abort();
   });
 
   $effect(() => {

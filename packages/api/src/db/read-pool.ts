@@ -24,17 +24,17 @@ type QueryModule = typeof import('./queries/index.js');
 // El barrel también exporta helpers puros (getRangeStart, albumIdIn...) que no reciben
 // `db` y nunca fueron destinos válidos de dbRead. Filtrar por "primer parámetro Db" los
 // deja fuera del union por contravarianza, sin necesidad de listarlos.
-type QueryName = {
+export type QueryName = {
   [K in keyof QueryModule]: QueryModule[K] extends (db: Db, ...args: never[]) => unknown ? K : never;
 }[keyof QueryModule];
 
 // Los args del call site son los de la query menos `db`, que inyecta el worker.
-type QueryArgs<K extends QueryName> =
+export type QueryArgs<K extends QueryName> =
   QueryModule[K] extends (db: Db, ...args: infer A) => unknown ? A : never;
 
 // Awaited por robustez: hoy todas las queries son síncronas (better-sqlite3 lo es),
 // pero el canal las devuelve envueltas en promesa igualmente.
-type QueryResult<K extends QueryName> =
+export type QueryResult<K extends QueryName> =
   QueryModule[K] extends (db: Db, ...args: never[]) => infer R ? Awaited<R> : never;
 
 // Scheduler: cada worker ejecuta UN job a la vez y los libres tiran de colas compartidas
@@ -81,6 +81,9 @@ interface Job {
   cls: JobClass;
   // agrupa los jobs de un mismo horneado para poder promoverlos juntos
   tag?: string;
+  // request que lo pidió (dbReadCancellable): si se cancela antes de que el job arranque,
+  // el job se descarta en vez de ocupar un worker para nadie
+  signal?: AbortSignal;
   enqueuedAt: number;
   startedAt: number;
   // registro heterogéneo: cada job resuelve el tipo de su propia query, así que aquí
@@ -116,7 +119,22 @@ function recordDuration(fn: string, ms: number) {
 
 const lightActive = (now: number) => running.light > 0 || now - lastLightAt < LIGHT_RESERVE_WINDOW_MS;
 
+/** El request de este job se canceló antes de que arrancara: se descartó sin ejecutarse. */
+export class RequestAbortedError extends Error {
+  constructor() {
+    super('request aborted before its query started');
+    this.name = 'RequestAbortedError';
+  }
+}
+
+// purga de la cabeza de una cola los jobs cuyo request ya se fue
+function dropAborted(queue: Job[]) {
+  while (queue.length > 0 && queue[0].signal?.aborted) queue.shift()!.reject(new RequestAbortedError());
+}
+
 function nextJob(now: number): Job | undefined {
+  dropAborted(queues.light);
+  dropAborted(queues.heavy);
   if (queues.light.length > 0) return queues.light.shift();
   const long = running.heavy + running.background;
   // con un pool de 1 no hay último worker que reservar
@@ -214,6 +232,17 @@ export function dbRead<K extends QueryName>(fn: K, ...args: QueryArgs<K>): Promi
 }
 
 /**
+ * Como dbRead, atado al `signal` de un request: si se cancela (el cliente navegó a otra
+ * página) antes de que el job arranque, el job se descarta y la promesa rechaza con
+ * RequestAbortedError. Un job ya en marcha termina (parar un worker a mitad cuesta más).
+ * Sólo para lecturas de UN request: nunca para algo compartido entre varios (horneados,
+ * caches con dedup en vuelo), que moriría con el primero que se fuese.
+ */
+export function dbReadCancellable<K extends QueryName>(signal: AbortSignal, fn: K, ...args: QueryArgs<K>): Promise<QueryResult<K>> {
+  return submit(fn, args, null, signal);
+}
+
+/**
  * Como dbRead, pero en la clase background: para horneados que nadie está esperando
  * (timers, warmups). `tag` agrupa los jobs de un mismo horneado; si un request acaba
  * esperándolo, promoteBackground(tag) los pasa a la clase heavy.
@@ -232,7 +261,7 @@ export function promoteBackground(tag: string) {
   dispatch();
 }
 
-function submit<K extends QueryName>(fn: K, args: unknown[], backgroundTag: string | null): Promise<QueryResult<K>> {
+function submit<K extends QueryName>(fn: K, args: unknown[], backgroundTag: string | null, signal?: AbortSignal): Promise<QueryResult<K>> {
   // span por lectura dentro de la traza activa: en prod mide cola + ejecución en el worker
   // (sus statements no se trazan, el worker no comparte el contexto); en dev las queries
   // cuelgan de él. fuera de una traza no abre nada.
@@ -250,12 +279,13 @@ function submit<K extends QueryName>(fn: K, args: unknown[], backgroundTag: stri
 
     // modo pool (prod)
     if (pool.length === 0) throw new Error('read pool not initialized');
+    if (signal?.aborted) return Promise.reject(new RequestAbortedError());
     const cls: JobClass = backgroundTag === null ? classify(fn) : 'background';
     if (cls === 'light') lastLightAt = performance.now();
     // no usar `resolve`/`reject` a secas: `resolve` es el import de 'path' de arriba
     return new Promise<QueryResult<K>>((onResult, onError) => {
       queues[cls].push({
-        id: ++msgId, fn, args, cls, tag: backgroundTag ?? undefined,
+        id: ++msgId, fn, args, cls, tag: backgroundTag ?? undefined, signal,
         enqueuedAt: performance.now(), startedAt: 0, resolve: onResult, reject: onError,
       });
       dispatch();

@@ -4,7 +4,7 @@ import { prevPeriod } from '../../db/queries/index.js';
 import { CHART_SIZE, PEAKS_SLICE_LOOKAHEAD } from '../../constants.js';
 import type { Granularity } from '@sis/shared';
 import { ChartPeaksAccumulator, type ChartRankSlice } from '../../services/chart-peaks.js';
-import { statsRouter, parseWeekStart, parseSort, periodMatchesGranularity, toEntityType } from './_shared.js';
+import { statsRouter, parseWeekStart, parseSort, periodMatchesGranularity, toEntityType, requestRead } from './_shared.js';
 
 const charts = statsRouter();
 
@@ -95,7 +95,7 @@ charts.get('/chart-history/:type/:id', async (c) => {
   const entityType = toEntityType(c.req.param('type'));
   const id = c.req.param('id');
 
-  return c.json(await dbRead('getEntityChartHistory', entityType, id, parseWeekStart(c), parseSort(c), userId));
+  return c.json(await requestRead(c, 'getEntityChartHistory', entityType, id, parseWeekStart(c), parseSort(c), userId));
 });
 
 export default charts;

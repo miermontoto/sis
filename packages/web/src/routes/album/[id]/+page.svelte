@@ -4,7 +4,7 @@
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getShowPlaylistBadges, getAlbumShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -100,6 +100,9 @@
   let loadingNatural = $state(false);
   let layout = $state<DetailLayout>(defaultLayout('album'));
   const fetchCtrl = createFetchController();
+  // salir de la página cancela su carga: un fetch que ya nadie va a pintar seguía
+  // ocupando la red, y en el servidor el trabajo que aún no había empezado
+  onDestroy(() => fetchCtrl.abort());
 
   // lanzamiento del propio álbum + singles de adelanto ligados a él como eventos de las gráficas
   let releaseEvents = $derived.by<ChartEvent[]>(() => {

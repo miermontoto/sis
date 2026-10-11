@@ -4,7 +4,7 @@
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getShowPlaylistBadges, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
@@ -108,6 +108,13 @@
   const fetchCtrl = createFetchController();
   // un controller por lista: expandir álbumes no debe abortar el fetch de tracks
   const listCtrl = { tracks: createFetchController(), albums: createFetchController() };
+  // salir de la página cancela su carga: un fetch que ya nadie va a pintar seguía
+  // ocupando la red, y en el servidor el trabajo que aún no había empezado
+  onDestroy(() => {
+    fetchCtrl.abort();
+    listCtrl.tracks.abort();
+    listCtrl.albums.abort();
+  });
 
   // lanzamientos del artista como eventos de las gráficas (singles más tenues que álbumes)
   let releaseEvents = $derived<ChartEvent[]>((data?.releases ?? []).map(r => ({

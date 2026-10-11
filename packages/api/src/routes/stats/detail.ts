@@ -9,7 +9,7 @@ import type { EntityCard, EntityRelation } from '@sis/shared';
 import { parseCollectionKey } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS, SERIES_BATCH_LIMIT } from '../../constants.js';
-import { statsRouter, parseParams } from './_shared.js';
+import { statsRouter, parseParams, requestRead } from './_shared.js';
 
 const detail = statsRouter();
 
@@ -525,7 +525,7 @@ detail.get('/series-batch', async (c) => {
   if (ids.length === 0) return c.json({});
   const { range, rangeStart, rangeEnd, customDays } = parseParams(c);
   const rangeKey = range === 'custom' ? 'all' : range;
-  return c.json(await dbRead('getEntitySeriesBatch', type, ids, rangeStart, rangeKey, rangeEnd, customDays, c.get('userId')));
+  return c.json(await requestRead(c, 'getEntitySeriesBatch', type, ids, rangeStart, rangeKey, rangeEnd, customDays, c.get('userId')));
 });
 
 export default detail;

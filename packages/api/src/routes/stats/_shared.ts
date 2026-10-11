@@ -1,5 +1,8 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppVariables } from '../../app.js';
+import { dbReadCancellable, RequestAbortedError, type QueryName, type QueryArgs, type QueryResult } from '../../db/read-pool.js';
 import type { WeekStartOption, EntityType, RankingMetric } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 import { DEFAULT_PAGE_LIMIT, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
@@ -11,6 +14,21 @@ export type { Sort };
 
 /** Hono factory tipado con AppVariables. Usar en cada sub-router de /stats. */
 export const statsRouter = () => new Hono<{ Variables: AppVariables }>();
+
+// 499 (el "client closed request" de nginx): nadie va a leer la respuesta, y como
+// HTTPException el onError de la plataforma la devuelve sin registrarla como error
+const CLIENT_CLOSED_REQUEST = 499 as ContentfulStatusCode;
+
+/** dbRead atado a ESTE request: si el cliente se va (navegó a otra página) antes de que
+ *  la query arranque, se descarta en vez de ocupar un worker (ver dbReadCancellable).
+ *  Para las lecturas pesadas que sólo sirven a un request —las secciones de rank y
+ *  chart del detalle—, nunca para algo compartido entre varios. */
+export function requestRead<K extends QueryName>(c: Context, fn: K, ...args: QueryArgs<K>): Promise<QueryResult<K>> {
+  return dbReadCancellable(c.req.raw.signal, fn, ...args).catch((err: unknown) => {
+    if (err instanceof RequestAbortedError) throw new HTTPException(CLIENT_CLOSED_REQUEST, { message: err.message });
+    throw err;
+  });
+}
 
 /** Convertir param plural ('tracks') a EntityType singular ('track') */
 export function toEntityType(plural: string): EntityType {

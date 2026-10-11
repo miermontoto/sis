@@ -5,7 +5,7 @@ import { getCachedRecords, getEntityAccolades, getUserSettingsForUser, computeAn
 import { getRecentRankChangesCached } from '../../services/recent-changes-cache.js';
 import { getProjectedRankings } from '../../services/projection-cache.js';
 import type { EntityType, RecentRankChangesResponse } from '@sis/shared';
-import { statsRouter, parseWeekStart, parseSort, parseRecordsUnique, toEntityType } from './_shared.js';
+import { statsRouter, parseWeekStart, parseSort, parseRecordsUnique, toEntityType, requestRead } from './_shared.js';
 
 const records = statsRouter();
 
@@ -44,7 +44,7 @@ records.get('/rankings/:type/:id', async (c) => {
   const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
   const userId = c.get('userId');
-  return c.json(await dbRead('computeRankings', entityType, id, parseSort(c), userId));
+  return c.json(await requestRead(c, 'computeRankings', entityType, id, parseSort(c), userId));
 });
 
 // ranking all-time por lotes: posición global de cada entidad listada en una vista
@@ -55,7 +55,7 @@ records.get('/rankings-batch', async (c) => {
   if (type !== 'track' && type !== 'album') return c.json({ error: 'invalid type' }, 400);
   const ids = (c.req.query('ids') ?? '').split(',').filter(Boolean).slice(0, RANKINGS_BATCH_LIMIT);
   if (ids.length === 0) return c.json({});
-  return c.json(await dbRead('computeRankingsBatch', type, ids, parseSort(c), userId));
+  return c.json(await requestRead(c, 'computeRankingsBatch', type, ids, parseSort(c), userId));
 });
 
 records.get('/ranking-history/:type/:id', async (c) => {
@@ -63,7 +63,7 @@ records.get('/ranking-history/:type/:id', async (c) => {
   const id = c.req.param('id');
   const userId = c.get('userId');
   const fn = c.req.query('crossovers') === 'true' ? 'getRankingHistoryWithCrossovers' : 'getRankingHistory';
-  return c.json(await dbRead(fn, entityType, id, parseSort(c), userId));
+  return c.json(await requestRead(c, fn, entityType, id, parseSort(c), userId));
 });
 
 // cambios de posición recientes: ranking actual vs hace N días, por tipo de entidad.
