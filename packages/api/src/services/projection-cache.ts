@@ -17,8 +17,6 @@ import { getRangeStart } from '../db/queries/helpers.js';
 import { readRankLimits } from './recent-changes-cache.js';
 import { PROJECTION_BASE_TTL_MS } from '../constants.js';
 
-type RankResult = Record<string, { current: number | null; projected: number | null; displaced: string[] }>;
-
 interface CachedBase { fingerprint: string; at: number; rows: Promise<ProjectionScoreRow[]> }
 
 // por `${userId}:${tipo}:${métrica}`: sólo la base de la sesión vigente
@@ -82,6 +80,8 @@ export function getProjectedRankings(userId: number, spotifyId: string, sort: Ra
   return p;
 }
 
+const PROJECTION_TYPES: ProjectionEntityType[] = ['track', 'album', 'artist'];
+
 async function computeProjections(userId: number, spotifyId: string, sort: RankingMetric): Promise<ProjectedRankingsResponse> {
   const rankLimits = readRankLimits(spotifyId);
   const session = await dbRead('getProjectionSession', userId);
@@ -93,53 +93,62 @@ async function computeProjections(userId: number, spotifyId: string, sort: Ranki
     sessionStartedAt: session.sessionStart,
   };
   const { sessionStart } = session;
-  if (!sessionStart || session.targets.length === 0) return response;
+  if (!sessionStart || session.sessionTrackCount === 0) return response;
   const live = { ...session, sessionStart };
 
-  const types = [...new Set(session.targets.map(t => t.entityType))];
   // de una en una: en frío son escaneos completos (~0.8-1.7s cada uno) y en paralelo
   // ocuparían tres de los cuatro workers en cada inicio de sesión
   const baseByType = new Map<ProjectionEntityType, ProjectionScoreRow[]>();
-  for (const type of types) baseByType.set(type, await getBase(userId, type, sort, live));
-  const deltas = await Promise.all(types.map(type => dbRead('scanProjectionDelta', type, sort, userId, sessionStart)));
+  for (const type of PROJECTION_TYPES) baseByType.set(type, await getBase(userId, type, sort, live));
+  const deltas = await Promise.all(PROJECTION_TYPES.map(type => dbRead('scanProjectionDelta', type, sort, userId, sessionStart)));
 
-  // pre-sesión como "current", post-sesión como "projected"
-  const rankResults = new Map<ProjectionEntityType, Map<string, RankResult>>();
-  types.forEach((type, i) => {
-    const ids = [...new Set(session.targets.filter(t => t.entityType === type).map(t => t.entityId))];
-    const targets = ids.map(entityId => ({ entityId, extraPlays: 0, extraMs: 0 }));
-    rankResults.set(type, projectRankings(mergeScores(baseByType.get(type)!, deltas[i]), targets, sort, rankLimits));
+  // las entidades de la sesión son las filas del delta: ids ya resueltos (canónico del
+  // merge, `collection:N`, créditos del usuario), los mismos con los que agrupan los
+  // scores. Pre-sesión como "current", post-sesión como "projected"
+  const ranked = PROJECTION_TYPES.map((type, i) => {
+    const targets = deltas[i].map(d => ({ entityId: d.eid, extraPlays: 0, extraMs: 0 }));
+    const ranks = projectRankings(mergeScores(baseByType.get(type)!, deltas[i]), targets, sort, rankLimits);
+    const changed = targets.flatMap(({ entityId }) => {
+      const changes = Object.entries(ranks.get(entityId) ?? {})
+        .filter(([, v]) => v.current !== null && v.projected !== null && v.current !== v.projected);
+      return changes.length > 0 ? [{ entityId, changes }] : [];
+    });
+    return { type, changed };
   });
 
-  // metadata de las entidades desplazadas, un lote por tipo
-  const displacedMeta = new Map(await Promise.all(types.map(async type => {
+  // nombre e imagen de lo que se pinta (las entidades que cambian y sus desplazadas),
+  // un lote por tipo
+  const metaByType = new Map(await Promise.all(ranked.map(async ({ type, changed }) => {
     const ids = new Set<string>();
-    for (const ranks of rankResults.get(type)!.values()) {
-      for (const v of Object.values(ranks)) v.displaced.forEach(id => ids.add(id));
+    for (const { entityId, changes } of changed) {
+      ids.add(entityId);
+      for (const [, v] of changes) v.displaced.forEach(id => ids.add(id));
     }
     const metaMap = ids.size > 0 ? await dbRead('fetchEntityMetadata', type, [...ids], userId) : new Map();
     return [type, metaMap] as const;
   })));
 
-  const results = session.targets.flatMap((target): ProjectionResult[] => {
-    const ranks = rankResults.get(target.entityType)?.get(target.entityId);
-    if (!ranks) return [];
-    const metaMap = displacedMeta.get(target.entityType);
-    const changes = Object.entries(ranks)
-      .filter(([, v]) => v.current !== null && v.projected !== null && v.current !== v.projected)
-      .map(([range, v]) => ({
-        range,
-        currentRank: v.current!,
-        projectedRank: v.projected!,
-        delta: v.current! - v.projected!,
-        displaced: v.displaced.map(id => {
-          const meta = metaMap?.get(id);
-          return { id, name: meta?.name ?? '', imageUrl: meta?.imageUrl ?? null, artistName: meta?.artistName ?? null } satisfies CrossoverEntity;
-        }),
-      }));
-    if (changes.length === 0) return [];
-    const meta = session.meta[`${target.entityType}:${target.entityId}`];
-    return [{ entityId: target.entityId, entityType: target.entityType, entityName: meta?.name ?? '', imageUrl: meta?.imageUrl ?? null, changes }];
+  const results = ranked.flatMap(({ type, changed }) => {
+    const metaMap = metaByType.get(type);
+    return changed.map(({ entityId, changes }): ProjectionResult => {
+      const meta = metaMap?.get(entityId);
+      return {
+        entityId,
+        entityType: type,
+        entityName: meta?.name ?? '',
+        imageUrl: meta?.imageUrl ?? null,
+        changes: changes.map(([range, v]) => ({
+          range,
+          currentRank: v.current!,
+          projectedRank: v.projected!,
+          delta: v.current! - v.projected!,
+          displaced: v.displaced.map(id => {
+            const d = metaMap?.get(id);
+            return { id, name: d?.name ?? '', imageUrl: d?.imageUrl ?? null, artistName: d?.artistName ?? null } satisfies CrossoverEntity;
+          }),
+        })),
+      };
+    });
   });
 
   results.sort((a, b) => {
