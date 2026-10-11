@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
-import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers, RecentRankChange, RecentRankChangeItem } from '@sis/shared';
+import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers, RankingsWithHistory, RecentRankChange, RecentRankChangeItem } from '@sis/shared';
 import { getRangeStart, entityGroupCol, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, artistPerTrackScores } from './helpers.js';
 import { fetchEntityMetadata } from './charts.js';
 
@@ -377,10 +377,13 @@ export function computeProjectedRankings(
 
 /** Historial de ranking: posición acumulada de una entidad mes a mes.
  *  Optimizado: acumula mes a mes y calcula rank con COUNT. */
-export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPoint[] {
-  const uf = userFilter(userId);
+type MonthlyRow = { period: string; eid: string; val: number };
 
-  let rows: { period: string; eid: string; val: number }[];
+/** Valor de cada entidad por mes (UTC), todo el historial: la base de los historiales de
+ *  ranking y de las posiciones YTD/All de getRankingsWithHistory. */
+function monthlyEntityRows(db: Db, entityType: EntityType, sort: Sort, userId: number): MonthlyRow[] {
+  const uf = userFilter(userId);
+  let rows: MonthlyRow[];
 
   if (entityType === 'artist') {
     // orden explícito (periodo, entidad): es el que daba el GROUP BY y del que dependen
@@ -404,6 +407,12 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
       ORDER BY period
     `) as { period: string; eid: string; val: number }[];
   }
+
+  return rows;
+}
+
+export function getRankingHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPoint[] {
+  const rows = monthlyEntityRows(db, entityType, sort, userId);
 
   if (rows.length === 0) return [];
 
@@ -436,32 +445,11 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
 const CROSSOVER_LIMIT = 10;
 
 export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingHistoryPointWithCrossovers[] {
-  const uf = userFilter(userId);
+  return crossoverHistory(db, entityType, entityId, userId, monthlyEntityRows(db, entityType, sort, userId));
+}
 
-  let rows: { period: string; eid: string; val: number }[];
-
-  if (entityType === 'artist') {
-    // orden explícito (periodo, entidad): es el que daba el GROUP BY y del que dependen
-    // los empates de los crossovers
-    rows = db.all(sql`
-      ${artistPerTrackScores(userId, { val: sort === 'plays' ? sql`1` : playDuration() }, { bucket: sql`strftime('%Y-%m', lh.played_at)` })}
-      ORDER BY 1, 2
-    `) as { period: string; eid: string; val: number }[];
-  } else {
-    const groupCol = entityGroupCol(entityType);
-    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
-
-    rows = db.all(sql`
-      SELECT strftime('%Y-%m', lh.played_at) as period,
-             ${groupCol} as eid,
-             ${metricCol} as val
-      FROM listening_history lh
-      ${resolvedPlayJoins(entityType, userId)}
-      WHERE 1=1 ${uf} ${albumNullFilter(entityType)}
-      GROUP BY period, eid
-      ORDER BY period
-    `) as { period: string; eid: string; val: number }[];
-  }
+// historial acumulado mes a mes con los cruces de cada mes, sobre las filas mensuales
+function crossoverHistory(db: Db, entityType: EntityType, entityId: string, userId: number, rows: MonthlyRow[]): RankingHistoryPointWithCrossovers[] {
 
   if (rows.length === 0) return [];
 
@@ -542,4 +530,57 @@ export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, 
   }
 
   return result;
+}
+
+/** Posiciones (7D, 30D, YTD, All) e historial mensual con cruces de UNA entidad, en un
+ *  solo escaneo del historial: RankingBadges pedía /rankings y /ranking-history por
+ *  separado y cada uno recorría el historial entero. YTD y All salen de las mismas filas
+ *  mensuales (los meses son UTC, igual que el inicio de año de getRangeStart); 7D y 30D
+ *  son ventanas rodantes y salen de una query acotada a los últimos 30 días. Mismos
+ *  valores que computeRankings: posición = entidades con más valor + 1, null sin valor. */
+export function getRankingsWithHistory(db: Db, entityType: EntityType, entityId: string, sort: Sort, userId: number): RankingsWithHistory {
+  const rows = monthlyEntityRows(db, entityType, sort, userId);
+  const history = crossoverHistory(db, entityType, entityId, userId, rows);
+
+  const yearKey = getRangeStart('thisYear')!.slice(0, 7);
+  const total = new Map<string, number>();
+  const ytd = new Map<string, number>();
+  for (const r of rows) {
+    total.set(r.eid, (total.get(r.eid) ?? 0) + r.val);
+    if (r.period >= yearKey) ytd.set(r.eid, (ytd.get(r.eid) ?? 0) + r.val);
+  }
+
+  const weekStart = getRangeStart('week')!;
+  const monthStart = getRangeStart('month')!;
+  const valExpr = sort === 'plays' ? sql`1` : playDuration();
+  const inWeek = sql`CASE WHEN lh.played_at >= ${weekStart} THEN ${valExpr} ELSE 0 END`;
+  const recent = (entityType === 'artist'
+    ? db.all(artistPerTrackScores(userId, { val_week: inWeek, val_month: valExpr }, { where: sql`AND lh.played_at >= ${monthStart}`, restrictPairs: true }))
+    : db.all(sql`
+        SELECT ${entityGroupCol(entityType)} as eid, sum(${inWeek}) as val_week, sum(${valExpr}) as val_month
+        FROM listening_history lh
+        ${resolvedPlayJoins(entityType, userId)}
+        WHERE 1=1 ${userFilter(userId)} ${albumNullFilter(entityType)} AND lh.played_at >= ${monthStart}
+        GROUP BY eid
+      `)) as { eid: string; val_week: number | null; val_month: number | null }[];
+  const week = new Map(recent.map(r => [r.eid, r.val_week ?? 0]));
+  const month = new Map(recent.map(r => [r.eid, r.val_month ?? 0]));
+
+  // posición = cuántas entidades valen más + 1; sin valor propio, sin posición
+  const rankIn = (values: Map<string, number>): number | null => {
+    const mine = values.get(entityId) ?? 0;
+    if (!(mine > 0)) return null;
+    let higher = 0;
+    for (const v of values.values()) if (v > mine) higher++;
+    return higher + 1;
+  };
+
+  const all = total.get(entityId) ?? 0;
+  if (!all) return { rankings: { week: null, month: null, thisYear: null, all: null }, history };
+  let higherAll = 0;
+  for (const v of total.values()) if (v > all) higherAll++;
+  return {
+    rankings: { week: rankIn(week), month: rankIn(month), thisYear: rankIn(ytd), all: higherAll + 1 },
+    history,
+  };
 }

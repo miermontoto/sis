@@ -62,6 +62,11 @@ records.get('/ranking-history/:type/:id', async (c) => {
   const entityType = c.req.param('type') as EntityType;
   const id = c.req.param('id');
   const userId = c.get('userId');
+  // withRankings: posiciones + historial con cruces de un solo escaneo (RankingBadges);
+  // sin él, las dos formas de siempre (apks publicados)
+  if (c.req.query('withRankings') === 'true') {
+    return c.json(await requestRead(c, 'getRankingsWithHistory', entityType, id, parseSort(c), userId));
+  }
   const fn = c.req.query('crossovers') === 'true' ? 'getRankingHistoryWithCrossovers' : 'getRankingHistory';
   return c.json(await requestRead(c, fn, entityType, id, parseSort(c), userId));
 });

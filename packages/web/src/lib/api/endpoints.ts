@@ -5,7 +5,7 @@ import type {
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, QueueResponse, PlaybackQueueResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
-  AccoladesResponse, Rankings, EntityCard, RankingHistoryPointWithCrossovers, HealthData, EntityType,
+  AccoladesResponse, Rankings, EntityCard, RankingsWithHistory, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
@@ -242,8 +242,10 @@ export const api = {
   seriesBatch: (type: EntityType, ids: string[], range = 'all', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<Record<string, { period: string; play_count: number; total_ms: number }[]>>('/stats/series-batch', { type, ids: ids.join(','), ...rangeParams(range, dates) }, signal),
 
-  rankingHistory: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
-    apiFetch<RankingHistoryPointWithCrossovers[]>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort, crossovers: 'true' }, signal),
+  // posiciones + historial con cruces en una sola petición: el servidor saca los dos del
+  // mismo escaneo (RankingBadges pedía rankings y rankingHistory, dos escaneos completos)
+  rankingsWithHistory: (type: 'artist' | 'track' | 'album', id: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<RankingsWithHistory>(`/stats/ranking-history/${type}/${encodeURIComponent(id)}`, { sort, crossovers: 'true', withRankings: 'true' }, signal),
 
   health: () => apiFetch<HealthData>('/health'),
   version: () => apiFetch<{ version: string }>('/version'),

@@ -44,13 +44,10 @@
     history = [];
     const metric = getRankingMetric();
 
-    api.rankings(entityType, entityId, metric, signal)
-      .then(r => { if (!signal.aborted) { rankings = r; rankingsLoading = false; } })
-      .catch(() => { if (!signal.aborted) { rankings = null; rankingsLoading = false; } });
-
-    api.rankingHistory(entityType, entityId, metric, signal)
-      .then(h => { if (!signal.aborted) { history = h; historyLoading = false; } })
-      .catch(() => { if (!signal.aborted) { history = []; historyLoading = false; } });
+    // una sola petición: posiciones e historial salen del mismo escaneo en el servidor
+    api.rankingsWithHistory(entityType, entityId, metric, signal)
+      .then(r => { if (!signal.aborted) { rankings = r.rankings; history = r.history; rankingsLoading = false; historyLoading = false; } })
+      .catch(() => { if (!signal.aborted) { rankings = null; history = []; rankingsLoading = false; historyLoading = false; } });
 
     return () => fetchCtrl.abort();
   });

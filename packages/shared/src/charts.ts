@@ -1,3 +1,5 @@
+import type { Rankings } from './detail.js';
+
 export interface ChartEntry {
   rank: number;
   entityId: string;
@@ -61,6 +63,14 @@ export interface RankingHistoryPointWithCrossovers {
   period: string;
   rank: number;
   crossovers?: RankingCrossovers;
+}
+
+// posiciones (7D/30D/YTD/All) e historial mensual de UNA entidad en un solo viaje: los
+// dos salen del mismo escaneo mensual (ver getRankingsWithHistory). /rankings sigue
+// existiendo para la hover card y los apks publicados
+export interface RankingsWithHistory {
+  rankings: Rankings;
+  history: RankingHistoryPointWithCrossovers[];
 }
 
 export interface ChartHistoryResponse {

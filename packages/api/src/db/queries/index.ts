@@ -6,7 +6,7 @@ export { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, ge
 export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getEntitySeriesBatch, getGlobalSeries, getRecentPlays, getHistoryPage, deleteHistoryEntries } from './entity.js';
 
 // rankings
-export { computeRankings, computeRankingsBatch, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers, getRecentRankChanges, scanProjectionBase, scanProjectionDelta } from './rankings.js';
+export { computeRankings, computeRankingsBatch, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers, getRankingsWithHistory, getRecentRankChanges, scanProjectionBase, scanProjectionDelta } from './rankings.js';
 export { getProjectionSession } from './projections.js';
 
 // queries específicas
