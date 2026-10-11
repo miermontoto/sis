@@ -6,7 +6,8 @@ export { getRangeStart, getPreviousPeriodRange, getPreviousPeriodRangeCustom, ge
 export { getEntityStats, getTopEntities, getPrevPeriodEntities, getEntitySeries, getEntitySeriesBatch, getGlobalSeries, getRecentPlays, getHistoryPage, deleteHistoryEntries } from './entity.js';
 
 // rankings
-export { computeRankings, computeRankingsBatch, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers, getRecentRankChanges } from './rankings.js';
+export { computeRankings, computeRankingsBatch, computeProjectedRankings, computeProjectedRankingsBatch, getRankingHistory, getRankingHistoryWithCrossovers, getRecentRankChanges, scanProjectionBase, scanProjectionDelta } from './rankings.js';
+export { getProjectionSession } from './projections.js';
 
 // queries específicas
 export { getArtistTopTracks, getArtistTopAlbums, getArtistReleases } from './artist.js';
@@ -14,7 +15,7 @@ export { getAlbumArtists, getAlbumTracks, getAlbumRelatedSingles, getAlbumRating
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';
 export type { EntityTypeFilter } from './records.js';
-export { getChart, getChartPeaks, getChartRankSlice, chartPeakSlices, prevPeriod, getAvailablePeriods, getEntityChartHistory } from './charts.js';
+export { getChart, getChartPeaks, getChartRankSlice, chartPeakSlices, prevPeriod, getAvailablePeriods, getEntityChartHistory, fetchEntityMetadata } from './charts.js';
 
 // conciertos asistidos + resolución del setlist contra la librería
 export { getConcerts, getConcertSongs, getConcertSongPlays, getConcertStats, getArtistTrackCatalog, getTracksByArtistNames, getImportedSetlistIds, getConcertCounts, getTrackLiveConcerts } from './concerts.js';

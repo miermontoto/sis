@@ -9,6 +9,7 @@ import { entityTableName } from '../db/queries/helpers.js';
 import { getEntityCredits, setEntityCredits, clearEntityCredits } from '../db/queries/credits.js';
 import { invalidateRecordsCacheForUser } from '../services/records-cache.js';
 import { invalidateReportCacheForUser } from '../services/report-cache.js';
+import { invalidateProjectionBase } from '../services/projection-cache.js';
 import { isCreditSubjectType, isCollectionKey, CREDITS_MAX_ARTISTS } from '@sis/shared';
 import type { CreditSubjectType } from '@sis/shared';
 
@@ -21,6 +22,7 @@ const idList = (ids: string[]) => sql.join(ids.map(id => sql`${id}`), sql`, `);
 function invalidateDerived(userId: number): void {
   invalidateRecordsCacheForUser(userId);
   invalidateReportCacheForUser(userId);
+  invalidateProjectionBase(userId);
 }
 
 // un álbum lógico no tiene créditos que corregir: su único artista es el dueño de la

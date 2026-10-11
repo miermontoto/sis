@@ -6,6 +6,7 @@
 // sube un puesto, así que contar "posiciones que cambian" daría un número enorme y sin
 // información. El movimiento con significado es el de la entidad que acumula las escuchas.
 import { dbRead } from '../../db/read-pool.js';
+import { invalidateProjectionBase } from '../../services/projection-cache.js';
 import { getRangeStart } from '../../db/queries/index.js';
 import { IMPACT_TOP_THRESHOLD, IMPACT_BIGGEST_MOVERS } from '../../constants.js';
 import type { EntityType, RankingMetric, MergeImpact, MergeImpactItem } from '@sis/shared';
@@ -29,8 +30,11 @@ interface CachedRanking { rows: Promise<AggregateRow[]>; at: number }
 
 const rankingCache = new Map<string, CachedRanking>();
 
+// también tira la base de las proyecciones de sesión: un merge cambia a qué entidad
+// cuenta cada play, y es justo lo que esa base tiene agrupado
 export function invalidateRankingCache(userId?: number): void {
   if (userId === undefined) return rankingCache.clear();
+  invalidateProjectionBase(userId);
   for (const key of rankingCache.keys()) {
     if (key.startsWith(`${userId}:`)) rankingCache.delete(key);
   }

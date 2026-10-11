@@ -69,7 +69,7 @@ const DURATION_EWMA_ALPHA = 0.3;
 const HEAVY_SEED = new Set<string>([
   'computeRankings', 'computeRankingsBatch', 'getRankingHistoryWithCrossovers',
   'getEntityChartHistory', 'getTopEntities', 'getRecords', 'getReport',
-  'getRecentRankChanges', 'getProfileSummary', 'getUserStreaks',
+  'getRecentRankChanges', 'getProfileSummary', 'getUserStreaks', 'scanProjectionBase',
 ]);
 
 type JobClass = 'light' | 'heavy' | 'background';

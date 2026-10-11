@@ -131,7 +131,7 @@ export function computeRankingsBatch(db: Db, entityType: 'track' | 'album', enti
   return Object.fromEntries(rows.map(r => [r.eid, r.rnk]));
 }
 
-interface ProjectionTarget {
+export interface ProjectionTarget {
   entityId: string;
   extraPlays: number;
   extraMs: number;
@@ -139,14 +139,19 @@ interface ProjectionTarget {
 
 const DEFAULT_RANK_LIMITS: Record<string, number> = { thisYear: 50, all: 200 };
 
-interface ScoreRow { eid: string; val_all: number; val_year: number; pre_all: number; pre_year: number }
+export interface ScoreRow { eid: string; val_all: number; val_year: number; pre_all: number; pre_year: number }
+
+/** Ventana opcional de plays: `since` incluido, `before` excluido. */
+interface PlayBounds { since?: string; before?: string }
 
 /** Scan único de scores por entidad (YTD + All): val_* = score actual, pre_* = score
  *  antes de `cutoff` (o el total si cutoff es null). Base compartida entre proyecciones
- *  de sesión (cutoff = inicio de sesión) y cambios recientes (cutoff = hace N días). */
-function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: number, cutoff: string | null): ScoreRow[] {
+ *  de sesión (cutoff = inicio de sesión) y cambios recientes (cutoff = hace N días).
+ *  `bounds` restringe los plays escaneados (va por idx (user_id, played_at)). */
+function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: number, cutoff: string | null, bounds: PlayBounds = {}): ScoreRow[] {
   const uf = userFilter(userId);
   const yearStart = getRangeStart('thisYear')!;
+  const playWindow = sql`${bounds.since ? sql`AND lh.played_at >= ${bounds.since}` : sql``} ${bounds.before ? sql`AND lh.played_at < ${bounds.before}` : sql``}`;
 
   if (entityType === 'artist') {
     const mrJoin = entityMergeJoin('artist', userId);
@@ -160,7 +165,7 @@ function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: n
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
-        WHERE lh.user_id = ${userId}
+        WHERE lh.user_id = ${userId} ${playWindow}
       )
       SELECT eid,
              sum(${valExpr}) as val_all,
@@ -185,9 +190,31 @@ function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: n
            ${preYearExpr} as pre_year
     FROM listening_history lh
     ${resolvedPlayJoins(entityType, userId)}
-    WHERE 1=1 ${uf} ${albumNullFilter(entityType)}
+    WHERE 1=1 ${uf} ${albumNullFilter(entityType)} ${playWindow}
     GROUP BY eid
   `) as ScoreRow[];
+}
+
+/** Totales por entidad (all + YTD) de una ventana de plays: lo mínimo que viaja del
+ *  worker al main thread para las proyecciones de sesión. */
+export interface ProjectionScoreRow { eid: string; all: number; year: number }
+
+function scanWindowScores(db: Db, entityType: EntityType, sort: Sort, userId: number, bounds: PlayBounds): ProjectionScoreRow[] {
+  return scanPrePostScores(db, entityType, sort, userId, null, bounds)
+    .map(r => ({ eid: r.eid, all: r.val_all, year: r.val_year }));
+}
+
+/** Base pre-sesión de las proyecciones: plays ANTERIORES al inicio de la sesión. Es un
+ *  escaneo del historial entero (~0.8-1.7s por tipo), pero no cambia durante la sesión:
+ *  la cachea services/projection-cache.ts. Dos funciones (base y delta) y no una con
+ *  parámetros porque el pool clasifica light/heavy por nombre de función. */
+export function scanProjectionBase(db: Db, entityType: EntityType, sort: Sort, userId: number, sessionStart: string): ProjectionScoreRow[] {
+  return scanWindowScores(db, entityType, sort, userId, { before: sessionStart });
+}
+
+/** Delta de la sesión: sólo sus plays, por idx (user_id, played_at) — milisegundos. */
+export function scanProjectionDelta(db: Db, entityType: EntityType, sort: Sort, userId: number, sessionStart: string): ProjectionScoreRow[] {
+  return scanWindowScores(db, entityType, sort, userId, { since: sessionStart });
 }
 
 /** Ranking proyectado batch: 1 scan de entity_scores, N targets resueltos in-memory.
@@ -199,17 +226,24 @@ export function computeProjectedRankingsBatch(
   rankLimits?: Record<string, number>
 ): Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>> {
   if (targets.length === 0) return new Map();
+  return projectRankings(scanPrePostScores(db, entityType, sort, userId, sessionStart ?? null), targets, sort, rankLimits);
+}
 
-  const scores = scanPrePostScores(db, entityType, sort, userId, sessionStart ?? null);
-
+/** Parte pura de computeProjectedRankingsBatch: ranks pre (pre_*) y post (val_*) de
+ *  cada target sobre los scores ya escaneados. La usa también el main thread con la
+ *  base cacheada + el delta de la sesión (services/projection-cache.ts). */
+export function projectRankings(
+  scores: ScoreRow[], targets: ProjectionTarget[], sort: Sort, rankLimits?: Record<string, number>,
+): Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>> {
   const results = new Map<string, Record<string, { current: number | null; projected: number | null; displaced: string[] }>>();
+  const byId = new Map(scores.map(s => [s.eid, s]));
   const ranges = ['thisYear', 'all'] as const;
   const valKeys = { thisYear: 'val_year', all: 'val_all' } as const;
   const preKeys = { thisYear: 'pre_year', all: 'pre_all' } as const;
 
   for (const target of targets) {
     const extra = sort === 'plays' ? target.extraPlays : target.extraMs;
-    const my = scores.find(s => s.eid === target.entityId);
+    const my = byId.get(target.entityId);
     const out: Record<string, { current: number | null; projected: number | null; displaced: string[] }> = {};
 
     for (const range of ranges) {

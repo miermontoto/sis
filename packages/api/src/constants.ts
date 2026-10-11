@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w41o';
+export const VERSION = '26w41p';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -283,6 +283,13 @@ export const LASTFM_NOW_PLAYING_STALE_MS = LASTFM_POLL_INTERVAL_MS + 60_000;
 // antes del corte de track y traer el tema actual en cabeza: con margen el
 // cliente lo salta y sigue teniendo siguiente
 export const NOW_PLAYING_QUEUE_LIMIT = 3;
+
+// --- proyecciones de sesión (/stats/projected-rankings) ---
+
+// vida máxima de la base pre-sesión cacheada. la invalidan merges, colecciones, créditos
+// y cualquier cambio en el número de plays previos; el TTL cubre lo que no mueve ese
+// número, como un merge físico que reapunta track_id
+export const PROJECTION_BASE_TTL_MS = 10 * 60_000;
 
 // --- cambios de posición recientes (/stats/recent-rank-changes) ---
 

@@ -18,6 +18,7 @@ import {
 } from '../db/queries/collections.js';
 import { invalidateRecordsCacheForUser } from '../services/records-cache.js';
 import { invalidateReportCacheForUser } from '../services/report-cache.js';
+import { invalidateProjectionBase } from '../services/projection-cache.js';
 import { COLLECTION_NAME_MAX_CHARS, COLLECTION_NOTES_MAX_CHARS, COLLECTION_CANDIDATES_LIMIT } from '@sis/shared';
 import type { CollectionMemberType } from '@sis/shared';
 
@@ -30,6 +31,7 @@ const collections = new Hono<{ Variables: AppVariables }>();
 function invalidateDerived(userId: number): void {
   invalidateRecordsCacheForUser(userId);
   invalidateReportCacheForUser(userId);
+  invalidateProjectionBase(userId);
 }
 
 function parseName(value: unknown): string | null {
