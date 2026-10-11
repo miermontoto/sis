@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort } from './helpers.js';
 import type { RankingHistoryPoint, RankingHistoryPointWithCrossovers, RecentRankChange, RecentRankChangeItem } from '@sis/shared';
-import { getRangeStart, entityGroupCol, entityMergeJoin, resolvedEntityId, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, trackArtistsFor } from './helpers.js';
+import { getRangeStart, entityGroupCol, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, artistPerTrackScores } from './helpers.js';
 import { fetchEntityMetadata } from './charts.js';
 
 /** Rankings: posición de una entidad en 4 rangos fijos (week, month, thisYear, all).
@@ -12,29 +12,18 @@ export function computeRankings(db: Db, entityType: EntityType, entityId: string
   const monthStart = getRangeStart('month')!;
   const yearStart = getRangeStart('thisYear')!;
 
-  // artistas: dedupe por play para evitar doble count cuando un track tiene 2 artists mergeados al mismo target
+  // artistas: un play cuenta una vez por artista aunque dos créditos de su track resuelvan
+  // al mismo target (dedup por track, ver artistPerTrackScores)
   if (entityType === 'artist') {
-    const mrJoin = entityMergeJoin('artist', userId);
-    const valExpr = sort === 'plays' ? sql`1` : sql.raw('duration_ms');
+    const valExpr = sort === 'plays' ? sql`1` : playDuration();
 
     const result = db.all(sql`
-      WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId}
-      ),
-      entity_scores AS (
-        SELECT eid,
-               sum(${valExpr}) as val_all,
-               sum(CASE WHEN played_at >= ${weekStart} THEN ${valExpr} ELSE 0 END) as val_week,
-               sum(CASE WHEN played_at >= ${monthStart} THEN ${valExpr} ELSE 0 END) as val_month,
-               sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year
-        FROM plays_dedup
-        GROUP BY eid
-      ),
+      WITH entity_scores AS (${artistPerTrackScores(userId, {
+        val_all: valExpr,
+        val_week: sql`CASE WHEN lh.played_at >= ${weekStart} THEN ${valExpr} ELSE 0 END`,
+        val_month: sql`CASE WHEN lh.played_at >= ${monthStart} THEN ${valExpr} ELSE 0 END`,
+        val_year: sql`CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END`,
+      })}),
       target AS (
         SELECT val_all, val_week, val_month, val_year FROM entity_scores WHERE eid = ${entityId}
       )
@@ -154,27 +143,14 @@ function scanPrePostScores(db: Db, entityType: EntityType, sort: Sort, userId: n
   const playWindow = sql`${bounds.since ? sql`AND lh.played_at >= ${bounds.since}` : sql``} ${bounds.before ? sql`AND lh.played_at < ${bounds.before}` : sql``}`;
 
   if (entityType === 'artist') {
-    const mrJoin = entityMergeJoin('artist', userId);
-    const valExpr = sort === 'plays' ? sql`1` : sql.raw('duration_ms');
-    const preAllExpr = cutoff ? sql`sum(CASE WHEN played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(${valExpr})`;
-    const preYearExpr = cutoff ? sql`sum(CASE WHEN played_at >= ${yearStart} AND played_at < ${cutoff} THEN ${valExpr} ELSE 0 END)` : sql`sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END)`;
-    return db.all(sql`
-      WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId} ${playWindow}
-      )
-      SELECT eid,
-             sum(${valExpr}) as val_all,
-             sum(CASE WHEN played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END) as val_year,
-             ${preAllExpr} as pre_all,
-             ${preYearExpr} as pre_year
-      FROM plays_dedup
-      GROUP BY eid
-    `) as ScoreRow[];
+    const valExpr = sort === 'plays' ? sql`1` : playDuration();
+    const inYear = sql`CASE WHEN lh.played_at >= ${yearStart} THEN ${valExpr} ELSE 0 END`;
+    return db.all(artistPerTrackScores(userId, {
+      val_all: valExpr,
+      val_year: inYear,
+      pre_all: cutoff ? sql`CASE WHEN lh.played_at < ${cutoff} THEN ${valExpr} ELSE 0 END` : valExpr,
+      pre_year: cutoff ? sql`CASE WHEN lh.played_at >= ${yearStart} AND lh.played_at < ${cutoff} THEN ${valExpr} ELSE 0 END` : inYear,
+    }, { where: playWindow, restrictPairs: bounds.since !== undefined })) as ScoreRow[];
   }
 
   const groupCol = entityGroupCol(entityType);
@@ -407,22 +383,11 @@ export function getRankingHistory(db: Db, entityType: EntityType, entityId: stri
   let rows: { period: string; eid: string; val: number }[];
 
   if (entityType === 'artist') {
-    const mrJoin = entityMergeJoin('artist', userId);
-    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
-
+    // orden explícito (periodo, entidad): es el que daba el GROUP BY y del que dependen
+    // los empates de los crossovers
     rows = db.all(sql`
-      WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId}
-      )
-      SELECT strftime('%Y-%m', played_at) as period, eid, ${metricCol} as val
-      FROM plays_dedup
-      GROUP BY period, eid
-      ORDER BY period
+      ${artistPerTrackScores(userId, { val: sort === 'plays' ? sql`1` : playDuration() }, { bucket: sql`strftime('%Y-%m', lh.played_at)` })}
+      ORDER BY 1, 2
     `) as { period: string; eid: string; val: number }[];
   } else {
     const groupCol = entityGroupCol(entityType);
@@ -476,22 +441,11 @@ export function getRankingHistoryWithCrossovers(db: Db, entityType: EntityType, 
   let rows: { period: string; eid: string; val: number }[];
 
   if (entityType === 'artist') {
-    const mrJoin = entityMergeJoin('artist', userId);
-    const metricCol = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
-
+    // orden explícito (periodo, entidad): es el que daba el GROUP BY y del que dependen
+    // los empates de los crossovers
     rows = db.all(sql`
-      WITH plays_dedup AS (
-        SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId}
-      )
-      SELECT strftime('%Y-%m', played_at) as period, eid, ${metricCol} as val
-      FROM plays_dedup
-      GROUP BY period, eid
-      ORDER BY period
+      ${artistPerTrackScores(userId, { val: sort === 'plays' ? sql`1` : playDuration() }, { bucket: sql`strftime('%Y-%m', lh.played_at)` })}
+      ORDER BY 1, 2
     `) as { period: string; eid: string; val: number }[];
   } else {
     const groupCol = entityGroupCol(entityType);

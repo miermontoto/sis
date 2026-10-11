@@ -218,6 +218,56 @@ export function trackArtistsFor(userId: number | null): SqlChunk {
   )`;
 }
 
+/** Pares (track, artista resuelto) sin repetir, con los créditos y merges del usuario,
+ *  como subconsulta con columnas `track_id`, `eid`. Expandir agregados POR TRACK a estos
+ *  pares equivale al DISTINCT por (artista, play) sobre lh × track_artists —que un play
+ *  cuente una sola vez por artista aunque dos créditos de su track resuelvan al mismo
+ *  canónico—, porque esa dedup sólo depende del track: se hace sobre ~70k pares en vez de
+ *  ~400k filas play × crédito (los escaneos de artista de rankings, historiales y charts
+ *  bajan 1.6-5.6×, mismas filas). Agrupa siempre por track ANTES de unir aquí. */
+// `tracksIn` (subconsulta de track_ids) restringe los pares a los tracks que sonaron, con
+// el filtro DENTRO de cada brazo del UNION de créditos corregidos: sin él la relación se
+// expandía entera (los 69k créditos + DISTINCT + índice automático) en cada query, aunque
+// el rango tuviese diez temas — top artists de una semana 160-270ms → 4-11ms, mismas
+// filas. Pásalo siempre que los plays estén acotados (rango, ventana).
+export function trackArtistPairs(userId: number, tracksIn?: SqlChunk): SqlChunk {
+  const credits = tracksIn
+    ? trackArtistsWhere(userId, col => sql`${col('track_id')} IN (${tracksIn})`)
+    : trackArtistsFor(userId);
+  return sql`(
+      SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist')} as eid
+      FROM ${credits} ta
+      ${entityMergeJoin('artist', userId)}
+    )`;
+}
+
+/** Scores por artista resuelto agregando primero por track (ver trackArtistPairs). Cada
+ *  columna de `cols` es una expresión POR PLAY sobre `lh`/`t` que se suma; `bucket`
+ *  (expresión por play, p. ej. un periodExpr) añade la columna `period` y se agrupa
+ *  también por ella. Devuelve un SELECT con [period,] eid y una columna por clave de
+ *  `cols`; `where` filtra los plays (además del usuario). Sustituye al DISTINCT por
+ *  (artista, play) sobre lh × créditos con el mismo resultado fila a fila. */
+export function artistPerTrackScores(userId: number, cols: Record<string, SqlChunk>, opts: { bucket?: SqlChunk; where?: SqlChunk; restrictPairs?: boolean } = {}): SqlChunk {
+  const names = Object.keys(cols);
+  const perTrack = sql.join(names.map(n => sql`sum(${cols[n]}) as ${sql.raw(n)}`), sql`, `);
+  const perArtist = sql.join(names.map(n => sql`sum(pt.${sql.raw(n)}) as ${sql.raw(n)}`), sql`, `);
+  const { bucket } = opts;
+  return sql`
+    SELECT ${bucket ? sql`pt.period, ` : sql``}am.eid, ${perArtist}
+    FROM (
+      SELECT ${bucket ? sql`${bucket} as period, ` : sql``}lh.track_id, ${perTrack}
+      FROM listening_history lh
+      JOIN tracks t ON t.spotify_id = lh.track_id
+      WHERE lh.user_id = ${userId} ${opts.where ?? sql``}
+      GROUP BY ${bucket ? sql`1, 2` : sql`1`}
+    ) pt
+    JOIN ${trackArtistPairs(userId, opts.restrictPairs
+      // ventana acotada: los pares se limitan a sus tracks (la misma ventana, por índice)
+      ? sql`SELECT lh.track_id FROM listening_history lh WHERE lh.user_id = ${userId} ${opts.where ?? sql``}`
+      : undefined)} am ON am.track_id = pt.track_id
+    GROUP BY ${bucket ? sql`pt.period, am.eid` : sql`am.eid`}`;
+}
+
 type CreditCol = 'track_id' | 'artist_id' | 'position';
 
 /** trackArtistsFor con el filtro metido DENTRO de cada brazo del UNION: la forma para

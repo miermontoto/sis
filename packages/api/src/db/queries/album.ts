@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, Sort } from './helpers.js';
-import { rangeWhere, userFilter, albumIdIn, albumPlaysPredicate, playDuration, hasCreditOverrides, trackArtistsFor } from './helpers.js';
+import { rangeWhere, userFilter, albumIdIn, albumPlaysPredicate, playDuration, hasCreditOverrides, trackArtistsWhere } from './helpers.js';
 import { parseCollectionKey } from '@sis/shared';
 import { getCollectionArtists } from './collections.js';
 
@@ -54,7 +54,7 @@ export function getAlbumArtists(db: Db, albumId: string, ids: string[] | undefin
   return db.all(sql`
     SELECT ta.artist_id, a.name, a.image_url, count(DISTINCT t.spotify_id) as track_count
     FROM tracks t
-    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id AND ta.position = 0
+    JOIN ${trackArtistsWhere(userId, col => sql`${col('position')} = 0 AND ${col('track_id')} IN (SELECT t2.spotify_id FROM tracks t2 WHERE ${albumIdIn(albumIds, 't2')})`)} ta ON ta.track_id = t.spotify_id
     JOIN artists a ON a.spotify_id = ta.artist_id
     WHERE ${albumIdIn(albumIds)}
     GROUP BY ta.artist_id

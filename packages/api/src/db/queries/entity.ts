@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
-import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, entityMergeJoin, trackJoinResolvingMerges, playDuration, trackArtistsFor } from './helpers.js';
+import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, trackJoinResolvingMerges, playDuration, trackArtistPairs } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 import { resolveEntityIds } from './merge.js';
 
@@ -40,20 +40,17 @@ export function getEntityStats(db: Db, entityType: EntityType, entityId: string,
  *  coste en rangos largos). */
 function topArtistsAggregate(db: Db, playsWhere: SqlChunk, ob: SqlChunk, limit: number, userId: number): AggregateRow[] {
   return db.all(sql`
-    SELECT entity_id, sum(cnt) as play_count, sum(ms) as total_ms
-    FROM (
+    WITH pt AS MATERIALIZED (
       SELECT lh.track_id, count(*) as cnt, sum(${playDuration()}) as ms
       FROM listening_history lh
       JOIN tracks t ON t.spotify_id = lh.track_id
       WHERE ${playsWhere}
       GROUP BY lh.track_id
-    ) pt
-    JOIN (
-      SELECT DISTINCT ta.track_id, ${resolvedEntityId('artist')} as entity_id
-      FROM ${trackArtistsFor(userId)} ta
-      ${entityMergeJoin('artist', userId)}
-    ) am ON am.track_id = pt.track_id
-    GROUP BY entity_id
+    )
+    SELECT am.eid as entity_id, sum(cnt) as play_count, sum(ms) as total_ms
+    FROM pt
+    JOIN ${trackArtistPairs(userId, sql`SELECT track_id FROM pt`)} am ON am.track_id = pt.track_id
+    GROUP BY am.eid
     ORDER BY ${ob} DESC
     LIMIT ${limit}
   `) as AggregateRow[];
@@ -238,7 +235,6 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
   // no dos filtros que se acumulan como el resto
   const needsTrackJoin = albumIds || artistIds || collectionScope;
   const trackJoin = needsTrackJoin ? sql`JOIN tracks t ON t.spotify_id = lh.track_id` : sql``;
-  const artistJoin = artistIds ? sql`JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id` : sql``;
 
   const albumWhere = albumIds
     ? (albumIds.length === 1
@@ -258,17 +254,15 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
       ], sql` OR `)})`
     : sql``;
 
-  const artistWhere = artistIds
-    ? (artistIds.length === 1
-      ? sql` AND ta.artist_id = ${artistIds[0]}`
-      : sql` AND ta.artist_id IN (${sql.join(artistIds.map(id => sql`${id}`), sql`, `)})`)
-    : sql``;
+  // IN y no JOIN a los créditos: el JOIN materializaba la relación de créditos corregidos
+  // por play (137-658ms en el rail del artista → 3-41ms) y devolvía dos veces un play
+  // cuyo tema acredita a dos ids del mismo grupo de merge
+  const artistWhere = artistIds ? sql` AND ${tracksWithArtistIn(artistIds, userId)}` : sql``;
 
   const items = db.all(sql`
     SELECT lh.id, lh.played_at, lh.track_id
     FROM listening_history lh
     ${trackJoin}
-    ${artistJoin}
     WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
     ORDER BY lh.played_at DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -278,7 +272,6 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
     SELECT count(*) as count
     FROM listening_history lh
     ${trackJoin}
-    ${artistJoin}
     WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
   `) as { count: number }[])[0].count;
 

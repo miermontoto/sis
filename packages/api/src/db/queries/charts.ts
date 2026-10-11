@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, ChartPeakStats, RankingMetric, WeekStartOption, Granularity, EntityType } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr, albumArtistId, albumArtistName, trackArtistsFor } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr, albumArtistId, albumArtistName, trackArtistsFor, artistPerTrackScores } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 import { ChartPeaksAccumulator, peakSlices, periodYear, type ChartRankSlice, type PeakSlice, type RankSliceRow } from '../../services/chart-peaks.js';
 
@@ -323,88 +323,79 @@ export function getAvailablePeriods(db: Db, granularity: Granularity, weekStart:
 
 // --- historial de chart para una entidad individual ---
 
+// semanas con algún play del usuario, por weekStart: la lista con la que se rellenan los
+// huecos del historial de chart. Es igual para toda entidad y sólo depende de los
+// played_at del usuario, así que se memoiza (por worker: cada uno tiene su conexión) con
+// una huella barata —count/sum(id)/min/max por idx (user_id, played_at)— que detecta
+// cualquier alta o baja. Si lo único nuevo son plays posteriores al último visto (el
+// play que acaba de sonar), sólo se calculan las semanas de ese tramo. Recalcularla era
+// un DISTINCT strftime sobre todo el historial en cada visita (0.3-0.5s).
+interface PlayPeriodsMemo { n: number; ids: number; min: string | null; max: string | null; periods: string[] }
+const playPeriodsMemo = new Map<string, PlayPeriodsMemo>();
+
+function userPlayPeriods(db: Db, userId: number, weekStart: WeekStart): string[] {
+  const key = `${userId}:${weekStart}`;
+  const pExpr = periodExpr('week', weekStart);
+  const fp = db.get(sql`
+    SELECT count(*) as n, coalesce(sum(lh.id), 0) as ids, min(lh.played_at) as min, max(lh.played_at) as max
+    FROM listening_history lh WHERE lh.user_id = ${userId}
+  `) as Omit<PlayPeriodsMemo, 'periods'>;
+  const memo = playPeriodsMemo.get(key);
+  if (memo && memo.n === fp.n && memo.ids === fp.ids && memo.min === fp.min && memo.max === fp.max) return memo.periods;
+
+  let periods: string[] | null = null;
+  if (memo && memo.max !== null && memo.min === fp.min) {
+    const tail = db.get(sql`
+      SELECT count(*) as n, coalesce(sum(lh.id), 0) as ids FROM listening_history lh
+      WHERE lh.user_id = ${userId} AND lh.played_at > ${memo.max}
+    `) as { n: number; ids: number };
+    if (memo.n + tail.n === fp.n && memo.ids + tail.ids === fp.ids) {
+      const added = db.all(sql`
+        SELECT DISTINCT ${pExpr} as period FROM listening_history lh
+        WHERE lh.user_id = ${userId} AND lh.played_at > ${memo.max}
+      `) as { period: string }[];
+      periods = [...new Set([...memo.periods, ...added.map(r => r.period)])].sort();
+    }
+  }
+  periods ??= (db.all(sql`
+    SELECT DISTINCT ${pExpr} as period FROM listening_history lh
+    WHERE lh.user_id = ${userId}
+    ORDER BY period ASC
+  `) as { period: string }[]).map(r => r.period);
+
+  playPeriodsMemo.set(key, { ...fp, periods });
+  return periods;
+}
+
 export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, weekStart: WeekStart, sort: Sort, userId: number): ChartHistoryResponse {
   const pExpr = periodExpr('week', weekStart);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
   const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
 
-  let myData: { period: string; val: number }[];
+  // UN escaneo de (semana, entidad) para todas las entidades; la serie de la entidad son
+  // sus filas. Antes había además una query propia para ella con un filtro COALESCE no
+  // sargable (otro escaneo completo) que agrupaba con la misma expresión
   let allScores: { period: string; eid: string; val: number }[];
-  let firstPeriod: string;
 
   if (entityType === 'artist') {
     // dedupe por play — evita doble count con artists co-apareciendo en un track mergeado
-    const mrJoin = entityMergeJoin('artist', userId);
-    const metricDedup = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
-
-    myData = db.all(sql`
-      SELECT period, ${metricDedup} as val
-      FROM (
-        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, lh.played_at as played_at, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId} AND COALESCE(mr_artist.target_id, ta.artist_id) = ${entityId}
-      )
-      GROUP BY period
-      ORDER BY period ASC
-    `) as { period: string; val: number }[];
-
-    if (myData.length === 0) {
-      return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
-    }
-
-    firstPeriod = myData[0].period;
-
-    allScores = db.all(sql`
-      SELECT period, eid, ${metricDedup} as val
-      FROM (
-        SELECT DISTINCT ${pExpr} as period, ${resolvedEntityId('artist')} as eid, lh.id as play_id, ${playDuration()} as duration_ms
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        ${mrJoin}
-        WHERE lh.user_id = ${userId}
-      )
-      GROUP BY period, eid
-      HAVING period >= ${firstPeriod}
-    `) as { period: string; eid: string; val: number }[];
+    // (por track, ver artistPerTrackScores)
+    allScores = db.all(artistPerTrackScores(userId, { val: sort === 'plays' ? sql`1` : playDuration() }, { bucket: pExpr })) as { period: string; eid: string; val: number }[];
   } else {
     let groupCol: ReturnType<typeof sql>;
     let joinClause: ReturnType<typeof sql>;
-    let entityFilter: ReturnType<typeof sql>;
     if (entityType === 'track') {
       groupCol = resolvedEntityId('track');
       joinClause = entityMergeJoin('track', userId);
-      entityFilter = sql`AND COALESCE(mr_track.target_id, lh.track_id) = ${entityId}`;
     } else {
-      // album
+      // album: agrupa con resolvedEntityId, colecciones incluidas: si el álbum es miembro
+      // de una, su historial de chart es el de la colección y el suyo propio deja de
+      // existir (es ella quien rankea). Con el COALESCE a pelo la página del miembro
+      // enseñaba posiciones que el chart ya no le daba
       groupCol = resolvedEntityId('album');
       joinClause = entityMergeJoin('album', userId);
-      // el filtro usa la MISMA expresión que agrupa el chart, colecciones incluidas: si
-      // el álbum es miembro de una, su historial de chart es el de la colección y el
-      // suyo propio deja de existir (es ella quien rankea). Con el COALESCE a pelo la
-      // página del miembro enseñaba posiciones que el chart ya no le daba
-      entityFilter = sql`AND ${resolvedEntityId('album')} = ${entityId}`;
     }
-
-    myData = db.all(sql`
-      SELECT ${pExpr} as period, ${metric} as val
-      FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
-      ${joinClause}
-      WHERE 1=1 ${uf} ${entityFilter} ${albumFilter}
-      GROUP BY period
-      ORDER BY period ASC
-    `) as { period: string; val: number }[];
-
-    if (myData.length === 0) {
-      return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
-    }
-
-    firstPeriod = myData[0].period;
 
     allScores = db.all(sql`
       SELECT ${pExpr} as period, ${groupCol} as eid, ${metric} as val
@@ -413,9 +404,19 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
       ${joinClause}
       WHERE 1=1 ${uf} ${albumFilter}
       GROUP BY period, eid
-      HAVING period >= ${firstPeriod}
     `) as { period: string; eid: string; val: number }[];
   }
+
+  const myData = allScores
+    .filter(r => r.eid === entityId)
+    .map(r => ({ period: r.period, val: r.val }))
+    .sort((a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0));
+
+  if (myData.length === 0) {
+    return { currentRank: null, currentPeriod: '', peakRank: 0, peakPeriod: '', peakPeriods: [], timesAtPeak: 0, weeksOnChart: 0, history: [] };
+  }
+
+  const firstPeriod = myData[0].period;
 
   const myScoreMap = new Map(myData.map(s => [s.period, s.val]));
   const periodSet = new Set(myData.map(s => s.period));
@@ -479,11 +480,9 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
   const firstOnChart = rows[0].period;
   const lastPeriod = latestPeriod?.period ?? lastRow.period;
 
-  const allPeriods = db.all(sql`
-    SELECT DISTINCT ${pExpr} as period FROM listening_history lh
-    WHERE 1=1 ${uf} AND ${pExpr} >= ${firstPeriod}
-    ORDER BY period ASC
-  `) as { period: string }[];
+  const allPeriods = userPlayPeriods(db, userId, weekStart)
+    .filter(period => period >= firstPeriod)
+    .map(period => ({ period }));
 
   const rankMap = new Map(rows.map(r => [r.period, r.rank]));
   const fullHistory: { period: string; rank: number | null }[] = [];

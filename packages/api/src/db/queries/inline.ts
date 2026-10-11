@@ -1,20 +1,28 @@
 // Queries que antes estaban inline en stats.ts, extraídas para el worker pool
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { rangeWhere, userFilter, trackArtistsFor, albumArtistId, albumArtistName } from './helpers.js';
+import { rangeWhere, userFilter, trackArtistsFor, trackArtistsWhere, trackArtistPairs, albumArtistId, albumArtistName } from './helpers.js';
 
 export function getTopGenres(db: Db, rangeStart: string | null, rangeEnd: string | null, limit: number, userId: number) {
   const rw = rangeWhere(rangeStart, rangeEnd);
   const uf = userFilter(userId);
 
+  // plays por track primero (GROUP BY +lh.track_id: el + deja al planner ir por
+  // (user_id, played_at) en rangos cortos) y los créditos restringidos a esos tracks; la
+  // multiplicidad por crédito y por género es la de siempre (mismas cifras, ~4-25× menos)
   return db.all(sql`
-    SELECT genre.value as genre, count(*) as play_count
-    FROM listening_history lh
-    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
+    WITH pt AS MATERIALIZED (
+      SELECT lh.track_id, count(*) as plays
+      FROM listening_history lh
+      WHERE 1=1 ${uf} ${rw}
+      GROUP BY +lh.track_id
+    )
+    SELECT genre.value as genre, sum(pt.plays) as play_count
+    FROM pt
+    JOIN ${trackArtistsWhere(userId, col => sql`${col('track_id')} IN (SELECT track_id FROM pt)`)} ta ON ta.track_id = pt.track_id
     LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
     JOIN artists a ON a.spotify_id = COALESCE(mr_artist.target_id, ta.artist_id)
     JOIN json_each(a.genres) genre
-    WHERE 1=1 ${uf} ${rw}
     GROUP BY genre.value
     ORDER BY play_count DESC
     LIMIT ${limit}
@@ -229,14 +237,37 @@ export function getDiscoverySeries(db: Db, entityType: string, granularity: stri
       GROUP BY period ORDER BY period
     `) as typeof rows;
   } else if (entityType === 'artist') {
-    rows = db.all(sql`
-      SELECT ${dateTrunc} as period, COUNT(DISTINCT COALESCE(mr_artist.target_id, ta.artist_id)) as distinct_count
+    // (periodo, track) y los pares (track, artista resuelto) de esos mismos tracks, y el
+    // cruce en JS: la relación de créditos corregidos ya no se expande entera, y dos
+    // subconsultas materializadas sin índice se cruzaban en SQL por producto (7.6s en un
+    // año). Mismas cuentas: artistas distintos por periodo, sin periodos sin créditos
+    const periodTracks = db.all(sql`
+      SELECT DISTINCT ${dateTrunc} as period, lh.track_id
       FROM listening_history lh
-      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-      LEFT JOIN merge_rules mr_artist ON mr_artist.entity_type = 'artist' AND mr_artist.source_id = ta.artist_id AND mr_artist.user_id = ${userId}
       WHERE 1=1 ${uf} ${rw}
-      GROUP BY period ORDER BY period
-    `) as typeof rows;
+    `) as { period: string; track_id: string }[];
+    const pairs = db.all(sql`
+      SELECT am.track_id, am.eid
+      FROM ${trackArtistPairs(userId, sql`SELECT lh.track_id FROM listening_history lh WHERE 1=1 ${uf} ${rw}`)} am
+    `) as { track_id: string; eid: string }[];
+
+    const artistsOf = new Map<string, string[]>();
+    for (const { track_id, eid } of pairs) {
+      const list = artistsOf.get(track_id);
+      if (list) list.push(eid);
+      else artistsOf.set(track_id, [eid]);
+    }
+    const byPeriod = new Map<string, Set<string>>();
+    for (const { period, track_id } of periodTracks) {
+      const eids = artistsOf.get(track_id);
+      if (!eids) continue;
+      const seen = byPeriod.get(period) ?? new Set<string>();
+      for (const eid of eids) seen.add(eid);
+      byPeriod.set(period, seen);
+    }
+    rows = [...byPeriod]
+      .map(([period, seen]) => ({ period, distinct_count: seen.size }))
+      .sort((a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0));
   } else {
     rows = db.all(sql`
       SELECT ${dateTrunc} as period, COUNT(DISTINCT COALESCE(mr_track.target_id, lh.track_id)) as distinct_count
