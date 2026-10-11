@@ -191,7 +191,12 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       SELECT CAST(id AS TEXT), 'playlist_generated', name, strategy FROM generated_playlists`);
     sqlite.exec('COMMIT');
 
-    // triggers para mantener el índice sincronizado con inserts/updates
+    // triggers para mantener el índice sincronizado con inserts/updates.
+    // los AFTER UPDATE llevan guarda de cambio: un `ON CONFLICT DO UPDATE SET name = …`
+    // los dispara aunque el valor no cambie, y cada disparo borra de search_index por
+    // entity_id (UNINDEXED en fts5 → recorre el índice entero, ~16ms). sin la guarda,
+    // upsertTrack costaba 108ms en vez de 5ms y el sync de playlists bloqueaba el
+    // event loop 11-12s por página
     for (const trigger of [
       'fts_artists_ai',
       'fts_artists_au',
@@ -212,7 +217,7 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
         VALUES (NEW.spotify_id, 'artist', NEW.name, '');
       END`);
     sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_artists_au AFTER UPDATE OF name ON artists
-      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+      WHEN NEW.spotify_id NOT LIKE 'import:%' AND OLD.name IS NOT NEW.name BEGIN
         DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'artist';
         INSERT INTO search_index(entity_id, entity_type, name, extra_text)
         VALUES (NEW.spotify_id, 'artist', NEW.name, '');
@@ -234,7 +239,7 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
         VALUES (NEW.spotify_id, 'album', NEW.name, '');
       END`);
     sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_albums_au AFTER UPDATE OF name ON albums
-      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+      WHEN NEW.spotify_id NOT LIKE 'import:%' AND OLD.name IS NOT NEW.name BEGIN
         DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'album';
         INSERT INTO search_index(entity_id, entity_type, name, extra_text)
         VALUES (NEW.spotify_id, 'album', NEW.name, '');
@@ -257,7 +262,7 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
         );
       END`);
     sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_tracks_au AFTER UPDATE OF name ON tracks
-      WHEN NEW.spotify_id NOT LIKE 'import:%' BEGIN
+      WHEN NEW.spotify_id NOT LIKE 'import:%' AND OLD.name IS NOT NEW.name BEGIN
         DELETE FROM search_index WHERE entity_id = NEW.spotify_id AND entity_type = 'track';
         INSERT INTO search_index(entity_id, entity_type, name, extra_text)
         VALUES (
@@ -283,7 +288,8 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
         WHERE t.spotify_id = NEW.track_id AND t.spotify_id NOT LIKE 'import:%';
       END`);
     sqlite.exec(`CREATE TRIGGER IF NOT EXISTS fts_track_artists_au AFTER UPDATE OF artist_id, position ON track_artists
-      BEGIN
+      WHEN OLD.artist_id IS NOT NEW.artist_id OR OLD.position IS NOT NEW.position
+        OR OLD.track_id IS NOT NEW.track_id BEGIN
         DELETE FROM search_index WHERE entity_id IN (OLD.track_id, NEW.track_id) AND entity_type = 'track';
         INSERT INTO search_index(entity_id, entity_type, name, extra_text)
         SELECT t.spotify_id, 'track', t.name, COALESCE(a.name, '')
