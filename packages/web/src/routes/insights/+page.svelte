@@ -33,17 +33,20 @@
   let discoveryLoading = $state(false);
   const fetchCtrl = createFetchController();
 
-  let pulseDim = $state(false);
-  let pulseInterval: ReturnType<typeof setInterval> | null = null;
+  // el periodo en curso late: su dato lleva el aspecto atenuado como `emphasis` propio y
+  // BaseChart lo alterna con highlight/downplay (pulseIndex). Antes un $state alternado
+  // cada 1.5s rehacía las 8 opciones y cada gráfica repintaba entera para cambiar un dato
+  const PULSE_DIM_OPACITY = 0.35;
+  const pulsePoint = <T,>(value: T) => ({ value, emphasis: { itemStyle: { opacity: PULSE_DIM_OPACITY } } });
 
-  function pulseData(values: number[], currentIdx: number): (number | { value: number; itemStyle: { opacity: number } })[] {
+  function pulseData(values: number[], currentIdx: number): (number | ReturnType<typeof pulsePoint<number>>)[] {
     if (currentIdx < 0 || currentIdx >= values.length) return values;
-    return values.map((v, i) => i === currentIdx ? { value: v, itemStyle: { opacity: pulseDim ? 0.35 : 1 } } : v);
+    return values.map((v, i) => i === currentIdx ? pulsePoint(v) : v);
   }
 
-  function pulseHeatmapData(data: number[][], currentIdx: number): (number[] | { value: number[]; itemStyle: { opacity: number } })[] {
+  function pulseHeatmapData(data: number[][], currentIdx: number): (number[] | ReturnType<typeof pulsePoint<number[]>>)[] {
     if (currentIdx < 0) return data;
-    return data.map((v, i) => i === currentIdx ? { value: v, itemStyle: { opacity: pulseDim ? 0.35 : 1 } } : v);
+    return data.map((v, i) => i === currentIdx ? pulsePoint(v) : v);
   }
 
   function granularityForRange(r: string): string {
@@ -125,7 +128,6 @@
     startDate = getQueryParam('startDate', '');
     endDate = getQueryParam('endDate', '');
     initialized = true;
-    pulseInterval = setInterval(() => { pulseDim = !pulseDim; }, 1500);
   });
 
   const RANGES = ['week', 'month', '3months', '6months', 'year', 'thisYear', 'all'];
@@ -145,7 +147,7 @@
       return false;
     },
   );
-  onDestroy(() => { shortcutStore.unregisterPageShortcuts(); if (pulseInterval) clearInterval(pulseInterval); });
+  onDestroy(() => { shortcutStore.unregisterPageShortcuts(); });
 
   $effect(() => {
     void range;
@@ -401,7 +403,7 @@
       {#if listeningData.length > 0}
         <div class="card chart-half">
           <div class="chart-header"><h3>Plays</h3><span class="r2-badge">R² = {playsRegression.r2.toFixed(2)}</span></div>
-          <BaseChart option={lineChartOption} height="220px" />
+          <BaseChart option={lineChartOption} height="220px" pulseIndex={listeningData.length - 1} />
         </div>
       {/if}
       {#if genres.length > 0}
@@ -417,12 +419,12 @@
     <div class="charts-row">
       <div class="card chart-half">
         <div class="chart-header"><h3>Listening time</h3><span class="r2-badge">R² = {timeRegression.r2.toFixed(2)}</span></div>
-        <BaseChart option={barChartOption} height="220px" />
+        <BaseChart option={barChartOption} height="220px" pulseIndex={listeningData.length - 1} />
       </div>
       {#if yearlyData.length > 1}
         <div class="card chart-half">
           <div class="chart-header"><h3>Listening time by year</h3><span class="r2-badge">R² = {yearlyRegression.r2.toFixed(2)}</span></div>
-          <BaseChart option={yearlyChartOption} height="220px" />
+          <BaseChart option={yearlyChartOption} height="220px" pulseIndex={currentYearIdx} />
         </div>
       {/if}
     </div>
@@ -436,14 +438,14 @@
     {#if discoveryLoading}
       <div class="ghost-chart" style="height: 220px;"></div>
     {:else if discovery.length > 0}
-      <BaseChart option={discoveryOption} height="220px" />
+      <BaseChart option={discoveryOption} height="220px" pulseIndex={discovery.length - 1} />
     {/if}
   </div>
 
   {#if heatmap.length > 0}
     <div class="card" style="margin-bottom: 1.5rem;">
       <h3 style="margin-bottom: 0.5rem;">Listening heatmap</h3>
-      <BaseChart option={heatmapOption} height="220px" />
+      <BaseChart option={heatmapOption} height="220px" pulseIndex={currentHeatmapIdx} />
     </div>
   {/if}
 
@@ -451,15 +453,15 @@
     <div class="charts-row charts-row--triple">
       <div class="card chart-third">
         <h3>By hour</h3>
-        <BaseChart option={hourPolarOption} height="280px" />
+        <BaseChart option={hourPolarOption} height="280px" pulseIndex={currentHour} />
       </div>
       <div class="card chart-third">
         <h3>By day</h3>
-        <BaseChart option={dayPolarOption} height="280px" />
+        <BaseChart option={dayPolarOption} height="280px" pulseIndex={currentDayIdx} />
       </div>
       <div class="card chart-third">
         <h3>By month</h3>
-        <BaseChart option={monthPolarOption} height="280px" />
+        <BaseChart option={monthPolarOption} height="280px" pulseIndex={currentMonth} />
       </div>
     </div>
   {/if}

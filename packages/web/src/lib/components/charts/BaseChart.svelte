@@ -75,11 +75,20 @@
     onmouseout?: (params: ChartClickEvent) => void;
     instance?: echarts.ECharts | null;
     replaceMerge?: string[];
+    // dato que late (el periodo en curso): se alterna con highlight/downplay, así que su
+    // aspecto atenuado va en el `emphasis` de ESE dato, en la opción del consumidor
+    pulseIndex?: number;
+    pulseSeries?: number;
   }
 
-  let { option, height = '300px', onclick, onmouseover, onmouseout, instance = $bindable(null), replaceMerge }: Props = $props();
+  let { option, height = '300px', onclick, onmouseover, onmouseout, instance = $bindable(null), replaceMerge, pulseIndex, pulseSeries = 0 }: Props = $props();
+
+  const PULSE_INTERVAL_MS = 1500;
   let container = $state<HTMLElement | null>(null);
   let chart: echarts.ECharts | null = null;
+  // última opción ya aplicada: el efecto de actualización corre también justo después
+  // del init con la MISMA opción, y eso era un segundo render completo en cada montaje
+  let applied: EChartsOption | null = null;
 
   // tema de echarts consistente con el CSS, sacado de la paleta del tema activo
   const MONO_STACK = 'ui-monospace, SF Mono, Menlo, Consolas, Liberation Mono, monospace';
@@ -107,27 +116,47 @@
       chart = echarts.init(el, echartsTheme(palette));
       instance = chart;
       chart.setOption(option);
+      applied = option;
       if (onclick) chart.on('click', onclick);
       if (onmouseover) chart.on('mouseover', onmouseover);
       if (onmouseout) chart.on('mouseout', onmouseout);
     });
 
-    requestAnimationFrame(() => chart?.resize());
-
-    const resizeObserver = new ResizeObserver(() => chart?.resize());
+    // sólo con un cambio de tamaño real: el observer dispara también al observar, con el
+    // tamaño de siempre, y cada resize es un render completo
+    const resizeObserver = new ResizeObserver(() => {
+      if (chart && (el.clientWidth !== chart.getWidth() || el.clientHeight !== chart.getHeight())) chart.resize();
+    });
     resizeObserver.observe(el);
 
+    // el pulso cambia el estado de UN dato sin tocar la opción (1-2ms); rehacer la opción
+    // entera para cambiarle la opacidad eran 8 renders completos cada 1.5s en /insights.
+    // Lee los props en cada tic, así que cambiar de dato no rehace el chart
+    let pulsed: { seriesIndex: number; dataIndex: number } | null = null;
+    const pulseTimer = setInterval(() => {
+      if (!chart || document.hidden) return;
+      if (pulsed) {
+        chart.dispatchAction({ type: 'downplay', ...pulsed });
+        pulsed = null;
+      } else if (pulseIndex !== undefined && pulseIndex >= 0) {
+        pulsed = { seriesIndex: pulseSeries, dataIndex: pulseIndex };
+        chart.dispatchAction({ type: 'highlight', ...pulsed });
+      }
+    }, PULSE_INTERVAL_MS);
+
     return () => {
+      clearInterval(pulseTimer);
       resizeObserver.disconnect();
       chart?.dispose();
       chart = null;
+      applied = null;
       instance = null;
     };
   });
 
   // actualizar cuando cambia la opción
   $effect(() => {
-    if (chart && option) {
+    if (chart && option && option !== applied) {
       // con replaceMerge la nueva opción puede ELIMINAR series (p.ej. ocultar
       // una línea al clicarla). Si el puntero está sobre el gráfico, echarts
       // reprograma el tooltip tras el render con el `_lastDataByCoordSys`
@@ -138,6 +167,7 @@
       // render posterior ya no intenta restaurar el tooltip.
       if (replaceMerge) chart.dispatchAction({ type: 'hideTip' });
       chart.setOption(option, replaceMerge ? { replaceMerge } : undefined);
+      applied = option;
     }
   });
 </script>
