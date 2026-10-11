@@ -1,7 +1,7 @@
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { DEDUP_WINDOW_S, reassignTrackRefs, reassignAlbumRefs } from './upsert.js';
-import { MIN_PLAY_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS, PLAY_OVERLAP_PROOF_S, CROSS_TRACK_TWIN_RADIUS_S } from '../../constants.js';
+import { MIN_PLAY_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS, PLAY_OVERLAP_PROOF_S, CROSS_TRACK_TWIN_RADIUS_S, BASIC_EXTENDED_WINDOW_S } from '../../constants.js';
 import { syntheticIdPredicate } from '../ids.js';
 import { createLogger } from '../logger.js';
 
@@ -451,10 +451,24 @@ export function deduplicateSyntheticTracks() {
   if (merged > 0) logDedup.info(`${merged} grupos de tracks sintéticos unificados`);
 }
 
+// margen de la banda sargable de played_at sobre la ventana exacta: strftime('%s')
+// trunca la fracción de segundo de cada lado, así que la diferencia real puede pasar la
+// ventana en casi 1s y la banda debe contenerla siempre
+const PLAY_BAND_MARGIN_S = 2;
+
+// banda [desde, hasta] en el formato de played_at (ISO con Z, con o sin milisegundos) para
+// comparar como texto: así el join va por idx (user_id, track_id, played_at) en vez de
+// evaluar la condición exacta sobre cada par de plays del mismo tema (O(n²) por tema)
+const playBandFrom = (col: SQL, offsetS: SQL) => sql`strftime('%Y-%m-%dT%H:%M:%S', ${col}, ${offsetS})`;
+const playBandTo = (col: SQL, offsetS: SQL) => sql`strftime('%Y-%m-%dT%H:%M:%SZ', ${col}, ${offsetS})`;
+
 export function cleanDuplicatePlays() {
   const db = getDb();
   // encontrar el ID a eliminar en cada par de duplicados (mismo track, ±DEDUP_WINDOW_S)
-  // conservar el que tenga duración; si ambos iguales, conservar el más antiguo (id menor)
+  // conservar el que tenga duración; si ambos iguales, conservar el más antiguo (id menor).
+  // la banda sólo acota (contiene la ventana con margen): decide la condición exacta de
+  // siempre, y el resultado es el mismo fila a fila (20s → 0.9s sobre prod)
+  const band = DEDUP_WINDOW_S + PLAY_BAND_MARGIN_S;
   const toDelete = db.all(sql`
     SELECT CASE
       WHEN a.duration_played_ms IS NOT NULL AND b.duration_played_ms IS NULL THEN b.id
@@ -463,6 +477,8 @@ export function cleanDuplicatePlays() {
     END as id
     FROM listening_history a
     JOIN listening_history b ON a.user_id = b.user_id AND a.track_id = b.track_id AND a.id < b.id
+      AND b.played_at >= ${playBandFrom(sql`a.played_at`, sql`${`-${band} seconds`}`)}
+      AND b.played_at <= ${playBandTo(sql`a.played_at`, sql`${`+${band} seconds`}`)}
     WHERE abs(strftime('%s', a.played_at) - strftime('%s', b.played_at)) <= ${DEDUP_WINDOW_S}
   `) as { id: number }[];
 
@@ -484,16 +500,23 @@ export function cleanDuplicatePlays() {
 // dejaba fuera.
 export function cleanBasicExtendedDuplicates() {
   const db = getDb();
+  // se recorre desde la Extended (b, con duración) y la Basic se busca por índice en la
+  // banda alrededor de su inicio (b.played_at − duración); el CROSS JOIN fija ese orden.
+  // la condición exacta es la de siempre (3.7s → 1s sobre prod, mismas filas)
+  const band = BASIC_EXTENDED_WINDOW_S + PLAY_BAND_MARGIN_S;
+  const startOffset = (sign: 1 | -1) => sql`printf('%.3f seconds', -b.duration_played_ms / 1000.0 + ${sign * band})`;
   const toDelete = db.all(sql`
     SELECT a.id
-    FROM listening_history a
-    JOIN listening_history b ON a.user_id = b.user_id AND a.track_id = b.track_id AND a.id != b.id
+    FROM listening_history b
+    CROSS JOIN listening_history a ON a.user_id = b.user_id AND a.track_id = b.track_id AND a.id != b.id
+      AND a.played_at >= ${playBandFrom(sql`b.played_at`, startOffset(-1))}
+      AND a.played_at <= ${playBandTo(sql`b.played_at`, startOffset(1))}
     WHERE a.duration_played_ms IS NULL
       AND b.duration_played_ms IS NOT NULL
       AND abs(
         strftime('%s', a.played_at)
         - (strftime('%s', b.played_at) - b.duration_played_ms / 1000.0)
-      ) <= 15
+      ) <= ${BASIC_EXTENDED_WINDOW_S}
   `) as { id: number }[];
 
   if (toDelete.length === 0) return;

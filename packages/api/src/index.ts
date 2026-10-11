@@ -21,13 +21,6 @@ getDb();
 cleanupExpiredSessions();
 await initReadWorker();
 
-// iniciar polling en background (DISABLE_POLLING=1 para dev local con snapshot de prod)
-if (process.env.DISABLE_POLLING === '1') {
-  log.info('polling deshabilitado (DISABLE_POLLING=1)');
-} else {
-  startPolling();
-}
-
 // servidor http con shutdown graceful (SIGINT/SIGTERM)
 startApiServer(app, {
   name: 'sis',
@@ -38,3 +31,13 @@ startApiServer(app, {
   },
   afterClose: () => closeDb(),
 });
+
+// iniciar polling en background (DISABLE_POLLING=1 para dev local con snapshot de prod).
+// después del servidor: startPolling corre síncronos los barridos de catálogo del
+// arranque, y antes del listen eran ~26s de 502 en cada deploy; ahora el puerto ya está
+// abierto y lo que llegue en esos segundos espera en vez de fallar
+if (process.env.DISABLE_POLLING === '1') {
+  log.info('polling deshabilitado (DISABLE_POLLING=1)');
+} else {
+  startPolling();
+}

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w41q';
+export const VERSION = '26w41r';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -351,6 +351,10 @@ export const ISRC_DEDUP_MAX_PER_CYCLE = 100;
 // un play medido para dar el primero por imposible. Con 30s no lo dispara ni un borde
 // redondeado al segundo ni dos plays consecutivos: hace falta que se pisen de verdad.
 export const PLAY_OVERLAP_PROOF_S = 30;
+
+// tolerancia (s) entre el played_at de una entrada Basic (sin duración, marca el inicio)
+// y el inicio de su Extended (played_at − ms reproducidos) para darlas por el mismo play
+export const BASIC_EXTENDED_WINDOW_S = 15;
 
 // radio (s) en el que buscar el gemelo del mismo tema en otra fila de track. Cubre la
 // duración de un tema largo, que es lo que separa la entrada Basic de la Extended.
