@@ -413,13 +413,21 @@
     return topAlbums.slice(0, chartCount).filter(a => a.album).map(a => ({ id: a.albumId, name: a.album!.name }));
   });
 
+  // sólo con la vista velocity delante: cada carga son N detalles completos, y cargarla
+  // con la gráfica en barras era el 74% de todas las peticiones de detalle en prod. la
+  // clave es lo que cambia la serie (ids, rango, fechas, métrica) y no el array: un play
+  // optimista recrea las listas con los mismos ids y no debe recargar nada
+  let velKey = $derived(
+    chartMode === 'velocity' && !loading && velTopEntries.length > 0
+      ? [activeTab, range, startDate, endDate, metric, velTopEntries.map(e => e.id).join(',')].join('|')
+      : '',
+  );
+  let velLoadedKey = '';
   $effect(() => {
-    const tab = activeTab;
-    const entries = velTopEntries;
-    const r = range;
-    if (!loading && entries.length > 0) {
-      loadVelocity(tab, entries, r);
-    }
+    const key = velKey;
+    if (!key || key === velLoadedKey) return;
+    velLoadedKey = key;
+    untrack(() => loadVelocity(activeTab, velTopEntries, range));
   });
 
   let velChartOption = $derived.by<EChartsOption>(() => {
@@ -535,16 +543,23 @@
     velHiddenIds = new Set();
   });
 
-  // re-extraer colores cuando cambia chartCount (sin recargar datos)
+  // re-extraer colores cuando cambia chartCount (sin recargar datos). sólo depende de
+  // chartCount: el resto va en untrack porque leía barColors y lo escribía, y con menos
+  // filas que el top N (`barColors.length` nunca llega a `count`) se reejecutaba sin fin
+  // — pestaña congelada con 0 filas, ~70% de CPU con pocas. la carga y el play optimista
+  // ya extraen los colores ellos mismos
   $effect(() => {
     const count = chartCount;
-    if (loading) return;
-    if (barColors.length === count) return;
-    const signal = fetchCtrl.signal;
-    (async () => {
-      const colors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums, count);
-      if (!signal?.aborted) barColors = colors;
-    })();
+    untrack(() => {
+      if (loading) return;
+      const available = activeTab === 'tracks' ? topTracks.length : activeTab === 'artists' ? topArtists.length : topAlbums.length;
+      if (barColors.length === Math.min(count, available)) return;
+      const signal = fetchCtrl.signal;
+      (async () => {
+        const colors = await extractBarColors(activeTab, topTracks, topArtists, topAlbums, count);
+        if (!signal?.aborted) barColors = colors;
+      })();
+    });
   });
 
   function getCustomDates(): DateRangeParams | undefined {

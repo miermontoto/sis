@@ -8,7 +8,7 @@
 // Tier 2/3 ceden tiempo entre items vía requestIdleCallback.
 
 import { TOP_PAGE_LIMIT, INSIGHTS_GENRES_LIMIT } from '@sis/shared';
-import { api, getRankingMetric, getWeekStart, type RankingMetric } from '../api';
+import { api, getRankingMetric, getRecordsUnique, getWeekStart, type RankingMetric } from '../api';
 
 // granularidad que pide /insights por rango. Debe coincidir con
 // granularityForRange() de esa página: la granularidad va en la clave de cache.
@@ -92,9 +92,12 @@ function tier2Tasks(metric: RankingMetric, weekStart: string): Task[] {
     tasks.push(() => api.chartPeriods(g, weekStart));
   }
 
-  // records (3 tabs).
+  // records (3 tabs). con el `unique` del usuario, que es la clave que hornea el
+  // servidor: sin él caía en el default (true), fallaba la cache y cada arranque lanzaba
+  // tres getRecords en frío (~30s de worker) que nadie iba a leer
+  const unique = getRecordsUnique();
   for (const t of ['tracks', 'albums', 'artists'] as const) {
-    tasks.push(() => api.records(weekStart, metric, t));
+    tasks.push(() => api.records(weekStart, metric, t, unique));
   }
 
   // insights bundle del mes (range más visto).
