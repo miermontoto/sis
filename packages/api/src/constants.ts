@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w41r';
+export const VERSION = '26w41s';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -142,6 +142,12 @@ export const SERIES_BATCH_LIMIT = 50;
 
 // color manual de álbum: hex de 6 dígitos, que es lo único que emite un <input type="color">
 export const ALBUM_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+// cuánto vale un tracklist de álbum pedido a spotify: dentro de este plazo
+// ensureFullAlbumTracks no lo vuelve a pedir aunque falten filas. Las ediciones
+// aniversario/deluxe nunca cuadran (los barridos de gemelos isrc+duración pliegan sus
+// temas en el álbum original), y sin esto cada visita volvía a pedirlo y reescribirlo
+export const ALBUM_TRACKLIST_RECHECK_MS = 30 * 24 * 60 * 60_000;
 
 // /stats/charts/peaks/stream: trozos de ranking en vuelo a la vez. El escaneo va
 // del año más reciente al más antiguo y cada trozo cierra parte de las entidades,

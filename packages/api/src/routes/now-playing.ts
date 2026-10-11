@@ -588,7 +588,7 @@ nowPlaying.post('/queue/album/:id', async (c) => {
   const db = getDb();
   const album = db.get(sql`SELECT total_tracks AS totalTracks FROM albums WHERE spotify_id = ${albumId}`) as { totalTracks: number | null } | undefined;
   if (!album) return c.json({ success: false, error: 'not_found', queued: 0 } satisfies QueueResponse, 404);
-  try { await ensureFullAlbumTracks(albumId, album.totalTracks, userId); } catch {}
+  try { await ensureFullAlbumTracks(albumId, album.totalTracks, userId, { force: true }); } catch {}
 
   // lo que siga sin numerar (spotify no lo listó, o su llamada falló) va al final: en
   // SQLite los NULL ordenan primero y el disco arrancaría por ahí

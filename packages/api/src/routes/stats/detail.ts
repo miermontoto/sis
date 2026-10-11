@@ -135,7 +135,7 @@ async function albumDetailForCollection(
   // cola del botón de play son los discos enteros, no sólo lo que ya sonó (en una
   // colección de EPs suele faltar la mitad de los temas)
   const memberAlbums = await dbRead('getCollectionAlbumMembers', collectionId, userId);
-  await Promise.all(memberAlbums.map((a) => ensureFullAlbumTracks(a.spotify_id, a.total_tracks, userId).catch(() => {})));
+  await Promise.all(memberAlbums.map((a) => ensureFullAlbumTracks(a.spotify_id, a.total_tracks, userId, { force: true }).catch(() => {})));
 
   const [summary, members, statsRow, series, collectionTracks, recentRaw, coversRaw, ratingRow] = await Promise.all([
     dbRead('getCollectionSummary', collectionId, userId),
@@ -201,7 +201,8 @@ detail.get('/album/:id', async (c) => {
   // completar el tracklist siempre, no solo en orden natural: el emparejamiento de singles
   // compara contra los nombres de los tracks del álbum, así que un tracklist incompleto (los
   // temas que nunca sonaron desde esta edición no se ingestan) pierde singles de adelanto.
-  // ensureFullAlbumTracks sale por un count indexado si ya está completo: sin coste extra.
+  // ensureFullAlbumTracks sale por un count indexado si ya está completo: sin coste extra,
+  // y tampoco repite el fetch si ya lo terminó hace menos de ALBUM_TRACKLIST_RECHECK_MS.
   try { await ensureFullAlbumTracks(id, album.total_tracks, userId); } catch {}
 
   const albumIds = await dbRead('resolveEntityIds', 'album', id, userId);

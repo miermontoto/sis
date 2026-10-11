@@ -45,6 +45,8 @@ export const albums = sqliteTable('albums', {
   mbid: text('mbid'),
   // color manual (#rrggbb) para las gráficas y el tinte del hero; NULL = el extraído de la portada
   color: text('color'),
+  // último tracklist completo pedido a spotify (ver ensureFullAlbumTracks)
+  tracklistCheckedAt: text('tracklist_checked_at'),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
 

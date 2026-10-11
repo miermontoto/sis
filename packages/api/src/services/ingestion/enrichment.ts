@@ -6,7 +6,7 @@ import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
-import { MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE } from '../../constants.js';
+import { MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE, ALBUM_TRACKLIST_RECHECK_MS } from '../../constants.js';
 import { createLogger } from '../logger.js';
 import { serviceUserAgent } from '../public-origin.js';
 import { searchVerifiedRecording } from './identity.js';
@@ -19,8 +19,11 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const COVERS_DIR = path.resolve(process.env.DATABASE_PATH || './data/sis.db', '..', 'covers');
 fs.mkdirSync(COVERS_DIR, { recursive: true });
 
-// asegurar que todos los tracks de un álbum están en la DB (fetch de Spotify si faltan)
-export async function ensureFullAlbumTracks(albumId: string, totalTracks: number | null, userId: number): Promise<void> {
+// asegurar que todos los tracks de un álbum están en la DB (fetch de Spotify si faltan).
+// `force` se salta el plazo de ALBUM_TRACKLIST_RECHECK_MS: lo usan los caminos que actúan
+// sobre el tracklist local entero (encolar el disco, el Play de una colección), donde
+// un hueco es un tema que no suena; la página del álbum sólo lo enseña
+export async function ensureFullAlbumTracks(albumId: string, totalTracks: number | null, userId: number, { force = false } = {}): Promise<void> {
   if (!totalTracks || albumId.startsWith('local:') || albumId.startsWith('import:')) return;
 
   const db = getDb();
@@ -35,6 +38,14 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
     WHERE album_id = ${albumId}
   `)[0] as { c: number; missing_disc: number | null };
   if (row.c >= totalTracks && (row.missing_disc ?? 0) === 0) return;
+
+  // el recuento sólo dice que faltan filas, no que spotify vaya a traer otras: en las
+  // ediciones aniversario/deluxe los barridos de gemelos isrc+duración vuelven a plegar
+  // en el álbum original lo que se inserta aquí, y cada visita repetía el fetch y las
+  // escrituras (la de 10-07 de RAM 10th Anniversary, 11.8s). Un tracklist terminado vale
+  // ALBUM_TRACKLIST_RECHECK_MS
+  const checked = db.get(sql`SELECT tracklist_checked_at as at FROM albums WHERE spotify_id = ${albumId}`) as { at: string | null } | undefined;
+  if (!force && checked?.at && Date.now() - Date.parse(checked.at) < ALBUM_TRACKLIST_RECHECK_MS) return;
 
   const data = await spotifyFetch<SpotifyAlbumTracksResponse>(`/albums/${albumId}/tracks`, {
     userId, params: { limit: '50' },
@@ -71,7 +82,8 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
     // `endpoint`, no `path`: ese nombre es el módulo 'path' importado arriba
     const endpoint = url.pathname.replace(/^\/v1/, '') + url.search;
     const page = await spotifyFetch<SpotifyAlbumTracksResponse>(endpoint, { userId });
-    if (!page?.items) break;
+    // una página fallida deja el tracklist a medias: sin sello, la próxima visita reintenta
+    if (!page?.items) return;
     for (const item of page.items) {
       for (const artist of item.artists) {
         if (!artist.name) continue;
@@ -95,6 +107,8 @@ export async function ensureFullAlbumTracks(albumId: string, totalTracks: number
     }
     next = page.next;
   }
+
+  db.run(sql`UPDATE albums SET tracklist_checked_at = ${now()} WHERE spotify_id = ${albumId}`);
 }
 
 // refrescar fotos y metadata de artistas consultando /artists en lotes de 50.
