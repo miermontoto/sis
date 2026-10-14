@@ -14,10 +14,11 @@ export interface EntityRanksSource {
 }
 
 // posiciones (7D/30D/YTD/All), historial mensual de ranking y trayectoria semanal en
-// charts de UNA entidad. Lo leen tres secciones del detalle (ranking badges, chart stats
-// y la timeline) y ninguna puede ser la dueña del fetch: cualquiera se oculta desde el
-// editor de layout, y si la dueña era la oculta, la timeline se quedaba sin su línea.
-// Se instancia en la inicialización de la página: los efectos viven con ella
+// charts de UNA entidad: lo que pintan los ranking badges (con su gráfica) y chart stats.
+// Las dos secciones lo pedían cada una con su copia del mismo baile (abort, releer sin
+// skeleton la misma entidad, attributionVersion); aquí vive una vez y la página decide
+// qué pedir según qué esté visible y si la entidad rankea. Se instancia en la
+// inicialización de la página: los efectos viven con ella
 export class EntityRanks {
   rankings = $state<Rankings | null>(null);
   history = $state<RankingHistoryPointWithCrossovers[]>([]);

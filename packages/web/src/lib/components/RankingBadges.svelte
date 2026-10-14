@@ -3,10 +3,10 @@
   import type { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { periodLabel } from '$lib/utils/periods';
+  import RankHistoryChart from './charts/RankHistoryChart.svelte';
 
-  // las posiciones las pide EntityRanks (lo comparten chart stats y la timeline); la
-  // línea de ranking que vivía debajo de los badges es ahora el panel de arriba de la
-  // timeline, con el mismo eje que las escuchas
+  // las posiciones y el historial los pide EntityRanks, a nivel de página: los comparte
+  // con chart stats, y la página decide si hace falta pedirlos según lo que esté visible
   let {
     entityType,
     entityId,
@@ -69,6 +69,8 @@
   {/each}
 </div>
 
+<RankHistoryChart {entityType} {ranks} bind:highlightedMonth />
+
 <style>
   .rankings-row {
     /* medidas de las tres líneas del badge en un solo sitio: el min-height se calcula
@@ -81,6 +83,7 @@
     --rb-pad-y: 0.4rem;
     display: flex;
     gap: 0.5rem;
+    margin-bottom: 0.5rem;
     flex-wrap: wrap;
   }
   .ranking-badge {

@@ -46,7 +46,7 @@ describe('resolveLayout', () => {
     const resolved = resolveLayout('artist', stored);
     // chartStats (main por defecto) se añade al final de main; concerts, relations y
     // recentPlays al final de rail. 'historyByYear' se retiró (es el modo "year" de la
-    // timeline) y desaparece del layout guardado sin dejar hueco
+    // gráfica de actividad) y desaparece del layout guardado sin dejar hueco
     expect(resolved.main).toEqual(['stats', 'rankingBadges', 'activity', 'topTracks', 'topAlbums', 'chartStats']);
     expect(resolved.rail).toEqual(['concerts', 'relations', 'recentPlays']);
     // cobertura total: cada sección del registro aparece exactamente una vez

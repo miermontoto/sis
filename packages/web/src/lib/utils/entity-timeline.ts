@@ -1,11 +1,10 @@
 import { periodBounds, type WeekStartOption } from '@sis/shared';
 import { MIN_BAR_SLOT_PX, periodToQuarter, periodToYear } from './chart';
 
-// eje compartido de la timeline del detalle: escuchas, acumulado, posición all-time y
-// posición en los charts semanales sobre las MISMAS columnas. Las cuatro fuentes llegan
-// con calendarios distintos (serie mensual del detalle, historial mensual de ranking,
-// semanas del chart) y aquí se llevan a meses y de ahí al bucket que quepa en el ancho.
-// módulo puro: la gráfica sólo pinta lo que sale de aquí
+// calendario de las gráficas del detalle: la de actividad (escuchas y acumulado) y la de
+// ranking (posición all-time) van sobre los mismos meses, del primer play al mes en curso,
+// para que el enlace por mes entre las dos (y con el chart run) case. Aquí se llevan a
+// meses y de ahí al bucket que quepa en el ancho. módulo puro: las gráficas sólo pintan
 
 export type TimelineGranularity = 'month' | 'year';
 
@@ -21,8 +20,6 @@ export interface TimelineBucket {
   cumMs: number;
   /** posición all-time al cierre del bucket; null antes del primer play */
   rank: number | null;
-  /** mejor posición semanal dentro del bucket; null si no entró en ningún chart */
-  chartRank: number | null;
 }
 
 export interface TimelineSources {
@@ -30,9 +27,6 @@ export interface TimelineSources {
   series: { period: string; play_count: number; total_ms: number }[];
   /** ranking all-time acumulado, mensual */
   rankHistory: { period: string; rank: number }[];
-  /** trayectoria semanal en charts (rank null = fuera del chart esa semana) */
-  chartWeeks: { period: string; rank: number | null }[];
-  weekStart: WeekStartOption;
   /** fin del eje: el mes en curso, aunque la entidad lleve años sin sonar */
   now: Date;
 }
@@ -57,7 +51,8 @@ export function monthRange(first: string, last: string): string[] {
   return out;
 }
 
-/** mes al que pertenece una semana del chart: el de su primer día, con el corte de weekStart */
+/** mes al que pertenece una semana del chart: el de su primer día, con el corte de weekStart.
+ *  ChartStats lo usa para casar sus celdas con las columnas de las gráficas */
 export function weekMonth(period: string, weekStart: WeekStartOption): string | null {
   const bounds = periodBounds(period, 'week', weekStart);
   return bounds ? bounds.start.slice(0, 7) : null;
@@ -68,19 +63,13 @@ export function weekMonth(period: string, weekStart: WeekStartOption): string | 
  * un mes en el que nadie escuchó nada no tiene fila en el historial (el servidor sólo
  * emite meses con plays) y su posición es la del mes anterior, así que se arrastra.
  */
-export function timelineMonths({ series, rankHistory, chartWeeks, weekStart, now }: TimelineSources): TimelineBucket[] {
+export function timelineMonths({ series, rankHistory, now }: TimelineSources): TimelineBucket[] {
   const firsts = [series[0]?.period, rankHistory[0]?.period].filter((p): p is string => !!p && MONTH_KEY.test(p));
   if (!firsts.length) return [];
   const lasts = [series.at(-1)?.period, rankHistory.at(-1)?.period, utcMonth(now)].filter((p): p is string => !!p && MONTH_KEY.test(p));
 
   const plays = new Map(series.map(s => [s.period, s]));
   const ranks = new Map(rankHistory.map(h => [h.period, h.rank]));
-  const chartBest = new Map<string, number>();
-  for (const w of chartWeeks) {
-    if (w.rank == null) continue;
-    const month = weekMonth(w.period, weekStart);
-    if (month) chartBest.set(month, Math.min(chartBest.get(month) ?? Infinity, w.rank));
-  }
 
   let cumPlays = 0;
   let cumMs = 0;
@@ -98,15 +87,14 @@ export function timelineMonths({ series, rankHistory, chartWeeks, weekStart, now
       cumPlays,
       cumMs,
       rank,
-      chartRank: chartBest.get(month) ?? null,
     };
   });
 }
 
 /**
  * Agrupa meses consecutivos por clave de calendario. Sin pérdida: las escuchas se suman,
- * el acumulado y la posición all-time son los del último mes (son acumulados, así que el
- * cierre del bucket ES su valor), y del chart semanal queda la mejor posición.
+ * y el acumulado y la posición all-time son los del último mes (son acumulados, así que
+ * el cierre del bucket ES su valor).
  */
 export function bucketTimeline(months: TimelineBucket[], keyFn: (month: string) => string): TimelineBucket[] {
   const out: TimelineBucket[] = [];
@@ -120,7 +108,6 @@ export function bucketTimeline(months: TimelineBucket[], keyFn: (month: string) 
       b.cumPlays = m.cumPlays;
       b.cumMs = m.cumMs;
       b.rank = m.rank ?? b.rank;
-      if (m.chartRank != null) b.chartRank = Math.min(b.chartRank ?? Infinity, m.chartRank);
     } else {
       out.push({ ...m, key, months: [m.key] });
     }

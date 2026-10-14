@@ -16,7 +16,7 @@
   import { medalColor } from '$lib/utils/medals';
   import { resolveEntityColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
-  import EntityTimeline from '$lib/components/charts/EntityTimeline.svelte';
+  import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
@@ -72,8 +72,8 @@
   let recheckingDuration = $state(false);
   let layout = $state<DetailLayout>(defaultLayout('track'));
 
-  // posiciones, historial de ranking y trayectoria en charts: los leen los badges, chart
-  // stats y la timeline, así que se piden una vez para toda la página (ver EntityRanks).
+  // posiciones, historial de ranking y trayectoria en charts: los leen los badges (y su
+  // gráfica) y chart stats, y se piden a nivel de página según qué esté visible (ver EntityRanks).
   // `rankable` es $derived a propósito: el detalle se relee con cada play confirmado, y
   // leer `data` a pelo dentro del efecto relanzaría el escaneo de ranking cada vez
   let rankable = $derived(!!data && !mergedInto);
@@ -82,8 +82,8 @@
     type: 'track',
     id: trackId,
     metric,
-    ranks: rankable && (sectionShown('rankingBadges') || sectionShown('activity')),
-    chart: rankable && (sectionShown('chartStats') || sectionShown('activity')),
+    ranks: rankable && sectionShown('rankingBadges'),
+    chart: rankable && sectionShown('chartStats'),
   }));
   const fetchCtrl = createFetchController();
 
@@ -312,7 +312,7 @@
       <!-- misma condición que la propia gráfica: sin serie no hay sección -->
       {#if d.series.length > 1}
         <section class="detail-section">
-          <EntityTimeline entityType="track" series={d.series} {metric} events={releaseEvents} ranks={rankable ? entityRanks : null} bind:highlightedMonth />
+          <ActivityChart entityType="track" series={d.series} {metric} events={releaseEvents} linkCharts={rankable} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'versions'}

@@ -5,7 +5,7 @@ import { periodToQuarter, MIN_BAR_SLOT_PX } from './chart';
 const NOW = new Date('2026-10-14T12:00:00Z');
 
 function sources(overrides: Partial<TimelineSources> = {}): TimelineSources {
-  return { series: [], rankHistory: [], chartWeeks: [], weekStart: 'monday', now: NOW, ...overrides };
+  return { series: [], rankHistory: [], now: NOW, ...overrides };
 }
 
 describe('monthRange', () => {
@@ -49,19 +49,6 @@ describe('timelineMonths', () => {
     expect(months.map(m => m.rank)).toEqual([null, 12, 12]);
   });
 
-  it('se queda con la mejor semana de cada mes e ignora las semanas fuera del chart', () => {
-    const months = timelineMonths(sources({
-      series: [{ period: '2026-09', play_count: 1, total_ms: 1 }],
-      chartWeeks: [
-        { period: '2026-W36', rank: 9 }, // empieza el lunes 7 de septiembre
-        { period: '2026-W37', rank: 4 },
-        { period: '2026-W38', rank: null },
-        { period: '2026-W41', rank: 15 }, // empieza el lunes 12 de octubre
-      ],
-    }));
-    expect(months.map(m => m.chartRank)).toEqual([4, 15]);
-  });
-
   it('sin datos no hay eje', () => {
     expect(timelineMonths(sources())).toEqual([]);
   });
@@ -75,13 +62,12 @@ describe('bucketTimeline', () => {
       { period: '2026-04', play_count: 5, total_ms: 50 },
     ],
     rankHistory: [{ period: '2026-01', rank: 30 }, { period: '2026-02', rank: 20 }, { period: '2026-04', rank: 8 }],
-    chartWeeks: [{ period: '2026-W06', rank: 7 }, { period: '2026-W15', rank: 2 }],
   }));
 
   it('suma las escuchas y cierra acumulado y posición en el último mes del bucket', () => {
     const [q1, q2] = bucketTimeline(months, periodToQuarter);
-    expect(q1).toMatchObject({ key: '2026-Q1', months: ['2026-01', '2026-02', '2026-03'], plays: 5, ms: 50, cumPlays: 5, rank: 20, chartRank: 7 });
-    expect(q2).toMatchObject({ key: '2026-Q2', plays: 5, cumPlays: 10, rank: 8, chartRank: 2 });
+    expect(q1).toMatchObject({ key: '2026-Q1', months: ['2026-01', '2026-02', '2026-03'], plays: 5, ms: 50, cumPlays: 5, rank: 20 });
+    expect(q2).toMatchObject({ key: '2026-Q2', plays: 5, cumPlays: 10, rank: 8 });
   });
 
   it('no muta los meses de entrada', () => {

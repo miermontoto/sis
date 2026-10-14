@@ -27,10 +27,9 @@ export interface DetailLayout {
 // estructural (no configurable) y no aparece aquí; en el dashboard, tampoco el
 // aviso de charts cerrados (es descartable). Los merges ya no son un banner
 // aparte: viven en la sección 'relations', que por eso existe en los tres detalles.
-// 'activity' es la timeline (ranking + escuchas en una gráfica): conserva la key de la
-// antigua gráfica de actividad para que los layouts guardados no la pierdan, y la vista
-// por años del rail ('historyByYear') es su modo "year", así que esa key ya no existe
-// (resolveLayout descarta las keys desconocidas de un layout guardado)
+// La vista por años del rail ('historyByYear') es ahora el modo "year" de la gráfica de
+// actividad ('activity'), así que esa key ya no existe (resolveLayout descarta las keys
+// desconocidas de un layout guardado)
 export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
   artist: [
     { key: 'stats', label: 'Stats', column: 'main' },

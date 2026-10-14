@@ -6,8 +6,7 @@
   import { weekMonth } from '$lib/utils/entity-timeline';
   import PeakSelector from './PeakSelector.svelte';
 
-  // la trayectoria la pide EntityRanks: la timeline pinta las mismas semanas como puntos
-  // en su panel de ranking, así que el fetch no puede vivir en una sección ocultable
+  // la trayectoria la pide EntityRanks, a nivel de página
   let {
     entityType,
     ranks,
@@ -20,8 +19,8 @@
 
   const pluralType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
-  // mes de una semana del chart: el mismo corte que usa la timeline, así que pasar el
-  // ratón por una celda y por su columna de la gráfica marcan el mismo mes
+  // mes de una semana del chart, con el corte de weekStart: pasar el ratón por una celda
+  // y por su columna en las gráficas de ranking y actividad marcan el mismo mes
   const weekStart = getWeekStart();
   const periodToMonth = (period: string) => weekMonth(period, weekStart) ?? period.slice(0, 7);
 
