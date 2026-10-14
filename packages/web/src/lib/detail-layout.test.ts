@@ -5,7 +5,7 @@ describe('defaultLayout', () => {
   it('coloca cada sección del registro en su columna por defecto, nada oculto', () => {
     const layout = defaultLayout('artist');
     expect(layout.main).toEqual(['stats', 'rankingBadges', 'chartStats', 'activity', 'topTracks', 'topAlbums']);
-    expect(layout.rail).toEqual(['historyByYear', 'concerts', 'relations', 'recentPlays']);
+    expect(layout.rail).toEqual(['concerts', 'relations', 'recentPlays']);
     expect(layout.hidden).toEqual([]);
   });
 
@@ -25,12 +25,11 @@ describe('resolveLayout', () => {
   });
 
   it('respeta el orden y las columnas guardadas', () => {
-    const stored = { main: ['activity', 'stats'], rail: ['recentPlays', 'historyByYear'], hidden: ['tracks'] };
+    const stored = { main: ['activity', 'stats'], rail: ['recentPlays', 'singles'], hidden: ['tracks'] };
     const resolved = resolveLayout('album', stored);
     expect(resolved.main).toEqual(['activity', 'stats', 'rankingBadges', 'chartStats', 'members']);
-    // 'singles' y 'relations' no están en lo guardado → se añaden al final de su
-    // columna por defecto, en el orden del registro
-    expect(resolved.rail).toEqual(['recentPlays', 'historyByYear', 'singles', 'relations']);
+    // 'relations' no está en lo guardado → se añade al final de su columna por defecto
+    expect(resolved.rail).toEqual(['recentPlays', 'singles', 'relations']);
     expect(resolved.hidden).toEqual(['tracks']);
   });
 
@@ -46,9 +45,10 @@ describe('resolveLayout', () => {
     const stored = { main: ['stats', 'rankingBadges', 'activity', 'topTracks', 'topAlbums'], rail: ['historyByYear'], hidden: [] };
     const resolved = resolveLayout('artist', stored);
     // chartStats (main por defecto) se añade al final de main; concerts, relations y
-    // recentPlays al final de rail
+    // recentPlays al final de rail. 'historyByYear' se retiró (es el modo "year" de la
+    // timeline) y desaparece del layout guardado sin dejar hueco
     expect(resolved.main).toEqual(['stats', 'rankingBadges', 'activity', 'topTracks', 'topAlbums', 'chartStats']);
-    expect(resolved.rail).toEqual(['historyByYear', 'concerts', 'relations', 'recentPlays']);
+    expect(resolved.rail).toEqual(['concerts', 'relations', 'recentPlays']);
     // cobertura total: cada sección del registro aparece exactamente una vez
     const all = [...resolved.main, ...resolved.rail, ...resolved.hidden].sort();
     expect(all).toEqual(DETAIL_SECTIONS.artist.map(d => d.key).sort());

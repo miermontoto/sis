@@ -6,7 +6,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { api, createFetchController, type TrackDetail, type ChartHistoryResponse, type RankingMetric, getRankingMetric } from '$lib/api';
+  import { api, createFetchController, type TrackDetail, type RankingMetric, getRankingMetric } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -16,8 +16,8 @@
   import { medalColor } from '$lib/utils/medals';
   import { resolveEntityColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
-  import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
-  import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
+  import EntityTimeline from '$lib/components/charts/EntityTimeline.svelte';
+  import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
@@ -55,7 +55,6 @@
   let mergedFrom = $derived((data?.relations ?? [])
     .filter(r => r.kind === 'absorbed')
     .map(r => ({ id: r.id, ruleId: r.ruleIds[0], name: r.name, imageUrl: r.imageUrl })));
-  let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let loading = $state(true);
   let heroColor = $state('');
   let highlightedMonth = $state('');
@@ -72,6 +71,20 @@
   let durationInput = $state('');
   let recheckingDuration = $state(false);
   let layout = $state<DetailLayout>(defaultLayout('track'));
+
+  // posiciones, historial de ranking y trayectoria en charts: los leen los badges, chart
+  // stats y la timeline, así que se piden una vez para toda la página (ver EntityRanks).
+  // `rankable` es $derived a propósito: el detalle se relee con cada play confirmado, y
+  // leer `data` a pelo dentro del efecto relanzaría el escaneo de ranking cada vez
+  let rankable = $derived(!!data && !mergedInto);
+  const sectionShown = (key: string) => !layout.hidden.includes(key);
+  const entityRanks = new EntityRanks(() => ({
+    type: 'track',
+    id: trackId,
+    metric,
+    ranks: rankable && (sectionShown('rankingBadges') || sectionShown('activity')),
+    chart: rankable && (sectionShown('chartStats') || sectionShown('activity')),
+  }));
   const fetchCtrl = createFetchController();
 
   // foco al abrir la edición inline: el atributo autofocus es un antipatrón de a11y
@@ -180,7 +193,6 @@
     if (!initialized || !id) return;
     if (id !== prevId) {
       data = null;
-      chartHistoryData = null;
       prevId = id;
     }
     loadData(id);
@@ -261,13 +273,13 @@
     {:else if key === 'rankingBadges'}
       {#if !mergedInto}
         <section class="detail-section">
-          <RankingBadges entityType="track" entityId={trackId} bind:highlightedMonth />
+          <RankingBadges entityType="track" entityId={trackId} ranks={entityRanks} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
       {#if !mergedInto}
         <section class="detail-section">
-          <ChartStats entityType="track" entityId={trackId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+          <ChartStats entityType="track" ranks={entityRanks} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'albumBreakdown'}
@@ -300,15 +312,7 @@
       <!-- misma condición que la propia gráfica: sin serie no hay sección -->
       {#if d.series.length > 1}
         <section class="detail-section">
-          <h2 class="section-title">Listening history</h2>
-          <ActivityChart series={d.series} {metric} height="260px" events={releaseEvents} />
-        </section>
-      {/if}
-    {:else if key === 'historyByYear'}
-      {#if d.series.length > 1}
-        <section class="detail-section">
-          <h2 class="section-title">History by year</h2>
-          <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
+          <EntityTimeline entityType="track" series={d.series} {metric} events={releaseEvents} ranks={rankable ? entityRanks : null} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'versions'}

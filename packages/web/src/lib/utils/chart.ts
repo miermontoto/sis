@@ -51,6 +51,12 @@ export function tooltipTuplePoints(params: TooltipParams): TooltipTuplePoint[] {
   return (Array.isArray(params) ? params : [params]) as unknown as TooltipTuplePoint[];
 }
 
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+/** Texto seguro dentro del HTML de un tooltip: los nombres de entidad los escribe quien
+ *  scrobblea (listenbrainz, last.fm) o el propio usuario (colecciones) */
+export const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
+
 // EChartsOption['xAxis'|'yAxis'] es una unión "un eje o varios": los helpers de
 // abajo construyen exactamente uno, así que devuelven solo la rama no-array. Si
 // devolvieran la unión entera, componer dos en un array daría un tipo inválido.
@@ -206,7 +212,8 @@ export function secondaryValueAxis({ axisLabel, ...overrides }: Record<string, a
 // un punto de serie: el valor pelado, o el valor con estilo propio. Las gráficas de
 // insights usan la segunda forma para atenuar el punto "en curso"; declarar los
 // helpers como number[] obligaba a castear en cada llamada.
-export type SeriesDataPoint = number | { value: number; itemStyle?: Record<string, unknown> };
+// null es un hueco: echarts no pinta ese punto (una línea de ranking antes del primer play)
+export type SeriesDataPoint = number | null | { value: number; itemStyle?: Record<string, unknown> };
 
 // --- Adaptación de densidad temporal ---
 // el ancho de barra de un chart de categorías es plotWidth/N: con series largas

@@ -1700,6 +1700,31 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   border-color: var(--text-secondary);
 }
 
+/* cabecera de sección con vistas alternativas (List · Bar · Velocity de los tops del
+   artista, Month · Year de la timeline): título + toggle + acciones; en pantallas
+   estrechas los botones bajan de línea */
+.section-header--views {
+  flex-wrap: wrap;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* la vista activa se marca como el rango activo de los selectores de tiempo */
+.view-toggle .show-all-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 /* live / now playing indicators */
 
 /* fila sonando ahora: contenedor verde con el mismo lenguaje que la card de

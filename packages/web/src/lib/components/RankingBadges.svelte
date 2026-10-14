@@ -1,154 +1,41 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
-  import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPointWithCrossovers, type RankingMetric, type EntityType } from '$lib/api';
+  import type { Rankings, EntityType } from '$lib/api';
+  import type { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import { medalColor } from '$lib/utils/medals';
-  import { attributionVersion } from '$lib/stores/attribution';
   import { periodLabel } from '$lib/utils/periods';
-  import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
-  import BaseChart from '$lib/components/charts/BaseChart.svelte';
-  import type * as echarts from 'echarts/core';
-  import type { EChartsOption } from 'echarts';
 
+  // las posiciones las pide EntityRanks (lo comparten chart stats y la timeline); la
+  // línea de ranking que vivía debajo de los badges es ahora el panel de arriba de la
+  // timeline, con el mismo eje que las escuchas
   let {
     entityType,
     entityId,
+    ranks,
     highlightedMonth = $bindable(''),
   }: {
     entityType: EntityType;
     entityId: string;
+    ranks: EntityRanks;
     highlightedMonth?: string;
   } = $props();
 
-  let rankings = $state<Rankings | null>(null);
-  let rankingsLoading = $state(true);
-  let history = $state<RankingHistoryPointWithCrossovers[]>([]);
-  let historyLoading = $state(true);
-  let chartInstance = $state<echarts.ECharts | null>(null);
-  const fetchCtrl = createFetchController();
-
-  // echarts escribe white-space:nowrap como estilo inline en el tooltip, y una regla
-  // de clase no puede con un inline: el ancho máximo sí se aplicaba, pero el texto no
-  // partía y los nombres largos se salían de la caja. extraCssText va al final de ese
-  // mismo inline, así que aquí sí gana
-  const XO_TOOLTIP_CSS = 'white-space:normal;max-width:300px;';
-  const XO_LIMIT = 5; // máximo de entidades listadas por sentido
-
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
   let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
-
-  // entidad pintada: releer la MISMA (un merge o una colección mueven sus posiciones)
-  // deja lo que hay hasta que llega la respuesta, en vez de volver al skeleton
-  let shownId = '';
-
-  $effect(() => {
-    const id = entityId;
-    void attributionVersion();
-    const signal = fetchCtrl.reset();
-    if (id !== shownId) {
-      shownId = id;
-      rankingsLoading = true;
-      historyLoading = true;
-      rankings = null;
-      history = [];
-    }
-    const metric = getRankingMetric();
-
-    // una sola petición: posiciones e historial salen del mismo escaneo en el servidor
-    api.rankingsWithHistory(entityType, id, metric, signal)
-      .then(r => { if (!signal.aborted) { rankings = r.rankings; history = r.history; rankingsLoading = false; historyLoading = false; } })
-      .catch(() => { if (!signal.aborted) { rankings = null; history = []; rankingsLoading = false; historyLoading = false; } });
-
-    return () => fetchCtrl.abort();
-  });
+  let rankings = $derived(ranks.rankings);
+  let rankingsLoading = $derived(ranks.rankingsLoading);
 
   // pico histórico: mejor posición all-time alcanzada nunca. el historial ya es el ranking
   // acumulado mes a mes, así que el pico sale de ahí sin query ni endpoint extra.
   let allTimePeak = $derived.by(() => {
-    if (history.length === 0) return null;
-    let best = history[0];
-    for (const p of history) if (p.rank < best.rank) best = p;
+    if (ranks.history.length === 0) return null;
+    let best = ranks.history[0];
+    for (const p of ranks.history) if (p.rank < best.rank) best = p;
     return best;
   });
 
   let allTimePeakTitle = $derived(
     allTimePeak ? `All-time peak: #${allTimePeak.rank} (${periodLabel(allTimePeak.period, 'month')})` : undefined
   );
-
-  function handleChartClick() {
-    if (!highlightedMonth) return;
-    goto(`/charts?type=${chartType}&granularity=month&period=${highlightedMonth}`);
-  }
-
-  function handleChartOut() {
-    highlightedMonth = '';
-  }
-
-  // cuando ChartStats cambia el highlightedMonth, destacar el punto correspondiente
-  $effect(() => {
-    if (!chartInstance || history.length < 2) return;
-    if (highlightedMonth) {
-      const idx = history.findIndex(h => h.period === highlightedMonth);
-      if (idx >= 0) {
-        chartInstance.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: idx });
-        return;
-      }
-    }
-    chartInstance.dispatchAction({ type: 'hideTip' });
-  });
-
-  let chartOption = $derived.by<EChartsOption>(() => {
-    if (history.length < 2) return {};
-    return {
-      grid: { ...GRID },
-      tooltip: {
-        ...TOOLTIP_BASE,
-        extraCssText: XO_TOOLTIP_CSS,
-        formatter: (params: TooltipParams) => {
-          const p = tooltipPoint(params);
-          const point = history[p.dataIndex];
-          if (!point) return '';
-          if (point.period && highlightedMonth !== point.period) highlightedMonth = point.period;
-          let html = `${p.axisValue}<br/><b>#${p.value}</b>`;
-          if (point.crossovers) {
-            const { surpassedBy, surpassed } = point.crossovers;
-            const renderEntity = (e: typeof surpassedBy[0], arrow: string, cls: string) => {
-              const img = e.imageUrl ? `<img class="xo-img" src="${e.imageUrl}"/>` : '';
-              return `<div class="xo-row"><span class="${cls}">${arrow}</span>${img}<span class="xo-name">${e.name}</span></div>`;
-            };
-            if (surpassedBy.length > 0 || surpassed.length > 0) html += `<div class="xo-sep"></div>`;
-            for (const e of surpassed.slice(0, XO_LIMIT)) html += renderEntity(e, '▲', 'xo-up');
-            if (surpassed.length > XO_LIMIT) html += `<div class="xo-more">+${surpassed.length - XO_LIMIT} más</div>`;
-            for (const e of surpassedBy.slice(0, XO_LIMIT)) html += renderEntity(e, '▼', 'xo-down');
-            if (surpassedBy.length > XO_LIMIT) html += `<div class="xo-more">+${surpassedBy.length - XO_LIMIT} más</div>`;
-          }
-          return html;
-        },
-      },
-      xAxis: categoryAxis(history.map(d => d.period)),
-      yAxis: {
-        type: 'log',
-        inverse: true,
-        min: 1,
-        splitLine: { ...SPLIT_LINE },
-        axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `#${Math.round(v)}` },
-      },
-      series: [lineSeries(history.map(d => d.rank), {
-        symbol: 'circle',
-        symbolSize: 4,
-        cursor: 'pointer',
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 1, x2: 0, y2: 0,
-            colorStops: [
-              { offset: 0, color: 'rgba(29, 185, 84, 0.3)' },
-              { offset: 1, color: 'rgba(29, 185, 84, 0.02)' },
-            ],
-          },
-        },
-      })],
-    };
-  });
 </script>
 
 <div class="rankings-row">
@@ -182,23 +69,6 @@
   {/each}
 </div>
 
-{#if historyLoading}
-  <div class="chart-ghost">
-    <div class="chart-ghost-inner"></div>
-  </div>
-{:else if history.length >= 2}
-  <div class="chart-wrap">
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div onmouseleave={handleChartOut} onclick={handleChartClick} onkeydown={(e) => { if (e.key === 'Enter') handleChartClick(); }} role="button" tabindex="0" style="cursor: pointer;">
-      <BaseChart
-        option={chartOption}
-        height="180px"
-        bind:instance={chartInstance}
-      />
-    </div>
-  </div>
-{/if}
-
 <style>
   .rankings-row {
     /* medidas de las tres líneas del badge en un solo sitio: el min-height se calcula
@@ -211,7 +81,6 @@
     --rb-pad-y: 0.4rem;
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
     flex-wrap: wrap;
   }
   .ranking-badge {
@@ -301,64 +170,5 @@
     letter-spacing: var(--track);
     opacity: 0.75;
     margin-right: 0.2em;
-  }
-  .chart-wrap {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-  }
-  .chart-ghost {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    height: 180px;
-    overflow: hidden;
-  }
-  .chart-ghost-inner {
-    width: 100%;
-    height: 100%;
-    border-radius: var(--radius);
-    background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-placeholder) 50%, var(--bg-hover) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-  }
-  :global(.xo-row) {
-    font-size: 11px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-top: 3px;
-  }
-  :global(.xo-img) {
-    width: 18px;
-    height: 18px;
-    border-radius: 3px;
-    object-fit: cover;
-  }
-  :global(.xo-artist) {
-    color: var(--text-muted);
-  }
-  :global(.xo-up) {
-    color: var(--accent);
-  }
-  :global(.xo-down) {
-    color: var(--negative);
-  }
-  :global(.xo-sep) {
-    margin-top: 5px;
-  }
-  :global(.xo-more) {
-    font-size: 10px;
-    color: var(--text-muted);
-  }
-  /* el nombre es el único hijo de la fila que cede: min-width 0 para que el flex lo deje
-     encoger y partir en líneas, y anywhere por si un título sin espacios no cabe ni así */
-  :global(.xo-name) {
-    min-width: 0;
-    overflow-wrap: anywhere;
   }
 </style>

@@ -6,7 +6,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type ChartHistoryResponse, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getShowPlaylistBadges, getAlbumShowGlobalRanks } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getShowPlaylistBadges, getAlbumShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
@@ -15,8 +15,8 @@
   import { extractColor, hexToRgb, rgbToHex, type Rgb } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
-  import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
-  import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
+  import EntityTimeline from '$lib/components/charts/EntityTimeline.svelte';
+  import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
@@ -78,7 +78,6 @@
   let heroColor = $derived((hexToRgb(colorPreview ?? data?.album.color) ?? coverRgb)?.join(',') ?? '');
   let highlightedMonth = $state('');
   let metric = $state<RankingMetric>('time');
-  let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let showCoverPicker = $state(false);
   let showMergeModal = $state(false);
   let showCollectionModal = $state(false);
@@ -99,6 +98,20 @@
   let naturalTracks = $state<TopTrackItem[] | null>(null);
   let loadingNatural = $state(false);
   let layout = $state<DetailLayout>(defaultLayout('album'));
+
+  // posiciones, historial de ranking y trayectoria en charts: los leen los badges, chart
+  // stats y la timeline, así que se piden una vez para toda la página (ver EntityRanks).
+  // `rankable` es $derived a propósito: el detalle se relee con cada play confirmado, y
+  // leer `data` a pelo dentro del efecto relanzaría el escaneo de ranking cada vez
+  let rankable = $derived(!!data && !mergedInto && !data.collection);
+  const sectionShown = (key: string) => !layout.hidden.includes(key);
+  const entityRanks = new EntityRanks(() => ({
+    type: 'album',
+    id: albumId,
+    metric,
+    ranks: rankable && (sectionShown('rankingBadges') || sectionShown('activity')),
+    chart: rankable && (sectionShown('chartStats') || sectionShown('activity')),
+  }));
   const fetchCtrl = createFetchController();
   // salir de la página cancela su carga: un fetch que ya nadie va a pintar seguía
   // ocupando la red, y en el servidor el trabajo que aún no había empezado
@@ -333,7 +346,6 @@
     // resetear al cambiar de álbum para mostrar spinner
     if (id !== prevId) {
       data = null;
-      chartHistoryData = null;
       naturalTracks = null;
       trackSort = 'ranked';
       trackGlobalRanks = null;
@@ -362,20 +374,20 @@
     {:else if key === 'rankingBadges'}
       {#if !mergedInto && !d.collection}
         <section class="detail-section">
-          <RankingBadges entityType="album" entityId={albumId} bind:highlightedMonth />
+          <RankingBadges entityType="album" entityId={albumId} ranks={entityRanks} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
       {#if !mergedInto && !d.collection}
         <section class="detail-section">
-          <ChartStats entityType="album" entityId={albumId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+          <ChartStats entityType="album" ranks={entityRanks} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'activity'}
       <!-- misma condición que la propia gráfica: sin serie no hay sección -->
       {#if d.series.length > 1}
         <section class="detail-section">
-          <ActivityChart series={d.series} {metric} events={releaseEvents} />
+          <EntityTimeline entityType="album" series={d.series} {metric} events={releaseEvents} ranks={rankable ? entityRanks : null} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'tracks'}
@@ -438,13 +450,6 @@
               </div>
             {/each}
           </div>
-        </section>
-      {/if}
-    {:else if key === 'historyByYear'}
-      {#if d.series.length > 1}
-        <section class="detail-section">
-          <h2 class="section-title">History by year</h2>
-          <EntityHistoryChart series={d.series} {metric} events={releaseEvents} />
         </section>
       {/if}
     {:else if key === 'singles'}

@@ -7,7 +7,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type Concert, type ChartHistoryResponse, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getShowPlaylistBadges, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type Concert, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getShowPlaylistBadges, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -17,8 +17,8 @@
   import TrackItem from '$lib/components/TrackItem.svelte';
   import MetricMeta from '$lib/components/MetricMeta.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
-  import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
-  import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
+  import EntityTimeline from '$lib/components/charts/EntityTimeline.svelte';
+  import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import RankingChart, { type RankingChartItem, type RankingChartMode } from '$lib/components/charts/RankingChart.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
@@ -101,8 +101,21 @@
   let showTrackDuration = $state(true);
   let trackGlobalRanks = $state<Record<string, number> | null>(null);
   let albumGlobalRanks = $state<Record<string, number> | null>(null);
-  let chartHistoryData = $state<ChartHistoryResponse | null>(null);
   let layout = $state<DetailLayout>(defaultLayout('artist'));
+
+  // posiciones, historial de ranking y trayectoria en charts: los leen los badges, chart
+  // stats y la timeline, así que se piden una vez para toda la página (ver EntityRanks).
+  // `rankable` es $derived a propósito: el detalle se relee con cada play confirmado, y
+  // leer `data` a pelo dentro del efecto relanzaría el escaneo de ranking cada vez
+  let rankable = $derived(!!data && !mergedInto);
+  const sectionShown = (key: string) => !layout.hidden.includes(key);
+  const entityRanks = new EntityRanks(() => ({
+    type: 'artist',
+    id: artistId,
+    metric,
+    ranks: rankable && (sectionShown('rankingBadges') || sectionShown('activity')),
+    chart: rankable && (sectionShown('chartStats') || sectionShown('activity')),
+  }));
   let topView = $state<Record<TopListKind, TopView>>({ tracks: 'list', albums: 'list' });
   const fetchCtrl = createFetchController();
   // un controller por lista: expandir álbumes no debe abortar el fetch de tracks
@@ -351,7 +364,6 @@
       listCtrl.tracks.abort();
       listCtrl.albums.abort();
       data = null;
-      chartHistoryData = null;
       trackGlobalRanks = null;
       albumGlobalRanks = null;
       prevId = id;
@@ -452,20 +464,20 @@
     {:else if key === 'rankingBadges'}
       {#if !mergedInto}
         <section class="detail-section">
-          <RankingBadges entityType="artist" entityId={artistId} bind:highlightedMonth />
+          <RankingBadges entityType="artist" entityId={artistId} ranks={entityRanks} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'chartStats'}
       {#if !mergedInto}
         <section class="detail-section">
-          <ChartStats entityType="artist" entityId={artistId} bind:chartData={chartHistoryData} bind:highlightedMonth />
+          <ChartStats entityType="artist" ranks={entityRanks} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'activity'}
       <!-- misma condición que la propia gráfica: sin serie no hay sección -->
       {#if d.series.length > 1}
         <section class="detail-section">
-          <ActivityChart series={d.series} {metric} events={chartEvents} />
+          <EntityTimeline entityType="artist" series={d.series} {metric} events={chartEvents} ranks={rankable ? entityRanks : null} bind:highlightedMonth />
         </section>
       {/if}
     {:else if key === 'topTracks'}
@@ -536,13 +548,6 @@
             {/each}
           </div>
           {/if}
-        </section>
-      {/if}
-    {:else if key === 'historyByYear'}
-      {#if d.series.length > 1}
-        <section class="detail-section">
-          <h2 class="section-title">History by year</h2>
-          <EntityHistoryChart series={d.series} {metric} events={chartEvents} />
         </section>
       {/if}
     {:else if key === 'concerts'}
@@ -627,29 +632,6 @@
 {/if}
 
 <style>
-  /* título + vista + show all: en pantallas estrechas los botones bajan de línea */
-  .section-header--views {
-    flex-wrap: wrap;
-  }
-
-  .section-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .view-toggle {
-    display: flex;
-    gap: 0.25rem;
-  }
-
-  /* la vista activa se marca como el rango activo de los selectores de tiempo */
-  .view-toggle .show-all-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--on-accent);
-  }
-
   .chart-card {
     margin-bottom: 1.5rem;
   }

@@ -1,62 +1,34 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getWeekStart, getRankingMetric, type ChartHistoryResponse, type EntityType } from '$lib/api';
+  import { getWeekStart, type EntityType } from '$lib/api';
+  import type { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import { medalColor } from '$lib/utils/medals';
-  import { attributionVersion } from '$lib/stores/attribution';
+  import { weekMonth } from '$lib/utils/entity-timeline';
   import PeakSelector from './PeakSelector.svelte';
 
+  // la trayectoria la pide EntityRanks: la timeline pinta las mismas semanas como puntos
+  // en su panel de ranking, así que el fetch no puede vivir en una sección ocultable
   let {
     entityType,
-    entityId,
-    chartData = $bindable(null),
+    ranks,
     highlightedMonth = $bindable(''),
   }: {
     entityType: EntityType;
-    entityId: string;
-    chartData?: ChartHistoryResponse | null;
+    ranks: EntityRanks;
     highlightedMonth?: string;
   } = $props();
 
   const pluralType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
-  // extraer YYYY-MM de un periodo semanal (YYYY-WNN → usar la fecha del lunes de esa semana)
-  function periodToMonth(period: string): string {
-    const m = period.match(/^(\d{4})-W(\d{2})$/);
-    if (!m) return period.slice(0, 7);
-    const year = parseInt(m[1]);
-    const week = parseInt(m[2]);
-    // lunes de la semana W (ISO: semana empieza lunes, W01 contiene ene 4)
-    const jan4 = new Date(year, 0, 4);
-    const dayOfWeek = jan4.getDay() || 7;
-    const monday = new Date(jan4);
-    monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
-    return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}`;
-  }
+  // mes de una semana del chart: el mismo corte que usa la timeline, así que pasar el
+  // ratón por una celda y por su columna de la gráfica marcan el mismo mes
+  const weekStart = getWeekStart();
+  const periodToMonth = (period: string) => weekMonth(period, weekStart) ?? period.slice(0, 7);
 
-  let loading = $state(true);
   let hoveredWeek = $state('');
   let hoveredBadge = $state<'' | 'current' | 'peak'>('');
-  const fetchCtrl = createFetchController();
-
-  // entidad pintada: releer la MISMA tras un merge o una colección deja las cifras
-  // viejas hasta la respuesta, sin volver al skeleton
-  let shownId = '';
-
-  $effect(() => {
-    const id = entityId;
-    void attributionVersion();
-    const signal = fetchCtrl.reset();
-    if (id !== shownId) {
-      shownId = id;
-      loading = true;
-    }
-    api.chartHistory(pluralType, id, getWeekStart(), getRankingMetric(), signal)
-      .then(r => { if (!signal.aborted) { chartData = r; loading = false; } })
-      .catch(() => { if (!signal.aborted) { chartData = null; loading = false; } });
-    return () => fetchCtrl.abort();
-  });
-
-  let data = $derived(chartData);
+  let loading = $derived(ranks.chartLoading);
+  let data = $derived(ranks.chart);
 
   let currentMonth = $derived(data?.currentPeriod ? periodToMonth(data.currentPeriod) : '');
   let peakMonths = $derived.by(() => {

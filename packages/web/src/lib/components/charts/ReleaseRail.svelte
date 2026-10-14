@@ -56,13 +56,19 @@
   }
 
   // recalcular al cambiar eventos/periodos y tras cada render del chart (resize,
-  // cambio de granularidad, drill-down): 'finished' cubre todos esos casos
+  // cambio de granularidad, drill-down): 'finished' cubre todos esos casos. La medida
+  // inmediata va un frame tarde a propósito: este efecto corre ANTES de que BaseChart
+  // aplique la opción nueva, así que medir ya devolvía el pixel del eje anterior y las
+  // carátulas se quedaban en otra columna hasta que acababa la animación (~1s)
   $effect(() => {
     void events; void periods; void railWidth;
     if (!instance) { markers = []; return; }
-    recompute();
+    const frame = requestAnimationFrame(recompute);
     instance.on('finished', recompute);
-    return () => { if (instance && !instance.isDisposed()) instance.off('finished', recompute); };
+    return () => {
+      cancelAnimationFrame(frame);
+      if (instance && !instance.isDisposed()) instance.off('finished', recompute);
+    };
   });
 
   // centra la carátula en la línea del evento sin que se salga del carril

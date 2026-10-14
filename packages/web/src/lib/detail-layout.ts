@@ -27,15 +27,18 @@ export interface DetailLayout {
 // estructural (no configurable) y no aparece aquí; en el dashboard, tampoco el
 // aviso de charts cerrados (es descartable). Los merges ya no son un banner
 // aparte: viven en la sección 'relations', que por eso existe en los tres detalles.
+// 'activity' es la timeline (ranking + escuchas en una gráfica): conserva la key de la
+// antigua gráfica de actividad para que los layouts guardados no la pierdan, y la vista
+// por años del rail ('historyByYear') es su modo "year", así que esa key ya no existe
+// (resolveLayout descarta las keys desconocidas de un layout guardado)
 export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
   artist: [
     { key: 'stats', label: 'Stats', column: 'main' },
     { key: 'rankingBadges', label: 'Ranking badges', column: 'main' },
     { key: 'chartStats', label: 'Chart stats', column: 'main' },
-    { key: 'activity', label: 'Activity chart', column: 'main' },
+    { key: 'activity', label: 'Listening history', column: 'main' },
     { key: 'topTracks', label: 'Top tracks', column: 'main' },
     { key: 'topAlbums', label: 'Top albums', column: 'main' },
-    { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'concerts', label: 'Concerts', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
@@ -44,12 +47,11 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'stats', label: 'Stats', column: 'main' },
     { key: 'rankingBadges', label: 'Ranking badges', column: 'main' },
     { key: 'chartStats', label: 'Chart stats', column: 'main' },
-    { key: 'activity', label: 'Activity chart', column: 'main' },
+    { key: 'activity', label: 'Listening history', column: 'main' },
     { key: 'tracks', label: 'Tracks', column: 'main' },
     // sólo se pinta en un álbum lógico (ver shared/collections.ts); en un disco de
     // verdad la sección no existe, como 'singles' en un single
     { key: 'members', label: 'Collection members', column: 'main' },
-    { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'singles', label: 'Singles', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
@@ -60,7 +62,6 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'chartStats', label: 'Chart stats', column: 'main' },
     { key: 'albumBreakdown', label: 'Played in', column: 'main' },
     { key: 'activity', label: 'Listening history', column: 'main' },
-    { key: 'historyByYear', label: 'History by year', column: 'rail' },
     { key: 'versions', label: 'Versions', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
