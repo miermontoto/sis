@@ -1,7 +1,6 @@
 import { sql, eq } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
 import { mergeRules, albums, tracks } from '../../db/schema.js';
-import { getEntityMergeGroup } from '../../db/queries/merge.js';
 import {
   adminRouter, VALID_ENTITY_TYPES, isValidEntityType, entityTable,
   validateMergeRule, MERGE_ERRORS, autoMatchTracks,
@@ -416,9 +415,10 @@ merges.post('/batch-merge-tracks', async (c) => {
 // Query params:
 //   entityType (required): 'album' | 'artist' | 'track'
 //   parent (optional): artist spotifyId — para albums/tracks, restringe a entidades con ese artista principal
-//   exclude (optional): id a excluir (típicamente el target para no auto-sugerir)
+//   exclude (optional): id a excluir. La web ya no lo manda (filtra en cliente, y así el pool
+//     de artistas es UNA entrada de cache para todas las fichas); sigue por los apks publicados
 // Devuelve [{id, name, image_url, plays}] ordenado por plays DESC.
-merges.get('/merge-suggestions', (c) => {
+merges.get('/merge-suggestions', async (c) => {
   const userId = c.get('userId');
   const entityType = c.req.query('entityType');
   const parent = c.req.query('parent');
@@ -427,91 +427,12 @@ merges.get('/merge-suggestions', (c) => {
   if (!isValidEntityType(entityType)) {
     return c.json({ error: `entityType query param required — must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
   }
-
-  const db = getDb();
-  const excludeClause = exclude ? sql`AND e.spotify_id != ${exclude}` : sql``;
-  const sourceFilter = sql`e.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = ${entityType} AND user_id = ${userId})`;
-  const importFilter = sql`e.spotify_id NOT LIKE 'unresolved:%'`;
-
-  let rows: { id: string; name: string; image_url: string | null; plays: number }[] = [];
-
-  if (entityType === 'album') {
-    if (!parent) return c.json({ error: 'parent (artistId) is required for album suggestions' }, 400);
-    // expandir parent al grupo de merge para incluir álbumes de artistas hermanos / target / sources
-    const parentIds = getEntityMergeGroup(db, 'artist', parent, userId);
-    const artistInClause = parentIds.length === 1
-      ? sql`ta.artist_id = ${parentIds[0]}`
-      : sql`ta.artist_id IN (${sql.join(parentIds.map(id => sql`${id}`), sql`, `)})`;
-    rows = db.all(sql`
-      SELECT e.spotify_id as id, e.name, e.image_url,
-             COALESCE(s.play_count, 0) as plays
-      FROM albums e
-      JOIN tracks t ON t.album_id = e.spotify_id
-      JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
-      LEFT JOIN (
-        SELECT tr.album_id, COUNT(*) as play_count
-        FROM listening_history lh
-        JOIN tracks tr ON tr.spotify_id = lh.track_id
-        WHERE tr.album_id IS NOT NULL AND lh.user_id = ${userId}
-        GROUP BY tr.album_id
-      ) s ON s.album_id = e.spotify_id
-      WHERE ${artistInClause}
-        AND ${sourceFilter}
-        AND ${importFilter}
-        ${excludeClause}
-      GROUP BY e.spotify_id
-      HAVING plays > 0
-      ORDER BY plays DESC, e.name
-    `) as typeof rows;
-  } else if (entityType === 'artist') {
-    rows = db.all(sql`
-      SELECT e.spotify_id as id, e.name, e.image_url,
-             COALESCE(s.play_count, 0) as plays
-      FROM artists e
-      JOIN (
-        SELECT ta.artist_id, COUNT(*) as play_count
-        FROM listening_history lh
-        JOIN track_artists ta ON ta.track_id = lh.track_id
-        WHERE lh.user_id = ${userId}
-        GROUP BY ta.artist_id
-      ) s ON s.artist_id = e.spotify_id
-      WHERE ${sourceFilter}
-        AND ${importFilter}
-        ${excludeClause}
-      ORDER BY plays DESC
-    `) as typeof rows;
-  } else {
-    // track
-    if (!parent) return c.json({ error: 'parent (artistId) is required for track suggestions' }, 400);
-    // expandir parent al grupo de merge para incluir tracks de artistas hermanos / target / sources
-    const parentIds = getEntityMergeGroup(db, 'artist', parent, userId);
-    const artistInClause = parentIds.length === 1
-      ? sql`ta.artist_id = ${parentIds[0]}`
-      : sql`ta.artist_id IN (${sql.join(parentIds.map(id => sql`${id}`), sql`, `)})`;
-    // matchear el artista en cualquier posición (no solo la principal): distintos releases
-    // de la misma canción acreditan al artista en distinto orden (ej. "The Line" en el álbum
-    // de la banda sonora vs. el single), y con position=0 no aparecerían como candidatos.
-    rows = db.all(sql`
-      SELECT e.spotify_id as id, e.name, al.image_url as image_url,
-             COALESCE(s.play_count, 0) as plays
-      FROM tracks e
-      JOIN track_artists ta ON ta.track_id = e.spotify_id
-      LEFT JOIN albums al ON al.spotify_id = e.album_id
-      LEFT JOIN (
-        SELECT track_id, COUNT(*) as play_count
-        FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
-      ) s ON s.track_id = e.spotify_id
-      WHERE ${artistInClause}
-        AND ${sourceFilter}
-        AND ${importFilter}
-        ${excludeClause}
-      GROUP BY e.spotify_id
-      HAVING plays > 0
-      ORDER BY plays DESC, e.name
-    `) as typeof rows;
+  if (entityType !== 'artist' && !parent) {
+    return c.json({ error: `parent (artistId) is required for ${entityType} suggestions` }, 400);
   }
 
-  return c.json(rows);
+  const rows = await dbRead('getMergeSuggestions', entityType, userId, parent ?? null);
+  return c.json(exclude ? rows.filter(r => r.id !== exclude) : rows);
 });
 
 export default merges;

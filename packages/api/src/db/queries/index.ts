@@ -27,8 +27,8 @@ export { getCollectionSummary, getArtistCollections, getCollectionMembers, getCo
 export type { CollectionScope } from './collections.js';
 
 // merge (genérico para albums / artists / tracks)
-export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup } from './merge.js';
-export type { MergeInfo } from './merge.js';
+export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup, getMergeSuggestions } from './merge.js';
+export type { MergeInfo, MergeSuggestionRow } from './merge.js';
 
 // relaciones soft entre artistas (sin efecto en el tracking)
 export { getArtistRelations, getRelationStats } from './relations.js';
