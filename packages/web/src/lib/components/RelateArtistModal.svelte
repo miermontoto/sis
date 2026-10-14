@@ -8,6 +8,7 @@
   import ModalTabs from '$lib/components/ModalTabs.svelte';
   import { RELATION_TABS } from '$lib/utils/relation-tabs';
   import { CANDIDATE_LIMIT, indexCandidates, searchCandidates } from '$lib/utils/candidate-search';
+  import { relateModal } from '$lib/stores/relate-modal.svelte';
 
   let {
     show = $bindable(false),
@@ -72,6 +73,7 @@
     try {
       await api.createArtistRelation(target.id, artistId);
       search = '';
+      relateModal.notifyChange();
       onChanged();
     } catch (e) {
       error = errorMessage(e, 'Error creating relation');
@@ -87,6 +89,7 @@
     error = '';
     try {
       await Promise.all(relation.ruleIds.map(id => api.deleteArtistRelation(id)));
+      relateModal.notifyChange();
       onChanged();
     } catch (e) {
       error = errorMessage(e, 'Error removing relation');

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
+  import { attributionVersion } from '$lib/stores/attribution';
   import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
@@ -32,7 +33,6 @@
   import ImagePicker from '$lib/components/ImagePicker.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId, queueEntity } from '$lib/utils/entity-context';
-  import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconQueue from '$lib/icons/IconQueue.svelte';
@@ -325,12 +325,10 @@
   $effect(() => {
     const id = albumId;
     void metric;
-    void mergeModal.changeVersion;
-    // alguien acaba de tocar una colección: la línea de pertenencia y los badges de
-    // esta página dependen de ella
-    void collectionsStore.changeVersion;
-    // créditos corregidos: los artistas del hero y de cada fila
-    void creditsModal.changeVersion;
+    // merges, colecciones y créditos corregidos (ver attributionVersion): la línea de
+    // pertenencia y los badges de esta página dependen de las colecciones, y los
+    // artistas del hero y de cada fila, de los créditos
+    void attributionVersion();
     if (!initialized || !id) return;
     // resetear al cambiar de álbum para mostrar spinner
     if (id !== prevId) {
@@ -488,7 +486,6 @@
             {metric}
             parentArtistId={d.artists[0]?.id}
             onManageMerges={() => { mergeInitialStep = undefined; showMergeModal = true; }}
-            onChanged={() => loadData(albumId)}
           />
         </section>
       {/if}
@@ -615,7 +612,7 @@
     parentId={data.artists[0]?.id ?? ''}
     existingMerges={mergedFrom}
     initialStep={mergeInitialStep}
-    onMerged={() => { mergeInitialStep = undefined; loadData(albumId); }}
+    onMerged={() => { mergeInitialStep = undefined; }}
   />
 {/if}
 

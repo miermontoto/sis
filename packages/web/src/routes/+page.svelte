@@ -17,9 +17,8 @@
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber, formatHours, formatDuration } from '$lib/utils/format';
   import { GRANULARITY_LABELS, GRANULARITY_NOUNS, latestClosedPeriod, periodDateRange } from '$lib/utils/report-periods';
+  import { attributionVersion } from '$lib/stores/attribution';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import { collectionsStore } from '$lib/stores/collections.svelte';
-  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
@@ -240,11 +239,10 @@
     loadLastYear();
   }
 
-  // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o sea
-  // todo ranking de álbum, y unos créditos corregidos a qué artista cuenta cada play.
+  // un merge, una colección o unos créditos corregidos cambian a qué entidad cuenta
+  // cada play (ver attributionVersion), o sea todos los tops de esta vista.
   // El dashboard carga en onMount, así que necesita su propio efecto: se salta el
   // valor inicial y relee en cada mutación posterior
-  const attributionVersion = () => `${collectionsStore.changeVersion}:${creditsModal.changeVersion}`;
   let lastAttributionVersion = attributionVersion();
   $effect(() => {
     const version = attributionVersion();

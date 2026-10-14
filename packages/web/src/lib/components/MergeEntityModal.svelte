@@ -6,6 +6,7 @@
   import ModalTabs from '$lib/components/ModalTabs.svelte';
   import { RELATION_TABS } from '$lib/utils/relation-tabs';
   import { CANDIDATE_LIMIT, indexCandidates, searchCandidates, suggestCandidates } from '$lib/utils/candidate-search';
+  import { mergeModal } from '$lib/stores/merge-modal.svelte';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -229,6 +230,7 @@
         sourceTrackId: p.sourceTrack.id,
         targetTrackId: p.targetTrack.id,
       })));
+      mergeModal.notifyChange();
       onMerged();
       close();
     } catch (e) {
@@ -258,6 +260,7 @@
           await api.createMerge(entityType, sourceId, target.id);
         }
       }
+      mergeModal.notifyChange();
       onMerged();
       close();
     } catch (e) {
@@ -270,6 +273,7 @@
   async function doUnmerge(ruleId: number) {
     try {
       await api.deleteMerge(ruleId);
+      mergeModal.notifyChange();
       onMerged();
     } catch (e) {
       error = errorMessage(e, 'Error removing merge');
@@ -283,6 +287,7 @@
     error = '';
     try {
       await api.makeCanonical(entityType, sourceId);
+      mergeModal.notifyChange();
       onMerged();
       close();
     } catch (e) {

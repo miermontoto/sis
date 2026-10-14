@@ -7,14 +7,13 @@
   type ChartEntityType = 'tracks' | 'albums' | 'artists';
   import { formatDuration, formatNumber, formatMonthYear, formatShortDateUTC } from '$lib/utils/format';
   import { computeCurrentPeriod, weekDateRange } from '$lib/utils/periods';
+  import { attributionVersion } from '$lib/stores/attribution';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { setQueryParams } from '$lib/utils/query-state';
   import RankChange from '$lib/components/RankChange.svelte';
   import PeakSelector from '$lib/components/PeakSelector.svelte';
   import LiveEq from '$lib/components/LiveEq.svelte';
   import CollectionBadge from '$lib/components/CollectionBadge.svelte';
-  import { collectionsStore } from '$lib/stores/collections.svelte';
-  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import { medalColor } from '$lib/utils/medals';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { playUpdatesStore, targetIdsFor, type PlayUpdate } from '$lib/stores/play-updates.svelte';
@@ -314,11 +313,9 @@
     void selectedPeriod;
     void activeType;
     void metric;
-    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
-    // sea todo ranking de álbum: hay que releer cuando alguien toca una
-    void collectionsStore.changeVersion;
-    // unos créditos corregidos cambian a qué artista cuenta cada play
-    void creditsModal.changeVersion;
+    // un merge, una colección o unos créditos corregidos cambian a qué entidad cuenta
+    // cada play (ver attributionVersion): hay que releer cuando alguien toca uno
+    void attributionVersion();
     if (initialized && selectedPeriod) loadChart();
   });
 

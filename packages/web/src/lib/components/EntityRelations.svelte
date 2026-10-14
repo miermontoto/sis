@@ -10,6 +10,8 @@
   import { entityContextActions, type EntityType } from '$lib/utils/entity-context';
   import { errorMessage } from '$lib/utils/errors';
   import { toastStore } from '$lib/stores/toast.svelte';
+  import { mergeModal } from '$lib/stores/merge-modal.svelte';
+  import { relateModal } from '$lib/stores/relate-modal.svelte';
   import TrackItem from './TrackItem.svelte';
   import MetricMeta from './MetricMeta.svelte';
   import IconMerge from '$lib/icons/IconMerge.svelte';
@@ -24,7 +26,6 @@
     parentArtistId,
     onManageMerges,
     onManageRelated,
-    onChanged,
   }: {
     entityType: EntityType;
     entity: { id: string; name: string; imageUrl: string | null };
@@ -35,7 +36,6 @@
     onManageMerges: () => void;
     /** sólo artistas: las relaciones soft no existen para álbumes ni temas */
     onManageRelated?: () => void;
-    onChanged: () => void;
   } = $props();
 
   // el orden de los grupos es el de la lista que manda la API: dónde vive esta página,
@@ -46,6 +46,8 @@
     { kind: 'related', label: 'Related' },
   ];
 
+  // cada mutación sube la señal global de su tipo (merges o relaciones) en vez de avisar
+  // a su página: con ella relee la ficha y también las secciones con fetch propio
   let busy = $state(false);
   let groups = $derived(GROUPS
     .map(g => ({ ...g, rows: relations.filter(r => r.kind === g.kind) }))
@@ -59,7 +61,7 @@
     busy = true;
     try {
       await api.makeCanonical(entityType, id);
-      onChanged();
+      mergeModal.notifyChange();
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error swapping merge direction'));
     } finally {
@@ -72,7 +74,7 @@
     busy = true;
     try {
       await api.deleteMerge(r.ruleIds[0]);
-      onChanged();
+      mergeModal.notifyChange();
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error removing merge'));
     } finally {
@@ -87,7 +89,7 @@
     busy = true;
     try {
       await Promise.all(r.ruleIds.map(id => api.deleteArtistRelation(id)));
-      onChanged();
+      relateModal.notifyChange();
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error removing relation'));
     } finally {
@@ -104,7 +106,7 @@
     busy = true;
     try {
       await api.createMerge(entityType, r.id, entity.id);
-      onChanged();
+      mergeModal.notifyChange();
     } catch (e) {
       toastStore.show(errorMessage(e, 'Error merging'));
     } finally {

@@ -39,8 +39,13 @@ export const relateModal = {
   close() { target = null; },
   /** Recarga `existing` tras un cambio (crear/borrar) sin cerrar el modal. */
   async refresh() {
-    if (!target) return;
-    target = { ...target, existing: await resolveExisting(target.target.id) };
+    const current = target;
+    if (!current) return;
+    const existing = await resolveExisting(current.target.id);
+    // el modal pudo cerrarse (o pasar a otro target) durante la espera: el spread se
+    // evaluaba ANTES del await, así que un modal recién cerrado volvía a abrirse con el
+    // target viejo
+    if (target === current) target = { ...current, existing };
   },
   notifyChange() { changeVersion++; },
 };

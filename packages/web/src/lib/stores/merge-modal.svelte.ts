@@ -39,8 +39,13 @@ export const mergeModal = {
   close() { target = null; },
   /** Recarga existingMerges tras un cambio (crear/borrar) sin cerrar el modal. */
   async refresh() {
-    if (!target) return;
-    target = { ...target, existingMerges: await resolveExistingMerges(target.entityType, target.target.id) };
+    const current = target;
+    if (!current) return;
+    const existingMerges = await resolveExistingMerges(current.entityType, current.target.id);
+    // el modal pudo cerrarse (o pasar a otro target) durante la espera: el spread se
+    // evaluaba ANTES del await, así que reabría con el target viejo justo después de
+    // que un merge lo cerrase
+    if (target === current) target = { ...current, existingMerges };
   },
   notifyChange() { changeVersion++; },
 };

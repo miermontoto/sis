@@ -1,5 +1,7 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
+  import { attributionVersion } from '$lib/stores/attribution';
+  import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
@@ -14,8 +16,6 @@
   import TrackList from '$lib/components/TrackList.svelte';
   import TrackItem from '$lib/components/TrackItem.svelte';
   import MetricMeta from '$lib/components/MetricMeta.svelte';
-  import { collectionsStore } from '$lib/stores/collections.svelte';
-  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import EntityHistoryChart from '$lib/components/charts/EntityHistoryChart.svelte';
@@ -36,7 +36,6 @@
   import Accolades from '$lib/components/Accolades.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
-  import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
@@ -340,12 +339,12 @@
   $effect(() => {
     const id = artistId;
     void metric;
-    void mergeModal.changeVersion;
-    // una colección cambia a qué entidad se atribuyen los plays de sus miembros, o
-    // sea todo ranking de álbum: hay que releer cuando alguien toca una
-    void collectionsStore.changeVersion;
-    // unos créditos corregidos cambian a qué artista cuenta cada play
-    void creditsModal.changeVersion;
+    // un merge, una colección o unos créditos corregidos cambian a qué entidad cuenta
+    // cada play, o sea todo ranking de esta página: hay que releer con cualquiera
+    void attributionVersion();
+    // las relaciones soft se pintan aquí, y pueden venir del modal global (abierto
+    // desde el menú contextual de cualquier fila), que no sabe de esta página
+    void relateModal.changeVersion;
     if (!initialized || !id) return;
     if (id !== prevId) {
       // abortar toggles en vuelo: su respuesta parchearía las listas del artista anterior
@@ -568,7 +567,6 @@
             {metric}
             onManageMerges={() => { showArtistMergeModal = true; }}
             onManageRelated={() => { showRelateModal = true; }}
-            onChanged={() => loadData(artistId)}
           />
         </section>
       {/if}
@@ -603,14 +601,12 @@
     entityType="artist"
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
     existingMerges={mergedFrom}
-    onMerged={() => loadData(artistId)}
     onRelate={() => { showArtistMergeModal = false; showRelateModal = true; }}
   />
   <RelateArtistModal
     bind:show={showRelateModal}
     target={{ id: data.artist.id, name: data.artist.name, imageUrl: data.artist.imageUrl }}
     existing={relatedArtists}
-    onChanged={() => loadData(artistId)}
     onMerge={() => { showRelateModal = false; showArtistMergeModal = true; }}
   />
   <ConcertModal

@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { api, createFetchController, getWeekStart, getRankingMetric, type ChartHistoryResponse, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
+  import { attributionVersion } from '$lib/stores/attribution';
   import PeakSelector from './PeakSelector.svelte';
 
   let {
@@ -37,11 +38,19 @@
   let hoveredBadge = $state<'' | 'current' | 'peak'>('');
   const fetchCtrl = createFetchController();
 
+  // entidad pintada: releer la MISMA tras un merge o una colección deja las cifras
+  // viejas hasta la respuesta, sin volver al skeleton
+  let shownId = '';
+
   $effect(() => {
-    void entityId;
+    const id = entityId;
+    void attributionVersion();
     const signal = fetchCtrl.reset();
-    loading = true;
-    api.chartHistory(pluralType, entityId, getWeekStart(), getRankingMetric(), signal)
+    if (id !== shownId) {
+      shownId = id;
+      loading = true;
+    }
+    api.chartHistory(pluralType, id, getWeekStart(), getRankingMetric(), signal)
       .then(r => { if (!signal.aborted) { chartData = r; loading = false; } })
       .catch(() => { if (!signal.aborted) { chartData = null; loading = false; } });
     return () => fetchCtrl.abort();

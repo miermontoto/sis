@@ -824,7 +824,7 @@
       parentId={mergeModal.target.parentId}
       existingMerges={mergeModal.target.existingMerges}
       initialStep={mergeModal.target.initialStep}
-      onMerged={() => { mergeModal.refresh(); mergeModal.notifyChange(); }}
+      onMerged={() => mergeModal.refresh()}
       onRelate={mergeModal.target.entityType === 'artist'
         ? () => { const t = mergeModal.target!.target; mergeModal.close(); relateModal.open({ target: t }); }
         : undefined}
@@ -845,7 +845,7 @@
       bind:show={relateModalShow}
       target={relateModal.target.target}
       existing={relateModal.target.existing}
-      onChanged={() => { relateModal.refresh(); relateModal.notifyChange(); }}
+      onChanged={() => relateModal.refresh()}
       onMerge={() => { const t = relateModal.target!.target; relateModal.close(); mergeModal.open({ entityType: 'artist', target: t }); }}
     />
   {/if}

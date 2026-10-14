@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isAbortError } from '$lib/utils/errors';
+  import { attributionVersion } from '$lib/stores/attribution';
   import { playUpdatesStore, batchTouches } from '$lib/stores/play-updates.svelte';
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
@@ -29,9 +30,7 @@
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { isSpotifyId } from '$lib/utils/entity-context';
-  import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { creditsModal } from '$lib/stores/credits-modal.svelte';
-  import { collectionsStore } from '$lib/stores/collections.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
@@ -175,10 +174,9 @@
 
   $effect(() => {
     const id = trackId;
-    void mergeModal.changeVersion;
-    void collectionsStore.changeVersion;
-    // créditos corregidos: los artistas del hero salen de ellos
-    void creditsModal.changeVersion;
+    // merges, colecciones y créditos corregidos (ver attributionVersion); los artistas
+    // del hero salen de los créditos
+    void attributionVersion();
     if (!initialized || !id) return;
     if (id !== prevId) {
       data = null;
@@ -354,7 +352,6 @@
             {metric}
             parentArtistId={d.track.artists[0]?.id}
             onManageMerges={() => { showMergeModal = true; }}
-            onChanged={() => loadData(trackId)}
           />
         </section>
       {/if}
@@ -532,7 +529,6 @@
     target={{ id: data.track.id, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null }}
     parentId={data.track.artists[0]?.id ?? ''}
     existingMerges={mergedFrom}
-    onMerged={() => loadData(trackId)}
   />
 {/if}
 

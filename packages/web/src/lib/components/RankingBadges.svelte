@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { api, createFetchController, getRankingMetric, type Rankings, type RankingHistoryPointWithCrossovers, type RankingMetric, type EntityType } from '$lib/api';
   import { medalColor } from '$lib/utils/medals';
+  import { attributionVersion } from '$lib/stores/attribution';
   import { periodLabel } from '$lib/utils/periods';
   import { GRID, TOOLTIP_BASE, categoryAxis, SPLIT_LINE, AXIS_LABEL, lineSeries, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import BaseChart from '$lib/components/charts/BaseChart.svelte';
@@ -35,17 +36,25 @@
   const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
   let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
 
+  // entidad pintada: releer la MISMA (un merge o una colección mueven sus posiciones)
+  // deja lo que hay hasta que llega la respuesta, en vez de volver al skeleton
+  let shownId = '';
+
   $effect(() => {
-    void entityId;
+    const id = entityId;
+    void attributionVersion();
     const signal = fetchCtrl.reset();
-    rankingsLoading = true;
-    historyLoading = true;
-    rankings = null;
-    history = [];
+    if (id !== shownId) {
+      shownId = id;
+      rankingsLoading = true;
+      historyLoading = true;
+      rankings = null;
+      history = [];
+    }
     const metric = getRankingMetric();
 
     // una sola petición: posiciones e historial salen del mismo escaneo en el servidor
-    api.rankingsWithHistory(entityType, entityId, metric, signal)
+    api.rankingsWithHistory(entityType, id, metric, signal)
       .then(r => { if (!signal.aborted) { rankings = r.rankings; history = r.history; rankingsLoading = false; historyLoading = false; } })
       .catch(() => { if (!signal.aborted) { rankings = null; history = []; rankingsLoading = false; historyLoading = false; } });
 
