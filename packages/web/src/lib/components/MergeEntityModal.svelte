@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { errorMessage } from '$lib/utils/errors';
   import { api, type MergeSuggestion, type AlbumMergePreview, type AlbumMergeMatch, type RemergePreviewPair, type RemergeConfidence } from '$lib/api';
   import MergeImpactBar from '$lib/components/MergeImpactBar.svelte';
   import ModalTabs from '$lib/components/ModalTabs.svelte';
   import { RELATION_TABS } from '$lib/utils/relation-tabs';
+  import { CANDIDATE_LIMIT, indexCandidates, searchCandidates, suggestCandidates } from '$lib/utils/candidate-search';
 
   type EntityType = 'album' | 'artist' | 'track';
 
@@ -38,7 +40,9 @@
 
   let labels = $derived(LABELS[entityType]);
 
-  let suggestions = $state<MergeSuggestion[]>([]);
+  // raw: el pool son miles de filas que sólo se reemplazan enteras, y con $state a secas
+  // cada lectura de name/plays dentro del índice, el filtro y el sort pasaba por un proxy
+  let suggestions = $state.raw<MergeSuggestion[]>([]);
   let selected = $state<Set<string>>(new Set());
   let loading = $state(false);
   let merging = $state(false);
@@ -59,69 +63,18 @@
   let existingIds = $derived(new Set(existingMerges.map(m => m.id)));
 
   let showOnlySimilar = $derived(entityType === 'artist');
-  const SIM_THRESHOLD = 0.3;
 
-  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
-  function fuzzyMatch(name: string, query: string): boolean {
-    const q = norm(query);
-    return norm(name).includes(q) || norm(coreName(name)).includes(q);
-  }
-
-  function trigrams(s: string): Set<string> {
-    const t = new Set<string>();
-    for (let i = 0; i <= s.length - 3; i++) t.add(s.slice(i, i + 3));
-    return t;
-  }
-
-  function similarity(triA: Set<string>, triB: Set<string>): number {
-    if (triA.size === 0 || triB.size === 0) return 0;
-    let common = 0;
-    for (const t of triA) if (triB.has(t)) common++;
-    return common / Math.max(triA.size, triB.size);
-  }
-
-  function coreName(s: string): string {
-    return s.split(/ - | \(/)[0].trim();
-  }
-
-  let scored = $derived.by(() => {
-    const targetNorm = norm(target.name);
-    const targetCoreNorm = norm(coreName(target.name));
-    const targetTri = trigrams(targetNorm);
-    const targetCoreTri = targetCoreNorm !== targetNorm ? trigrams(targetCoreNorm) : targetTri;
-    return suggestions.map(a => {
-      const nameNorm = norm(a.name);
-      const nameTri = trigrams(nameNorm);
-      const full = similarity(nameTri, targetTri);
-      const coreNorm = norm(coreName(a.name));
-      const core = coreNorm !== nameNorm
-        ? Math.max(similarity(trigrams(coreNorm), targetTri), similarity(trigrams(coreNorm), targetCoreTri))
-        : similarity(nameTri, targetCoreTri);
-      return { a, sim: Math.max(full, core) };
-    });
-  });
-
-  let defaultList = $derived.by(() => {
-    const base = showOnlySimilar ? scored.filter(s => s.sim >= SIM_THRESHOLD) : scored;
-    return base
-      .sort((x, y) => {
-        const xs = x.sim >= SIM_THRESHOLD, ys = y.sim >= SIM_THRESHOLD;
-        if (xs !== ys) return xs ? -1 : 1;
-        if (xs && ys) return y.sim - x.sim || y.a.plays - x.a.plays;
-        return y.a.plays - x.a.plays;
-      })
-      .map(s => s.a);
-  });
-
-  let searchResults = $derived(
-    scored
-      .filter(s => fuzzyMatch(s.a.name, searchQuery))
-      .sort((x, y) => y.sim - x.sim || y.a.plays - x.a.plays)
-      .map(s => s.a)
-  );
-
-  let filteredSuggestions = $derived(searchQuery.length > 0 ? searchResults : defaultList);
+  // el índice (nombre normalizado + parecido con el target) se rehace sólo con un pool
+  // nuevo o con otro nombre: el padre pinta un objeto `target` nuevo en cada recarga del
+  // detalle, y depender del objeto lo recalculaba entero sobre ~10k artistas
+  let canonicalId = $derived(target.id);
+  let canonicalName = $derived(target.name);
+  let index = $derived(indexCandidates(suggestions, canonicalName));
+  // el pool sale del servidor sin excluir nada (así es una sola entrada de cache para
+  // todas las fichas): el target y lo ya mergeado se quitan aquí
+  let pool = $derived(index.filter(c => c.item.id !== canonicalId && !existingIds.has(c.item.id)));
+  let matches = $derived(searchQuery.length > 0 ? searchCandidates(pool, searchQuery) : suggestCandidates(pool, showOnlySimilar));
+  let visible = $derived(matches.slice(0, CANDIDATE_LIMIT));
 
   // para el step de tracks: número de matches activos
   let activeTrackPairs = $derived(trackMatches.size);
@@ -186,7 +139,7 @@
   async function loadSuggestions() {
     loading = true;
     try {
-      const opts: { parent?: string; exclude?: string } = { exclude: target.id };
+      const opts: { parent?: string } = {};
       if (entityType !== 'artist') {
         if (!parentId) {
           console.warn('[merge] no parentId for', entityType, target.id);
@@ -197,7 +150,7 @@
       }
       const all = await api.mergeSuggestions(entityType, opts);
       console.log('[merge] got', all.length, 'suggestions for', entityType, opts);
-      suggestions = all.filter(a => a.id !== target.id && !existingIds.has(a.id));
+      suggestions = all;
     } catch (e) {
       console.error('[merge] error loading suggestions:', e);
       suggestions = [];
@@ -342,13 +295,16 @@
   // para album con 1 selección: el botón dice "Next: Match tracks"
   let showTrackStep = $derived(entityType === 'album' && selected.size === 1 && step === 'select');
 
+  // el pool se recarga al abrir y cuando cambia lo que lo define: el target y lo ya
+  // mergeado (un unmerge con el modal abierto devuelve esa entidad al pool del servidor).
+  // Las cargas van en untrack: leen estado que ellas mismas escriben, y sin él el efecto
+  // se volvía a disparar con cada objeto `target` nuevo del padre
+  let loadKey = $derived(show ? `${entityType}:${canonicalId}:${parentId ?? ''}:${[...existingIds].join(',')}` : '');
   $effect(() => {
-    if (show) {
-      loadSuggestions();
-      if (initialStep === 'remerge' && entityType === 'album') {
-        loadRemergePreview();
-      }
-    }
+    if (loadKey) untrack(() => loadSuggestions());
+  });
+  $effect(() => {
+    if (show && initialStep === 'remerge' && entityType === 'album') untrack(() => loadRemergePreview());
   });
 </script>
 
@@ -417,7 +373,7 @@
 
         {#if loading}
           <div class="merge-loading"><div class="spinner"></div></div>
-        {:else if suggestions.length > 0}
+        {:else if pool.length > 0}
           <div class="merge-section-title">{searchQuery.length > 0 ? 'Search results' : (showOnlySimilar ? 'Suggested matches' : 'Available to merge')}</div>
           <input
             class="merge-search"
@@ -427,13 +383,13 @@
             autocomplete="off"
             spellcheck="false"
           />
-          {#if filteredSuggestions.length === 0}
+          {#if matches.length === 0}
             <div class="merge-empty">
               {searchQuery.length > 0 ? 'No matches found' : labels.noSuggested}
             </div>
           {/if}
           <div class="merge-list">
-            {#each filteredSuggestions as item}
+            {#each visible as item (item.id)}
               <button
                 class="merge-item"
                 class:merge-item--selected={selected.has(item.id)}
@@ -444,7 +400,7 @@
                   {#if selected.has(item.id)}&#10003;{/if}
                 </div>
                 {#if item.image_url}
-                  <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={item.image_url} alt="" />
+                  <img class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} src={item.image_url} alt="" loading="lazy" />
                 {:else}
                   <div class="merge-thumb-sm" class:merge-thumb-sm--round={labels.round} class:merge-thumb--empty={true}></div>
                 {/if}
@@ -454,6 +410,9 @@
                 </div>
               </button>
             {/each}
+            {#if matches.length > visible.length}
+              <div class="merge-more">{matches.length - visible.length} more — type to narrow down</div>
+            {/if}
           </div>
 
           {#if selected.size > 0}
@@ -757,6 +716,12 @@
   .merge-list {
     overflow-y: auto;
     flex: 1;
+  }
+
+  .merge-more {
+    padding: 0.5rem 1.25rem 0.75rem;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
   }
 
   .merge-list--existing {

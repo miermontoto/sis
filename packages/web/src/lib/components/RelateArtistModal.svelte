@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { errorMessage } from '$lib/utils/errors';
   // Gestor de relaciones "soft" de un artista: declara el vínculo (Julian Casablancas
   // ←→ The Strokes) sin tocar el tracking. Para absorber un artista dentro de otro
@@ -6,6 +7,7 @@
   import { api, type MergeSuggestion, type RelatedArtist } from '$lib/api';
   import ModalTabs from '$lib/components/ModalTabs.svelte';
   import { RELATION_TABS } from '$lib/utils/relation-tabs';
+  import { CANDIDATE_LIMIT, indexCandidates, searchCandidates } from '$lib/utils/candidate-search';
 
   let {
     show = $bindable(false),
@@ -22,31 +24,24 @@
     onMerge?: () => void;
   } = $props();
 
-  // tope de filas pintadas: el pool son todos los artistas con escuchas y sin él la
-  // lista puede ser de miles. Al filtrar por texto se recorta sobre el pool entero,
-  // así que el tope no esconde resultados de una búsqueda concreta.
-  const VISIBLE_LIMIT = 60;
-
-  let suggestions = $state<MergeSuggestion[]>([]);
+  // raw: el pool son miles de filas que sólo se reemplazan enteras, y con $state a secas
+  // cada lectura de name/plays dentro del índice, el filtro y el sort pasaba por un proxy
+  let suggestions = $state.raw<MergeSuggestion[]>([]);
   let loading = $state(false);
   let busyId = $state('');
   let error = $state('');
   let search = $state('');
-  let loadedFor = '';
-
-  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   let existingIds = $derived(new Set(existing.map(r => r.id)));
+  let targetId = $derived(target.id);
 
   // mismo pool que las sugerencias de merge: artistas con escuchas que no son source de
-  // ningún merge (un alias absorbido no es un destino válido — su página es un stub)
-  let filtered = $derived.by(() => {
-    const q = norm(search);
-    return suggestions
-      .filter(a => a.id !== target.id && !existingIds.has(a.id))
-      .filter(a => !q || norm(a.name).includes(q))
-      .slice(0, VISIBLE_LIMIT);
-  });
+  // ningún merge (un alias absorbido no es un destino válido — su página es un stub).
+  // Normalizado una vez por carga; sin texto queda en el orden del servidor (plays)
+  let index = $derived(indexCandidates(suggestions));
+  let filtered = $derived(searchCandidates(
+    index.filter(c => c.item.id !== targetId && !existingIds.has(c.item.id)), search,
+  ).slice(0, CANDIDATE_LIMIT));
 
   function close() {
     show = false;
@@ -58,12 +53,11 @@
     if (e.key === 'Escape' && show) close();
   }
 
-  async function loadSuggestions(artistId: string) {
+  async function loadSuggestions() {
     loading = true;
     error = '';
     try {
-      suggestions = await api.mergeSuggestions('artist', { exclude: artistId });
-      loadedFor = artistId;
+      suggestions = await api.mergeSuggestions('artist');
     } catch (e) {
       error = errorMessage(e, 'Error loading artists');
       suggestions = [];
@@ -101,8 +95,10 @@
     }
   }
 
+  // el pool es el mismo para todos los artistas (una entrada de cache), así que se pide
+  // en cada apertura: sale de cache, y tras un merge recoge el pool ya sin su source
   $effect(() => {
-    if (show && loadedFor !== target.id) loadSuggestions(target.id);
+    if (show) untrack(() => loadSuggestions());
   });
 </script>
 
@@ -163,7 +159,7 @@
       <div class="relate-section-title">Add a relation</div>
       <input class="relate-search" type="text" placeholder="Search all artists..." bind:value={search} />
 
-      {#if loading}
+      {#if loading && suggestions.length === 0}
         <div class="relate-empty">Loading...</div>
       {:else if filtered.length === 0}
         <div class="relate-empty">
@@ -174,7 +170,7 @@
           {#each filtered as artist (artist.id)}
             <button class="relate-item" disabled={busyId === artist.id} onclick={() => relate(artist.id)}>
               {#if artist.image_url}
-                <img class="relate-thumb-sm" src={artist.image_url} alt="" />
+                <img class="relate-thumb-sm" src={artist.image_url} alt="" loading="lazy" />
               {:else}
                 <div class="relate-thumb-sm relate-thumb--empty"></div>
               {/if}
