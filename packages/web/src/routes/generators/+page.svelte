@@ -40,7 +40,7 @@
       href: '/generators/march-madness',
       icon: '⑂',
       name: 'March Madness',
-      description: 'Knockout bracket of your artists, tracks, or albums: seed the top ones or draw a random field, then pick your way to a champion.',
+      description: 'Tournament of your artists, tracks, or albums: knockout, double elimination, groups, Swiss or king of the hill. Seed the top ones, draw a random field or pick your own, then pick your way to a champion.',
     },
     {
       href: '/generators/rerank',
