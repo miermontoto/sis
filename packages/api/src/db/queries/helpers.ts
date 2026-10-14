@@ -309,7 +309,7 @@ export function artistNameOf(idExpr: SqlChunk): SqlChunk {
 }
 
 // álbumes con créditos corregidos por el usuario: su lista manda sobre `artist_ids` y
-// sobre las heurísticas de mayoría (ver artistCreditedAlbums)
+// sobre la heurística de mayoría (ver artistCreditedAlbums)
 function albumOverrideIds(userId: number): SqlChunk {
   return sql`(SELECT subject_id FROM credit_overrides WHERE user_id = ${userId} AND subject_type = 'album')`;
 }
@@ -491,45 +491,49 @@ export function albumIdIn(ids: string[], tableAlias = 't'): SqlChunk {
   return sql`${col} IN (${placeholders})`;
 }
 
-/** Álbumes que son DEL artista, por tres vías que se unen:
+/** Álbumes que son DEL artista: sólo los que se le atribuyen DIRECTAMENTE, por dos vías:
  *
  *  1. **Crédito a nivel de álbum** (`albums.artist_ids`, en cualquier posición): un disco a
  *     dos nombres es de los dos, así que OASIS sale en la página de Bad Bunny y Watch The
  *     Throne en la de Kanye. El crédito a nivel de track NO vale por sí solo: bastaba un tema
  *     suyo para que se colara la recopilación entera (8 Mile, SHADYXV, ED REC Vol.X, Black
  *     Panther, y Curtain Call en la de JAŸ-Z porque lidera un bonus track).
- *  2. **Primario desconocido + mayoría de lo ingestado.** `artist_ids` tiene tres estados: un
- *     array real, `NULL` (sin enriquecer) y `'[]'` (los sintéticos local:/import:, acuñados sin
- *     créditos); `json_extract(...,'$[0]') IS NULL` cubre los dos últimos de una vez —escrito
- *     como `artist_ids IS NULL` se dejaba fuera justo los mixtapes del usuario—. Sin créditos
- *     sólo queda el artista de posición 0, y se exige mayoría: un invitado liderando un corte es
- *     normal en un disco propio (Detroit 2, Big Sean en 20 de 21), pero en una banda sonora
- *     nadie pasa de la mitad (8 Mile, Eminem en 3 de 13).
- *  3. **Créditos conocidos que NO lo nombran, pero lidera la mayoría de los temas PUBLICADOS.**
- *     Spotify acredita el álbum a otra entidad y aun así el artista firma casi todo el disco:
- *     los dos álbumes de Token (12 de 17 y 15 de 17, 2631 plays), los de Kavinsky, las OST de
- *     juegos (Masakazu Sugimori, 24 de 34). Aquí se contradice el dato de Spotify, así que la
- *     prueba es más dura que en (2): la mayoría se mide contra `total_tracks` —los temas que
- *     el disco publicó—, no contra los ingestados. Con los ingestados, un único tema nuestro
- *     de un recopilatorio da un "1 de 1" que pasa como mayoría y vuelven a colarse el DJ mix
- *     (Kitsuné Boombox), la banda sonora (The Harder They Fall) y el disco de tributo.
+ *  2. **Álbum SIN crédito de álbum + mayoría de lo ingestado.** `artist_ids` tiene tres estados:
+ *     un array real, `NULL` (sin enriquecer) y `'[]'` (los sintéticos local:/import:, acuñados
+ *     sin créditos); `json_extract(...,'$[0]') IS NULL` cubre los dos últimos de una vez —escrito
+ *     como `artist_ids IS NULL` se dejaba fuera justo los mixtapes del usuario—. En prod son
+ *     casi sólo sintéticos (bootlegs, leaks, archivos locales), que se acuñan por (artista
+ *     principal, álbum): el artista de posición 0 de sus temas ES su atribución. Se exige
+ *     mayoría: un invitado liderando un corte es normal en un disco propio (Detroit 2, Big
+ *     Sean en 20 de 21), pero en una banda sonora nadie pasa de la mitad (8 Mile, 3 de 13).
  *
- *  El arm de respaldo ancla primero en el artista (subquery por `idx_ta_artist_position`) y
- *  agrupa después: agrupar de entrada todos los álbumes candidatos son ~11k por página de
- *  artista y cuesta 80ms en vez de 22ms, trabajo que ni depende del artista.
+ *  Hubo una tercera vía —créditos conocidos que NO lo nombran pero lidera la mayoría de los
+ *  temas publicados— y se quitó el 2026-10-14 a petición de Juan: contradecía el crédito de
+ *  spotify y, con los merges de artista ya resueltos, casi todo lo que aportaba era basura
+ *  (recopilatorios de "Various Artists", Writer's Block de Royce en la página de Eminem). Sus
+ *  aciertos legítimos (una entidad duplicada como N.W.A. / N.W.A, una OST acreditada al
+ *  estudio) se arreglan con un merge de artista o corrigiendo los créditos del álbum, no
+ *  con una heurística. No la vuelvas a meter.
  *
- *  Por encima de las tres, los **créditos corregidos del usuario**: un álbum cuya lista
- *  corrigió sale de las tres vías y entra sólo por la suya. Es lo que permite QUITAR un
- *  disco de un artista, que por cualquiera de las heurísticas volvería a colarse. */
+ *  La vía (2) ancla primero en el artista (subquery por `idx_ta_artist_position`) y agrupa
+ *  después: agrupar de entrada todos los álbumes candidatos son ~11k por página de artista
+ *  y cuesta 80ms en vez de 22ms, trabajo que ni depende del artista.
+ *
+ *  Por encima de las dos, los **créditos corregidos del usuario**: un álbum cuya lista
+ *  corrigió sale de las dos vías y entra sólo por la suya. Es lo que permite QUITAR un
+ *  disco de un artista, o PONERLO en uno que spotify no acredita. */
 export function artistCreditedAlbums(artistIds: string[], userId: number): SqlChunk {
   const cmp = idCmp(artistIds);
   const credits = trackArtistsFor(userId);
   const overridden = hasCreditOverrides(userId, 'album');
-  // conjunto motor común a (2) y (3): álbumes donde el artista lidera algún tema
+  // conjunto motor de (2): álbumes sin crédito de álbum donde el artista lidera algún tema.
+  // el filtro de crédito va aquí y no fuera: todos los temas de un álbum comparten su
+  // estado, así que basta con podar la semilla (pequeña, anclada en el artista)
   const ledAlbums = sql`
     SELECT t_s.album_id FROM ${credits} ta_s
     JOIN tracks t_s ON t_s.spotify_id = ta_s.track_id
-    WHERE ta_s.artist_id ${cmp} AND ta_s.position = 0 AND t_s.album_id IS NOT NULL`;
+    JOIN albums a_s ON a_s.spotify_id = t_s.album_id
+    WHERE ta_s.artist_id ${cmp} AND ta_s.position = 0 AND json_extract(a_s.artist_ids, '$[0]') IS NULL`;
   const notOverridden = (col: SqlChunk) => overridden ? sql`AND ${col} NOT IN ${albumOverrideIds(userId)}` : sql``;
   const overrideArm = overridden
     ? sql`UNION
@@ -542,12 +546,9 @@ export function artistCreditedAlbums(artistIds: string[], userId: number): SqlCh
     UNION
     SELECT t_cr.album_id FROM tracks t_cr
     JOIN ${credits} ta_cr ON ta_cr.track_id = t_cr.spotify_id AND ta_cr.position = 0
-    JOIN albums a_nc ON a_nc.spotify_id = t_cr.album_id
     WHERE t_cr.album_id IN (${ledAlbums}) ${notOverridden(sql`t_cr.album_id`)}
     GROUP BY t_cr.album_id
-    HAVING SUM(CASE WHEN ta_cr.artist_id ${cmp} THEN 1 ELSE 0 END) * 2 >
-      CASE WHEN MAX(json_extract(a_nc.artist_ids, '$[0]')) IS NULL THEN COUNT(*)
-           ELSE COALESCE(MAX(a_nc.total_tracks), COUNT(*)) END
+    HAVING SUM(CASE WHEN ta_cr.artist_id ${cmp} THEN 1 ELSE 0 END) * 2 > COUNT(*)
     ${overrideArm}
   )`;
 }

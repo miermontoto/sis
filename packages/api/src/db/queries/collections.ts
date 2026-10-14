@@ -510,7 +510,8 @@ export function getCollectionRefs(db: Db, entityType: CollectionMemberType, enti
 /** Una colección agrupa lo que es DEL artista, así que un miembro tiene que estar
  *  acreditado en él. La definición no se reinventa aquí:
  *   - álbum: `artistCreditedAlbums`, la misma que decide qué discos salen en la
- *     página del artista (crédito de álbum, o mayoría de temas liderados). Con una
+ *     página del artista (crédito de álbum, o mayoría de temas liderados si el álbum no
+ *     trae crédito de álbum, o los créditos corregidos del usuario). Con una
  *     regla propia acabarías viendo un disco en su página que la colección rechaza.
  *   - tema: acreditado en CUALQUIER posición. Una colaboración es de los dos, igual
  *     que un disco a dos nombres.
