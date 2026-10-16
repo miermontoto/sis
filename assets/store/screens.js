@@ -442,14 +442,6 @@
     const dw = f.screen.w * s + 2 * f.bezel;
     return { x: (f.w - dw) / 2, y: f.copyH, dw, dh, s };
   };
-  // ecualizador de fondo en la esquina superior derecha
-  const eq = (f) => {
-    const n = 14;
-    const bw = f.w * 0.018;
-    const r = rng(5);
-    const bars = Array.from({ length: n }, (_, i) => `<i class="${i === n - 2 ? 'on' : ''}" style="width:${bw}px;height:${(0.25 + r() * 0.75) * f.h * 0.16}px"></i>`).join('');
-    return `<div class="eq" style="right:${f.pad}px;top:${f.padTop}px;gap:${bw * 0.7}px;height:${f.h * 0.16}px">${bars}</div>`;
-  };
   const slideHtml = (key, idx) => {
     const f = FRAMES[key];
     const dev = f.base ?? key;
@@ -457,7 +449,6 @@
     const sl = f.slides[idx];
     const g = geom(f);
     const rIn = f.rLog * g.s;
-    const phone = dev.endsWith('phone');
     return `<div class="slide" style="width:${f.w}px;height:${f.h}px;--pad:${f.pad}px;--pad-top:${f.padTop}px;--kicker:${f.kicker}px;--head:${f.head}px;--sub:${f.sub}px;--dot:${f.dot}px;--sub-max:none">
       <div class="copy"><span class="kicker">${sl.k(dev)}</span><h1 class="headline">${sl.h(dev)}</h1><p class="sub">${sl.s(dev)}</p></div>
       <div class="device" style="box-sizing:border-box;left:${g.x}px;top:${g.y}px;width:${g.dw}px;height:${g.dh}px;border-radius:${rIn + f.bezel}px">

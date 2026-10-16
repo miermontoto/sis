@@ -214,20 +214,6 @@ body.export .slide {
   background-size: var(--dot, 22px) var(--dot, 22px);
   mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
 }
-/* ecualizador de fondo: barras del week strip, casi invisibles */
-.eq {
-  position: absolute;
-  display: flex;
-  align-items: flex-end;
-  pointer-events: none;
-}
-.eq i {
-  display: block;
-  background: #11181a;
-}
-.eq i.on {
-  background: rgba(var(--accent-rgb), 0.16);
-}
 .copy {
   position: absolute;
   left: var(--pad);
