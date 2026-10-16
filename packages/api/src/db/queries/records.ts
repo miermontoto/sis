@@ -8,6 +8,7 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, RankingMetric, WeekStartOption, EntityType,
 } from '@sis/shared';
+import { periodForDate } from '@sis/shared';
 import { albumArtistId, albumArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr, trackArtistsFor, primaryArtistOf, artistNameOf } from './helpers.js';
 import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
@@ -88,7 +89,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     LEFT JOIN albums al ON al.spotify_id = t.album_id
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)), ws);
   // resuelve track merges: un track fusionado se cuenta bajo su id canónico
   // (nombre/artista/álbum del track target), no bajo su id de origen.
   base.inMostPlaylists = db.all(sql`
@@ -147,7 +148,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     JOIN albums al ON al.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)), ws);
   // resuelve merges (track y album) igual que el ranking semanal: agrupa por el
   // álbum canónico para no listar un álbum ya fusionado bajo su id de origen.
   // nombre/artista se toman del target (join por el eid resuelto).
@@ -220,7 +221,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     JOIN artists a ON a.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)));
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)), ws);
 
   // artistas con más tracks en #1 (por semana)
   const trackWeek = weekExpr(ws);
@@ -309,7 +310,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 
 // unique=true: un registro por entidad (comportamiento por defecto). unique=false:
 // peak week, dominance y longest run permiten que la misma entidad aparezca varias veces.
-function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: Map<string, WeekTotal>): EntityRecords {
+function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: Map<string, WeekTotal>, ws: WeekStart): EntityRecords {
   // agrupar por entidad
   const byEntity = new Map<string, { rows: any[]; debutWeek: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null }>();
   for (const r of rows) {
@@ -405,7 +406,11 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
   // rachas consecutivas de cada entidad; en modo unique nos quedamos con la más
   // larga (a igualdad gana la racha en curso), sin unique emitimos cada racha por
   // separado, así que una entidad con varias rachas aparece varias veces.
+  // la semana en curso alarga una racha pero no la corta: aún no ha cerrado, y el
+  // primer día (el viernes, con el corte por defecto) su chart lleva un puñado de
+  // plays, así que tratarla como cerrada daba por acabada toda racha viva.
   const allWeekLabels = [...new Set(rows.map((r) => r.w as string))].sort();
+  const openWeek = periodForDate(new Date(), 'week', ws);
   const longestChartRun: RecordEntry[] = [];
   type Run = { streak: number; start: string; end: string; ongoing: boolean };
   for (const [eid, data] of byEntity) {
@@ -416,19 +421,19 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
 
     // recorrer la línea temporal completa acumulando rachas consecutivas
     const runs: Run[] = [];
-    let curStreak = 0, curStart = '';
-    for (let i = 0; i < allWeekLabels.length; i++) {
-      const w = allWeekLabels[i];
+    let curStreak = 0, curStart = '', curEnd = '';
+    for (const w of allWeekLabels) {
       if (chartWeekSet.has(w)) {
         if (curStreak === 0) curStart = w;
         curStreak++;
-      } else if (curStreak > 0) {
-        runs.push({ streak: curStreak, start: curStart, end: allWeekLabels[i - 1], ongoing: false });
+        curEnd = w;
+      } else if (curStreak > 0 && w !== openWeek) {
+        runs.push({ streak: curStreak, start: curStart, end: curEnd, ongoing: false });
         curStreak = 0;
       }
     }
     if (curStreak > 0) {
-      runs.push({ streak: curStreak, start: curStart, end: allWeekLabels[allWeekLabels.length - 1], ongoing: true });
+      runs.push({ streak: curStreak, start: curStart, end: curEnd, ongoing: true });
     }
 
     const toEntry = (run: Run): RecordEntry => ({
