@@ -450,3 +450,16 @@ export const creditOverrides = sqliteTable('credit_overrides', {
   primaryKey({ columns: [table.userId, table.subjectType, table.subjectId, table.artistId] }),
   index('idx_credit_overrides_artist').on(table.userId, table.subjectType, table.artistId),
 ]);
+
+// singles que el barrido automático (services/single-fold.ts) ya plegó en su álbum para
+// un usuario. Es la memoria que impide repetirlo: deshacer el merge a mano tiene que
+// durar, y sin esta fila la pasada siguiente lo volvería a crear. Sin FK en los ids por
+// lo mismo que credit_overrides; reassignAlbumRefs los re-apunta
+export const singleFolds = sqliteTable('single_folds', {
+  userId: integer('user_id').notNull().references(() => users.id),
+  singleId: text('single_id').notNull(),
+  albumId: text('album_id').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.singleId] }),
+]);

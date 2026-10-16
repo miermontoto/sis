@@ -7,6 +7,7 @@ import { computeAndCacheForUserAsync } from './records-cache.js';
 import { warmRecentRankChanges } from './recent-changes-cache.js';
 import { getProfileSummaryCached, getUserStreaksCached } from './social.js';
 import { warmLatestReports } from './report-cache.js';
+import { foldSinglesIfEnabled } from './single-fold.js';
 import { getUserById } from './user-manager.js';
 import { createLogger } from './logger.js';
 
@@ -16,6 +17,7 @@ const logRecordsCache = createLogger('records-cache');
 const logRecentChanges = createLogger('recent-changes');
 const logSocialCard = createLogger('social-card');
 const logReportCache = createLogger('report-cache');
+const logSingleFold = createLogger('single-fold');
 const deferredUsers = new Set<number>();
 
 /** Lanzar tareas diferidas para un usuario (playlist sync + records cache +
@@ -49,6 +51,10 @@ export function triggerDeferredStartup(userId: number) {
     // usuario los abra (ver report-cache.ts)
     warmLatestReports(userId, user.spotifyId).catch(err =>
       logReportCache.error(`error horneando reports usuario ${userId}:`, err));
+    // singles de adelanto plegados en su álbum, si tiene el ajuste: la primera pasada
+    // tras un deploy, que reinicia el timer horario del polling
+    foldSinglesIfEnabled(userId).catch(err =>
+      logSingleFold.error(`error usuario ${userId}:`, err));
   }
 }
 

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w42l';
+export const VERSION = '26w42m';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -352,6 +352,22 @@ export const TRACK_DEDUP_DURATION_TOLERANCE_MS = 5_000;
 // WHERE sin MATCH, que lo recorre entero— y el atraso inicial era de 400: sin tope,
 // 11s de main thread bloqueado en el arranque. drena en unos pocos ciclos
 export const ISRC_DEDUP_MAX_PER_CYCLE = 100;
+
+// --- plegado automático de singles de adelanto en su álbum (ajuste autoMergeSingles) ---
+
+// cada cuánto se barre: el álbum entra en la biblioteca con su primer play y el single se
+// pliega en la siguiente pasada. el arranque diferido del usuario lanza la primera, que
+// los deploys reinician el timer más a menudo que esto
+export const SINGLE_FOLD_INTERVAL_MS = 60 * 60_000;
+
+// cuánto puede adelantarse un single a su álbum. un tema homónimo años después suele
+// ser otra cosa (regrabación, otro tema con el mismo título), no el disco que adelantaba
+export const SINGLE_FOLD_MAX_LEAD_MS = 2 * 365 * 24 * 60 * 60_000;
+
+// tope de tracklists pedidos a spotify por pasada y usuario. los gemelos isrc del álbum
+// se pliegan en el track del single, así que el álbum puede no tener fila para ese tema
+// hasta que se rellena su tracklist; ensureFullAlbumTracks sella cada uno 30 días
+export const SINGLE_FOLD_TRACKLIST_FETCH_MAX = 10;
 
 // solape mínimo (s) entre la ventana implícita de un play SIN duración medida y la de
 // un play medido para dar el primero por imposible. Con 30s no lo dispara ni un borde

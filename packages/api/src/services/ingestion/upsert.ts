@@ -358,6 +358,11 @@ export function reassignAlbumRefs(db: ReturnType<typeof getDb>, sourceAlbumId: s
   db.run(sql`DELETE FROM album_covers WHERE album_id = ${sourceAlbumId}`);
   db.run(sql`UPDATE OR IGNORE album_ratings SET album_id = ${targetAlbumId} WHERE album_id = ${sourceAlbumId}`);
   db.run(sql`DELETE FROM album_ratings WHERE album_id = ${sourceAlbumId}`);
+  // la memoria del plegado automático de singles (PK user_id + single_id) sigue a la
+  // fila: sin ella, deshacer un plegado no sobreviviría a un dedup del shell del single
+  db.run(sql`UPDATE OR IGNORE single_folds SET single_id = ${targetAlbumId} WHERE single_id = ${sourceAlbumId}`);
+  db.run(sql`DELETE FROM single_folds WHERE single_id = ${sourceAlbumId}`);
+  db.run(sql`UPDATE single_folds SET album_id = ${targetAlbumId} WHERE album_id = ${sourceAlbumId}`);
   reassignCreditOverrides(db, 'album', sourceAlbumId, targetAlbumId);
   rewriteMergeRules(db, 'album', sourceAlbumId, targetAlbumId);
   db.run(sql`DELETE FROM albums WHERE spotify_id = ${sourceAlbumId}`);

@@ -35,6 +35,7 @@ interface SettingsData {
   notifyChartClosings: boolean;
   notifyAnniversaries: boolean;
   notifyMilestones: boolean;
+  autoMergeSingles: boolean;
   lastPeriodWeek: string | null;
   lastPeriodMonth: string | null;
   lastPeriodYear: string | null;
@@ -83,6 +84,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   notifyChartClosings: true,
   notifyAnniversaries: true,
   notifyMilestones: true,
+  // plegar solo los singles de adelanto en su álbum: opt-out (cada merge se deshace a mano)
+  autoMergeSingles: true,
   lastPeriodWeek: null,
   lastPeriodMonth: null,
   lastPeriodYear: null,
@@ -208,6 +211,7 @@ export const [getAlbumShowGlobalRanks, setAlbumShowGlobalRanks] = boolSetting('a
 export const [getShowPlaylistBadges, setShowPlaylistBadges] = boolSetting('showPlaylistBadges');
 export const [getArtistBackdrop, setArtistBackdrop] = stringSetting<ArtistBackdrop>('artistBackdrop', 'blur');
 export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');
+export const [getAutoMergeSingles, setAutoMergeSingles] = boolSetting('autoMergeSingles');
 
 // notificaciones push: master switch (off por defecto) + toggles por tipo
 export const [getNotificationsEnabled, setNotificationsEnabled] = boolSetting('notificationsEnabled', false);

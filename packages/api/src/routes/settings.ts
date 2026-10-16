@@ -6,13 +6,14 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { userSettings } from '../db/schema.js';
 import { invalidateRecordsCacheForUser, computeAndCacheForUserAsync } from '../services/records-cache.js';
+import { foldSinglesForUser } from '../services/single-fold.js';
 import { createLogger } from '../services/logger.js';
 import type { AppVariables } from '../app.js';
 
 const log = createLogger('settings');
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
@@ -50,6 +51,9 @@ const DEFAULTS: Record<string, string> = {
   notifyChartClosings: 'true',
   notifyAnniversaries: 'true',
   notifyMilestones: 'true',
+  // plegar solo los singles de adelanto en su álbum (services/single-fold.ts): opt-out,
+  // y cada merge que escribe se deshace a mano sin que la pasada siguiente lo repita
+  autoMergeSingles: 'true',
   // disposición de vistas de detalle y del dashboard (JSON de DetailLayout; '' = default)
   detailLayoutArtist: '',
   detailLayoutAlbum: '',
@@ -99,6 +103,13 @@ settings.put('/', async (c) => {
     invalidateRecordsCacheForUser(userId);
     computeAndCacheForUserAsync(userId, spotifyId)
       .catch(err => log.error(`error horneando records usuario ${userId}:`, err));
+  }
+
+  // activarlo pliega ya los pares que hay en la biblioteca, sin esperar al tick horario
+  if (body.autoMergeSingles === 'true') {
+    const userId = c.get('userId');
+    foldSinglesForUser(userId)
+      .catch(err => log.error(`error plegando singles usuario ${userId}:`, err));
   }
 
   return c.json({ ok: true });

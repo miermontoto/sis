@@ -57,6 +57,7 @@ export {
   getShowPlaylistBadges, setShowPlaylistBadges,
   getArtistBackdrop, setArtistBackdrop,
   getSocialVisibility, setSocialVisibility,
+  getAutoMergeSingles, setAutoMergeSingles,
   getNotificationsEnabled, setNotificationsEnabled,
   getNotifyRecords, setNotifyRecords,
   getNotifyNumberOne, setNotifyNumberOne,

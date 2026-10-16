@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getAutoMergeSingles, setAutoMergeSingles, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -171,6 +171,7 @@
   let albumShowDurationPref = $state(true);
   let albumShowAccoladesPref = $state(true);
   let showPlaylistBadgesPref = $state(true);
+  let autoMergeSinglesPref = $state(true);
   let artistShowAlbumAccoladesPref = $state(true);
   let artistShowTrackAccoladesPref = $state(true);
   let artistShowGlobalRanksPref = $state(true);
@@ -427,6 +428,7 @@
     nowPlayingDisplayPref = getNowPlayingDisplay();
     nowPlayingUpNextPref = getNowPlayingUpNext();
     socialVisibilityPref = getSocialVisibility();
+    autoMergeSinglesPref = getAutoMergeSingles();
     notifEnabledPref = getNotificationsEnabled();
     notifRecordsPref = getNotifyRecords();
     notifNumberOnePref = getNotifyNumberOne();
@@ -1127,6 +1129,18 @@
           </div>
           <div class="pref-control">
             <a href="/settings/merges" class="action-btn action-btn--secondary">Manage</a>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Fold singles into their album</div>
+            <div class="pref-desc">When an album comes out, merge the singles that led up to it into the album — only if every track of the single is on it. Each merge can be undone from the album's relations</div>
+          </div>
+          <div class="pref-control">
+            <div class="segmented">
+              <button class="segmented-btn" class:segmented-active={!autoMergeSinglesPref} onclick={() => { autoMergeSinglesPref = false; setAutoMergeSingles(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={autoMergeSinglesPref} onclick={() => { autoMergeSinglesPref = true; setAutoMergeSingles(true); }}>On</button>
+            </div>
           </div>
         </div>
       </div>

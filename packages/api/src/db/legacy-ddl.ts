@@ -584,4 +584,16 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
     )`);
   } catch {}
   try { sqlite.exec('CREATE INDEX IF NOT EXISTS idx_credit_overrides_artist ON credit_overrides(user_id, subject_type, artist_id)'); } catch {}
+
+  // singles ya plegados en su álbum por el barrido automático (services/single-fold.ts):
+  // la fila impide volver a plegar uno cuyo merge el usuario deshizo
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS single_folds (
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      single_id TEXT NOT NULL,
+      album_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, single_id)
+    )`);
+  } catch {}
 }

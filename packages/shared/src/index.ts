@@ -55,6 +55,10 @@ export type { SearchResults } from './search.js';
 // playlists
 export type { PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse, LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail } from './playlists.js';
 
+// plegado automático de singles de adelanto en su álbum
+export { inFoldWindow, pickSingleFold } from './single-fold.js';
+export type { FoldTrack, FoldRelease, FoldTrackPair, SingleFold, SingleFoldOptions } from './single-fold.js';
+
 // merge
 export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 

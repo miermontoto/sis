@@ -30,6 +30,10 @@ export type { CollectionScope } from './collections.js';
 export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup, getMergeSuggestions } from './merge.js';
 export type { MergeInfo, MergeSuggestionRow } from './merge.js';
 
+// plegado automático de singles de adelanto en su álbum (ajuste autoMergeSingles)
+export { planSingleFolds } from './single-fold.js';
+export type { SingleFoldPlan } from './single-fold.js';
+
 // relaciones soft entre artistas (sin efecto en el tracking)
 export { getArtistRelations, getRelationStats } from './relations.js';
 export type { RelatedArtistRow, RelationStatsRow } from './relations.js';
