@@ -28,7 +28,7 @@ on:
     # filtros de ref. sin `paths:` a propósito (rompería el push de tag, que no trae
     # commits); el filtrado por rutas vive en el job `guard` del reutilizable.
     branches:
-      - main         # build automático (+ subida a alpha con ANDROID_PLAY_UPLOAD=true)
+      - main         # build automático (+ subida a production con ANDROID_PLAY_UPLOAD=true)
     tags:
       - 'android-v*'
   workflow_dispatch:
@@ -40,7 +40,7 @@ on:
       track:
         description: 'Track de Play donde publicar el aab.'
         type: choice
-        default: alpha
+        default: production
         options:
           - internal
           - alpha
@@ -58,8 +58,8 @@ jobs:
       app: sis
       package_name: info.mier.sis
       # push: sube sólo con la variable ANDROID_PLAY_UPLOAD=true (ver cabecera); en
-      # dispatch manda el input. default alpha = closed testing, donde se publica de
-      # verdad (internal está vacío); ojo: los nombres de la api no son los de la consola.
+      # dispatch manda el input. default production = el canal público (alpha era
+      # closed testing); ojo: los nombres de la api no son los de la consola.
       upload: ${{ (github.event_name == 'push' && vars.ANDROID_PLAY_UPLOAD == 'true') || (github.event_name == 'workflow_dispatch' && inputs.upload) }}
-      track: ${{ inputs.track || 'alpha' }}
+      track: ${{ inputs.track || 'production' }}
     secrets: inherit
