@@ -37,8 +37,12 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // r8: shrink + optimize + ofuscación. las reglas keep de los plugins vienen en sus
+            // aar (consumer rules de capacitor, firebase…) y el mapping viaja dentro del aab,
+            // así que play desofusca los crashes sin subirlo aparte.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (keystorePropsFile.exists()) {
                 signingConfig signingConfigs.release
             }
