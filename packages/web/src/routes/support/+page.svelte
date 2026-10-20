@@ -18,7 +18,7 @@
     },
     {
       q: 'How do I delete my account and data?',
-      a: 'Email us at {email} from your account address and we will delete your account and its associated data. You can also revoke sis from your Spotify account settings to stop any further syncing.',
+      a: 'Open Settings → Account → Delete account, in the app or on the web, and confirm: your account and all its data are erased right away. You can also revoke sis from your Spotify account settings to stop any further syncing. If you can no longer sign in, email us at {email}.',
     },
   ];
 </script>

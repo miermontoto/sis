@@ -318,6 +318,8 @@ export const api = {
 
   // user management (admin)
   me: () => apiFetch<MeResponse>('/me'),
+  // borrado definitivo de la cuenta propia; quien llama vacía el cache del dispositivo entero
+  deleteAccount: () => apiMutate<void>('DELETE', '/me', undefined, { invalidate: false }),
   listUsers: () => apiFetch<UserRecord[]>('/admin/users'),
   addUser: (id: string, kind: 'spotify' | 'lastfm' | 'mierid' = 'spotify') =>
     apiMutate<UserRecord>('POST', '/admin/users',

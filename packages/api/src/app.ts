@@ -1,6 +1,6 @@
 // composición de la api de sis sobre el hono base de @platform/core-api:
 // gate de sesión spotify, rutas de dominio, portadas, og html y spa estática.
-import { getCookie } from 'hono/cookie';
+import { getCookie, deleteCookie } from 'hono/cookie';
 import { createPlatformApp, mountSpa, sessionGate } from '@platform/core-api';
 import fs from 'fs';
 import path from 'path';
@@ -27,7 +27,7 @@ import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession, type Session } from './services/session.js';
-import { hasAnyUsers, getUserById } from './services/user-manager.js';
+import { hasAnyUsers, getUserById, getAllUsers, hardDeleteUser } from './services/user-manager.js';
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
@@ -272,6 +272,22 @@ app.get('/api/me', (c) => {
     scopes: getStoredScopes(userId),
     lastfmUsername: getLastfmAccount(userId)?.username ?? null,
   });
+});
+
+// borrado de la cuenta propia (app store 5.1.1(v)): definitivo, sin el paso previo de
+// desactivar que lleva el del panel de admin. el único admin no puede irse dejando la
+// instancia con usuarios y sin nadie que la gestione; si es el único usuario, la
+// instancia vuelve al bootstrap y el siguiente login es admin
+app.delete('/api/me', (c) => {
+  const userId = c.get('userId');
+  if (!userId) return c.json({ error: 'no autorizado' }, 401);
+  const others = getAllUsers().filter(u => u.id !== userId);
+  if (c.get('isAdmin') && others.length > 0 && !others.some(u => u.isAdmin && u.isActive)) {
+    return c.json({ error: 'You are the only admin: make another user admin before deleting your account' }, 409);
+  }
+  hardDeleteUser(userId);
+  deleteCookie(c, 'sis_session', { path: '/' });
+  return c.body(null, 204);
 });
 
 // OG meta para crawlers en rutas públicas (share / perfil).

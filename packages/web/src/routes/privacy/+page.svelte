@@ -13,7 +13,7 @@
     appName="sis"
     authProvider="Spotify"
     contactEmail="support@mier.info"
-    updated="2026-06-08"
+    updated="2026-10-20"
   >
     <section class="privacy-extra">
       <h2>Spotify listening data</h2>
@@ -26,7 +26,8 @@
       </p>
       <p>
         You can revoke sis's access at any time from your Spotify account settings;
-        doing so stops any further syncing.
+        doing so stops any further syncing. To erase your account and all of this
+        data, use Settings → Account → Delete account.
       </p>
     </section>
   </PrivacyPolicy>

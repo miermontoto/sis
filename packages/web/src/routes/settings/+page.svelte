@@ -18,6 +18,7 @@
   import { themeStore, THEME_PREFERENCES, type ThemePreference } from '$lib/stores/theme.svelte';
   import { listLoginSessions, logoutOtherSessions, type SessionInfo, type UserRecord } from '$lib/api';
   import { isForeignInstance, isNativeApp, instanceLabel, instanceOrigin } from '$lib/instance';
+  import { clearAll } from '$lib/cache';
 
   let health = $state<HealthData | null>(null);
   let me = $state<MeResponse | null>(null);
@@ -152,6 +153,26 @@
       await loadUsers();
     } catch (err) {
       userError = errorMessage(err, 'Could not remove user');
+    }
+  }
+
+  // borrado de la cuenta propia: definitivo. la sesión muere con ella, así que se
+  // vacía el cache entero del dispositivo (nadie va a invalidar ya esas claves) y se
+  // vuelve al login, igual que el logout nativo
+  let deletingAccount = $state(false);
+  let deleteAccountError = $state<string | null>(null);
+
+  async function deleteAccount() {
+    if (!confirm('Permanently delete your account? Your listening history, ratings, concerts, collections, playlists and connected services will be erased. This cannot be undone.')) return;
+    deletingAccount = true;
+    deleteAccountError = null;
+    try {
+      await api.deleteAccount();
+      await clearAll();
+      window.location.href = '/login';
+    } catch (err) {
+      deleteAccountError = errorMessage(err, 'Could not delete your account');
+      deletingAccount = false;
     }
   }
 
@@ -1293,6 +1314,23 @@
           {/if}
         </div>
       {/if}
+      <div class="prefs-subtitle">Delete account</div>
+      <div class="section-list">
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label">Account and data</div>
+            <div class="pref-desc">Permanently erases your account and everything sis stores for you: listening history, ratings, concerts, collections, playlists and connected services. Export your history first from Connections &amp; data if you want to keep it.</div>
+          </div>
+          <div class="pref-control">
+            <button class="action-btn action-btn--danger" disabled={deletingAccount} onclick={deleteAccount}>
+              {deletingAccount ? 'Deleting…' : 'Delete account'}
+            </button>
+          </div>
+        </div>
+        {#if deleteAccountError}
+          <div class="import-error">{deleteAccountError}</div>
+        {/if}
+      </div>
     </div>
   {/if}
 {/if}

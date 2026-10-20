@@ -53,3 +53,4 @@ With the demo account the reviewer can see:
 • Insights: hour × day heatmap, genres, streaks and discovery
 • History: every play, grouped by listening session
 No external account connection is required beyond signing in with the demo account.
+Account deletion (guideline 5.1.1(v)): Settings → Account tab → Delete account. After a confirmation step it permanently erases the account and all its data (listening history, ratings, concerts, collections, playlists, connected services) right away; nothing is deactivated or kept, and no email or website visit is needed. Deleting the demo account works the same way, but the demo credentials will then stop working until we restore the account.

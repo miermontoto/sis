@@ -1,9 +1,19 @@
-import { eq, isNull } from 'drizzle-orm';
+import { eq, isNull, sql, getTableName } from 'drizzle-orm';
+import { COLLECTION_ID_PREFIX } from '@sis/shared';
 import { getDb } from '../db/connection.js';
-import { users, listeningHistory, authTokens, pollingState, mergeRules, lastfmAccounts, mieridAccounts, likedTracks, likedSyncState, creditOverrides, singleFolds } from '../db/schema.js';
+import { users, listeningHistory, authTokens, pollingState, mergeRules } from '../db/schema.js';
+import { invalidateRecordsCacheForUser } from './records-cache.js';
+import { invalidateReportCacheForUser } from './report-cache.js';
+import { invalidateProjectionBase } from './projection-cache.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('users');
+
+// columna con la que una tabla apunta a su dueño. las que no llevan FK a users
+// (sent_notifications, notification_period_state) sólo se reconocen por este nombre
+// y su tipo: la de user_settings es TEXT y guarda el spotify id, no el numérico
+const USER_ID_COLUMN = 'user_id';
+const USER_ID_TYPE = 'INTEGER';
 export interface User {
   id: number;
   spotifyId: string;
@@ -87,20 +97,43 @@ export function updateUser(id: number, fields: { isAdmin?: boolean; isActive?: b
   return getUserById(id);
 }
 
-/** Elimina un usuario y todos sus datos asociados. */
+/** Elimina un usuario y TODO lo que cuelga de él, en una transacción: o se va entero
+ *  o no se toca nada. Las tablas no se enumeran a mano: la lista vieja cubría 10 de 25
+ *  y, con foreign_keys = ON, el DELETE de `users` moría con el historial ya borrado.
+ *  Se descubren en el esquema (toda columna `user_id` entera o con FK a users, lo que
+ *  incluye las dos de `follows` y la `sessions` legacy), así que una tabla nueva entra
+ *  sola. A mano queda lo que es del usuario sin nombrarlo por su id: los ajustes (por
+ *  spotify id), las filas de álbum de sus colecciones y las hijas de sus playlists y
+ *  bolos, que van antes que sus padres. */
 export function hardDeleteUser(id: number): void {
   const db = getDb();
-  db.delete(listeningHistory).where(eq(listeningHistory.userId, id)).run();
-  db.delete(authTokens).where(eq(authTokens.userId, id)).run();
-  db.delete(pollingState).where(eq(pollingState.userId, id)).run();
-  db.delete(mergeRules).where(eq(mergeRules.userId, id)).run();
-  db.delete(creditOverrides).where(eq(creditOverrides.userId, id)).run();
-  db.delete(singleFolds).where(eq(singleFolds.userId, id)).run();
-  db.delete(lastfmAccounts).where(eq(lastfmAccounts.userId, id)).run();
-  db.delete(mieridAccounts).where(eq(mieridAccounts.userId, id)).run();
-  db.delete(likedTracks).where(eq(likedTracks.userId, id)).run();
-  db.delete(likedSyncState).where(eq(likedSyncState.userId, id)).run();
-  db.delete(users).where(eq(users.id, id)).run();
+  const usersTable = getTableName(users);
+  const owned = db.all(sql`
+    SELECT m.name AS tbl, p.name AS col
+    FROM sqlite_master m JOIN pragma_table_info(m.name) p
+    WHERE m.type = 'table' AND m.name != ${usersTable}
+      AND ((p.name = ${USER_ID_COLUMN} AND p.type = ${USER_ID_TYPE}) OR EXISTS (
+        SELECT 1 FROM pragma_foreign_key_list(m.name) f WHERE f."from" = p.name AND f."table" = ${usersTable}))
+  `) as { tbl: string; col: string }[];
+  const collectionAlbums = sql`SELECT ${COLLECTION_ID_PREFIX} || id FROM album_collections WHERE user_id = ${id}`;
+
+  const deleted = db.transaction(() => [
+    sql`DELETE FROM user_settings WHERE user_id = (SELECT spotify_id FROM ${users} WHERE ${users.id} = ${id})`,
+    sql`DELETE FROM album_ratings WHERE album_id IN (${collectionAlbums})`,
+    sql`DELETE FROM album_covers WHERE album_id IN (${collectionAlbums})`,
+    sql`DELETE FROM albums WHERE spotify_id IN (${collectionAlbums})`,
+    sql`DELETE FROM generated_playlist_tracks WHERE playlist_id IN (SELECT id FROM generated_playlists WHERE user_id = ${id})`,
+    sql`DELETE FROM spotify_playlist_tracks WHERE playlist_id IN (SELECT id FROM spotify_playlists WHERE user_id = ${id})`,
+    sql`DELETE FROM concert_songs WHERE concert_id IN (SELECT id FROM concerts WHERE user_id = ${id})`,
+    ...owned.map(({ tbl, col }) => sql`DELETE FROM ${sql.identifier(tbl)} WHERE ${sql.identifier(col)} = ${id}`),
+    sql`DELETE FROM ${users} WHERE ${users.id} = ${id}`,
+  ].reduce((n, stmt) => n + db.run(stmt).changes, 0));
+
+  // lo horneado en memoria también son sus datos: no esperamos al siguiente deploy
+  invalidateRecordsCacheForUser(id);
+  invalidateReportCacheForUser(id);
+  invalidateProjectionBase(id);
+  log.info(`usuario ${id} eliminado (${deleted} filas)`);
 }
 
 /** Asigna todos los datos huérfanos (user_id NULL) al usuario indicado. */
