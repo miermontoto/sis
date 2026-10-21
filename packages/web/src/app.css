@@ -386,14 +386,6 @@ a:hover {
   display: none;
 }
 
-.mobile-mini-player {
-  display: none;
-}
-
-.mobile-session-marquee {
-  display: none;
-}
-
 .mobile-header {
   display: none;
 }
@@ -2015,216 +2007,6 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     display: none;
   }
 
-  .mobile-session-marquee {
-    display: block;
-    width: 100%;
-    overflow: hidden;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--info) 8%, transparent), color-mix(in srgb, var(--info) 2%, transparent));
-    border-bottom: 1px solid color-mix(in srgb, var(--info) 15%, transparent);
-    mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
-  }
-
-  .mobile-session-marquee-inner {
-    display: flex;
-    width: max-content;
-    will-change: transform;
-    animation: mobile-session-scroll 20s linear infinite;
-  }
-
-  .mobile-session-marquee-content {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.6rem;
-    white-space: nowrap;
-    font-size: var(--fs-xs);
-    color: var(--text-secondary);
-  }
-
-  .mobile-session-label {
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--track);
-    font-size: var(--fs-2xs);
-    color: var(--text-muted, #666);
-  }
-
-  .mobile-session-sep {
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--text-muted, #555);
-    flex-shrink: 0;
-  }
-
-  .mobile-session-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    text-decoration: none;
-    color: inherit;
-  }
-
-  /* thumbnail del ticker con badge de tipo superpuesto */
-  .mobile-session-thumb-wrap {
-    position: relative;
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-  }
-
-  .mobile-session-thumb {
-    display: block;
-    width: 100%;
-    height: 100%;
-    border-radius: 3px;
-    object-fit: cover;
-    background: var(--fg-a05);
-  }
-
-  /* artistas en círculo, álbumes/tracks con esquinas suaves */
-  .mobile-session-thumb--round .mobile-session-thumb {
-    border-radius: 50%;
-  }
-
-  /* badge de tipo, igual que en la lista de escritorio: recupera track vs álbum vs artista */
-  .mobile-session-badge {
-    position: absolute;
-    right: -2px;
-    bottom: -2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    color: var(--text, #e0e8e8);
-    background: var(--bg, #080a0c);
-    box-shadow: 0 0 0 1.5px var(--bg-card, #0f1214);
-  }
-
-  .mobile-session-entity {
-    color: var(--text-secondary);
-  }
-
-  .mobile-session-item:hover .mobile-session-entity {
-    color: var(--text);
-  }
-
-  .mobile-session-rank {
-    font-weight: 600;
-    font-size: var(--fs-2xs);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .mobile-session-rank.up {
-    color: var(--accent);
-  }
-
-  .mobile-session-rank.down {
-    color: var(--negative);
-  }
-
-  @keyframes mobile-session-scroll {
-    0% { transform: translate3d(0, 0, 0); }
-    100% { transform: translate3d(-50%, 0, 0); }
-  }
-
-  .mobile-mini-player {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    width: 100%;
-    padding: 0.4rem 0.6rem;
-    background: linear-gradient(135deg, var(--accent-a10), var(--accent-a05));
-    border-bottom: 1px solid var(--accent-a15);
-    color: var(--text);
-    text-decoration: none;
-    min-height: 44px;
-  }
-
-  .mini-player-art {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius);
-    object-fit: cover;
-    flex-shrink: 0;
-    background: var(--border);
-  }
-
-  .mini-player-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .mini-player-track {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .mini-player-artist {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .mini-player-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.1rem;
-    flex-shrink: 0;
-  }
-
-  .mini-player-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    border-radius: var(--radius);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: color 0.05s, background 0.05s;
-  }
-
-  .mini-player-btn--play {
-    width: 44px;
-    height: 44px;
-    background: var(--fg-a05);
-    color: var(--text);
-  }
-
-  .mini-player-btn:hover:not(:disabled) {
-    color: var(--accent);
-    background: var(--accent-a10);
-  }
-
-  .mini-player-btn:disabled {
-    opacity: 0.4;
-  }
-
-  .mini-player-btn--like:hover:not(:disabled) {
-    color: var(--like);
-    background: var(--like-a10);
-  }
-
-  .mini-player-btn--liked {
-    color: var(--like);
-  }
-
   .mobile-tabbar {
     display: flex;
     width: 100%;
@@ -2360,10 +2142,12 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     color: var(--text-muted);
   }
 
+  /* el pie esquiva el panel inferior fijo con su alto medido (+layout), más el
+     mismo hueco que el resto de lados */
   .main-content {
     margin-left: 0;
     padding: 1rem;
-    padding-bottom: 7.5rem;
+    padding-bottom: calc(var(--mobile-dock-h, 7.5rem) + 1rem);
   }
 
   .stats-grid {
@@ -2494,17 +2278,17 @@ html.native-tabrail .sidebar-nav--desktop {
 }
 
 @media (max-width: 768px) {
-  /* el panel inferior (marquee de sesión + mini player) va sobre la barra nativa (con el rail, al
-     pie) y fuera de la columna lateral */
+  /* el panel inferior (mini player y su hoja) va sobre la barra nativa (con el rail, al pie) y
+     fuera de la columna lateral */
   html.native-tabbar .sidebar {
     bottom: var(--bottom-chrome);
     left: var(--safe-left);
     right: var(--safe-right);
   }
 
-  /* el pie reservaba 7.5rem para mini player + pestañas web (~4.2rem): las nativas tapan
-     --bottom-chrome */
+  /* las pestañas web miden 0 (colapsadas) y el panel medido es sólo el mini player: la barra
+     nativa, que va por debajo de él, se suma aparte con --bottom-chrome */
   html.native-tabbar .main-content {
-    padding-bottom: calc(7.5rem - 4.2rem + var(--bottom-chrome));
+    padding-bottom: calc(var(--mobile-dock-h, 3.3rem) + var(--bottom-chrome) + 1rem);
   }
 }

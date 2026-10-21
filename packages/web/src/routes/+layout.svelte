@@ -20,17 +20,15 @@
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import Wordmark from '$lib/components/Wordmark.svelte';
-  import { apiBase, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSessionRankDisplay, onSessionRankDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type RankProjection, type ProjectionResult } from '$lib/api';
-  import { formatDuration } from '$lib/utils/format';
+  import { apiBase, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore } from '$lib/stores/play-updates.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import ProjectedChanges from '$lib/components/ProjectedChanges.svelte';
-  import IconTrack from '$lib/icons/IconTrack.svelte';
+  import MobilePlayer from '$lib/components/MobilePlayer.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
-  import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import FriendsActivity from '$lib/components/FriendsActivity.svelte';
   import UserMenu from '$lib/components/UserMenu.svelte';
   import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
@@ -45,12 +43,6 @@
   // hidrata el namespace del cache antes de cualquier apiFetch para que
   // /me, /settings, /version hagan hit cuando vuelves al app.
   hydrateUser();
-  import IconPause from '$lib/icons/IconPause.svelte';
-  import IconPlay from '$lib/icons/IconPlay.svelte';
-  import IconPrev from '$lib/icons/IconPrev.svelte';
-  import IconNext from '$lib/icons/IconNext.svelte';
-  import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
-  import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { chooseFit, sameFit, type FitChoice, type FitSizes } from '$lib/utils/sidebar-fit';
   import { positionPopover } from '$lib/utils/popover';
@@ -104,7 +96,6 @@
   let tabbarRef = $state<HTMLElement | null>(null);
   let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
   let sessionTrackingDisplay = $state<SessionTrackingDisplay>('all');
-  let sessionRankDisplay = $state<SessionRankDisplay>(getSessionRankDisplay());
   // rail izquierdo colapsado (solo iconos): preferencia de escritorio persistida
   let sidebarCollapsed = $state<boolean>(getSidebarCollapsed());
   let sidebarEl = $state<HTMLElement | null>(null);
@@ -126,8 +117,7 @@
     if (sessionTrackingDisplay !== 'off') projectionsStore.startPolling();
     else projectionsStore.stopPolling();
   });
-  const unsubSessionRank = onSessionRankDisplayChange(() => { sessionRankDisplay = getSessionRankDisplay(); });
-  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); unsubSessionRank(); unsubSidebarCollapsed(); });
+  onDestroy(() => { nowPlayingStore.stopPolling(); projectionsStore.stopPolling(); unsubNpDisplay(); unsubSessionTracking(); unsubSidebarCollapsed(); });
 
   // alterna el rail colapsado; el setter persiste (localStorage + PUT /settings)
   function toggleSidebar() { setSidebarCollapsed(!sidebarCollapsed); }
@@ -217,6 +207,31 @@
     if (sessionTrackingDisplay === 'off') return;
     nowPlayingStore.trackId;
     projectionsStore.onTrackChange();
+  });
+
+  // el cambio de tema lee las proyecciones antes de que el play saliente aterrice
+  // (el volcado va 8-75s detrás del corte), así que se releen cuando el servidor
+  // lo confirma: es esa lectura la que mueve los puestos y suelta los momentos
+  let lastConfirmedSeq = 0;
+
+  $effect(() => {
+    const batch = playUpdatesStore.confirmed;
+    if (!batch || batch.seq <= lastConfirmedSeq) return;
+    lastConfirmedSeq = batch.seq;
+    if (untrack(() => sessionTrackingDisplay) !== 'off') projectionsStore.refresh();
+  });
+
+  // alto del panel inferior móvil (mini player + pestañas web): el hueco que el
+  // contenido deja al pie sale de aquí y no de una constante (7.5rem dejaba 36px
+  // bajo la banda de sesión). Con la barra nativa de ios las pestañas web miden 0
+  // y app.css suma --bottom-chrome, así que la barra no se cuenta dos veces
+  $effect(() => {
+    const el = sidebarEl;
+    if (!el) return;
+    const root = document.documentElement;
+    const ro = new ResizeObserver(() => root.style.setProperty('--mobile-dock-h', `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => { ro.disconnect(); root.style.removeProperty('--mobile-dock-h'); };
   });
 
   // El parpadeo se dispara una sola vez, aquí, y no en cada vista que parchea:
@@ -340,7 +355,6 @@
             authChecked = true;
             nowPlayingDisplay = getNowPlayingDisplay();
             sessionTrackingDisplay = getSessionTrackingDisplay();
-            sessionRankDisplay = getSessionRankDisplay();
             sidebarCollapsed = getSidebarCollapsed();
             closedChartsStore.refresh();
             // pulsar una push en el apk lleva a su ruta (en web lo hace el service worker)
@@ -477,77 +491,6 @@
     }
   }
 
-  let miniActing = $state(false);
-
-  async function miniTogglePlay() {
-    const d = nowPlayingStore.data;
-    if (!d || miniActing) return;
-    miniActing = true;
-    try {
-      if (d.isPlaying) {
-        await api.playbackPause();
-        nowPlayingStore.data = { ...d, isPlaying: false };
-      } else {
-        await api.playbackPlay();
-        nowPlayingStore.data = { ...d, isPlaying: true };
-      }
-    } catch {} finally {
-      miniActing = false;
-    }
-  }
-
-  async function miniPrevious() {
-    if (miniActing) return;
-    miniActing = true;
-    try {
-      await api.playbackPrevious();
-      setTimeout(() => nowPlayingStore.pollLive(), 500);
-    } catch {} finally {
-      miniActing = false;
-    }
-  }
-
-  async function miniNext() {
-    if (miniActing) return;
-    miniActing = true;
-    try {
-      await api.playbackNext();
-      setTimeout(() => nowPlayingStore.pollLive(), 500);
-    } catch {} finally {
-      miniActing = false;
-    }
-  }
-
-  const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
-  const ALLOWED_RANGES: Record<string, Set<string>> = {
-    'all': new Set(['all']),
-    'all+ytd': new Set(['all', 'thisYear']),
-  };
-
-  function marqueeBestChange(changes: RankProjection[]): RankProjection | null {
-    const allowed = ALLOWED_RANGES[sessionRankDisplay];
-    if (!allowed) return null;
-    const filtered = changes.filter(c => allowed.has(c.range));
-    if (filtered.length === 0) return null;
-    return filtered.reduce((best, c) => Math.abs(c.delta) > Math.abs(best.delta) ? c : best);
-  }
-
-  // en modo solo-ALL la etiqueta de rango es redundante (no hay YTD con qué contrastar)
-  function rangeLabel(range: string): string {
-    return sessionRankDisplay === 'all' ? '' : `${RANGE_LABELS[range] ?? range} `;
-  }
-
-  let marqueeItems = $derived.by(() => {
-    const d = projectionsStore.data;
-    if (!d || d.sessionTrackCount === 0) return [];
-    const items: { r: ProjectionResult; best: RankProjection }[] = [];
-    for (const r of d.session) {
-      const best = marqueeBestChange(r.changes);
-      if (best) items.push({ r, best });
-    }
-    return items;
-  });
-
 </script>
 
 <svelte:window onfocus={refreshNowPlayingOnFocus} />
@@ -630,114 +573,7 @@
           {/if}
         {/each}
       </nav>
-      {#if sessionTrackingDisplay === 'all' && (projectionsStore.data?.sessionTrackCount ?? 0) > 0}
-        <div class="mobile-session-marquee">
-          <div class="mobile-session-marquee-inner">
-            <span class="mobile-session-marquee-content">
-              <span class="mobile-session-label">Session · {projectionsStore.data?.sessionTrackCount} tracks · {formatDuration(projectionsStore.data?.sessionTotalMs ?? 0)}</span>
-              {#each marqueeItems as { r, best }}
-                <span class="mobile-session-sep"></span>
-                <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item">
-                  {#if r.imageUrl}
-                    <span class="mobile-session-thumb-wrap" class:mobile-session-thumb--round={r.entityType === 'artist'}>
-                      <img class="mobile-session-thumb" src={r.imageUrl} alt="" loading="lazy" />
-                      <span class="mobile-session-badge" aria-hidden="true">
-                        {#if r.entityType === 'track'}<IconTrack size={7} />
-                        {:else if r.entityType === 'artist'}<IconArtist size={7} />
-                        {:else}<IconAlbum size={7} />
-                        {/if}
-                      </span>
-                    </span>
-                  {/if}
-                  <span class="mobile-session-entity">{r.entityName}</span>
-                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
-                </a>
-              {/each}
-            </span>
-            <span class="mobile-session-marquee-content" aria-hidden="true">
-              <span class="mobile-session-label">Session · {projectionsStore.data?.sessionTrackCount} tracks · {formatDuration(projectionsStore.data?.sessionTotalMs ?? 0)}</span>
-              {#each marqueeItems as { r, best }}
-                <span class="mobile-session-sep"></span>
-                <a href="/{r.entityType}/{r.entityId}" class="mobile-session-item" tabindex="-1">
-                  {#if r.imageUrl}
-                    <span class="mobile-session-thumb-wrap" class:mobile-session-thumb--round={r.entityType === 'artist'}>
-                      <img class="mobile-session-thumb" src={r.imageUrl} alt="" loading="lazy" />
-                      <span class="mobile-session-badge" aria-hidden="true">
-                        {#if r.entityType === 'track'}<IconTrack size={7} />
-                        {:else if r.entityType === 'artist'}<IconArtist size={7} />
-                        {:else}<IconAlbum size={7} />
-                        {/if}
-                      </span>
-                    </span>
-                  {/if}
-                  <span class="mobile-session-entity">{r.entityName}</span>
-                  <span class="mobile-session-rank" class:up={best.delta > 0} class:down={best.delta < 0}>{rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}</span>
-                </a>
-              {/each}
-            </span>
-          </div>
-        </div>
-      {/if}
-      {#if nowPlayingStore.data?.playing && nowPlayingStore.data.track}
-        {@const npData = nowPlayingStore.data}
-        {@const npTrack = nowPlayingStore.data.track}
-        <a href="/track/{npTrack.id}" class="mobile-mini-player">
-          {#if npTrack.album?.imageUrl}
-            <img class="mini-player-art" src={npTrack.album.imageUrl} alt={npTrack.album.name} />
-          {:else}
-            <div class="mini-player-art"></div>
-          {/if}
-          <div class="mini-player-info">
-            <span class="mini-player-track">{npTrack.name}</span>
-            <span class="mini-player-artist">{npTrack.artists.map(a => a.name).join(', ')}</span>
-          </div>
-          <div class="mini-player-controls">
-            <button
-              class="mini-player-btn"
-              title="Previous"
-              disabled={miniActing}
-              onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniPrevious(); }}
-            >
-              <IconPrev size={14} />
-            </button>
-            <button
-              class="mini-player-btn mini-player-btn--play"
-              title={npData.isPlaying ? 'Pause' : 'Play'}
-              disabled={miniActing}
-              onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniTogglePlay(); }}
-            >
-              {#if npData.isPlaying}
-                <IconPause size={18} />
-              {:else}
-                <IconPlay size={18} />
-              {/if}
-            </button>
-            <button
-              class="mini-player-btn"
-              title="Next"
-              disabled={miniActing}
-              onclick={(e) => { e.stopPropagation(); e.preventDefault(); miniNext(); }}
-            >
-              <IconNext size={14} />
-            </button>
-          </div>
-          <button
-            class="mini-player-btn mini-player-btn--like"
-            class:mini-player-btn--liked={nowPlayingStore.isLiked}
-            title={nowPlayingStore.likeLoading ? 'Loading...' : nowPlayingStore.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-            disabled={nowPlayingStore.likeLoading}
-            onclick={(e) => { e.stopPropagation(); e.preventDefault(); nowPlayingStore.toggleLike(); }}
-          >
-            {#if nowPlayingStore.likeLoading}
-              <span class="btn-spinner"></span>
-            {:else if nowPlayingStore.isLiked}
-              <IconHeartFilled size={14} />
-            {:else}
-              <IconHeartOutline size={14} />
-            {/if}
-          </button>
-        </a>
-      {/if}
+      <MobilePlayer sessionTracking={sessionTrackingDisplay} />
       <nav
         class="mobile-tabbar"
         bind:this={tabbarRef}
