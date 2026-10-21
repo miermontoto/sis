@@ -11,6 +11,10 @@ let _lastCheckedTrackId: string | null = null;
 // lecturas cacheadas medidas ANTES que ella son obsoletas y se descartan
 let _liveInfoAtMs = 0;
 let _liveGuardUntil = 0;
+// cuándo se leyó de spotify lo que pinta la tarjeta: la lectura en vivo o la
+// última del poller del servidor (updatedAt). Decide si volver a la app relee
+let _spotifyReadAtMs = 0;
+let _focusRefreshing = false;
 let _lastFinishedPlay = $state<HistoryItem | null>(null);
 let _volumePercent = $state<number | null>(null);
 // base de progreso del track: valor conocido + instante (reloj cliente) en que
@@ -37,6 +41,10 @@ const SEEK_DEBOUNCE_MS = 200;
 // eventualmente consistente y una lectura temprana suele devolver aún el
 // estado anterior
 const PLAY_REFRESH_DELAYS_MS = [500, 1000, 2000, 4000];
+// por debajo de esta edad la lectura de spotify cuenta como reciente y volver a
+// la app no gasta otra: acota a una llamada por ventana aunque se alterne de
+// ventana sin parar. El poller del servidor lee cada ≤60s (90s en idle)
+const FOCUS_REFRESH_STALE_MS = 15_000;
 
 type NowPlayingSource = 'cached' | 'live' | 'local';
 
@@ -135,6 +143,11 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
   if (source === 'live') {
     _liveInfoAtMs = nextTrackId ? serverInfoAtMs(data) || Date.now() : 0;
     _liveGuardUntil = nextTrackId ? Date.now() + LIVE_GUARD_CEILING_MS : 0;
+    _spotifyReadAtMs = Date.now();
+  } else if (source === 'cached') {
+    // un cacheado sin nada sonando no trae updatedAt: conserva la marca anterior,
+    // o en idle cada vuelta a la app releería
+    _spotifyReadAtMs = serverInfoAtMs(data) || _spotifyReadAtMs;
   }
 
   scheduleBoundaryRefresh();
@@ -213,6 +226,17 @@ async function pollLive() {
   } catch {
     await poll();
   }
+}
+
+// al volver a la app (pestaña visible, ventana enfocada, resume del apk) la tarjeta
+// puede llevar un rato sin ver spotify: un cambio desde otro dispositivo no adelanta
+// al poller del servidor y el tick del cliente se frena en segundo plano. Sólo con
+// el polling en marcha (tras el gate de login) y una lectura a la vez: visibilitychange
+// y focus llegan juntos. Sin token de spotify (solo-last.fm) no hay lectura en vivo
+function refreshIfStale() {
+  if (!_intervalId || _focusRefreshing || Date.now() - _spotifyReadAtMs < FOCUS_REFRESH_STALE_MS) return;
+  _focusRefreshing = true;
+  (_data?.controllable === false ? poll() : pollLive()).finally(() => { _focusRefreshing = false; });
 }
 
 function startPolling() {
@@ -329,6 +353,7 @@ export const nowPlayingStore = {
   startPolling,
   stopPolling,
   pollLive,
+  refreshIfStale,
   playContext,
   toggleLike,
   setVolume,

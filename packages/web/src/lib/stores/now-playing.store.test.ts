@@ -228,3 +228,59 @@ describe('nowPlayingStore.isLive', () => {
     expect(nowPlayingStore.isLive('artist', 'artist-added')).toBe(false);
   });
 });
+
+describe('nowPlayingStore.refreshIfStale', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.nowPlayingLive.mockReset();
+    mocks.nowPlaying.mockReset();
+  });
+
+  it('relee spotify en vivo al volver si lo pintado se midió hace rato, una vez por ráfaga', async () => {
+    mocks.nowPlayingLive.mockResolvedValue({ ...makeResponse('track-l', 'Song'), progressMs: 0 });
+    await nowPlayingStore.pollLive();
+    // el poller del servidor no ha vuelto a leer desde entonces
+    mocks.nowPlaying.mockResolvedValue({ ...makeResponse('track-l', 'Song'), progressMs: 0, updatedAt: new Date(Date.now() - 1_000).toISOString() });
+    nowPlayingStore.startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // recién leído: volver a la app no gasta otra llamada a spotify
+    nowPlayingStore.refreshIfStale();
+    expect(mocks.nowPlayingLive).toHaveBeenCalledTimes(1);
+
+    // un rato después se salta de tema desde otro dispositivo
+    await vi.advanceTimersByTimeAsync(20_000);
+    mocks.nowPlayingLive.mockResolvedValue({ ...makeResponse('track-m', 'Next'), progressMs: 0 });
+    // visibilitychange y focus llegan juntos: una sola lectura
+    nowPlayingStore.refreshIfStale();
+    nowPlayingStore.refreshIfStale();
+    await vi.advanceTimersByTimeAsync(0);
+    nowPlayingStore.stopPolling();
+
+    expect(mocks.nowPlayingLive).toHaveBeenCalledTimes(2);
+    expect(nowPlayingStore.data?.track?.id).toBe('track-m');
+  });
+
+  it('sin token de spotify (solo-last.fm) relee el cacheado: no hay lectura en vivo', async () => {
+    // nada sonando: desarma el guard de la lectura en vivo de los tests anteriores
+    mocks.nowPlayingLive.mockResolvedValue({ playing: false, isPlaying: false });
+    await nowPlayingStore.pollLive();
+    mocks.nowPlaying.mockResolvedValue({ ...makeResponse('track-n', 'Song'), controllable: false, progressMs: 0, updatedAt: new Date(Date.now() - 60_000).toISOString() });
+    nowPlayingStore.startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(nowPlayingStore.data?.track?.id).toBe('track-n');
+
+    nowPlayingStore.refreshIfStale();
+    await vi.advanceTimersByTimeAsync(0);
+    nowPlayingStore.stopPolling();
+
+    expect(mocks.nowPlayingLive).toHaveBeenCalledTimes(1);
+    expect(mocks.nowPlaying).toHaveBeenCalledTimes(2);
+  });
+
+  it('sin el polling en marcha (antes del gate de login) no pide nada', () => {
+    nowPlayingStore.refreshIfStale();
+    expect(mocks.nowPlayingLive).not.toHaveBeenCalled();
+    expect(mocks.nowPlaying).not.toHaveBeenCalled();
+  });
+});
