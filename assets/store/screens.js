@@ -6,8 +6,6 @@
 
   let LANG = 'en';
   const L = (en, es) => (LANG === 'es' ? es : en);
-  // el marco en curso dibuja la dynamic island; el iPhone Duo no (su cámara no va arriba al centro)
-  let ISLAND = true;
   // cifras con el separador de miles del idioma, como toLocaleString en la app
   const N = (n) => n.toLocaleString(LANG === 'es' ? 'es-ES' : 'en-US', { useGrouping: n >= 1000 ? 'always' : false });
 
@@ -108,11 +106,13 @@
   const tabbar = (active) => `<div class="tabbar">${TABS.map(([i, n]) => `<span class="${n === active ? 'on' : ''}"><i>${i}</i>${n}</span>`).join('')}</div>`;
   // la tablet android (1280x800) es más baja que el ipad: menos filas y menos pie de sidebar
   const isShort = (dev) => dev === 'android-tablet';
-  const sidebar = (active, short = false) => `
+  // duo: con el rail nativo la app quita la nav del sidebar (los mismos grupos van en el rail) y el
+  // pie no se recorta
+  const sidebar = (active, short = false, duo = false) => `
     <aside class="sidebar">
       <div class="sb-top"><div class="sb-logo">${wordmark(27)}<span class="sb-collapse">«</span></div><div class="sb-search"><span class="q">?</span>Search<span class="kbd">⌘K</span></div></div>
-      <nav class="sb-nav">${SIDEBAR.map(([h, items]) => `<div class="sb-head">${h}</div>${items.map(([i, n]) => `<div class="sb-item${n === active ? ' on' : ''}"><i>${i}</i>${n}</div>`).join('')}`).join('')}</nav>
-      <div class="sb-foot" style="padding-bottom:${TABLET_CROP}px">
+      ${duo ? '' : `<nav class="sb-nav">${SIDEBAR.map(([h, items]) => `<div class="sb-head">${h}</div>${items.map(([i, n]) => `<div class="sb-item${n === active ? ' on' : ''}"><i>${i}</i>${n}</div>`).join('')}`).join('')}</nav>`}
+      <div class="sb-foot" style="padding-bottom:${duo ? 'var(--duo-bottom)' : `${TABLET_CROP}px`}">
         ${short ? '' : `<div class="sb-friends"><span class="lbl">friends</span><div class="faces">${['cy', 'sm', 'tr'].map((k) => photo(`friend-${k}`, 24)).join('')}</div></div>
         <div class="sb-sess"><span>session</span><span>4 tracks · 14 min</span></div>`}
         ${short ? '' : `<div class="np"><div class="row" style="gap:8px">${cover(ALB[NOW.k], 32)}<div class="grow"><div class="t ell">${NOW.t}</div><div class="a ell">${NOW.a}</div></div></div><div class="ctl"><span>⏮</span><span class="p">❚❚</span><span>⏭</span><span style="color:var(--like)">♥</span></div><div class="prog"><span>1:48</span><span class="bar" style="--p:52%"><i></i></span><span>3:27</span></div></div>`}
@@ -122,9 +122,28 @@
     </aside>`;
   // lo que el recorte del dispositivo tapa por abajo en tablet (px lógicos)
   const TABLET_CROP = 80;
+  // ---------- iPhone Duo ----------
+  // la columna lateral del sistema, el rail de pestañas y los marcos son el cromo compartido de
+  // platform (window.StoreDuo, platform/tooling/store/duo); aquí sis dentro, como en la app con la
+  // barra nativa: cerrado, el layout móvil sin pestañas web (van en el rail) y el panel de sesión +
+  // mini player al pie; abierto en apaisado, el de escritorio con el sidebar sin su nav.
+  const { StoreDuo } = window;
+  // los grupos de pestañas de +layout con su sf symbol (los mismos que la barra nativa)
+  const DUO_TABS = [['listen', 'house'], ['stats', 'chart.bar'], ['highlights', 'star'], ['library', 'square.stack'], ['feed', 'person.2']];
+  // pestaña del rail de una pantalla de escritorio: el grupo de su item del sidebar
+  const groupOf = (item) => SIDEBAR.find(([, items]) => items.some(([, n]) => n === item))?.[0] ?? null;
+  const duoShell = (dev, o) => {
+    const back = o.backdrop ? `<div class="hero-bg" style="background:${o.backdrop}"></div>` : '';
+    if (dev === StoreDuo.DEV.closed) {
+      return `<div class="app duo">${back}${mobileHeader()}<div class="main m" style="${o.mainStyle ?? ''}">${o.main}</div>${sessionStrip()}${mini()}${StoreDuo.column({ camera: true, tabs: DUO_TABS, active: o.tab })}${StoreDuo.home()}</div>`;
+    }
+    return `<div class="app duo"><div class="body">${sidebar(o.nav, false, true)}<div class="main" style="${o.mainStyle ?? ''}">${back}${o.main}</div></div>${StoreDuo.column({ tabs: DUO_TABS, active: o.tab ?? groupOf(o.nav) })}${StoreDuo.home()}</div>`;
+  };
+
   const shell = (dev, o) => {
+    if (dev.startsWith('ios-duo')) return duoShell(dev, o);
     const phone = dev.endsWith('phone');
-    const island = dev === 'ios-phone' ? (ISLAND ? '<div class="island"></div>' : '') : dev === 'android-phone' ? '<div class="punch"></div>' : '';
+    const island = dev === 'ios-phone' ? '<div class="island"></div>' : dev === 'android-phone' ? '<div class="punch"></div>' : '';
     const back = o.backdrop ? `<div class="hero-bg" style="background:${o.backdrop}"></div>` : '';
     if (phone) {
       return `<div class="app">${island}${back}${sysbar(dev)}${mobileHeader()}<div class="main m" style="${o.mainStyle ?? ''}">${o.main}</div>${sessionStrip()}${mini()}${tabbar(o.tab)}${homeInd(dev)}</div>`;
@@ -187,7 +206,7 @@
       ${card('last 7 days', weekStrip(tall ? 66 : 40))}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${card('top albums this week', collage(ALBUMS.map((a) => ({ t: a.t })), false))}${card('top artists this week', collage(ARTISTS, true))}</div>
       ${tall ? lastReport() : ''}`;
-    return shell(dev, { nav: '', main });
+    return shell(dev, { nav: '', tab: 'listen', main });
   };
 
   const barRanking = (n, maxW, labelIn) => {
@@ -220,7 +239,7 @@
       <div class="row" style="justify-content:space-between"><div class="ranges">${['7d', '30d', '3m', '6m', '1y', 'ytd', 'all', 'custom'].map((r) => `<span class="rb${r === '30d' ? ' on' : ''}">${r}</span>`).join('')}</div><span class="rb txt">+ playlist</span></div>
       <section class="card">
         <div class="sec-head"><span class="sec-title">${L('top tracks · last 30 days', 'top tracks · last 30 days')}</span><div class="row"><span class="pill">Top ${n} ▾</span><span class="toggle2"><span class="on">Bar</span><span>Velocity</span></span></div></div>
-        ${barRanking(n, 760, 150)}
+        ${barRanking(n, dev === StoreDuo.DEV.open ? 470 : 760, 150)}
         ${isShort(dev) ? '' : '<div class="row" style="justify-content:flex-end;margin-top:12px"><span class="pill">ZIPF α 0.52 · R² 0.98</span></div>'}
       </section>`;
     return shell(dev, { nav: 'rankings', main });
@@ -416,8 +435,12 @@
   const nn = (n) => String(n).padStart(2, '0');
   const at = (store, lang, slot, name) => `${store}/${lang}/${slot}/${name}.png`;
   // el iPhone Duo es un solo slot de app store: exterior e interior comparten 10 capturas por
-  // idioma. abren las 5 primeras slides desplegado (01-05) y siguen las 5 últimas plegado (06-10)
-  const DUO_PER_SCREEN = 5;
+  // idioma. abren 5 abierto en apaisado (01-05, la interior con el layout de escritorio) y siguen 5
+  // cerrado (06-10, la exterior con el móvil): primero lo que el abierto no enseña
+  const DUO_PER_SCREEN = StoreDuo.PER_SCREEN;
+  const bySlug = (slides, slugs) => slugs.map((slug) => slides.find((sl) => sl.slug === slug));
+  const DUO_OPEN_SLIDES = bySlug(TABLET, ['dashboard', 'rankings', 'charts', 'reports', 'insights']);
+  const DUO_CLOSED_SLIDES = bySlug(PHONE, ['artist', 'concerts', 'dashboard', 'charts', 'insights']);
 
   const FRAMES = {
     // dynamic island mediano (iPhone 17 Pro, 1206x2622): el obligatorio de app store
@@ -425,9 +448,10 @@
     // dynamic island grande (iPhone 17 Pro Max, 1320x2868): la casilla de 6,5"/6,7"/6,9" de app
     // store connect, que no acepta el 1284x2778 del face id grande
     'ios-phone': { w: 440, h: 956, screen: { w: 440, h: 956 }, bezel: 9, rLog: 55, pad: 34, padTop: 50, kicker: 12, head: 27, sub: 15, copyH: 222, bottom: 30, dot: 22, slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-large', `${nn(n)}-${s}`), 3]] },
-    // iPhone Duo: interior (2007x2853) y exterior (1398x2034), un solo slot de 10 (ver DUO_PER_SCREEN)
-    'ios-duo-inner': { base: 'ios-phone', island: false, w: 669, h: 951, screen: { w: 669, h: 951 }, bezel: 12, rLog: 36, pad: 48, padTop: 56, kicker: 14, head: 36, sub: 19, copyH: 250, bottom: 34, dot: 26, slides: PHONE.slice(0, DUO_PER_SCREEN), out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n)}-inner-${s}`), 3]] },
-    'ios-duo-outer': { base: 'ios-phone', island: false, w: 466, h: 678, screen: { w: 466, h: 678 }, bezel: 9, rLog: 40, pad: 34, padTop: 40, kicker: 11, head: 25, sub: 14, copyH: 184, bottom: 24, dot: 22, slides: PHONE.slice(-DUO_PER_SCREEN), out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n + DUO_PER_SCREEN)}-outer-${s}`), 3]] },
+    // iPhone Duo, un solo slot de 10 (ver DUO_PER_SCREEN): la interior abierta en apaisado
+    // (2853x2007, con la bisagra marcada en el bisel) y la exterior cerrada (1398x2034)
+    'ios-duo-inner': { ...StoreDuo.FRAMES.inner, slides: DUO_OPEN_SLIDES, out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n)}-inner-${s}`), 3]] },
+    'ios-duo-outer': { ...StoreDuo.FRAMES.outer, slides: DUO_CLOSED_SLIDES, out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n + DUO_PER_SCREEN)}-outer-${s}`), 3]] },
     'ios-tablet': { w: 1366, h: 1024, screen: { w: 1366, h: 1024 }, bezel: 14, rLog: 20, pad: 80, padTop: 58, kicker: 14, head: 40, sub: 20, copyH: 190, devW: 1206, dot: 28, slides: TABLET, out: (n, s, lang) => [[at('app-store', lang, 'ipad-13', `${nn(n)}-${s}`), 2]] },
     'android-phone': { w: 360, h: 640, screen: { w: 360, h: 640 }, bezel: 7, rLog: 22, pad: 26, padTop: 32, kicker: 10, head: 20, sub: 12.5, copyH: 162, bottom: 18, dot: 18, slides: PHONE, out: (n, s, lang) => [[at('play-store', lang, 'phone', `${nn(n)}-${s}`), 3]] },
     'android-tablet': { w: 1280, h: 800, screen: { w: 1280, h: 800 }, bezel: 12, rLog: 16, pad: 72, padTop: 42, kicker: 12, head: 34, sub: 17, copyH: 158, devW: 1136, dot: 26, slides: TABLET, out: (n, s, lang) => [[at('play-store', lang, 'tablet-7in', `${nn(n)}-${s}`), 1.5], [at('play-store', lang, 'tablet-10in', `${nn(n)}-${s}`), 2]] },
@@ -445,13 +469,13 @@
   const slideHtml = (key, idx) => {
     const f = FRAMES[key];
     const dev = f.base ?? key;
-    ISLAND = f.island ?? true;
     const sl = f.slides[idx];
     const g = geom(f);
     const rIn = f.rLog * g.s;
     return `<div class="slide" style="width:${f.w}px;height:${f.h}px;--pad:${f.pad}px;--pad-top:${f.padTop}px;--kicker:${f.kicker}px;--head:${f.head}px;--sub:${f.sub}px;--dot:${f.dot}px;--sub-max:none">
       <div class="copy"><span class="kicker">${sl.k(dev)}</span><h1 class="headline">${sl.h(dev)}</h1><p class="sub">${sl.s(dev)}</p></div>
       <div class="device" style="box-sizing:border-box;left:${g.x}px;top:${g.y}px;width:${g.dw}px;height:${g.dh}px;border-radius:${rIn + f.bezel}px">
+        ${f.hinge ? '<i class="hinge"></i>' : ''}
         <div class="screen" style="left:${f.bezel - 1}px;top:${f.bezel - 1}px;width:${f.screen.w * g.s}px;height:${f.screen.h * g.s}px;border-radius:${rIn}px">
           <div class="vp" style="width:${f.screen.w}px;height:${f.screen.h}px;transform:scale(${g.s})">${sl.scr(dev)}</div>
         </div>
@@ -542,8 +566,8 @@
     const title = {
       'ios-phone-m': `iPhone · 1206 × 2622 (${L('required', 'obligatorio')})`,
       'ios-phone': 'iPhone · 1320 × 2868',
-      'ios-duo-inner': `iPhone Duo 01–05 · ${L('inner display', 'pantalla interior')} · 2007 × 2853`,
-      'ios-duo-outer': `iPhone Duo 06–10 · ${L('outer display', 'pantalla exterior')} · 1398 × 2034`,
+      'ios-duo-inner': `iPhone Duo 01–05 · ${L('open, inner display', 'abierto, pantalla interior')} · 2853 × 2007`,
+      'ios-duo-outer': `iPhone Duo 06–10 · ${L('closed, outer display', 'cerrado, pantalla exterior')} · 1398 × 2034`,
       'ios-tablet': 'iPad · 2732 × 2048',
       'android-phone': `${L('phone', 'teléfono')} · 1080 × 1920`,
       'android-tablet': 'tablet · 1920 × 1200 / 2560 × 1600',
@@ -552,7 +576,7 @@
       .map((dev) => {
         const f = FRAMES[dev];
         const figs = f.slides.map((sl, i) => thumb(dev, i, lang, f.w, f.h, f.out(i + 1, sl.slug, lang)[0][0])).join('');
-        return `<section class="g-section"><h2>${title[dev]}</h2><div class="g-grid${dev.endsWith('tablet') ? ' wide' : ''}">${figs}</div></section>`;
+        return `<section class="g-section"><h2>${title[dev]}</h2><div class="g-grid${FRAMES[dev].w > FRAMES[dev].h ? ' wide' : ''}">${figs}</div></section>`;
       })
       .join('');
     const feature = Object.entries(CREATIVE)

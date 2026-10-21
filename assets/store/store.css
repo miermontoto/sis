@@ -411,6 +411,26 @@ body.export .slide {
   gap: 16px;
 }
 
+/* iPhone Duo: la columna lateral, el rail de pestañas, el indicador de inicio y la bisagra son el
+   cromo compartido de platform (platform/duo/duo.css, con --duo-col, --duo-top y --duo-bottom); aquí
+   cómo lo esquiva sis, como la app con @platform/ui/safe-area.css: el contenido deja la columna a la
+   derecha y, cerrado, el panel de sesión + mini player va al pie, sobre el indicador de inicio */
+.app.duo .mh {
+  padding-top: calc(12px + var(--duo-top));
+  padding-right: var(--duo-col);
+}
+.app.duo .main.m,
+.app.duo .body .main {
+  padding-right: var(--duo-col);
+}
+.app.duo .session-strip,
+.app.duo .mini {
+  margin-right: var(--duo-col);
+}
+.app.duo .mini {
+  margin-bottom: var(--duo-bottom);
+}
+
 /* cabecera móvil */
 .mh {
   flex: 0 0 auto;
