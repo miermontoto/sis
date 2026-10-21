@@ -28,8 +28,18 @@ export interface LibraryItem {
 
 export const itemKey = (kind: ItemKind, id: string) => `${kind}:${id}`;
 
-export function metricValue(item: LibraryItem, metric: RankingMetric): number {
+// las dos cifras que trae cualquier fila con stats, sea o no de la biblioteca
+type MetricCounts = Pick<LibraryItem, 'playCount' | 'totalMs'>;
+
+export function metricValue(item: MetricCounts, metric: RankingMetric): number {
   return metric === 'plays' ? item.playCount : item.totalMs;
+}
+
+// orden descendente por la métrica elegida; la otra desempata
+export function compareByMetric(metric: RankingMetric) {
+  const other: RankingMetric = metric === 'plays' ? 'time' : 'plays';
+  return (a: MetricCounts, b: MetricCounts) =>
+    metricValue(b, metric) - metricValue(a, metric) || metricValue(b, other) - metricValue(a, other);
 }
 
 // normaliza una entrada de /stats/top-* según la pestaña que la pidió

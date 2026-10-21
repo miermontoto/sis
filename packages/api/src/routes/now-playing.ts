@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
-import { spotifyFetch, spotifyFetchRaw } from '../services/spotify-client.js';
+import { spotifyFetch, spotifyFetchRaw, isRateLimited } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
 import { ensureFullAlbumTracks } from '../services/ingestion.js';
@@ -100,24 +100,24 @@ nowPlaying.get('/', (c) => {
     : null;
   const tail = readHistoryTail(userId, c.req.query('since'));
 
-  if (!state?.lastCurrentlyPlayingTrackId) {
-    return c.json({ playing: false, isPlaying: false, ...tail });
-  }
-
   // usuarios solo-last.fm (sin token de spotify) no pueden controlar la
   // reproducción (tarjeta read-only) y su estado solo se refresca cada
-  // LASTFM_POLL_INTERVAL_MS, así que la ventana de frescura es más amplia
+  // LASTFM_POLL_INTERVAL_MS, así que la ventana de frescura es más amplia.
+  // va también sin nada sonando: el cliente lo mira para no pedir /live (que
+  // sin token es un 500) al volver a la app
   const controllable = userId ? !!getStoredTokens(userId) : false;
+  const idle = { playing: false, isPlaying: false, controllable, ...tail };
+
+  if (!state?.lastCurrentlyPlayingTrackId) return c.json(idle);
+
   const staleThresholdMs = controllable ? NOW_PLAYING_STALE_MS : LASTFM_NOW_PLAYING_STALE_MS;
   if (state.lastCurrentlyPlayingAt) {
     const lastUpdate = new Date(state.lastCurrentlyPlayingAt).getTime();
-    if (Date.now() - lastUpdate > staleThresholdMs) {
-      return c.json({ playing: false, isPlaying: false, ...tail });
-    }
+    if (Date.now() - lastUpdate > staleThresholdMs) return c.json(idle);
   }
 
   const track = db.select().from(tracks).where(eq(tracks.spotifyId, state.lastCurrentlyPlayingTrackId)).get();
-  if (!track) return c.json({ playing: false, isPlaying: false, ...tail });
+  if (!track) return c.json(idle);
 
   const album = track.albumId
     ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
@@ -208,17 +208,30 @@ nowPlaying.get('/friends', (c) => {
   })));
 });
 
-// lectura en vivo desde Spotify (no cache) — usado tras acciones de playback
+// lectura en vivo desde Spotify (no cache) — usado tras acciones de playback y al
+// volver a la app con la tarjeta vieja
 nowPlaying.get('/live', async (c) => {
   const userId = c.get('userId');
   const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
+  const item = data?.item && data.currently_playing_type === 'track' ? data.item : null;
 
-  const tail = readHistoryTail(userId, c.req.query('since'));
-  if (!data?.item || data.currently_playing_type !== 'track') {
-    return c.json({ playing: false, isPlaying: false, ...tail });
+  // esta lectura no escribe polling_state: si contradice al poller (tema o
+  // play/pausa cambiados desde otro dispositivo) se adelanta su ciclo, o el
+  // historial y el cacheado siguen con lo viejo hasta su siguiente lectura
+  // (hasta 60s sonando, 90s en idle) y la tarjeta vuelve atrás en cuanto caduca
+  // el guard de la lectura en vivo del cliente. Un null en castigo de rate limit
+  // no es una lectura. Los ids que el poller reescribe (gemelos isrc, ficheros
+  // locales) no casan nunca y cuestan un poll de más, nada peor
+  if (!isRateLimited()) {
+    const state = getDb().get(sql`SELECT last_currently_playing_track_id AS trackId, is_playing AS isPlaying FROM polling_state WHERE user_id = ${userId}`) as { trackId: string | null; isPlaying: number } | undefined;
+    if ((state?.trackId ?? null) !== (item?.id ?? null) || !!state?.isPlaying !== !!(item && data?.is_playing)) {
+      triggerCurrentlyPlayingPoll(userId);
+    }
   }
 
-  const item = data.item;
+  const tail = readHistoryTail(userId, c.req.query('since'));
+  if (!data || !item) return c.json({ playing: false, isPlaying: false, ...tail });
+
   return c.json({
     playing: true,
     isPlaying: !!data.is_playing,

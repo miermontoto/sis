@@ -14,6 +14,7 @@
   import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
   import { medalColor } from '$lib/utils/medals';
+  import { compareByMetric } from '$lib/utils/library-items';
   import { resolveEntityColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
@@ -104,6 +105,11 @@
     for (const b of data.albumBreakdown) push(b.albumId, b.album.name, b.album.releaseDate, b.album.albumType, b.album.imageUrl);
     return out;
   });
+
+  // el servidor ordena "played in" y las versiones por plays; el orden (y las medallas)
+  // sigue a la métrica elegida aquí, para no partir la cache del detalle por métrica
+  let albumBreakdown = $derived(data ? [...data.albumBreakdown].sort(compareByMetric(metric)) : []);
+  let versions = $derived(data ? [...data.versions].sort(compareByMetric(metric)) : []);
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -283,11 +289,11 @@
         </section>
       {/if}
     {:else if key === 'albumBreakdown'}
-      {#if d.albumBreakdown.length > 1}
+      {#if albumBreakdown.length > 1}
         <section class="detail-section">
           <h2 class="section-title">Played in</h2>
           <div class="track-list">
-            {#each d.albumBreakdown as item, i}
+            {#each albumBreakdown as item, i}
               <a href="/album/{item.album.id}" class="track-item">
                 <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
                 {#if item.album.imageUrl}
@@ -316,11 +322,11 @@
         </section>
       {/if}
     {:else if key === 'versions'}
-      {#if d.versions.length > 0}
+      {#if versions.length > 0}
         <section class="detail-section">
           <h2 class="section-title">Versions</h2>
           <div class="track-list versions-list">
-            {#each d.versions as v, i}
+            {#each versions as v, i}
               <svelte:element
                 this={v.isCurrent ? 'div' : 'a'}
                 {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}

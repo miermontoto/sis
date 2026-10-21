@@ -201,7 +201,17 @@
       if (res.ok) window.location.href = '/';
       else console.error('[auth] canje del código móvil falló:', res.status);
     });
+    // volver al apk: el resume nativo es el contrato; que el webview lo traduzca a
+    // visibilitychange depende de la plataforma. Las dos vías llegan al mismo guard
+    const { App } = await import('@capacitor/app');
+    await App.addListener('resume', () => nowPlayingStore.refreshIfStale());
   });
+
+  // volver a la pestaña o a la ventana (con spotify al lado, saltar de tema allí
+  // y volver aquí no oculta la pestaña): el store decide si su lectura es vieja
+  function refreshNowPlayingOnFocus() {
+    if (document.visibilityState === 'visible') nowPlayingStore.refreshIfStale();
+  }
 
   $effect(() => {
     if (sessionTrackingDisplay === 'off') return;
@@ -539,6 +549,9 @@
   });
 
 </script>
+
+<svelte:window onfocus={refreshNowPlayingOnFocus} />
+<svelte:document onvisibilitychange={refreshNowPlayingOnFocus} />
 
 {#if isBareRoute(page.url.pathname)}
   {@render children()}
