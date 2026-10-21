@@ -1,5 +1,8 @@
 <script lang="ts">
+  // safe areas de ios como tokens (columna lateral del iPhone Duo + rail de pestañas nativo)
+  import '@platform/ui/safe-area.css';
   import '../app.css';
+  import { nativeTabBar } from '@platform/mobile/native-tab-bar';
   // el store del tema vive desde el arranque: es quien sigue al sistema (y a otras
   // pestañas) cuando la preferencia es 'system'
   import '$lib/stores/theme.svelte';
@@ -368,6 +371,7 @@
     // en `nav` para que la cabecera móvil titule la página
     {
       label: 'Listen',
+      symbol: 'house',
       desktopHidden: true,
       items: [
         { href: '/', label: 'Dashboard', icon: '~' },
@@ -376,6 +380,7 @@
     },
     {
       label: 'Stats',
+      symbol: 'chart.bar',
       items: [
         { href: '/top', label: 'Rankings', icon: '*' },
         { href: '/charts', label: 'Charts', icon: '%' },
@@ -383,6 +388,7 @@
     },
     {
       label: 'Highlights',
+      symbol: 'star',
       items: [
         { href: '/insights', label: 'Insights', icon: '!' },
         { href: '/records', label: 'Records', icon: '^' },
@@ -391,6 +397,7 @@
     },
     {
       label: 'Library',
+      symbol: 'square.stack',
       items: [
         { href: '/playlists', label: 'Playlists', icon: '+' },
         { href: '/concerts', label: 'Concerts', icon: '@' },
@@ -401,6 +408,7 @@
     // no hay sidebar, así que conserva un tab propio
     {
       label: 'Feed',
+      symbol: 'person.2',
       desktopHidden: true,
       items: [
         { href: '/feed', label: 'Feed', icon: '=' },
@@ -411,8 +419,22 @@
   const nav = navGroups.flatMap(group => group.items);
   const desktopNavGroups = navGroups.filter(g => !('desktopHidden' in g));
   const mobileNavGroups = navGroups
-    .map(g => ({ label: g.label, items: g.items.filter(i => !('mobileHidden' in i)) }))
+    .map(g => ({ label: g.label, symbol: g.symbol, items: g.items.filter(i => !('mobileHidden' in i)) }))
     .filter(g => g.items.length > 0);
+
+  // app de ios: las pestañas móviles las pinta la barra nativa con liquid glass (rail lateral en el
+  // iPhone Duo, también con el layout de escritorio), una por grupo con su sf symbol (solo símbolos
+  // de ios <= 15, el deployment target). id = label del grupo: el toque hace lo mismo que el de la
+  // pestaña web (navegar o abrir el desplegable del grupo). la barra web queda oculta (app.css).
+  // misma query que el @media del layout móvil de app.css
+  const MOBILE_QUERY = '(max-width: 768px)';
+  const nativeTabs = mobileNavGroups.map(g => ({ id: g.label, title: g.label, symbol: g.symbol }));
+  const activeGroupLabel = $derived(mobileNavGroups.find(g => isGroupActive(g))?.label ?? null);
+
+  function onNativeTab(label: string) {
+    const group = mobileNavGroups.find(g => g.label === label);
+    if (group) handleGroupTap(group);
+  }
 
   function isNavActive(href: string) {
     return page.url.pathname === href || (href !== '/' && page.url.pathname.startsWith(href));
@@ -703,7 +725,12 @@
           </button>
         </a>
       {/if}
-      <nav class="mobile-tabbar" bind:this={tabbarRef} aria-label="Primary navigation">
+      <nav
+        class="mobile-tabbar"
+        bind:this={tabbarRef}
+        aria-label="Primary navigation"
+        use:nativeTabBar={{ tabs: nativeTabs, selected: activeGroupLabel, onSelect: onNativeTab, compactQuery: MOBILE_QUERY }}
+      >
         {#each mobileNavGroups as group}
           <div class="mobile-tab-group">
             <button

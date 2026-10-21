@@ -40,7 +40,7 @@
 
   @media (max-width: 768px) {
     .toast-container {
-      bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+      bottom: calc(var(--bottom-chrome, 0px) + 4.5rem);
     }
   }
 </style>

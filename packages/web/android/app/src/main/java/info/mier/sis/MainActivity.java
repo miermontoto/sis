@@ -20,6 +20,12 @@ public class MainActivity extends BridgeActivity {
         // no sale, y el edge-to-edge ya lo pone el sistema.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             EdgeToEdge.enable(this);
+        } else {
+            // con capacitor 8 la ventana llega con el scrim de contraste de la barra de navegación
+            // encendido: en la de tres botones pintaba una franja gris (#303030 al 80%) sobre el
+            // fondo que la 7 no tenía (medido en el emulador api 36). el color de debajo ya lo pinta
+            // capawesome (observeSystemBars), así que se apaga.
+            getWindow().setNavigationBarContrastEnforced(false);
         }
     }
 }

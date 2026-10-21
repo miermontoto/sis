@@ -7,3 +7,16 @@ allowBuilds:
   esbuild: true
   protobufjs: true
   sharp: true
+# una sola copia de capacitor en todo el workspace. @platform/mobile declara sus plugins como
+# peers (^7 || ^8: los comparten apps en distintas majors) y pnpm se los auto-instala por su
+# cuenta; sin este pin podía resolver otra major junto a la de la web y vite metería en el bundle
+# dos @capacitor/core (dos registros de plugins: registerPlugin partido entre ambos). al subir de
+# major, sube estos rangos a la vez que packages/web.
+overrides:
+  '@capacitor/core': ^8.5.0
+  '@capacitor/cli': ^8.5.0
+  '@capacitor/app': ^8.1.0
+  '@capacitor/browser': ^8.0.0
+  '@capacitor/network': ^8.0.0
+  '@capacitor/status-bar': ^8.0.0
+  '@capawesome/capacitor-android-edge-to-edge-support': ^8.0.0

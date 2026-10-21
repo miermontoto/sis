@@ -2229,7 +2229,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     display: flex;
     width: 100%;
     gap: 0.2rem;
-    padding: 0.4rem 0.35rem calc(0.4rem + env(safe-area-inset-bottom));
+    padding: 0.4rem 0.35rem calc(0.4rem + var(--safe-bottom));
     background: var(--bg-card);
   }
 
@@ -2287,43 +2287,6 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   .mobile-tab-btn.active .sidebar-nav-icon {
     background: var(--accent-a10);
     color: var(--accent);
-  }
-
-  .mobile-tab-popup {
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 0.4rem);
-    transform: translateX(-50%);
-    min-width: 9rem;
-    padding: 0.3rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: 0 -8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
-  }
-
-  .mobile-tab-popup a {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.55rem 0.65rem;
-    border-radius: calc(var(--radius) - 2px);
-    color: var(--text-muted);
-    font-size: var(--fs-md);
-    transition: all 0.05s;
-  }
-
-  .mobile-tab-popup a:hover,
-  .mobile-tab-popup a.active {
-    background: var(--bg-hover);
-    color: var(--accent);
-  }
-
-  .mobile-tab-popup a .sidebar-nav-icon {
-    width: 1.4rem;
-    height: 1.4rem;
-    border-radius: var(--radius);
-    font-size: var(--fs-xs);
   }
 
   .mobile-header {
@@ -2429,7 +2392,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
 
 @media (display-mode: standalone) {
   .mobile-header {
-    padding-top: env(safe-area-inset-top);
+    padding-top: var(--safe-top);
   }
 }
 
@@ -2442,4 +2405,106 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   --ui-bg-card: var(--bg-card);
   --ui-bg-hover: var(--bg-hover);
   --ui-radius: 8px;
+}
+
+/* desplegable de un grupo de pestañas: fuera del @media móvil porque con la barra nativa también
+   se abre a ancho de escritorio (el rail del iPhone Duo abierto) */
+.mobile-tab-popup {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.4rem);
+  transform: translateX(-50%);
+  min-width: 9rem;
+  padding: 0.3rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 -8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
+}
+
+.mobile-tab-popup a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+  transition: all 0.05s;
+}
+
+.mobile-tab-popup a:hover,
+.mobile-tab-popup a.active {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.mobile-tab-popup a .sidebar-nav-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: var(--radius);
+  font-size: var(--fs-xs);
+}
+
+/* safe areas laterales (@platform/ui/safe-area.css): la columna lateral del iPhone Duo, con el rail
+   de pestañas nativo dentro, y el notch de un iphone en horizontal. van detrás de las reglas de
+   .main-content para pisar su padding lateral */
+.main-content {
+  padding-right: max(2rem, var(--safe-right));
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding-left: max(1rem, var(--safe-left));
+    padding-right: max(1rem, var(--safe-right));
+  }
+}
+
+/* barra de pestañas nativa de ios (@platform/mobile/native-tab-bar en +layout): sustituye a los
+   botones de .mobile-tabbar. el contenedor queda colapsado para que el desplegable de un grupo
+   (al tocar su pestaña nativa) siga existiendo, fijo sobre la barra nativa o junto al rail. */
+html.native-tabbar .mobile-tabbar {
+  display: block;
+  height: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+}
+
+html.native-tabbar .mobile-tab-btn {
+  display: none;
+}
+
+html.native-tabbar .mobile-tab-popup {
+  position: fixed;
+  z-index: 101;
+  bottom: calc(var(--bottom-chrome) + 0.5rem);
+}
+
+/* rail del Duo: el desplegable sale a su izquierda, al pie como el rail, y la nav del sidebar de
+   escritorio sobra (el rail ya lleva los mismos grupos) */
+html.native-tabrail .mobile-tab-popup {
+  left: auto;
+  right: calc(var(--safe-right) + 0.5rem);
+  transform: none;
+}
+
+html.native-tabrail .sidebar-nav--desktop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* el panel inferior (marquee de sesión + mini player) va sobre la barra nativa (con el rail, al
+     pie) y fuera de la columna lateral */
+  html.native-tabbar .sidebar {
+    bottom: var(--bottom-chrome);
+    left: var(--safe-left);
+    right: var(--safe-right);
+  }
+
+  /* el pie reservaba 7.5rem para mini player + pestañas web (~4.2rem): las nativas tapan
+     --bottom-chrome */
+  html.native-tabbar .main-content {
+    padding-bottom: calc(7.5rem - 4.2rem + var(--bottom-chrome));
+  }
 }
