@@ -1,17 +1,29 @@
 <script lang="ts">
   import { projectionsStore } from '$lib/stores/projections.svelte';
+  import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { formatDuration } from '$lib/utils/format';
   import { marquee } from '$lib/utils/marquee';
+  import { bestChange, filterChanges, rangeLabel, rangeName, rankingHref, visibleSession } from '$lib/utils/session-ranks';
   import IconTrack from '$lib/icons/IconTrack.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import DisplacedTooltip from '$lib/components/DisplacedTooltip.svelte';
+  import TrackItem from '$lib/components/TrackItem.svelte';
   import { getSessionRankDisplay, onSessionRankDisplayChange } from '$lib/api';
   import type { ProjectionResult, RankProjection, SessionRankDisplay } from '$lib/api';
 
-  const RANGE_LABELS: Record<string, string> = { thisYear: 'YTD', all: 'ALL' };
-  const TAB_MAP: Record<string, string> = { track: 'tracks', artist: 'artists', album: 'albums' };
+  // sheet: la sección de la hoja de now playing del móvil (filas táctiles, las dos
+  // ventanas a la vez y a quién adelanta cada una al tocar las cifras)
+  let { variant = 'card' }: { variant?: 'card' | 'sheet' } = $props();
+
   const TOOLTIP_CLOSE_MS = 120; // margen para cruzar del cambio al tooltip sin cerrarlo
+  const DISPLACED_LIMIT = 5; // desplazados listados por ventana al desplegar una fila
+  // grupos de la hoja, en el orden en que llega la respuesta (artista → álbum → tema)
+  const SHEET_GROUPS: { type: ProjectionResult['entityType']; label: string }[] = [
+    { type: 'artist', label: 'Artists' },
+    { type: 'album', label: 'Albums' },
+    { type: 'track', label: 'Tracks' },
+  ];
 
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
 
@@ -19,32 +31,18 @@
     return onSessionRankDisplayChange(() => { displayMode = getSessionRankDisplay(); });
   });
 
-  const ALLOWED_RANGES: Record<string, Set<string>> = {
-    'all': new Set(['all']),
-    'all+ytd': new Set(['all', 'thisYear']),
-  };
-
-  function filterChanges(changes: RankProjection[]): RankProjection[] {
-    const allowed = ALLOWED_RANGES[displayMode];
-    if (!allowed) return [];
-    return changes.filter(c => allowed.has(c.range));
-  }
-
-  // en modo solo-ALL la etiqueta de rango es redundante (no hay YTD con qué contrastar)
-  function rangeLabel(range: string): string {
-    return displayMode === 'all' ? '' : `${RANGE_LABELS[range] ?? range} `;
-  }
-
-  function rankingHref(r: ProjectionResult, range: string): string {
-    return `/top?tab=${TAB_MAP[r.entityType] ?? 'tracks'}&range=${range === 'thisYear' ? 'thisYear' : 'all'}&focus=${r.entityId}`;
-  }
-
-  function bestChange(changes: RankProjection[]): RankProjection | null {
-    if (changes.length === 0) return null;
-    return changes.reduce((best, c) => Math.abs(c.delta) > Math.abs(best.delta) ? c : best);
-  }
+  const entryKey = (r: ProjectionResult) => `${r.entityType}:${r.entityId}`;
 
   let data = $derived(projectionsStore.data);
+  let visible = $derived(data ? visibleSession(data.session, displayMode) : []);
+
+  // filas desplegadas de la hoja (a quién adelanta cada ventana)
+  let expanded = $state<ReadonlySet<string>>(new Set());
+  function toggleExpanded(key: string) {
+    const next = new Set(expanded);
+    if (!next.delete(key)) next.add(key);
+    expanded = next;
+  }
 
   // tooltip de desplazados: fixed (escapa el scroll del sidebar) posicionado por hover.
   // se ancla al borde derecho/inferior del cambio para replicar el antiguo tooltip absoluto.
@@ -69,13 +67,82 @@
   }
 </script>
 
-{#if data && data.sessionTrackCount > 0}
+{#if variant === 'sheet'}
+  {#if data && data.sessionTrackCount > 0}
+    <section class="session-sheet">
+      <div class="section-header session-sheet-header">
+        <h2 class="section-title">This session</h2>
+        <span class="session-count">{data.sessionTrackCount} tracks · {formatDuration(data.sessionTotalMs)}</span>
+        <a class="session-sheet-history" href="/history">History</a>
+      </div>
+      {#if visible.length === 0}
+        <p class="session-sheet-empty">No rank changes yet</p>
+      {/if}
+      {#each SHEET_GROUPS as group (group.type)}
+        {@const rows = visible.filter(v => v.result.entityType === group.type)}
+        {#if rows.length > 0}
+          <div class="session-sheet-group">{group.label}</div>
+          <div class="track-list session-sheet-list">
+            {#each rows as { result: r, changes } (entryKey(r))}
+              {@const best = bestChange(changes)!}
+              {@const open = expanded.has(entryKey(r))}
+              {#snippet passedLine()}passed {best.displaced[0].name}{#if best.displaced.length > 1}{' '}+{best.displaced.length - 1}{/if}{/snippet}
+              {#snippet cells()}
+                <button type="button" class="session-cells" aria-expanded={open} aria-label="Who {r.entityName} passed" onclick={() => toggleExpanded(entryKey(r))}>
+                  {#each changes as c (c.range)}
+                    <span class="session-cell" class:up={c.delta > 0} class:down={c.delta < 0}>
+                      {#if displayMode !== 'all'}<span class="session-cell-range">{rangeName(c.range)}</span>{/if}
+                      <span class="session-cell-value">#{c.currentRank}→#{c.projectedRank}</span>
+                    </span>
+                  {/each}
+                </button>
+              {/snippet}
+              <div class="session-sheet-entry" class:session-sheet-entry--open={open}>
+                <TrackItem
+                  name={r.entityName}
+                  nameHref="/{r.entityType}/{r.entityId}"
+                  imageUrl={r.imageUrl}
+                  imageHref="/{r.entityType}/{r.entityId}"
+                  imageRound={r.entityType === 'artist'}
+                  isLive={nowPlayingStore.isLive(r.entityType, r.entityId)}
+                  entity={{ type: r.entityType, id: r.entityId, name: r.entityName, imageUrl: r.imageUrl }}
+                  subtitle={best.displaced.length > 0 ? passedLine : undefined}
+                  meta={cells}
+                />
+                {#if open}
+                  <div class="session-passed">
+                    {#each changes as c (c.range)}
+                      <div class="session-passed-line">
+                        <a href={rankingHref(r, c.range)} class="session-change" class:up={c.delta > 0} class:down={c.delta < 0}>{rangeLabel(c.range, displayMode)}#{c.currentRank}→#{c.projectedRank}</a>
+                        {#if c.displaced.length > 0}
+                          <span>passed</span>
+                          {#each c.displaced.slice(0, DISPLACED_LIMIT) as d (d.id)}
+                            <a class="session-passed-item" href="/{r.entityType}/{d.id}">
+                              {#if d.imageUrl}<img src={d.imageUrl} alt="" class:round={r.entityType === 'artist'} />{/if}{d.name}
+                            </a>
+                          {/each}
+                          {#if c.displaced.length > DISPLACED_LIMIT}<span class="session-passed-more">+{c.displaced.length - DISPLACED_LIMIT} more</span>{/if}
+                        {:else}
+                          <span>another session pick passed it</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {/each}
+    </section>
+  {/if}
+{:else if data && data.sessionTrackCount > 0}
   <div class="session-card">
     <a class="session-header" href="/history">
       <span class="session-title">Session</span>
       <span class="session-count">{data.sessionTrackCount} tracks · {formatDuration(data.sessionTotalMs)}</span>
     </a>
-    {#if displayMode !== 'none' && data.session.some(r => bestChange(filterChanges(r.changes)) !== null)}
+    {#if visible.length > 0}
       <div class="session-list">
         <!-- keyado a propósito: la respuesta llega reordenada (artista → álbum → tema,
              luego por puesto proyectado), así que sin clave svelte reaprovecha la fila
@@ -83,7 +150,7 @@
              la animación a medio recorrido de la fila anterior y el título entraba ya
              desplazado, a veces fuera de vista -->
         {#each data.session as r (`${r.entityType}:${r.entityId}`)}
-          {@const best = bestChange(filterChanges(r.changes))}
+          {@const best = bestChange(filterChanges(r.changes, displayMode))}
           {#if best}
             <div class="session-row">
               <span class="session-thumb" class:session-thumb--art={r.imageUrl} class:session-thumb--round={r.entityType === 'artist'}>
@@ -104,7 +171,7 @@
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <span class="session-change-wrap" onmouseenter={(e) => openDisplaced(e, r, best)} onmouseleave={scheduleClose}>
                 <a href={rankingHref(r, best.range)} class="session-change" class:up={best.delta > 0} class:down={best.delta < 0}>
-                  {rangeLabel(best.range)}#{best.currentRank}→#{best.projectedRank}
+                  {rangeLabel(best.range, displayMode)}#{best.currentRank}→#{best.projectedRank}
                 </a>
               </span>
             </div>
@@ -290,4 +357,137 @@
     color: var(--negative);
   }
 
+  /* variante sheet: sección de la hoja de now playing del móvil. filas táctiles
+     (TrackItem) agrupadas por tipo; las cifras son un botón que despliega a
+     quién adelanta cada ventana, que en táctil no tiene tooltip */
+  .session-sheet-header {
+    margin-top: 0;
+    gap: 0.6rem;
+    justify-content: flex-start;
+  }
+
+  .session-sheet-history {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    letter-spacing: var(--track);
+    text-transform: uppercase;
+    color: var(--info);
+    text-decoration: none;
+  }
+
+  .session-sheet-empty {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+  }
+
+  .session-sheet-group {
+    margin: 0.9rem 0 0.35rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: var(--track-wide);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .session-sheet-list {
+    --track-list-gap: 0.15rem;
+  }
+
+  .session-sheet-entry {
+    border-radius: var(--radius);
+  }
+
+  .session-sheet-entry--open {
+    background: var(--fg-a03);
+  }
+
+  .session-cells {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .session-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 3.6rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: var(--radius);
+    background: var(--fg-a05);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .session-cells[aria-expanded='true'] .session-cell {
+    background: color-mix(in srgb, var(--info) 15%, transparent);
+  }
+
+  .session-cell-range {
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: var(--track-wide);
+    color: var(--text-muted);
+  }
+
+  .session-cell-value {
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .session-cell.up .session-cell-value {
+    color: var(--accent);
+  }
+
+  .session-cell.down .session-cell-value {
+    color: var(--negative);
+  }
+
+  .session-passed {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0 0.75rem 0.8rem calc(0.75rem + 48px + 1rem);
+  }
+
+  .session-passed-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+
+  .session-passed-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .session-passed-item img {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    object-fit: cover;
+  }
+
+  .session-passed-item img.round {
+    border-radius: 50%;
+  }
+
+  .session-passed-more {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+  }
 </style>
