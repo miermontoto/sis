@@ -13,6 +13,13 @@ export interface Rankings {
   all: number | null;
 }
 
+// posición de un tema o álbum dentro del catálogo de un artista acreditado (la fila que
+// ocupa en sus top tracks/albums all-time) y cuántas filas tiene ese catálogo
+export interface ArtistScopedRank {
+  rank: number;
+  total: number;
+}
+
 // lanzamiento conocido de un artista (solo álbumes/singles que el usuario ha escuchado)
 export interface ReleaseEvent {
   id: string;

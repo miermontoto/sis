@@ -21,6 +21,7 @@
   import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
+  import HeroArtists from '$lib/components/HeroArtists.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
@@ -391,11 +392,7 @@
       {/if}
       <div class="detail-header-info">
         <h1>{data.track.name}{#if nowPlayingStore.isLive('track', trackId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="track" target={mergedInto} />{/if}</h1>
-        <p class="detail-subtitle">
-          {#each data.track.artists as artist, i}
-            <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
-          {/each}
-        </p>
+        <HeroArtists entityType="track" entityId={trackId} artists={data.track.artists} {metric} ranked={rankable} />
         {#if data.collection}
           <!-- `direct: false` = entra por su álbum, así que desde aquí no se puede
                sacar; el sitio es la página del álbum -->

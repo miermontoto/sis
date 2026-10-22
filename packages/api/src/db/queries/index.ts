@@ -10,7 +10,7 @@ export { computeRankings, computeRankingsBatch, computeProjectedRankings, comput
 export { getProjectionSession } from './projections.js';
 
 // queries específicas
-export { getArtistTopTracks, getArtistTopAlbums, getArtistReleases } from './artist.js';
+export { getArtistTopTracks, getArtistTopAlbums, getArtistScopedRank, getArtistReleases } from './artist.js';
 export { getAlbumArtists, getAlbumTracks, getAlbumRelatedSingles, getAlbumRating } from './album.js';
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';

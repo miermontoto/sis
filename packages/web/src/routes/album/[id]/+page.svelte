@@ -19,6 +19,7 @@
   import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
+  import HeroArtists from '$lib/components/HeroArtists.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
@@ -524,11 +525,7 @@
       <div class="detail-header-info">
         {#if collectionId !== null}<div class="data-label">Collection</div>{/if}
         <h1>{data.album.name}{#if nowPlayingStore.isLive('album', albumId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="album" target={mergedInto} />{/if}</h1>
-        <p class="detail-subtitle">
-          {#each data.artists as artist, i}
-            <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
-          {/each}
-        </p>
+        <HeroArtists entityType="album" entityId={albumId} artists={data.artists} {metric} ranked={rankable} />
         {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0}
           <p class="detail-meta-line">
             {#if data.album.releaseDate}{data.album.releaseDate}{/if}

@@ -1,6 +1,6 @@
 import { getDb } from '../../db/connection.js';
 import { dbRead } from '../../db/read-pool.js';
-import { RECORDS_LIMIT, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS, RANKINGS_BATCH_LIMIT } from '../../constants.js';
+import { RECORDS_LIMIT, RECENT_CHANGES_DEFAULT_DAYS, RECENT_CHANGES_MAX_DAYS, RANKINGS_BATCH_LIMIT, ARTIST_SCOPED_RANK_MAX_ARTISTS } from '../../constants.js';
 import { getCachedRecords, getEntityAccolades, getUserSettingsForUser, computeAndCacheForUserAsync } from '../../services/records-cache.js';
 import { getRecentRankChangesCached } from '../../services/recent-changes-cache.js';
 import { getProjectedRankings } from '../../services/projection-cache.js';
@@ -56,6 +56,20 @@ records.get('/rankings-batch', async (c) => {
   const ids = (c.req.query('ids') ?? '').split(',').filter(Boolean).slice(0, RANKINGS_BATCH_LIMIT);
   if (ids.length === 0) return c.json({});
   return c.json(await requestRead(c, 'computeRankingsBatch', type, ids, parseSort(c), userId));
+});
+
+// posición de un tema o álbum dentro del catálogo de cada artista acreditado (la fila que
+// ocupa en sus top tracks/albums), para el hero del detalle. Un job por artista y en
+// paralelo; sólo vuelven los artistas donde figura
+records.get('/rankings/:type/:id/artists', async (c) => {
+  const type = c.req.param('type');
+  if (type !== 'track' && type !== 'album') return c.json({ error: 'invalid type' }, 400);
+  const id = c.req.param('id');
+  const userId = c.get('userId');
+  const sort = parseSort(c);
+  const artistIds = [...new Set((c.req.query('ids') ?? '').split(',').filter(Boolean))].slice(0, ARTIST_SCOPED_RANK_MAX_ARTISTS);
+  const ranks = await Promise.all(artistIds.map(a => requestRead(c, 'getArtistScopedRank', type, id, a, sort, userId)));
+  return c.json(Object.fromEntries(artistIds.flatMap((a, i) => ranks[i] == null ? [] : [[a, ranks[i]]])));
 });
 
 records.get('/ranking-history/:type/:id', async (c) => {

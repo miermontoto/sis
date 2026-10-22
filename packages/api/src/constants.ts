@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w43j';
+export const VERSION = '26w43k';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -135,6 +135,11 @@ export const DEFAULT_PAGE_LIMIT = 50;
 
 // rankings-batch: tope de ids por petición (mismo tope que trackLimit/albumLimit de detail)
 export const RANKINGS_BATCH_LIMIT = 200;
+
+// posición dentro de cada artista (hero de álbum y tema): tope de artistas por petición.
+// Cada uno es un escaneo de su catálogo, y un tema con más créditos que esto es un
+// recopilatorio mal acreditado, no un hero que leer
+export const ARTIST_SCOPED_RANK_MAX_ARTISTS = 10;
 
 // series-batch: tope de ids por petición. Es el mayor Top N que pintan las gráficas
 // de ranking (velocity), no un tope de página: por encima, el chart ya no se lee

@@ -5,7 +5,7 @@ import type {
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, QueueResponse, PlaybackQueueResponse, FriendsActivityResponse,
   ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
-  AccoladesResponse, Rankings, EntityCard, RankingsWithHistory, HealthData, EntityType,
+  AccoladesResponse, Rankings, ArtistScopedRank, EntityCard, RankingsWithHistory, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
@@ -237,6 +237,11 @@ export const api = {
   // posición all-time de un lote de ids (un solo scan server-side); id → rank, solo top 200
   rankingsBatch: (type: 'track' | 'album', ids: string[], sort: RankingMetric = 'time', signal?: AbortSignal) =>
     apiFetch<Record<string, number>>('/stats/rankings-batch', { type, ids: ids.join(','), sort }, signal),
+
+  // posición de un tema/álbum dentro de cada artista acreditado (la fila que ocupa en sus
+  // top tracks/albums all-time): artistId → rank, sólo los artistas donde figura
+  artistScopedRanks: (type: 'track' | 'album', id: string, artistIds: string[], sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<Record<string, ArtistScopedRank>>(`/stats/rankings/${type}/${encodeURIComponent(id)}/artists`, { ids: artistIds.join(','), sort }, signal),
 
   // series temporales de un lote de ids del mismo tipo (velocity chart de las listas top): id → serie
   seriesBatch: (type: EntityType, ids: string[], range = 'all', dates?: DateRangeParams, signal?: AbortSignal) =>
