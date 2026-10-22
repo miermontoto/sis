@@ -1,8 +1,8 @@
 <script lang="ts">
   // Posición de esta entidad dentro del catálogo de cada artista acreditado: la fila que
   // ocupa en sus top albums/tracks all-time, la misma que enseña la página del artista.
-  // Se pinta como una cifra más de la línea de meta del hero ("· #3 of Eminem's 70
-  // albums"): un .meta-stat, que recibe el separador del css (app.css) como sus vecinas
+  // Se pinta como una cifra más de la línea de meta del hero ("· #3 in Eminem", el detalle
+  // en el title): un .meta-stat, que recibe el separador del css (app.css) como sus vecinas
   import { api, createFetchController, type ArtistScopedRank, type RankingMetric } from '$lib/api';
   import { attributionVersion } from '$lib/stores/attribution';
 
@@ -50,4 +50,4 @@
 
 <!-- el espacio explícito es el punto de corte entre cifras: svelte quita el que hay al
      principio y al final de cada bloque -->
-{#each shown as s (s.name)}{' '}<span class="detail-meta meta-stat" title="All time, by {metric === 'plays' ? 'plays' : 'listening time'}">#{s.rank} of {s.name}'s {s.total} {entityType}s</span>{/each}
+{#each shown as s (s.name)}{' '}<span class="detail-meta meta-stat" title="#{s.rank} of {s.name}'s {s.total} {entityType}s, all time by {metric === 'plays' ? 'plays' : 'listening time'}">#{s.rank} in {s.name}</span>{/each}
