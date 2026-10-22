@@ -21,7 +21,7 @@
   import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
-  import HeroArtists from '$lib/components/HeroArtists.svelte';
+  import ArtistRankStats from '$lib/components/ArtistRankStats.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
@@ -392,7 +392,11 @@
       {/if}
       <div class="detail-header-info">
         <h1>{data.track.name}{#if nowPlayingStore.isLive('track', trackId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="track" target={mergedInto} />{/if}</h1>
-        <HeroArtists entityType="track" entityId={trackId} artists={data.track.artists} {metric} ranked={rankable} />
+        <p class="detail-subtitle">
+          {#each data.track.artists as artist, i}
+            <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}
+          {/each}
+        </p>
         {#if data.collection}
           <!-- `direct: false` = entra por su álbum, así que desde aquí no se puede
                sacar; el sitio es la página del álbum -->
@@ -403,50 +407,55 @@
         {/if}
         {#if data.track.album}
           <p class="detail-album">
-            <a href="/album/{data.track.album.id}">{data.track.album.name}</a>
+            <a class="meta-stat" href="/album/{data.track.album.id}">{data.track.album.name}</a>
             {#if data.track.album.releaseDate}
-              <span class="detail-meta"> &middot; {data.track.album.releaseDate}</span>
+              <span class="detail-meta meta-stat">{data.track.album.releaseDate}</span>
             {/if}
-            <span class="detail-meta"> &middot; </span>
-            {#if !isSpotifyId(trackId) && editingDuration}
-              <input
-                class="duration-input"
-                type="text"
-                placeholder="3:45"
-                bind:value={durationInput}
-                onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
-                use:focusOnMount
-              />
-            {:else if !isSpotifyId(trackId)}
-              <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
-                {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
-              </button>
-            {:else}
-              <button type="button" class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration} onkeydown={(e) => { if (e.key === 'Enter') recheckDuration(); }}>
-                {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
-              </button>
-            {/if}
+            <span class="detail-meta meta-stat">
+              {#if !isSpotifyId(trackId) && editingDuration}
+                <input
+                  class="duration-input"
+                  type="text"
+                  placeholder="3:45"
+                  bind:value={durationInput}
+                  onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
+                  use:focusOnMount
+                />
+              {:else if !isSpotifyId(trackId)}
+                <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
+                  {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
+                </button>
+              {:else}
+                <button type="button" class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration} onkeydown={(e) => { if (e.key === 'Enter') recheckDuration(); }}>
+                  {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
+                </button>
+              {/if}
+            </span>
+            <ArtistRankStats entityType="track" entityId={trackId} artists={data.track.artists} {metric} ranked={rankable} />
           </p>
         {:else}
           <p class="detail-album">
-            {#if !isSpotifyId(trackId) && editingDuration}
-              <input
-                class="duration-input"
-                type="text"
-                placeholder="3:45"
-                bind:value={durationInput}
-                onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
-                use:focusOnMount
-              />
-            {:else if !isSpotifyId(trackId)}
-              <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
-                {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
-              </button>
-            {:else}
-              <button type="button" class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration} onkeydown={(e) => { if (e.key === 'Enter') recheckDuration(); }}>
-                {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
-              </button>
-            {/if}
+            <span class="detail-meta meta-stat">
+              {#if !isSpotifyId(trackId) && editingDuration}
+                <input
+                  class="duration-input"
+                  type="text"
+                  placeholder="3:45"
+                  bind:value={durationInput}
+                  onkeydown={(e) => { if (e.key === 'Enter') saveDuration(); if (e.key === 'Escape') editingDuration = false; }}
+                  use:focusOnMount
+                />
+              {:else if !isSpotifyId(trackId)}
+                <button class="duration-edit-btn" title="Editar duración" onclick={() => { editingDuration = true; durationInput = ''; }}>
+                  {data.track.durationMs > 0 ? formatTrackLength(data.track.durationMs) : '??:??'}
+                </button>
+              {:else}
+                <button type="button" class="detail-meta duration-recheck" title="Doble click para recomprobar duración" ondblclick={recheckDuration} onkeydown={(e) => { if (e.key === 'Enter') recheckDuration(); }}>
+                  {#if recheckingDuration}...{:else}{formatTrackLength(data.track.durationMs)}{/if}
+                </button>
+              {/if}
+            </span>
+            <ArtistRankStats entityType="track" entityId={trackId} artists={data.track.artists} {metric} ranked={rankable} />
           </p>
         {/if}
       </div>

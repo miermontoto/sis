@@ -1384,6 +1384,22 @@ a.track-item {
   margin: 0.15rem 0 0;
 }
 
+/* cifras de la línea de meta del hero ("2022-05-26 · 38 tracks · 268 min"): el separador lo
+   pone el css delante de cada cifra que sigue a otra, y el markup no arrastra condiciones de
+   "¿hay algo antes?" para pintarlo. Cada cifra con su punto es un bloque en línea: al
+   partirse la línea (móvil) baja entera, en vez de dejar el punto colgando al final del
+   renglón (un nbsp no basta: delante de un botón, como la duración, el navegador corta
+   igual) o partir "#3 of Eminem's 70 / albums". max-width deja que una cifra más larga que
+   la línea se parta por dentro en vez de desbordar. La primera (el álbum en el tema, que
+   puede ser larguísimo) sigue en línea y se parte como texto */
+.meta-stat + .meta-stat {
+  display: inline-block;
+  max-width: 100%;
+}
+.meta-stat + .meta-stat::before {
+  content: '\00b7\00a0';
+}
+
 .duration-edit-btn {
   background: none;
   border: none;

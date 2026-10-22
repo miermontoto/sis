@@ -227,6 +227,11 @@
     background: none;
     font: inherit;
     color: inherit;
+    /* sin interlineado: la portada es un <img> inline y, con el line-height heredado, el
+       botón medía 7.6px más que ella (el hueco de la línea base). El hero centra el texto
+       contra el botón, así que el texto quedaba 3.8px bajo y el icono de editar asomaba
+       por debajo de la portada. Lo mismo que hace .cover-link en el detalle de tema */
+    line-height: 0;
   }
   .picker-hint {
     position: absolute;

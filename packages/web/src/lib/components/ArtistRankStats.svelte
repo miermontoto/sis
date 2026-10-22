@@ -1,10 +1,10 @@
 <script lang="ts">
-  // Línea de artistas del hero de álbum y tema. Junto a cada uno, la posición de esta
-  // entidad dentro de su catálogo: la fila que ocupa en sus top albums/tracks all-time,
-  // la misma que enseña la página del artista que enlaza el nombre
+  // Posición de esta entidad dentro del catálogo de cada artista acreditado: la fila que
+  // ocupa en sus top albums/tracks all-time, la misma que enseña la página del artista.
+  // Se pinta como una cifra más de la línea de meta del hero ("· #3 of Eminem's 70
+  // albums"): un .meta-stat, que recibe el separador del css (app.css) como sus vecinas
   import { api, createFetchController, type ArtistScopedRank, type RankingMetric } from '$lib/api';
   import { attributionVersion } from '$lib/stores/attribution';
-  import { medalColor } from '$lib/utils/medals';
 
   let {
     entityType,
@@ -28,6 +28,12 @@
   // nuevo con los mismos artistas, que no debe relanzar un escaneo por artista
   let artistKey = $derived(artists.map(a => a.id).join(','));
 
+  // con un solo tema/álbum del artista en la biblioteca, el #1 no dice nada
+  let shown = $derived(artists.flatMap(a => {
+    const pos = ranks[a.id];
+    return pos && pos.total > 1 ? [{ ...pos, name: a.name }] : [];
+  }));
+
   $effect(() => {
     const ids = artistKey ? artistKey.split(',') : [];
     // merges, colecciones y créditos mueven las posiciones (ver attributionVersion)
@@ -42,19 +48,6 @@
   });
 </script>
 
-<p class="detail-subtitle">
-  {#each artists as artist, i}
-    {@const pos = ranks[artist.id]}
-    <!-- con un solo tema/álbum del artista en la biblioteca, el #1 no dice nada -->
-    <a href="/artist/{artist.id}">{artist.name}</a>{#if pos && pos.total > 1}{' '}<span class="artist-rank" title="#{pos.rank} of {pos.total} {entityType}s by {artist.name}, all time" style:color={medalColor(pos.rank)}>(#{pos.rank} {entityType})</span>{/if}{#if i < artists.length - 1}{', '}{/if}
-  {/each}
-</p>
-
-<style>
-  .artist-rank {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: var(--fs-sm);
-    white-space: nowrap;
-  }
-</style>
+<!-- el espacio explícito es el punto de corte entre cifras: svelte quita el que hay al
+     principio y al final de cada bloque -->
+{#each shown as s (s.name)}{' '}<span class="detail-meta meta-stat" title="All time, by {metric === 'plays' ? 'plays' : 'listening time'}">#{s.rank} of {s.name}'s {s.total} {entityType}s</span>{/each}

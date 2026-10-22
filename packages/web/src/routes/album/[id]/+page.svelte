@@ -19,7 +19,7 @@
   import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
   import AliasBadge from '$lib/components/AliasBadge.svelte';
-  import HeroArtists from '$lib/components/HeroArtists.svelte';
+  import ArtistRankStats from '$lib/components/ArtistRankStats.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
   import ChartStats from '$lib/components/ChartStats.svelte';
   import RankingBadges from '$lib/components/RankingBadges.svelte';
@@ -525,14 +525,17 @@
       <div class="detail-header-info">
         {#if collectionId !== null}<div class="data-label">Collection</div>{/if}
         <h1>{data.album.name}{#if nowPlayingStore.isLive('album', albumId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="album" target={mergedInto} />{/if}</h1>
-        <HeroArtists entityType="album" entityId={albumId} artists={data.artists} {metric} ranked={rankable} />
+        <p class="detail-subtitle">
+          {#each data.artists as artist, i}
+            <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
+          {/each}
+        </p>
         {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0}
           <p class="detail-meta-line">
-            {#if data.album.releaseDate}{data.album.releaseDate}{/if}
-            {#if data.album.releaseDate && data.album.totalTracks} &middot; {/if}
-            {#if data.album.totalTracks}{data.album.totalTracks} tracks{/if}
-            {#if (data.album.releaseDate || data.album.totalTracks) && albumLengthMs > 0} &middot; {/if}
-            {#if albumLengthMs > 0}{formatDuration(albumLengthMs)}{/if}
+            {#if data.album.releaseDate}<span class="meta-stat">{data.album.releaseDate}</span>{/if}
+            {#if data.album.totalTracks}<span class="meta-stat">{data.album.totalTracks} tracks</span>{/if}
+            {#if albumLengthMs > 0}<span class="meta-stat">{formatDuration(albumLengthMs)}</span>{/if}
+            <ArtistRankStats entityType="album" entityId={albumId} artists={data.artists} {metric} ranked={rankable} />
           </p>
         {/if}
         {#if data.collection}
