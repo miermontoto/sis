@@ -54,6 +54,15 @@
     return null;
   }
 
+  // las marcas afirman pertenencia, así que sólo existen cuando hay alguna: montar el
+  // popover en cada fila sería un listener de documento por fila para no pintar nada.
+  // Sin ellas la puerta es "Add to playlist" del menú contextual, que la fila con
+  // marcas omite (abriría el mismo popover)
+  function hasLibraryBadge(trackId: string | null): trackId is string {
+    return showLibraryBadges && !!trackId
+      && ((playlistMembershipStore.get(trackId)?.length ?? 0) > 0 || playlistMembershipStore.isLiked(trackId) === true);
+  }
+
   function isTopTrack(item: TopTrackItem | HistoryItem): item is TopTrackItem {
     return 'playCount' in item;
   }
@@ -92,6 +101,7 @@
       dimmed={dimUnplayed && isTopTrack(item) && item.playCount === 0}
       fillPercent={fillPercents?.[i]}
       entity={trackId ? { type: 'track', id: trackId, name: track.name, imageUrl: track.album?.imageUrl ?? null, parentArtistId: track.artists[0]?.id } : undefined}
+      menuOptions={{ playlists: !hasLibraryBadge(trackId) }}
       {compact}
     >
       {#snippet subtitle()}
@@ -109,10 +119,7 @@
         {#if showAccolades && trackId}
           <Accolades entityType="track" entityId={trackId} />
         {/if}
-        <!-- las marcas afirman pertenencia, así que sólo existen cuando hay
-             alguna: montar el popover en cada fila sería un listener de documento
-             por fila para no pintar nada -->
-        {#if showLibraryBadges && trackId && ((playlistMembershipStore.get(trackId)?.length ?? 0) > 0 || playlistMembershipStore.isLiked(trackId))}
+        {#if hasLibraryBadge(trackId)}
           <PlaylistPopover
             inline
             {trackId}

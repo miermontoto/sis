@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { medalColor } from '$lib/utils/medals';
-  import { openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
+  import { openEntityContextMenu, type EntityContext, type EntityMenuOptions } from '$lib/utils/entity-context';
   import RankCell from './RankCell.svelte';
   import CollectionBadge from './CollectionBadge.svelte';
   import LiveEq from './LiveEq.svelte';
@@ -24,6 +24,7 @@
     highlighted?: boolean;
     dimmed?: boolean;
     entity?: EntityContext;
+    menuOptions?: EntityMenuOptions;
     fillPercent?: number;
     subtitle?: Snippet;
     extra?: Snippet;
@@ -31,9 +32,9 @@
     cover?: Snippet;
   }
 
-  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, subtitle, extra, meta, cover }: Props = $props();
+  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, menuOptions, subtitle, extra, meta, cover }: Props = $props();
 
-  let onContextMenu = $derived(entity ? openEntityContextMenu(entity) : undefined);
+  let onContextMenu = $derived(entity ? openEntityContextMenu(entity, menuOptions) : undefined);
 </script>
 
 {#snippet art()}

@@ -1,9 +1,16 @@
 import type { Component } from 'svelte';
 
 // Menú contextual global (botón derecho). Una sola instancia monta <ContextMenu /> en el layout.
+export interface MenuPoint {
+  x: number;
+  y: number;
+}
+
 export interface ContextMenuAction {
   label: string;
-  onClick: () => void | Promise<void>;
+  // recibe el punto donde se abrió el menú: lo que se abre en su sitio (el selector de
+  // playlists) lo necesita, y el menú ya se ha cerrado cuando corre la acción
+  onClick: (at: MenuPoint) => void | Promise<void>;
   icon?: Component<{ size?: number }>;
   danger?: boolean;
   disabled?: boolean;

@@ -24,7 +24,7 @@
   import SearchModal from '$lib/components/SearchModal.svelte';
   import ConcertModal from '$lib/components/ConcertModal.svelte';
   import DetailBackdrop from '$lib/components/DetailBackdrop.svelte';
-  import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
+  import EntityActionsMenu, { type MenuAction } from '$lib/components/EntityActionsMenu.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconExternalLink from '$lib/icons/IconExternalLink.svelte';
@@ -107,10 +107,10 @@
   // posición de la primera canción del bis, para el separador "Encore"
   let encoreStart = $derived(data?.songs.find(s => s.isEncore)?.position ?? -1);
 
-  let heroActions = $derived.by<ContextMenuAction[]>(() => {
+  let heroActions = $derived.by<MenuAction[]>(() => {
     const d = data;
     if (!d) return [];
-    const out: ContextMenuAction[] = [];
+    const out: MenuAction[] = [];
     const url = d.setlistfmUrl;
     if (url) out.push({ label: 'View on setlist.fm', icon: IconExternalLink, onClick: () => { window.open(url, '_blank'); } });
     out.push({ label: 'Edit concert', icon: IconEdit, onClick: () => { showEditModal = true; } });

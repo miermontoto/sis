@@ -15,6 +15,26 @@ let _liked = $state<Record<string, boolean>>({});
 // ids con petición en vuelo: un mismo tema puede aparecer en varias listas de la
 // misma página (top tracks y singles del álbum) y se pediría dos veces
 const _inflight = new Set<string>();
+// playlists propias (editables) del usuario: el destino de "añadir", independiente
+// del tema. Las comparten todos los popovers en vez de pedirlas cada uno
+const OWNED_PLAYLISTS_LIMIT = 200;
+let _owned = $state<PlaylistPresenceItem[]>([]);
+let _ownedLoad: Promise<void> | null = null;
+
+/** Se llama al abrir un popover: /playlists/library va por la cache del cliente, así
+ *  que repetirlo cuesta una lectura en memoria y recoge una playlist recién creada
+ *  cuando caduca. Un fallo conserva la lista anterior. */
+function loadOwned(): Promise<void> {
+  _ownedLoad ??= api.libraryPlaylists(OWNED_PLAYLISTS_LIMIT, 0)
+    .then(res => {
+      _owned = res.items
+        .filter(p => p.isOwned)
+        .map(p => ({ id: p.id, spotifyId: p.spotifyId, name: p.name, imageUrl: p.imageUrl, isOwned: true }));
+    })
+    .catch(() => { /* el siguiente open lo reintenta */ })
+    .finally(() => { _ownedLoad = null; });
+  return _ownedLoad;
+}
 
 /** Pide en un lote los ids que aún no conocemos. Los ya conocidos no se
  *  revalidan: la pertenencia sólo cambia por una mutación nuestra —que actualiza
@@ -47,7 +67,9 @@ export const playlistMembershipStore = {
     trackId ? _byTrack[trackId] : undefined,
   isLiked: (trackId: string | null | undefined): boolean | undefined =>
     trackId ? _liked[trackId] : undefined,
+  get owned() { return _owned; },
   ensure,
+  loadOwned,
   // siembra lo que ya viene dentro de otra respuesta (el detalle de un tema trae
   // sus playlists), para no volver a preguntarlo
   seed(trackId: string, playlists: PlaylistPresenceItem[]) {

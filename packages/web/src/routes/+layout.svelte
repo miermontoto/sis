@@ -12,6 +12,7 @@
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import PlaylistPicker from '$lib/components/PlaylistPicker.svelte';
   import EntityHoverCard from '$lib/components/EntityHoverCard.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
@@ -690,6 +691,7 @@
   <SearchModal bind:show={showSearch} />
   <KeyboardShortcutsHelp />
   <ContextMenu />
+  <PlaylistPicker />
   <EntityHoverCard />
   <Toast />
   {#if mergeModal.target}

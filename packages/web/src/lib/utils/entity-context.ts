@@ -1,10 +1,12 @@
-import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
+import { contextMenu, type ContextMenuAction, type MenuPoint } from '$lib/stores/context-menu.svelte';
 import { mergeModal } from '$lib/stores/merge-modal.svelte';
 import { collectionModal } from '$lib/stores/collection-modal.svelte';
 import { collectionsStore } from '$lib/stores/collections.svelte';
 import { creditsModal } from '$lib/stores/credits-modal.svelte';
+import { playlistPicker } from '$lib/stores/playlist-picker.svelte';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
+import IconPlus from '$lib/icons/IconPlus.svelte';
 import IconLink from '$lib/icons/IconLink.svelte';
 import IconAlbum from '$lib/icons/IconAlbum.svelte';
 import IconArtist from '$lib/icons/IconArtist.svelte';
@@ -25,6 +27,14 @@ export interface EntityContext {
   imageUrl: string | null;
   /** artistId padre. Necesario para merges de album/track; ignorado para artist. */
   parentArtistId?: string;
+}
+
+/** Entradas que omite quien ya pinta la suya, que si no acaban con dos puertas al
+ *  mismo sitio: `relations` las filas de la sección de relaciones, `playlists` las
+ *  filas que ya llevan el badge de playlists/liked (que abre el mismo popover). */
+export interface EntityMenuOptions {
+  relations?: boolean;
+  playlists?: boolean;
 }
 
 // acciones del menú contextual de una entidad. Exportado para las filas que
@@ -53,10 +63,8 @@ export async function queueEntity(type: 'album' | 'track', id: string): Promise<
   }
 }
 
-/** Acciones del menú contextual de una entidad.
- *  `relations: false` las omite para quien ya pinta las suyas (las filas de la sección
- *  de relaciones), que si no acaban con dos puertas al mismo sitio. */
-export function entityContextActions(entity: EntityContext, { relations = true }: { relations?: boolean } = {}): ContextMenuAction[] {
+/** Acciones del menú contextual de una entidad (ver EntityMenuOptions). */
+export function entityContextActions(entity: EntityContext, { relations = true, playlists = true }: EntityMenuOptions = {}): ContextMenuAction[] {
   const actions: ContextMenuAction[] = [];
   if (isSpotifyId(entity.id)) {
     actions.push({
@@ -77,6 +85,16 @@ export function entityContextActions(entity: EntityContext, { relations = true }
         label: 'Add to queue',
         icon: IconQueue,
         onClick: () => queueEntity(type, entity.id),
+      });
+    }
+    // el badge de una fila sólo existe si el tema ya está en alguna playlist o en los
+    // liked (y sólo en las listas que lo pintan): para el resto, ésta es la puerta al
+    // mismo popover, abierto donde estaba el menú
+    if (entity.type === 'track' && playlists) {
+      actions.push({
+        label: 'Add to playlist',
+        icon: IconPlus,
+        onClick: (at) => playlistPicker.open(entity.id, at),
       });
     }
   }
@@ -137,14 +155,14 @@ export function entityContextActions(entity: EntityContext, { relations = true }
  * `onAction` se ejecuta antes de cualquier acción: sirve para que un anfitrión efímero
  * (el modal de búsqueda) se cierre y no quede apilado bajo el modal de merge/relate.
  */
-export function openEntityContextMenu(entity: EntityContext, onAction?: () => void) {
+export function openEntityContextMenu(entity: EntityContext, { onAction, ...options }: EntityMenuOptions & { onAction?: () => void } = {}) {
   return (e: MouseEvent) => {
-    const actions = entityContextActions(entity);
+    const actions = entityContextActions(entity, options);
     // sin acciones no se abre nada: una fila de álbum lógico no se reproduce, no se
     // mergea y no cabe en otra colección, y un panel vacío es peor que ninguno
     if (actions.length === 0) return;
     contextMenu.open(e, onAction
-      ? actions.map(a => ({ ...a, onClick: () => { onAction(); return a.onClick(); } }))
+      ? actions.map(a => ({ ...a, onClick: (at: MenuPoint) => { onAction(); return a.onClick(at); } }))
       : actions);
   };
 }

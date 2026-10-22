@@ -102,7 +102,7 @@
 
   // el menú contextual global reemplaza al nativo; cerramos el modal antes de cada acción
   function entityMenu(entity: EntityContext) {
-    return openEntityContextMenu(entity, close);
+    return openEntityContextMenu(entity, { onAction: close });
   }
 
   // las playlists no son una entidad del modelo de merges: menú mínimo propio

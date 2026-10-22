@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { contextMenu } from '$lib/stores/context-menu.svelte';
+  import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
   import { page } from '$app/state';
 
   let menuEl: HTMLDivElement | undefined = $state();
@@ -52,10 +52,12 @@
     contextMenu.close();
   });
 
-  async function runAction(a: ReturnType<typeof contextMenu.state extends null ? never : () => any>) {
-    const fn = a.onClick as () => void | Promise<void>;
+  async function runAction(a: ContextMenuAction) {
+    // el punto se toma antes de cerrar: close() vacía el estado
+    const s = contextMenu.state;
+    if (!s) return;
     contextMenu.close();
-    await fn();
+    await a.onClick({ x: s.x, y: s.y });
   }
 </script>
 
