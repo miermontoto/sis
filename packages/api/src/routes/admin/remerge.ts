@@ -12,7 +12,7 @@ type Db = ReturnType<typeof getDb>;
 export interface RemergeContext {
   // tracks que ya son source de una regla: quedan fuera del pool, ya están fusionados
   mergedTrackIds: Set<string>;
-  // tracks que ya son target: pueden recibir merges pero no convertirse en source
+  // tracks que ya son target: se prefieren como canónico del dedup (ver DedupCandidate)
   mergeTargetIds: Set<string>;
   playCounts: Map<string, number>;
   // álbumes source por álbum target, para el pass cruzado
@@ -80,15 +80,14 @@ export function buildAlbumRemerge(db: Db, albumId: string, albumName: string, ct
   const usedSourceIds = new Set<string>();
 
   // pass 1: emparejar cada álbum source con el target por posición / similitud de nombre.
-  // Un track que ya es target de otra regla no puede proponerse como source: batch-merge
-  // lo rechazaría con source_is_target, así que se descarta antes de ofrecerlo.
+  // Un track que ya es target de otra regla también se propone: batch-merge pliega su
+  // grupo en el target (createMergeRule).
   for (const sa of sourceAlbums) {
-    const availableSources = sa.tracks.filter(t => !t.isMergeTarget);
     const availableTargets = targetTracks.filter(t => !usedTargetIds.has(t.id));
-    const matches = autoMatchTracks(availableSources, availableTargets);
+    const matches = autoMatchTracks(sa.tracks, availableTargets);
 
     for (const m of matches) {
-      const st = availableSources.find(t => t.id === m.sourceTrackId)!;
+      const st = sa.tracks.find(t => t.id === m.sourceTrackId)!;
       const tt = targetTracks.find(t => t.id === m.targetTrackId)!;
       pairs.push({ sourceTrack: asMergeTrack(st), targetTrack: asMergeTrack(tt), sourceAlbumName: sa.name, confidence: m.confidence });
       usedTargetIds.add(m.targetTrackId);
@@ -97,8 +96,9 @@ export function buildAlbumRemerge(db: Db, albumId: string, albumName: string, ct
   }
 
   // pass 2: dedup sobre todo el grupo (target + sources). Se excluyen los ya emparejados
-  // arriba y los targets del pass 1 se marcan como isMergeTarget para que no acaben siendo
-  // source de un merge encadenado.
+  // arriba y los targets del pass 1 se marcan como isMergeTarget para que se prefieran
+  // como canónico. Si uno acaba de source igualmente, el lote lo aplica después de su par
+  // del pass 1 (los pares van en orden), así que el pliegue arrastra también ese par.
   const dedupPool = [...targetTracks, ...sourceAlbums.flatMap(sa => sa.tracks)]
     .filter(t => !usedSourceIds.has(t.id))
     .map(t => ({ ...t, isMergeTarget: t.isMergeTarget || usedTargetIds.has(t.id) }));

@@ -1,7 +1,8 @@
 // promoción de un miembro de un grupo de merge a canónico ("swap" de dirección).
 //
-// Un grupo es siempre un canónico + N sources, de un solo nivel: validateMergeRule
-// rechaza encadenar merges. Por eso invertir UNA regla suelta no vale — dejaría a los
+// Un grupo es siempre un canónico + N sources, de un solo nivel: nunca se encadena
+// (mergear un canónico pliega su grupo, ver createMergeRule, y un target que ya es source
+// se rechaza). Por eso invertir UNA regla suelta no vale — dejaría a los
 // hermanos apuntando a un source. La operación correcta reescribe el grupo entero:
 // el canónico viejo y todos los hermanos pasan a apuntar al promovido.
 import { sql } from 'drizzle-orm';

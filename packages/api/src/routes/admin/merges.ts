@@ -3,7 +3,7 @@ import { getDb } from '../../db/connection.js';
 import { mergeRules, albums, tracks } from '../../db/schema.js';
 import {
   adminRouter, VALID_ENTITY_TYPES, isValidEntityType, entityTable,
-  validateMergeRule, MERGE_ERRORS, autoMatchTracks,
+  createMergeRule, MERGE_ERRORS, MERGE_SKIP_REASONS, autoMatchTracks,
 } from './_shared.js';
 import { buildAlbumRemerge, loadRemergeContext } from './remerge.js';
 import { promoteToCanonical, promoteAlbumCanonical, PROMOTE_ERRORS } from './promote.js';
@@ -40,22 +40,16 @@ merges.post('/merge', async (c) => {
   if (!source) return c.json({ error: `source ${entityType} not found` }, 404);
   if (!target) return c.json({ error: `target ${entityType} not found` }, 404);
 
-  const v = validateMergeRule(db, userId, entityType, sourceId, targetId);
-  if (!v.ok) {
-    const [msg, status] = MERGE_ERRORS[v.reason](entityType);
+  // si el source ya es canónico de un grupo, el grupo entero se pliega en el target
+  const result = db.transaction(() => createMergeRule(db, userId, entityType, sourceId, targetId));
+  if (!result.ok) {
+    const [msg, status] = MERGE_ERRORS[result.reason](entityType);
     return c.json({ error: msg }, status as 400);
   }
-
-  const result = db.insert(mergeRules).values({
-    userId,
-    entityType,
-    sourceId,
-    targetId,
-  }).run();
   invalidateRankingCache(userId);
 
   return c.json({
-    id: result.lastInsertRowid,
+    id: result.id,
     entityType,
     sourceId,
     sourceName: source.name,
@@ -261,17 +255,11 @@ merges.post('/merge-album', async (c) => {
   if (!sourceAlbum) return c.json({ error: 'source album not found' }, 404);
   if (!targetAlbum) return c.json({ error: 'target album not found' }, 404);
 
-  const albumV = validateMergeRule(db, userId, 'album', sourceAlbumId, targetAlbumId);
-  if (!albumV.ok) {
-    const [msg, status] = MERGE_ERRORS[albumV.reason]('album');
-    return c.json({ error: msg }, status as 400);
-  }
-
-  // ejecutar todo en transacción
+  // ejecutar todo en transacción; un álbum o un track que ya son canónicos de su grupo
+  // lo pliegan en el target (createMergeRule)
   const result = db.transaction(() => {
-    const albumResult = db.insert(mergeRules).values({
-      userId, entityType: 'album', sourceId: sourceAlbumId, targetId: targetAlbumId,
-    }).run();
+    const albumResult = createMergeRule(db, userId, 'album', sourceAlbumId, targetAlbumId);
+    if (!albumResult.ok) return albumResult;
 
     const trackRules: Array<{ id: number; sourceTrackId: string; targetTrackId: string }> = [];
     const skipped: string[] = [];
@@ -287,28 +275,29 @@ merges.post('/merge-album', async (c) => {
       const tgt = db.select().from(tracks).where(eq(tracks.spotifyId, pair.targetTrackId)).get();
       if (!src || !tgt) { skipped.push(`${pair.sourceTrackId}: track not found`); continue; }
 
-      const tv = validateMergeRule(db, userId, 'track', pair.sourceTrackId, pair.targetTrackId);
-      if (!tv.ok) {
-        const reasons = { exists: 'already merged', source_is_target: 'is already a merge target', target_is_source: 'target already merged elsewhere' };
-        skipped.push(`${pair.sourceTrackId}: ${reasons[tv.reason]}`);
+      const tr = createMergeRule(db, userId, 'track', pair.sourceTrackId, pair.targetTrackId);
+      if (!tr.ok) {
+        skipped.push(`${pair.sourceTrackId}: ${MERGE_SKIP_REASONS[tr.reason]}`);
         continue;
       }
-
-      const r = db.insert(mergeRules).values({
-        userId, entityType: 'track', sourceId: pair.sourceTrackId, targetId: pair.targetTrackId,
-      }).run();
-      trackRules.push({ id: Number(r.lastInsertRowid), sourceTrackId: pair.sourceTrackId, targetTrackId: pair.targetTrackId });
+      trackRules.push({ id: tr.id, sourceTrackId: pair.sourceTrackId, targetTrackId: pair.targetTrackId });
     }
 
     return {
-      albumRule: { id: Number(albumResult.lastInsertRowid), sourceId: sourceAlbumId, targetId: targetAlbumId },
+      ok: true as const,
+      albumRule: { id: albumResult.id, sourceId: sourceAlbumId, targetId: targetAlbumId },
       trackRules,
       skipped,
     };
   });
+  if (!result.ok) {
+    const [msg, status] = MERGE_ERRORS[result.reason]('album');
+    return c.json({ error: msg }, status as 400);
+  }
   invalidateRankingCache(userId);
 
-  return c.json(result);
+  const { albumRule, trackRules, skipped } = result;
+  return c.json({ albumRule, trackRules, skipped });
 });
 
 // preview de re-merge de un álbum: candidatos de auto-merge para su grupo.
@@ -391,16 +380,11 @@ merges.post('/batch-merge-tracks', async (c) => {
       const tgt = db.select().from(tracks).where(eq(tracks.spotifyId, pair.targetTrackId)).get();
       if (!src || !tgt) { skipped.push(`${pair.sourceTrackId}: track not found`); continue; }
 
-      const tv = validateMergeRule(db, userId, 'track', pair.sourceTrackId, pair.targetTrackId);
-      if (!tv.ok) {
-        const reasons = { exists: 'already merged', source_is_target: 'is already a merge target', target_is_source: 'target already merged elsewhere' };
-        skipped.push(`${pair.sourceTrackId}: ${reasons[tv.reason]}`);
+      const tr = createMergeRule(db, userId, 'track', pair.sourceTrackId, pair.targetTrackId);
+      if (!tr.ok) {
+        skipped.push(`${pair.sourceTrackId}: ${MERGE_SKIP_REASONS[tr.reason]}`);
         continue;
       }
-
-      db.insert(mergeRules).values({
-        userId, entityType: 'track', sourceId: pair.sourceTrackId, targetId: pair.targetTrackId,
-      }).run();
       created++;
     }
 

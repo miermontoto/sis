@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
-import { albums, artists, tracks } from '../../db/schema.js';
+import { albums, artists, tracks, mergeRules } from '../../db/schema.js';
 import { creditBaseKey } from '../../services/versions.js';
 import { TRACK_NAME_MATCH_THRESHOLD, TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
 import type { AppVariables } from '../../app.js';
@@ -96,8 +96,9 @@ export interface DedupCandidate extends MatchableTrack {
   albumId: string;
   albumName: string;
   playCount: number;
-  // ya es target de una regla de track (o lo será en este mismo preview): no puede pasar a
-  // source, porque validateMergeRule rechaza encadenar merges
+  // ya es target de una regla de track (o lo será en este mismo preview): se prefiere como
+  // canónico, para no plegar un grupo ya armado si basta con colgarle los duplicados. Si
+  // aun así sale como source (dos grupos del mismo tema), createMergeRule los pliega
   isMergeTarget: boolean;
 }
 
@@ -139,7 +140,7 @@ export function autoDedupTracks(pool: DedupCandidate[], canonicalAlbumId: string
     .flatMap(group => {
       const [canonical, ...dupes] = [...group].sort(canonicalFirst(canonicalAlbumId));
       return dupes
-        .filter(d => !d.isMergeTarget && durationsMatch(d, canonical))
+        .filter(d => durationsMatch(d, canonical))
         .map(d => ({ source: d, target: canonical }));
     });
 }
@@ -166,13 +167,48 @@ export function validateMergeRule(
         AND source_id = ${targetId}) as tgt_is_src
   `) as { dup: number; src_is_tgt: number; tgt_is_src: number };
   if (row.dup) return { ok: false, reason: 'exists' };
-  if (row.src_is_tgt) return { ok: false, reason: 'source_is_target' };
+  // target_is_source antes que source_is_target: createMergeRule resuelve el segundo
+  // plegando el grupo, y con los dos a la vez ese pliegue dejaría una cadena
   if (row.tgt_is_src) return { ok: false, reason: 'target_is_source' };
+  if (row.src_is_tgt) return { ok: false, reason: 'source_is_target' };
   return { ok: true };
 }
 
-export const MERGE_ERRORS: Record<string, (type: string) => [string, number]> = {
+export type CreateMergeResult =
+  | { ok: true; id: number; folded: number }
+  | { ok: false; reason: 'exists' | 'target_is_source' };
+
+/** Crea la regla source → target de una acción del usuario. Si el source ya es canónico
+ *  de un grupo, el grupo entero se pliega en el target (sus sources se repuntan) en vez
+ *  de rechazarse: los grupos son de un solo nivel y repuntarlos es justo lo que el
+ *  usuario tendría que hacer a mano. No abre transacción: repuntar e insertar tienen que
+ *  caer juntos, así que la abre el caller. El plegado de singles sigue con
+ *  validateMergeRule a pelo: un proceso en background no reescribe reglas del usuario. */
+export function createMergeRule(
+  db: ReturnType<typeof getDb>,
+  userId: number,
+  entityType: EntityType,
+  sourceId: string,
+  targetId: string,
+): CreateMergeResult {
+  const v = validateMergeRule(db, userId, entityType, sourceId, targetId);
+  if (!v.ok && v.reason !== 'source_is_target') return { ok: false, reason: v.reason };
+
+  const folded = v.ok ? 0 : db.run(sql`
+    UPDATE merge_rules SET target_id = ${targetId}
+    WHERE user_id = ${userId} AND entity_type = ${entityType} AND target_id = ${sourceId}
+  `).changes;
+  const r = db.insert(mergeRules).values({ userId, entityType, sourceId, targetId }).run();
+  return { ok: true, id: Number(r.lastInsertRowid), folded };
+}
+
+export const MERGE_ERRORS: Record<Exclude<CreateMergeResult, { ok: true }>['reason'], (type: string) => [string, number]> = {
   exists: () => ['merge rule already exists', 409],
-  source_is_target: (t) => [`source ${t} is already a merge target — merge its sources into the new target instead`, 400],
   target_is_source: (t) => [`target ${t} is already merged into another ${t}`, 400],
+};
+
+// motivo por el que un par de un lote de tracks se salta, para el `skipped` de la respuesta
+export const MERGE_SKIP_REASONS: Record<Exclude<CreateMergeResult, { ok: true }>['reason'], string> = {
+  exists: 'already merged',
+  target_is_source: 'target already merged elsewhere',
 };
