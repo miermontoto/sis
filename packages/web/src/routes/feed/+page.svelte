@@ -3,6 +3,7 @@
   import { api, type FeedResponse, type FeedPlayItem, type DirectoryUser } from '$lib/api';
   import { formatDuration, formatNumber, timeAgo } from '$lib/utils/format';
   import { toastStore } from '$lib/stores/toast.svelte';
+  import TrackItem from '$lib/components/TrackItem.svelte';
 
   let feed = $state<FeedResponse | null>(null);
   let loading = $state(true);
@@ -128,20 +129,29 @@
             <span class="stream-user">{group.user.displayName || group.user.spotifyId}</span>
             <span class="stream-time">{timeAgo(group.plays[0].playedAt)}</span>
           </a>
-          <div class="stream-tracks">
+          <!-- la misma fila que cualquier lista: enlaza tema, álbum y artistas y abre el
+               menú contextual (encolar el play de un amigo es la acción natural del feed) -->
+          <div class="track-list stream-tracks">
             {#each group.plays as play (play.playedAt)}
-              <div class="stream-track">
-                {#if play.track.albumImageUrl}
-                  <img class="stream-track-img" src={play.track.albumImageUrl} alt="" />
-                {:else}
-                  <div class="stream-track-img stream-track-img--empty"></div>
-                {/if}
-                <div class="stream-track-info">
-                  <span class="stream-track-name">{play.track.name}</span>
-                  <span class="stream-track-artists">{play.track.artists}</span>
-                </div>
-                <span class="stream-track-time">{timeAgo(play.playedAt)}</span>
-              </div>
+              <TrackItem
+                compact
+                name={play.track.name}
+                nameHref="/track/{play.track.id}"
+                imageUrl={play.track.albumImageUrl}
+                imageHref={play.track.albumId ? `/album/${play.track.albumId}` : undefined}
+                entity={{ type: 'track', id: play.track.id, name: play.track.name, imageUrl: play.track.albumImageUrl, parentArtistId: play.track.artistList?.[0]?.id }}
+              >
+                {#snippet subtitle()}
+                  {#if play.track.artistList?.length}
+                    {#each play.track.artistList as a, i (a.id)}{#if i > 0}, {/if}<a href="/artist/{a.id}" class="track-link">{a.name}</a>{/each}
+                  {:else}
+                    {play.track.artists}
+                  {/if}
+                {/snippet}
+                {#snippet meta()}
+                  <span class="stream-track-time">{timeAgo(play.playedAt)}</span>
+                {/snippet}
+              </TrackItem>
             {/each}
           </div>
         </div>
@@ -320,63 +330,16 @@
     flex-shrink: 0;
   }
 
+  /* las filas son TrackItem (global); el grupo sólo mete el hueco lateral */
   .stream-tracks {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .stream-track {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.45rem 0.9rem;
-  }
-
-  .stream-track:not(:last-child) {
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  }
-
-  .stream-track-img {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius);
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-
-  .stream-track-img--empty {
-    background: var(--border);
-  }
-
-  .stream-track-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.05rem;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .stream-track-name {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .stream-track-artists {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 0 0.35rem 0.35rem;
   }
 
   .stream-track-time {
     font-size: var(--fs-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
-    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .discover {

@@ -3,21 +3,15 @@
   import { page } from '$app/stores';
   import { api, createFetchController, type CompareResponse, type TimeRange, type ProfileSummary, type TopArtistItem, type TopTrackItem, type TopAlbumItem, type SharedRankedItem } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
+  import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
+  import EntityTypePicker, { toPlural, toSingular, type EntityTypePlural } from '$lib/components/EntityTypePicker.svelte';
 
   let data = $state<CompareResponse | null>(null);
   let loading = $state(true);
   let notFound = $state(false);
   let range = $state<TimeRange>('all');
-  let sideEntity = $state<'artists' | 'tracks' | 'albums'>('artists');
+  let sideEntity = $state<EntityTypePlural>('tracks');
   const fetchCtrl = createFetchController();
-
-  const RANGES: { key: TimeRange; label: string }[] = [
-    { key: 'month', label: '30D' },
-    { key: '3months', label: '3M' },
-    { key: 'year', label: '1Y' },
-    { key: 'thisYear', label: 'YTD' },
-    { key: 'all', label: 'All' },
-  ];
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -182,7 +176,7 @@
 
   <!-- head-to-head all-time: no depende del rango -->
   <section class="compare-section">
-    <h2>Head to head</h2>
+    <h2 class="section-title">Head to head</h2>
     <div class="card h2h-card">
       {#each headToHead as row}
         <div class="h2h-row">
@@ -194,18 +188,14 @@
     </div>
   </section>
 
-  <!-- el rango afecta a compartidos y tops -->
-  <div class="compare-ranges">
-    {#each RANGES as r}
-      <button class="range-btn" class:active={range === r.key} onclick={() => range = r.key}>{r.label}</button>
-    {/each}
-  </div>
+  <!-- el rango afecta a compartidos y tops; sin custom porque el endpoint no acepta fechas -->
+  <TimeRangeSelector value={range} onchange={(r) => range = r as TimeRange} custom={false} />
 
   {#each SHARED_SECTIONS as section}
     {@const items = data[section.key]}
     {#if items.length > 0}
       <section class="compare-section">
-        <h2>{section.title}</h2>
+        <h2 class="section-title">{section.title}</h2>
         <div class="shared-grid">
           {#each items.slice(0, 12) as item (item.id)}
             <a href="{section.hrefBase}/{item.id}" class="shared-item">
@@ -230,13 +220,9 @@
   {/if}
 
   <section class="compare-section">
-    <div class="side-header">
-      <h2>Tops side by side</h2>
-      <div class="side-switcher">
-        <button class="range-btn" class:active={sideEntity === 'artists'} onclick={() => sideEntity = 'artists'}>Artists</button>
-        <button class="range-btn" class:active={sideEntity === 'tracks'} onclick={() => sideEntity = 'tracks'}>Tracks</button>
-        <button class="range-btn" class:active={sideEntity === 'albums'} onclick={() => sideEntity = 'albums'}>Albums</button>
-      </div>
+    <div class="section-header">
+      <h2 class="section-title">Tops side by side</h2>
+      <EntityTypePicker variant="pills" value={toSingular(sideEntity)} onchange={(t) => sideEntity = toPlural(t)} />
     </div>
     <div class="side-by-side">
       <div class="side-col">
@@ -448,24 +434,11 @@
     text-align: center;
   }
 
-  .compare-ranges {
-    display: flex;
-    gap: 0.25rem;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
   .compare-section {
     margin-bottom: 1.75rem;
   }
-
-  .compare-section h2 {
-    font-size: var(--fs-md);
-    text-transform: uppercase;
-    letter-spacing: var(--track);
-    color: var(--text-muted);
-    margin-bottom: 0.75rem;
+  .compare-section > .section-title {
+    margin-top: 0;
   }
 
   .shared-grid {
@@ -516,24 +489,6 @@
     font-size: var(--fs-xs);
     color: var(--text-muted);
     font-family: var(--font-mono);
-  }
-
-  .side-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.75rem;
-  }
-
-  .side-header h2 {
-    margin-bottom: 0;
-  }
-
-  .side-switcher {
-    display: flex;
-    gap: 0.25rem;
   }
 
   .side-by-side {

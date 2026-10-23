@@ -7,6 +7,7 @@
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import TrackList from '$lib/components/TrackList.svelte';
   import TopCollage from '$lib/components/TopCollage.svelte';
+  import TimeRangeSelector from '$lib/components/TimeRangeSelector.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import IconShare from '$lib/icons/IconShare.svelte';
@@ -22,15 +23,6 @@
   let followActing = $state(false);
   const fetchCtrl = createFetchController();
 
-  const RANGES: { key: TimeRange; label: string }[] = [
-    { key: 'week', label: '7D' },
-    { key: 'month', label: '30D' },
-    { key: '3months', label: '3M' },
-    { key: '6months', label: '6M' },
-    { key: 'year', label: '1Y' },
-    { key: 'thisYear', label: 'YTD' },
-    { key: 'all', label: 'All' },
-  ];
 
   async function loadData(id: string) {
     const signal = fetchCtrl.reset();
@@ -165,9 +157,7 @@
 
   <!-- el rango sólo afecta a los tops de abajo -->
   <div class="profile-ranges">
-    {#each RANGES as r}
-      <button class="range-btn" class:active={range === r.key} onclick={() => range = r.key}>{r.label}</button>
-    {/each}
+    <TimeRangeSelector value={range} onchange={(r) => range = r as TimeRange} custom={false} />
   </div>
 
   <!-- mismos contenedores y collages que el dashboard: artistas y álbumes son
@@ -267,10 +257,10 @@
   }
 
   .profile-ranges {
-    display: flex;
-    gap: 0.25rem;
-    margin: 1rem 0;
-    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+  .profile-ranges :global(.time-range-selector) {
+    margin-bottom: 1rem;
   }
 
   .profile-stats {

@@ -8,9 +8,11 @@
     startDate?: string;
     endDate?: string;
     ondatechange?: (start: string, end: string) => void;
+    // false en las vistas cuyo endpoint no acepta fechas (perfil, compare)
+    custom?: boolean;
   }
 
-  let { value, onchange, startDate = '', endDate = '', ondatechange }: Props = $props();
+  let { value, onchange, startDate = '', endDate = '', ondatechange, custom = true }: Props = $props();
 
   const ranges = [
     { key: 'week', label: '7D' },
@@ -41,19 +43,21 @@
       {r.label}
     </button>
   {/each}
-  <button
-    class="range-btn"
-    class:active={value === 'custom'}
-    onclick={() => onchange('custom')}
-  >
-    Custom
-  </button>
-  {#if value === 'custom'}
-    <div class="custom-dates">
-      <DatePicker value={startDate} label="Start date" placeholder="Start" max={endDate || today} onchange={(v) => handleDate('start', v)} />
-      <span class="date-sep">—</span>
-      <DatePicker value={endDate} label="End date" placeholder="End" min={startDate} max={today} onchange={(v) => handleDate('end', v)} />
-    </div>
+  {#if custom}
+    <button
+      class="range-btn"
+      class:active={value === 'custom'}
+      onclick={() => onchange('custom')}
+    >
+      Custom
+    </button>
+    {#if value === 'custom'}
+      <div class="custom-dates">
+        <DatePicker value={startDate} label="Start date" placeholder="Start" max={endDate || today} onchange={(v) => handleDate('start', v)} />
+        <span class="date-sep">—</span>
+        <DatePicker value={endDate} label="End date" placeholder="End" min={startDate} max={today} onchange={(v) => handleDate('end', v)} />
+      </div>
+    {/if}
   {/if}
 </div>
 

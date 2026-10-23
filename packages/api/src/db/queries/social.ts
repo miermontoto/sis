@@ -235,8 +235,10 @@ export interface FeedPlayRow {
   playedAt: string;
   trackId: string;
   trackName: string;
+  albumId: string | null;
   albumImageUrl: string | null;
-  artistNames: string | null;
+  // json de [{id, name}] en orden de crédito; la ruta lo parsea y deriva los nombres
+  artistsJson: string | null;
 }
 
 /** Stream cronológico de plays de un conjunto de usuarios (feed). */
@@ -250,12 +252,14 @@ export function getRecentPlaysForUsers(db: Db, userIds: number[], limit: number)
       lh.played_at AS playedAt,
       t.spotify_id AS trackId,
       t.name AS trackName,
+      t.album_id AS albumId,
       a.image_url AS albumImageUrl,
-      (SELECT GROUP_CONCAT(a2.name, ', ')
-       FROM track_artists ta2
-       JOIN artists a2 ON a2.spotify_id = ta2.artist_id
-       WHERE ta2.track_id = t.spotify_id
-       ORDER BY ta2.position) AS artistNames
+      (SELECT json_group_array(json_object('id', c.id, 'name', c.name))
+       FROM (SELECT a2.spotify_id AS id, a2.name AS name
+             FROM track_artists ta2
+             JOIN artists a2 ON a2.spotify_id = ta2.artist_id
+             WHERE ta2.track_id = t.spotify_id
+             ORDER BY ta2.position) c) AS artistsJson
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     LEFT JOIN albums a ON a.spotify_id = t.album_id

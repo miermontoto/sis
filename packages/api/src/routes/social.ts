@@ -277,11 +277,21 @@ social.get('/feed', async (c) => {
   // los que están escuchando ahora primero, luego por actividad reciente
   users.sort((x, y) => Number(!!y.nowPlaying) - Number(!!x.nowPlaying) || y.recentPlays - x.recentPlays);
 
-  const recentPlays: FeedPlayItem[] = plays.map(p => ({
-    user: userMap.get(p.userId)!,
-    track: { id: p.trackId, name: p.trackName, artists: p.artistNames || '', albumImageUrl: p.albumImageUrl },
-    playedAt: p.playedAt,
-  }));
+  const recentPlays: FeedPlayItem[] = plays.map(p => {
+    const artistList = (p.artistsJson ? JSON.parse(p.artistsJson) : []) as { id: string; name: string }[];
+    return {
+      user: userMap.get(p.userId)!,
+      track: {
+        id: p.trackId,
+        name: p.trackName,
+        artists: artistList.map(a => a.name).join(', '),
+        artistList,
+        albumId: p.albumId,
+        albumImageUrl: p.albumImageUrl,
+      },
+      playedAt: p.playedAt,
+    };
+  });
 
   return c.json({ users, recentPlays } satisfies FeedResponse);
 });

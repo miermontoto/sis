@@ -109,7 +109,16 @@ export interface FeedItem {
 // un play individual en el stream cronológico del feed
 export interface FeedPlayItem {
   user: { spotifyId: string; displayName: string | null; imageUrl: string | null };
-  track: { id: string; name: string; artists: string; albumImageUrl: string | null };
+  // `artists` (nombres unidos) se conserva por los apks publicados; `artistList` y
+  // `albumId` son lo que enlaza la fila del feed (tema, artistas y carátula)
+  track: {
+    id: string;
+    name: string;
+    artists: string;
+    artistList: { id: string; name: string }[];
+    albumId: string | null;
+    albumImageUrl: string | null;
+  };
   playedAt: string;
 }
 
