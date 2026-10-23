@@ -33,7 +33,9 @@
     { key: 'rediscovery', label: 'Rediscovery', desc: 'Old favourites you have stopped playing.', icon: '~' },
   ];
   const STRATEGY_KEYS = new Set(STRATEGIES.map(s => s.key));
-  const STRATEGY_LABEL = new Map(STRATEGIES.map(s => [s.key, s.label]));
+  // las playlists creadas desde /top, /charts y /records llegan con sus propias estrategias
+  const EXTRA_LABELS: Partial<Record<PlaylistStrategy, string>> = { top: 'Top', chart: 'Chart', record: 'Record', custom: 'Custom' };
+  const STRATEGY_LABEL = new Map<PlaylistStrategy, string>([...STRATEGIES.map(s => [s.key, s.label] as const), ...Object.entries(EXTRA_LABELS) as [PlaylistStrategy, string][]]);
 
   // las estrategias de descubrimiento sobre-muestrean y barajan por defecto (variedad al
   // regenerar); las de ranking devuelven el top exacto en orden
@@ -483,7 +485,7 @@
 
   .strategy-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 0.75rem;
     margin-bottom: 1rem;
   }
@@ -500,6 +502,9 @@
     color: var(--text);
     cursor: pointer;
     transition: border-color 0.05s;
+    /* es un botón, y los botones van en mono: la tarjeta es texto, como el resto de cards */
+    font-family: var(--font-sans);
+    letter-spacing: normal;
   }
   .strategy-card:hover { border-color: var(--text-muted); }
   .strategy-card.selected { border-color: var(--accent); }
