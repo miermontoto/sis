@@ -6,7 +6,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getAlbumShowAccolades, getShowPlaylistBadges, getAlbumShowGlobalRanks } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
@@ -91,9 +91,9 @@
   let trackSort = $state<'ranked' | 'natural'>('ranked');
   let albumTrackDisplay = $state<AlbumTrackDisplay>('fill');
   let albumShowDuration = $state(true);
-  let albumShowAccolades = $state(true);
+  let showAccolades = $state(true);
   let showPlaylistBadges = $state(true);
-  let albumShowGlobalRanks = $state(true);
+  let showGlobalRanks = $state(true);
   let trackGlobalRanks = $state<Record<string, number> | null>(null);
   let singleGlobalRanks = $state<Record<string, number> | null>(null);
   let naturalTracks = $state<TopTrackItem[] | null>(null);
@@ -274,7 +274,7 @@
       if (signal.aborted) return;
       data = result;
       // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
-      if (albumShowGlobalRanks) {
+      if (showGlobalRanks) {
         const sort = metric === 'plays' ? 'plays' : 'time';
         if (result.tracks.length > 0) {
           api.rankingsBatch('track', result.tracks.map(t => t.trackId), sort, signal)
@@ -329,9 +329,9 @@
     metric = getRankingMetric();
     albumTrackDisplay = getAlbumTrackDisplay();
     albumShowDuration = getAlbumShowDuration();
-    albumShowAccolades = getAlbumShowAccolades();
+    showAccolades = getShowAccolades();
     showPlaylistBadges = getShowPlaylistBadges();
-    albumShowGlobalRanks = getAlbumShowGlobalRanks();
+    showGlobalRanks = getShowGlobalRanks();
     layout = getDetailLayout('album');
     initialized = true;
   });
@@ -404,9 +404,9 @@
           {#if trackSort === 'natural' && loadingNatural}
             <div class="loading"><div class="spinner"></div></div>
           {:else if trackSort === 'natural'}
-            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
+            <TrackList items={displayTracks} showRank ranks={displayTracks.map(t => t.track?.trackNumber ?? undefined)} {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={showAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {:else}
-            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={albumShowAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
+            <TrackList items={displayTracks} showRank {metric} fillPercents={albumTrackDisplay === 'fill' ? trackSharePercents : undefined} percentLabels={albumTrackDisplay === 'percent' ? trackSharePercents : undefined} showDuration={albumShowDuration} showAccolades={showAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {/if}
         </section>
       {/if}

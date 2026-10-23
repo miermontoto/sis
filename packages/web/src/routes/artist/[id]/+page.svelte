@@ -7,7 +7,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { api, createFetchController, type ArtistDetail, type Concert, type RankingMetric, getRankingMetric, getArtistShowAlbumAccolades, getArtistShowTrackAccolades, getShowPlaylistBadges, getArtistShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
+  import { api, createFetchController, type ArtistDetail, type Concert, type RankingMetric, getRankingMetric, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
@@ -93,10 +93,9 @@
   let pickerMode = $state<'image' | 'background'>('image');
   let backdropMode = $state<ArtistBackdrop>('blur');
   let playActing = $state(false);
-  let artistShowAlbumAccolades = $state(true);
-  let artistShowTrackAccolades = $state(true);
+  let showAccolades = $state(true);
   let showPlaylistBadges = $state(true);
-  let artistShowGlobalRanks = $state(true);
+  let showGlobalRanks = $state(true);
   // la duración sale del ajuste de detalle de álbum: es la misma preferencia sobre la misma fila
   let showTrackDuration = $state(true);
   let trackGlobalRanks = $state<Record<string, number> | null>(null);
@@ -267,7 +266,7 @@
 
   // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
   function loadGlobalRanks(type: 'track' | 'album', ids: string[], signal: AbortSignal) {
-    if (!artistShowGlobalRanks || ids.length === 0) return;
+    if (!showGlobalRanks || ids.length === 0) return;
     api.rankingsBatch(type, ids, metric, signal)
       .then(r => {
         if (signal.aborted) return;
@@ -335,10 +334,9 @@
 
   onMount(() => {
     metric = getRankingMetric();
-    artistShowAlbumAccolades = getArtistShowAlbumAccolades();
-    artistShowTrackAccolades = getArtistShowTrackAccolades();
+    showAccolades = getShowAccolades();
     showPlaylistBadges = getShowPlaylistBadges();
-    artistShowGlobalRanks = getArtistShowGlobalRanks();
+    showGlobalRanks = getShowGlobalRanks();
     showTrackDuration = getAlbumShowDuration();
     backdropMode = getArtistBackdrop();
     layout = getDetailLayout('artist');
@@ -494,7 +492,7 @@
             </div>
           </div>
           {#if view === 'list'}
-            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={artistShowTrackAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
+            <TrackList items={d.topTracks} showRank {metric} showDuration={showTrackDuration} showAccolades={showAccolades} showLibraryBadges={showPlaylistBadges} globalRanks={trackGlobalRanks} />
           {:else}
             <div class="card chart-card">
               <RankingChart items={trackChartItems} entityType="track" {metric} mode={view} />
@@ -536,7 +534,7 @@
                 >
                   {#snippet subtitle()}{item.album?.releaseDate ?? ''}{/snippet}
                   {#snippet extra()}
-                    {#if artistShowAlbumAccolades}
+                    {#if showAccolades}
                       <Accolades entityType="album" entityId={item.albumId} />
                     {/if}
                   {/snippet}

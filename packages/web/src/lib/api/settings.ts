@@ -14,11 +14,10 @@ interface SettingsData {
   locale: LocaleSetting;
   albumTrackDisplay: AlbumTrackDisplay;
   albumShowDuration: boolean;
-  albumShowAccolades: boolean;
-  artistShowAlbumAccolades: boolean;
-  artistShowTrackAccolades: boolean;
-  artistShowGlobalRanks: boolean;
-  albumShowGlobalRanks: boolean;
+  // badges de records y chip de posición all-time en las listas de los detalles
+  // (artista y álbum); eran cinco toggles para lo mismo hasta 2026-10-23
+  showAccolades: boolean;
+  showGlobalRanks: boolean;
   showPlaylistBadges: boolean;
   artistBackdrop: ArtistBackdrop;
   sessionRankDisplay: SessionRankDisplay;
@@ -56,12 +55,9 @@ const SETTINGS_DEFAULTS: SettingsData = {
   locale: 'auto',
   albumTrackDisplay: 'fill',
   albumShowDuration: true,
-  albumShowAccolades: true,
-  artistShowAlbumAccolades: true,
-  artistShowTrackAccolades: true,
+  showAccolades: true,
   // chip de posición all-time en los listados de las vistas de detalle
-  artistShowGlobalRanks: true,
-  albumShowGlobalRanks: true,
+  showGlobalRanks: true,
   // badge de playlists en las filas de las listas de los detalles
   showPlaylistBadges: true,
   // fondo del detalle de artista: difuminado por defecto (la foto de spotify es
@@ -203,11 +199,8 @@ export const [getRecordsUnique, setRecordsUnique] = boolSetting('recordsUnique')
 export const [getRawLocale, setLocale] = stringSetting<LocaleSetting>('locale', 'auto');
 export const [getAlbumTrackDisplay, setAlbumTrackDisplay] = stringSetting<AlbumTrackDisplay>('albumTrackDisplay', 'fill');
 export const [getAlbumShowDuration, setAlbumShowDuration] = boolSetting('albumShowDuration');
-export const [getAlbumShowAccolades, setAlbumShowAccolades] = boolSetting('albumShowAccolades');
-export const [getArtistShowAlbumAccolades, setArtistShowAlbumAccolades] = boolSetting('artistShowAlbumAccolades');
-export const [getArtistShowTrackAccolades, setArtistShowTrackAccolades] = boolSetting('artistShowTrackAccolades');
-export const [getArtistShowGlobalRanks, setArtistShowGlobalRanks] = boolSetting('artistShowGlobalRanks');
-export const [getAlbumShowGlobalRanks, setAlbumShowGlobalRanks] = boolSetting('albumShowGlobalRanks');
+export const [getShowAccolades, setShowAccolades] = boolSetting('showAccolades');
+export const [getShowGlobalRanks, setShowGlobalRanks] = boolSetting('showGlobalRanks');
 export const [getShowPlaylistBadges, setShowPlaylistBadges] = boolSetting('showPlaylistBadges');
 export const [getArtistBackdrop, setArtistBackdrop] = stringSetting<ArtistBackdrop>('artistBackdrop', 'blur');
 export const [getSocialVisibility, setSocialVisibility] = stringSetting<SocialVisibility>('socialVisibility', 'visible');

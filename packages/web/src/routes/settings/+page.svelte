@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getAlbumShowAccolades, setAlbumShowAccolades, getArtistShowAlbumAccolades, setArtistShowAlbumAccolades, getArtistShowTrackAccolades, setArtistShowTrackAccolades, getArtistShowGlobalRanks, setArtistShowGlobalRanks, getAlbumShowGlobalRanks, setAlbumShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getAutoMergeSingles, setAutoMergeSingles, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getShowAccolades, setShowAccolades, getShowGlobalRanks, setShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getAutoMergeSingles, setAutoMergeSingles, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -32,8 +32,10 @@
   // bloque de admin dentro sigue gateado por me.isAdmin.
   const TABS = [
     { id: 'general', label: 'General' },
+    { id: 'display', label: 'Display' },
     { id: 'notifications', label: 'Notifications' },
-    { id: 'connections', label: 'Connections & data' },
+    { id: 'connections', label: 'Connections' },
+    { id: 'data', label: 'Data' },
     { id: 'account', label: 'Account' },
   ] as const;
   type SettingsTab = (typeof TABS)[number]['id'];
@@ -190,14 +192,11 @@
   let localePref = $state<LocaleSetting>('auto');
   let albumTrackDisplayPref = $state<AlbumTrackDisplay>('fill');
   let albumShowDurationPref = $state(true);
-  let albumShowAccoladesPref = $state(true);
+  let showAccoladesPref = $state(true);
   let showPlaylistBadgesPref = $state(true);
   let autoMergeSinglesPref = $state(true);
-  let artistShowAlbumAccoladesPref = $state(true);
-  let artistShowTrackAccoladesPref = $state(true);
-  let artistShowGlobalRanksPref = $state(true);
+  let showGlobalRanksPref = $state(true);
   let artistBackdropPref = $state<ArtistBackdrop>('blur');
-  let albumShowGlobalRanksPref = $state(true);
   let sessionRankDisplayPref = $state<SessionRankDisplay>('all+ytd');
   let sessionRankLimitYearPref = $state('50');
   let sessionRankLimitAllPref = $state('200');
@@ -435,13 +434,10 @@
     localePref = getRawLocale();
     albumTrackDisplayPref = getAlbumTrackDisplay();
     albumShowDurationPref = getAlbumShowDuration();
-    albumShowAccoladesPref = getAlbumShowAccolades();
+    showAccoladesPref = getShowAccolades();
     showPlaylistBadgesPref = getShowPlaylistBadges();
-    artistShowAlbumAccoladesPref = getArtistShowAlbumAccolades();
-    artistShowTrackAccoladesPref = getArtistShowTrackAccolades();
-    artistShowGlobalRanksPref = getArtistShowGlobalRanks();
+    showGlobalRanksPref = getShowGlobalRanks();
     artistBackdropPref = getArtistBackdrop();
-    albumShowGlobalRanksPref = getAlbumShowGlobalRanks();
     sessionRankDisplayPref = getSessionRankDisplay();
     sessionRankLimitYearPref = getSessionRankLimitYear();
     sessionRankLimitAllPref = getSessionRankLimitAll();
@@ -680,6 +676,10 @@
         </div>
       </div>
 
+    </div>
+  {:else if activeTab === 'display'}
+    <!-- preferencias de presentación de las vistas: rankings, records y los detalles -->
+    <div class="card prefs-card">
       <div class="prefs-subtitle">Rankings</div>
       <div class="prefs-list">
         <div class="pref-row">
@@ -727,31 +727,15 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="prefs-subtitle">Artist details</div>
-      <div class="prefs-list">
-        <div class="pref-row">
-          <div class="pref-info">
-            <div class="pref-label">Album accolades</div>
-            <div class="pref-desc">Show record badges next to albums</div>
-          </div>
-          <div class="pref-control">
-            <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={!artistShowAlbumAccoladesPref} onclick={() => { artistShowAlbumAccoladesPref = false; setArtistShowAlbumAccolades(false); }}>Off</button>
-              <button class="segmented-btn" class:segmented-active={artistShowAlbumAccoladesPref} onclick={() => { artistShowAlbumAccoladesPref = true; setArtistShowAlbumAccolades(true); }}>On</button>
-            </div>
-          </div>
-        </div>
         <div class="pref-row row-border">
           <div class="pref-info">
-            <div class="pref-label">Track accolades</div>
-            <div class="pref-desc">Show record badges next to tracks</div>
+            <div class="pref-label">Accolades</div>
+            <div class="pref-desc">Show record badges next to tracks and albums in the artist and album lists</div>
           </div>
           <div class="pref-control">
             <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={!artistShowTrackAccoladesPref} onclick={() => { artistShowTrackAccoladesPref = false; setArtistShowTrackAccolades(false); }}>Off</button>
-              <button class="segmented-btn" class:segmented-active={artistShowTrackAccoladesPref} onclick={() => { artistShowTrackAccoladesPref = true; setArtistShowTrackAccolades(true); }}>On</button>
+              <button class="segmented-btn" class:segmented-active={!showAccoladesPref} onclick={() => { showAccoladesPref = false; setShowAccolades(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={showAccoladesPref} onclick={() => { showAccoladesPref = true; setShowAccolades(true); }}>On</button>
             </div>
           </div>
         </div>
@@ -762,12 +746,16 @@
           </div>
           <div class="pref-control">
             <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={!artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = false; setArtistShowGlobalRanks(false); }}>Off</button>
-              <button class="segmented-btn" class:segmented-active={artistShowGlobalRanksPref} onclick={() => { artistShowGlobalRanksPref = true; setArtistShowGlobalRanks(true); }}>On</button>
+              <button class="segmented-btn" class:segmented-active={!showGlobalRanksPref} onclick={() => { showGlobalRanksPref = false; setShowGlobalRanks(false); }}>Off</button>
+              <button class="segmented-btn" class:segmented-active={showGlobalRanksPref} onclick={() => { showGlobalRanksPref = true; setShowGlobalRanks(true); }}>On</button>
             </div>
           </div>
         </div>
-        <div class="pref-row row-border">
+      </div>
+
+      <div class="prefs-subtitle">Artist details</div>
+      <div class="prefs-list">
+        <div class="pref-row">
           <div class="pref-info">
             <div class="pref-label">Background picture</div>
             <div class="pref-desc">Show the artist's picture behind the header. Blur softens it; Photo keeps it sharp. Pick a different image per artist from the picture menu</div>
@@ -806,30 +794,6 @@
             <div class="segmented">
               <button class="segmented-btn" class:segmented-active={!albumShowDurationPref} onclick={() => { albumShowDurationPref = false; setAlbumShowDuration(false); }}>Off</button>
               <button class="segmented-btn" class:segmented-active={albumShowDurationPref} onclick={() => { albumShowDurationPref = true; setAlbumShowDuration(true); }}>On</button>
-            </div>
-          </div>
-        </div>
-        <div class="pref-row row-border">
-          <div class="pref-info">
-            <div class="pref-label">Track accolades</div>
-            <div class="pref-desc">Show record badges next to tracks</div>
-          </div>
-          <div class="pref-control">
-            <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={!albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = false; setAlbumShowAccolades(false); }}>Off</button>
-              <button class="segmented-btn" class:segmented-active={albumShowAccoladesPref} onclick={() => { albumShowAccoladesPref = true; setAlbumShowAccolades(true); }}>On</button>
-            </div>
-          </div>
-        </div>
-        <div class="pref-row row-border">
-          <div class="pref-info">
-            <div class="pref-label">All-time ranks</div>
-            <div class="pref-desc">Show each track's all-time position in the track and singles lists (top 200)</div>
-          </div>
-          <div class="pref-control">
-            <div class="segmented">
-              <button class="segmented-btn" class:segmented-active={!albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = false; setAlbumShowGlobalRanks(false); }}>Off</button>
-              <button class="segmented-btn" class:segmented-active={albumShowGlobalRanksPref} onclick={() => { albumShowGlobalRanksPref = true; setAlbumShowGlobalRanks(true); }}>On</button>
             </div>
           </div>
         </div>
@@ -1067,6 +1031,9 @@
           <div class="import-error">{listenTokenError}</div>
         {/if}
       </div>
+    </div>
+  {:else if activeTab === 'data'}
+    <div class="card prefs-card">
       <div class="prefs-subtitle">Data</div>
       <div class="section-list">
         <div class="pref-row">
@@ -1319,7 +1286,7 @@
         <div class="pref-row">
           <div class="pref-info">
             <div class="pref-label">Account and data</div>
-            <div class="pref-desc">Permanently erases your account and everything sis stores for you: listening history, ratings, concerts, collections, playlists and connected services. Export your history first from Connections &amp; data if you want to keep it.</div>
+            <div class="pref-desc">Permanently erases your account and everything sis stores for you: listening history, ratings, concerts, collections, playlists and connected services. Export your history first from Data if you want to keep it.</div>
           </div>
           <div class="pref-control">
             <button class="action-btn action-btn--danger" disabled={deletingAccount} onclick={deleteAccount}>

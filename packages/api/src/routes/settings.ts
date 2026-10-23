@@ -13,7 +13,12 @@ import type { AppVariables } from '../app.js';
 const log = createLogger('settings');
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'showAccolades', 'showGlobalRanks', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
+// toggle unificado -> claves legacy de las que hereda su valor en la primera lectura
+const LEGACY_TOGGLE_SOURCES: [string, string[]][] = [
+  ['showAccolades', ['albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades']],
+  ['showGlobalRanks', ['artistShowGlobalRanks', 'albumShowGlobalRanks']],
+];
 const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
@@ -23,6 +28,10 @@ const DEFAULTS: Record<string, string> = {
   locale: 'auto',
   albumTrackDisplay: 'fill',
   albumShowDuration: 'true',
+  // showAccolades/showGlobalRanks sustituyen a los cinco toggles de abajo (2026-10-23);
+  // los legacy siguen aceptados y servidos porque los apks publicados los leen y escriben
+  showAccolades: 'true',
+  showGlobalRanks: 'true',
   albumShowAccolades: 'true',
   artistShowAlbumAccolades: 'true',
   artistShowTrackAccolades: 'true',
@@ -72,6 +81,12 @@ settings.get('/', (c) => {
   const result: Record<string, string> = { ...DEFAULTS };
   for (const row of rows) {
     result[row.key] = row.value;
+  }
+  // quien apagó alguno de los toggles legacy y aún no ha tocado el unificado lo
+  // hereda apagado, en vez de volver al default y perder su elección
+  const stored = new Set(rows.map(r => r.key));
+  for (const [key, legacy] of LEGACY_TOGGLE_SOURCES) {
+    if (!stored.has(key) && legacy.some(k => stored.has(k) && result[k] === 'false')) result[key] = 'false';
   }
 
   return c.json(result);
