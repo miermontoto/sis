@@ -1,6 +1,12 @@
 <script lang="ts">
   const generators = [
     {
+      href: '/generators/playlist',
+      icon: '♫',
+      name: 'Playlist',
+      description: 'Spotify playlist from your data: top tracks of a range, artist or genre, deep cuts, what you play at a given hour, or favourites you have dropped. Can regenerate itself on a schedule.',
+    },
+    {
       href: '/generators/album-quilt',
       icon: '▦',
       name: 'Album Quilt',
