@@ -226,7 +226,7 @@
   let lineChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Plays: <b>${p.value}</b>` + `<br/><span style="color:var(--text-muted)">trend R² ${playsRegression.r2.toFixed(2)}</span>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis(),
     series: [lineSeries(pulseData(listeningData.map(d => d.play_count), listeningData.length - 1), { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
@@ -235,7 +235,7 @@
   let barChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>` + `<br/><span style="color:var(--text-muted)">trend R² ${timeRegression.r2.toFixed(2)}</span>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
     series: [barSeries(pulseData(listeningData.map(d => d.total_ms), listeningData.length - 1)), trendSeries(timeRegression.line)],
@@ -244,7 +244,7 @@
   let yearlyChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>` + `<br/><span style="color:var(--text-muted)">trend R² ${yearlyRegression.r2.toFixed(2)}</span>`; } },
     xAxis: categoryAxis(yearlyData.map(d => d[0]), { axisLabel: { ...AXIS_LABEL } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
     series: [barSeries(pulseData(yearlyData.map(d => d[1]), currentYearIdx)), trendSeries(yearlyRegression.line)],
@@ -300,6 +300,7 @@
         const ps = tooltipPoints(params);
         let s = ps[0].axisValue;
         for (const p of ps) s += `<br/>${p.seriesName}: <b>${p.value}</b>`;
+        if (discovery.length > 1) s += `<br/><span style="color:var(--text-muted)">trend R² ${discoveryRegression.r2.toFixed(2)}</span>`;
         return s;
       },
     },
@@ -402,7 +403,7 @@
     <div class="charts-row">
       {#if listeningData.length > 0}
         <div class="card chart-half">
-          <div class="chart-header"><h3>Plays</h3><span class="r2-badge">R² = {playsRegression.r2.toFixed(2)}</span></div>
+          <div class="chart-header"><h3>Plays</h3></div>
           <BaseChart option={lineChartOption} height="220px" pulseIndex={listeningData.length - 1} />
         </div>
       {/if}
@@ -418,12 +419,12 @@
   {#if listeningData.length > 0}
     <div class="charts-row">
       <div class="card chart-half">
-        <div class="chart-header"><h3>Listening time</h3><span class="r2-badge">R² = {timeRegression.r2.toFixed(2)}</span></div>
+        <div class="chart-header"><h3>Listening time</h3></div>
         <BaseChart option={barChartOption} height="220px" pulseIndex={listeningData.length - 1} />
       </div>
       {#if yearlyData.length > 1}
         <div class="card chart-half">
-          <div class="chart-header"><h3>Listening time by year</h3><span class="r2-badge">R² = {yearlyRegression.r2.toFixed(2)}</span></div>
+          <div class="chart-header"><h3>Listening time by year</h3></div>
           <BaseChart option={yearlyChartOption} height="220px" pulseIndex={currentYearIdx} />
         </div>
       {/if}
@@ -432,7 +433,7 @@
 
   <div class="card" style="margin-bottom: 1.5rem;">
     <div class="chart-header">
-      <h3>Library growth {#if discovery.length > 1}<span class="r2-badge">R² = {discoveryRegression.r2.toFixed(2)}</span>{/if}</h3>
+      <h3>Library growth</h3>
       <EntityTypePicker value={discoveryEntity} onchange={(type) => { discoveryEntity = type; loadDiscovery(); }} variant="pills" />
     </div>
     {#if discoveryLoading}
@@ -487,13 +488,6 @@
   /* los tres relojes polares aguantan más estrechos que una gráfica de ejes */
   .charts-row--triple {
     --chart-min: 16rem;
-  }
-  .r2-badge {
-    font-size: var(--fs-xs);
-    font-weight: 400;
-    color: var(--text-muted);
-    margin-left: 0.4rem;
-    vertical-align: middle;
   }
   .ghost-stat {
     width: 3.5rem;

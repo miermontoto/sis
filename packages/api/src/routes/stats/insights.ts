@@ -1,6 +1,6 @@
 import { inArray } from 'drizzle-orm';
 import { getDb } from '../../db/connection.js';
-import { parseCollectionKey } from '@sis/shared';
+import { parseCollectionKey, HISTORY_SOURCES } from '@sis/shared';
 import { dbRead } from '../../db/read-pool.js';
 import { tracks } from '../../db/schema.js';
 import { insertLocalPlay } from '../../services/ingestion.js';
@@ -42,8 +42,11 @@ insights.get('/history', async (c) => {
 
   const tzRaw = c.req.query('tz');
   const tzOffsetMinutes = tzRaw != null ? Number.parseInt(tzRaw) : 0;
+  const rawSource = c.req.query('source');
+  const source = HISTORY_SOURCES.find(s => s === rawSource);
   const { items: rows, total } = await dbRead('getHistoryPage', userId, limit, offset, {
     date: c.req.query('date'),
+    source,
     trackIds,
     albumIds,
     artistIds,

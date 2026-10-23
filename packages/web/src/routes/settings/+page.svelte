@@ -45,8 +45,11 @@
   // los callbacks de oauth (last.fm, mier.info) vuelven a /settings con un query
   // param: abrimos directamente el panel donde se ve el resultado del enlace
   const OAUTH_RETURN_PARAMS = ['lastfm', 'mierid'];
+  // ?tab=<id> abre esa pestaña (enlaces del dashboard vacío, deep links)
+  const isTab = (v: string | null): v is SettingsTab => TABS.some(t => t.id === v);
+  const urlTab = page.url.searchParams.get('tab');
   let activeTab = $state<SettingsTab>(
-    OAUTH_RETURN_PARAMS.some(k => page.url.searchParams.has(k)) ? 'connections' : 'general'
+    isTab(urlTab) ? urlTab : OAUTH_RETURN_PARAMS.some(k => page.url.searchParams.has(k)) ? 'connections' : 'general'
   );
 
   function selectTab(id: SettingsTab) {

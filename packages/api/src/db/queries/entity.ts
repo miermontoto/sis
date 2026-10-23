@@ -4,7 +4,7 @@ import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, g
 import type { TimeRange } from '../../constants.js';
 import { resolveEntityIds } from './merge.js';
 import { getCollectionSeries } from './collections.js';
-import { parseCollectionKey } from '@sis/shared';
+import { parseCollectionKey, type HistorySource } from '@sis/shared';
 
 /** Stats agregados para cualquier entidad. Para álbumes y artistas, pasar IDs pre-resueltos. */
 export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, rangeEnd: string | null | undefined, entityIds: string[] | undefined, userId: number): StatsRow {
@@ -233,10 +233,12 @@ export interface HistoryPageResult {
 }
 
 /** Historial paginado, con filtros opcionales. Acepta arrays de IDs pre-resueltos (merge-aware). */
-export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; albumIds?: string[]; trackIds?: string[]; artistIds?: string[]; collectionScope?: { albumIds: string[]; trackIds: string[] }; tzOffsetMinutes?: number }): HistoryPageResult {
-  const { date, albumIds, trackIds, artistIds, collectionScope, tzOffsetMinutes = 0 } = filters ?? {};
+export function getHistoryPage(db: Db, userId: number, limit: number, offset: number, filters?: { date?: string; source?: HistorySource; albumIds?: string[]; trackIds?: string[]; artistIds?: string[]; collectionScope?: { albumIds: string[]; trackIds: string[] }; tzOffsetMinutes?: number }): HistoryPageResult {
+  const { date, source, albumIds, trackIds, artistIds, collectionScope, tzOffsetMinutes = 0 } = filters ?? {};
   const tzModifier = (tzOffsetMinutes >= 0 ? '+' : '') + tzOffsetMinutes + ' minutes';
   const dateFilter = date ? sql` AND date(lh.played_at, ${tzModifier}) = ${date}` : sql``;
+  // las filas anteriores a la columna `source` (NULL) son plays de spotify
+  const sourceFilter = source === 'spotify' ? sql` AND (lh.source = ${source} OR lh.source IS NULL)` : source ? sql` AND lh.source = ${source}` : sql``;
   // el alcance de una colección son dos ejes en OR (sus álbumes y sus temas sueltos),
   // no dos filtros que se acumulan como el resto
   const needsTrackJoin = albumIds || artistIds || collectionScope;
@@ -269,7 +271,7 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
     SELECT lh.id, lh.played_at, lh.track_id
     FROM listening_history lh
     ${trackJoin}
-    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
+    WHERE lh.user_id = ${userId}${dateFilter}${sourceFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
     ORDER BY lh.played_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `) as RecentPlayRow[];
@@ -278,7 +280,7 @@ export function getHistoryPage(db: Db, userId: number, limit: number, offset: nu
     SELECT count(*) as count
     FROM listening_history lh
     ${trackJoin}
-    WHERE lh.user_id = ${userId}${dateFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
+    WHERE lh.user_id = ${userId}${dateFilter}${sourceFilter}${albumWhere}${trackWhere}${artistWhere}${collectionWhere}
   `) as { count: number }[])[0].count;
 
   return { items, total };

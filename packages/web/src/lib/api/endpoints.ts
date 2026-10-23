@@ -49,7 +49,7 @@ export const api = {
   topGenres: (range = 'month', limit = 20, dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<GenreItem[]>('/stats/top-genres', { ...rangeParams(range, dates), limit: String(limit) }, signal),
 
-  history: (page = 1, limit = 50, filters?: { date?: string; album?: string; track?: string; artist?: string }, signal?: AbortSignal) => {
+  history: (page = 1, limit = 50, filters?: { date?: string; source?: string; album?: string; track?: string; artist?: string }, signal?: AbortSignal) => {
     const f = filters ?? {};
     // minutos al este de UTC (inverso del valor de getTimezoneOffset)
     const tz = -new Date().getTimezoneOffset();
@@ -57,6 +57,7 @@ export const api = {
       page: String(page), limit: String(limit),
       tz: String(tz),
       ...(f.date ? { date: f.date } : {}),
+      ...(f.source ? { source: f.source } : {}),
       ...(f.album ? { album: f.album } : {}),
       ...(f.track ? { track: f.track } : {}),
       ...(f.artist ? { artist: f.artist } : {}),

@@ -11,6 +11,7 @@
   import LiveEq from '$lib/components/LiveEq.svelte';
   import AddScrobbleModal from '$lib/components/AddScrobbleModal.svelte';
   import DatePicker from '$lib/components/DatePicker.svelte';
+  import { HISTORY_SOURCES, type HistorySource } from '@sis/shared';
 
   let items = $state<HistoryItem[]>([]);
   let currentPage = $state(1);
@@ -19,6 +20,11 @@
   let loadingMore = $state(false);
   let sentinel = $state<HTMLElement | null>(null);
   let dateFilter = $state<string | null>(null);
+  // procedencia del play (spotify, last.fm, listenbrainz, import, manual): útil para
+  // comprobar qué está mandando un scrobbler
+  let sourceFilter = $state<HistorySource | null>(null);
+  const SOURCE_LABELS: Record<HistorySource, string> = { spotify: 'Spotify', lastfm: 'Last.fm', listenbrainz: 'ListenBrainz', import: 'Import', manual: 'Manual' };
+  const isSource = (v: string | null): v is HistorySource => HISTORY_SOURCES.some(s => s === v);
   let albumFilter = $state<string | null>(null);
   let albumName = $state<string | null>(null);
   let trackFilter = $state<string | null>(null);
@@ -26,7 +32,7 @@
   let artistFilter = $state<string | null>(null);
   let artistName = $state<string | null>(null);
 
-  let hasFilters = $derived(!!dateFilter || !!albumFilter || !!trackFilter || !!artistFilter);
+  let hasFilters = $derived(!!dateFilter || !!sourceFilter || !!albumFilter || !!trackFilter || !!artistFilter);
   let filterLabel = $derived(trackName ?? albumName ?? artistName ?? null);
 
   // añadir scrobbles manuales
@@ -46,6 +52,7 @@
   function currentFilters() {
     const f: Record<string, string> = {};
     if (dateFilter) f.date = dateFilter;
+    if (sourceFilter) f.source = sourceFilter;
     if (albumFilter) f.album = albumFilter;
     if (trackFilter) f.track = trackFilter;
     if (artistFilter) f.artist = artistFilter;
@@ -95,6 +102,7 @@
   function updateUrl() {
     const params = new URLSearchParams();
     if (dateFilter) params.set('date', dateFilter);
+    if (sourceFilter) params.set('source', sourceFilter);
     if (albumFilter) params.set('album', albumFilter);
     if (trackFilter) params.set('track', trackFilter);
     if (artistFilter) params.set('artist', artistFilter);
@@ -103,6 +111,7 @@
 
   function clearFilters() {
     dateFilter = null;
+    sourceFilter = null;
     albumFilter = null;
     albumName = null;
     trackFilter = null;
@@ -115,6 +124,12 @@
 
   function clearDate() {
     dateFilter = null;
+    updateUrl();
+    reload();
+  }
+
+  function setSource(s: HistorySource | null) {
+    sourceFilter = s;
     updateUrl();
     reload();
   }
@@ -196,6 +211,8 @@
 
   onMount(() => {
     const urlDate = $page.url.searchParams.get('date');
+    const urlSource = $page.url.searchParams.get('source');
+    if (isSource(urlSource)) sourceFilter = urlSource;
     const urlAlbum = $page.url.searchParams.get('album');
     const urlTrack = $page.url.searchParams.get('track');
     const urlArtist = $page.url.searchParams.get('artist');
@@ -303,6 +320,18 @@
       clearable
       onchange={(v) => (v ? setDate(v) : clearDate())}
     />
+    <select
+      class="edit-toggle source-select"
+      class:edit-toggle--active={!!sourceFilter}
+      aria-label="Filter by source"
+      value={sourceFilter ?? ''}
+      onchange={(e) => { const v = e.currentTarget.value; setSource(isSource(v) ? v : null); }}
+    >
+      <option value="">Any source</option>
+      {#each HISTORY_SOURCES as s (s)}
+        <option value={s}>{SOURCE_LABELS[s]}</option>
+      {/each}
+    </select>
     <button class="edit-toggle" class:edit-toggle--active={editMode} onclick={toggleEdit}>
       {editMode ? 'Done' : 'Edit'}
     </button>
@@ -341,13 +370,19 @@
         <button class="filter-chip-clear" onclick={clearDate}>x</button>
       </div>
     {/if}
+    {#if sourceFilter}
+      <div class="filter-chip">
+        <span>{SOURCE_LABELS[sourceFilter]}</span>
+        <button class="filter-chip-clear" onclick={() => setSource(null)}>x</button>
+      </div>
+    {/if}
     {#if filterLabel}
       <div class="filter-chip">
         <span>{filterLabel}</span>
         <button class="filter-chip-clear" onclick={clearEntityFilter}>x</button>
       </div>
     {/if}
-    {#if dateFilter && (albumFilter || trackFilter || artistFilter)}
+    {#if [dateFilter, sourceFilter, filterLabel].filter(Boolean).length > 1}
       <button class="filter-clear-all" onclick={clearFilters}>Clear all</button>
     {/if}
   </div>
@@ -491,6 +526,10 @@
     border-radius: var(--radius);
     cursor: pointer;
     transition: color 0.05s, border-color 0.05s;
+  }
+  .source-select {
+    appearance: auto;
+    padding-right: 0.5rem;
   }
   .edit-toggle:hover {
     color: var(--text);

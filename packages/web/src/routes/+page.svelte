@@ -646,6 +646,19 @@
     </div>
   {/if}
 
+  <!-- cuenta sin plays: las secciones se esconden vacías y la página quedaba en blanco
+       sin decir cómo llenarla -->
+  {#if !loadingHealth && health && health.totalPlays === 0}
+    <div class="card empty-account-card">
+      <h3 class="section-title">Nothing here yet</h3>
+      <p>sis fills up as you listen. Import your Spotify history to start with years of data, or connect a scrobbler if you listen elsewhere.</p>
+      <div class="empty-account-actions">
+        <a href="/settings?tab=data" class="range-btn">Import history</a>
+        <a href="/settings?tab=connections" class="range-btn">Connect a scrobbler</a>
+      </div>
+    </div>
+  {/if}
+
   {#each layout.main as key (key)}
     {@render section(key)}
   {/each}
@@ -702,6 +715,19 @@
     align-items: center;
     gap: 0.3rem;
   }
+
+  .empty-account-card p {
+    margin: 0 0 1rem;
+    color: var(--text-muted);
+    font-size: var(--fs-md);
+    line-height: 1.5;
+  }
+  .empty-account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .empty-account-actions .range-btn { text-decoration: none; }
 
   .new-reports-card {
     border-color: var(--accent-a25);

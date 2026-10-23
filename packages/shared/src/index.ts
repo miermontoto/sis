@@ -8,7 +8,8 @@ export type { TopTrackItem, TopArtistItem, TopAlbumItem } from './top.js';
 export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem } from './stats.js';
 
 // historial
-export type { HistoryItem, HistoryResponse } from './history.js';
+export type { HistoryItem, HistoryResponse, HistorySource } from './history.js';
+export { HISTORY_SOURCES } from './history.js';
 
 // now playing
 export type { NowPlayingResponse, LandedPlay, SpotifyDevice, DevicesResponse, PlayContextRequest, PlayContextResponse, QueueResponse, PlaybackQueueItem, PlaybackQueueRef, PlaybackQueueResponse, FriendActivity, FriendsActivityResponse } from './now-playing.js';
