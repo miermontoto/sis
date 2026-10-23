@@ -11,7 +11,9 @@
 
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { api, type SearchResults } from '$lib/api';
+  import { api, type SearchResults, type DirectoryUser } from '$lib/api';
+  import { NAV_PAGES } from '$lib/nav';
+  import { formatNumber } from '$lib/utils/format';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { contextMenu, type ContextMenuAction } from '$lib/stores/context-menu.svelte';
   import { isSpotifyId, openEntityContextMenu, type EntityContext } from '$lib/utils/entity-context';
@@ -46,6 +48,32 @@
   };
   let visibleSections = $derived(SECTION_ORDER.filter(sec => !pick || pick.types.includes(SECTION_TYPE[sec])));
 
+  // además de la biblioteca, el buscador salta a páginas (el nav) y a usuarios de la
+  // instancia; los dos se resuelven en cliente (lista estática y directorio cargado una
+  // vez al abrir) y sólo fuera del modo pick, que elige entidades
+  type FlatItem = Omit<PickedEntity, 'type'> & { type: PickedEntity['type'] | 'page' | 'user' };
+  const MIN_QUERY = 2;
+  const USER_HITS_MAX = 5;
+  let directory = $state<DirectoryUser[] | null>(null);
+  $effect(() => {
+    if (show && !pick && directory === null) {
+      api.socialUsers().then(users => { directory = users; }).catch(() => { directory = []; });
+    }
+  });
+  const normalized = (v: string) => v.trim().toLowerCase();
+  let pageHits = $derived.by(() => {
+    const q = normalized(query);
+    if (pick || q.length < MIN_QUERY) return [];
+    return NAV_PAGES.filter(p => p.label.toLowerCase().includes(q));
+  });
+  let userHits = $derived.by(() => {
+    const q = normalized(query);
+    if (pick || q.length < MIN_QUERY || !directory) return [];
+    return directory
+      .filter(u => (u.displayName ?? '').toLowerCase().includes(q) || u.spotifyId.toLowerCase().includes(q))
+      .slice(0, USER_HITS_MAX);
+  });
+
   let query = $state('');
   let results = $state<SearchResults | null>(null);
   let loading = $state(false);
@@ -56,15 +84,17 @@
   // items planos para navegación con teclado, en el orden en que se pintan.
   // Llevan nombre e imagen porque en modo pick son lo que se devuelve al caller.
   let flatItems = $derived.by(() => {
+    const items: FlatItem[] = pageHits.map(p => ({ type: 'page' as const, id: p.href, name: p.label, imageUrl: null }));
     const r = results;
-    if (!r) return [];
-    const items: PickedEntity[] = [];
-    for (const sec of visibleSections) {
-      if (sec === 'playlists') for (const p of r.playlists) items.push({ type: 'playlist', id: String(p.id), name: p.name, imageUrl: p.imageUrl });
-      else if (sec === 'artists') for (const a of r.artists) items.push({ type: 'artist', id: a.id, name: a.name, imageUrl: a.imageUrl });
-      else if (sec === 'albums') for (const a of r.albums) items.push({ type: 'album', id: a.id, name: a.name, imageUrl: a.imageUrl });
-      else for (const t of r.tracks) items.push({ type: 'track', id: t.id, name: t.name, imageUrl: t.albumImageUrl });
+    if (r) {
+      for (const sec of visibleSections) {
+        if (sec === 'playlists') for (const p of r.playlists) items.push({ type: 'playlist', id: String(p.id), name: p.name, imageUrl: p.imageUrl });
+        else if (sec === 'artists') for (const a of r.artists) items.push({ type: 'artist', id: a.id, name: a.name, imageUrl: a.imageUrl });
+        else if (sec === 'albums') for (const a of r.albums) items.push({ type: 'album', id: a.id, name: a.name, imageUrl: a.imageUrl });
+        else for (const t of r.tracks) items.push({ type: 'track', id: t.id, name: t.name, imageUrl: t.albumImageUrl });
+      }
     }
+    for (const u of userHits) items.push({ type: 'user', id: u.spotifyId, name: u.displayName ?? u.spotifyId, imageUrl: u.imageUrl });
     return items;
   });
 
@@ -79,14 +109,19 @@
   // `pick` se captura antes de close() porque cerrar limpia el estado del modal
   function navigate(type: string, id: string) {
     if (pick) {
-      const chosen = flatItems.find(i => i.type === type && i.id === id);
+      // en modo pick no hay páginas ni usuarios, así que lo elegido es una entidad
+      const chosen = flatItems.find(i => i.type === type && i.id === id) as PickedEntity | undefined;
       const onPick = pick.onPick;
       close();
       if (chosen) onPick(chosen);
       return;
     }
     close();
-    if (type === 'playlist') {
+    if (type === 'page') {
+      goto(id);
+    } else if (type === 'user') {
+      goto(`/u/${encodeURIComponent(id)}`);
+    } else if (type === 'playlist') {
       goto(`/playlists/${id}`);
     } else {
       goto(`/${type}/${encodeURIComponent(id)}`);
@@ -148,7 +183,7 @@
             e.preventDefault();
             playItem(e, 'playlist', item.id, pl.spotifyId);
           }
-        } else if (isSpotifyId(item.id)) {
+        } else if (item.type !== 'page' && item.type !== 'user' && isSpotifyId(item.id)) {
           e.preventDefault();
           playItem(e, item.type, item.id);
         }
@@ -203,14 +238,16 @@
   // índice flat acumulado para mapear a selectedIndex. Se calcula sobre las
   // secciones VISIBLES: con offsets fijos, ocultar una en modo pick desalinearía
   // la selección con teclado respecto a las filas pintadas
-  function flatIndex(section: Section, i: number): number {
-    if (!results) return -1;
-    let base = 0;
-    for (const sec of visibleSections) {
-      if (sec === section) return base + i;
-      base += results[sec].length;
+  function flatIndex(section: Section | 'pages' | 'users', i: number): number {
+    if (section === 'pages') return i;
+    let base = pageHits.length;
+    if (results) {
+      for (const sec of visibleSections) {
+        if (sec === section) return base + i;
+        base += results[sec].length;
+      }
     }
-    return -1;
+    return section === 'users' ? base + i : -1;
   }
 
   // sólo cuentan las secciones visibles: en modo pick, resultados de un tipo que
@@ -218,8 +255,9 @@
   let visibleCount = $derived(
     results ? visibleSections.reduce((n, sec) => n + results![sec].length, 0) : 0
   );
-  let hasResults = $derived(!!results && visibleCount > 0);
-  let noResults = $derived(!!results && visibleCount === 0);
+  let localCount = $derived(pageHits.length + userHits.length);
+  let hasResults = $derived(visibleCount + localCount > 0);
+  let noResults = $derived(!!results && visibleCount === 0 && localCount === 0);
 
   let playingId = $state<string | null>(null);
   let playError = $state('');
@@ -254,7 +292,7 @@
         bind:value={query}
         type="text"
         class="search-input"
-        placeholder={pick?.placeholder ?? 'Search artists, albums, tracks, playlists...'}
+        placeholder={pick?.placeholder ?? 'Search your library, users and pages…'}
         autocomplete="off"
         spellcheck="false"
       />
@@ -265,7 +303,28 @@
 
       {#if hasResults}
         <div class="search-results">
-          {#if visibleSections.includes('playlists') && results!.playlists.length > 0}
+          {#if pageHits.length > 0}
+            <div class="search-section">
+              <div class="search-section-title">Pages</div>
+              {#each pageHits as p, i (p.href)}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  class="search-result"
+                  class:selected={selectedIndex === flatIndex('pages', i)}
+                  onmousedown={(e) => onRowMouseDown(e, 'page', p.href)}
+                  onmouseenter={() => selectedIndex = flatIndex('pages', i)}
+                >
+                  <div class="search-thumb search-thumb--glyph" aria-hidden="true">{p.icon}</div>
+                  <div class="search-result-info">
+                    <div class="search-result-name">{p.label}</div>
+                    <div class="search-result-sub">{p.href}</div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if results && visibleSections.includes('playlists') && results.playlists.length > 0}
             <div class="search-section">
               <div class="search-section-title">Playlists</div>
               {#each results!.playlists as playlist, i}
@@ -297,7 +356,7 @@
             </div>
           {/if}
 
-          {#if visibleSections.includes('artists') && results!.artists.length > 0}
+          {#if results && visibleSections.includes('artists') && results.artists.length > 0}
             <div class="search-section">
               <div class="search-section-title"><IconArtist size={14} /> Artists</div>
               {#each results!.artists as artist, i}
@@ -331,7 +390,7 @@
             </div>
           {/if}
 
-          {#if visibleSections.includes('albums') && results!.albums.length > 0}
+          {#if results && visibleSections.includes('albums') && results.albums.length > 0}
             <div class="search-section">
               <div class="search-section-title"><IconAlbum size={14} /> Albums</div>
               {#each results!.albums as album, i}
@@ -365,7 +424,7 @@
             </div>
           {/if}
 
-          {#if visibleSections.includes('tracks') && results!.tracks.length > 0}
+          {#if results && visibleSections.includes('tracks') && results.tracks.length > 0}
             <div class="search-section">
               <div class="search-section-title"><IconTrack size={14} /> Tracks</div>
               {#each results!.tracks as track, i}
@@ -399,6 +458,31 @@
             </div>
           {/if}
 
+          {#if userHits.length > 0}
+            <div class="search-section">
+              <div class="search-section-title">Users</div>
+              {#each userHits as u, i (u.spotifyId)}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  class="search-result"
+                  class:selected={selectedIndex === flatIndex('users', i)}
+                  onmousedown={(e) => onRowMouseDown(e, 'user', u.spotifyId)}
+                  onmouseenter={() => selectedIndex = flatIndex('users', i)}
+                >
+                  {#if u.imageUrl}
+                    <img src={u.imageUrl} alt="" class="search-thumb search-thumb--round" loading="lazy" width="40" height="40" />
+                  {:else}
+                    <div class="search-thumb search-thumb--round search-thumb--empty"></div>
+                  {/if}
+                  <div class="search-result-info">
+                    <div class="search-result-name">{u.displayName ?? u.spotifyId}</div>
+                    <div class="search-result-sub">{u.isFollowing ? 'Following' : 'User'}{u.followsYou ? ' · follows you' : ''}</div>
+                  </div>
+                  <div class="search-result-plays">{formatNumber(u.totalPlays)} plays</div>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -508,6 +592,15 @@
     object-fit: cover;
     flex-shrink: 0;
     background: var(--border);
+  }
+
+  .search-thumb--glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    color: var(--accent);
+    background: var(--fg-a05);
   }
 
   .search-thumb--round {

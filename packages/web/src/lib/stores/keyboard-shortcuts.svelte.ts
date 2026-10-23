@@ -22,6 +22,11 @@ const NAV_MAP: Record<string, string> = {
   p: '/playlists',
   g: '/generators',
   s: '/settings',
+  // `w` sería lo natural para reports pero es el atajo de página "Weekly" de charts y
+  // reports, que gana al global; `v` = live, `f` = feed
+  o: '/reports',
+  v: '/concerts',
+  f: '/feed',
 };
 
 const GLOBAL_SHORTCUTS: ShortcutDef[] = [
@@ -31,8 +36,11 @@ const GLOBAL_SHORTCUTS: ShortcutDef[] = [
   { key: 'C', description: 'Charts', category: 'navigation' },
   { key: 'I', description: 'Insights', category: 'navigation' },
   { key: 'E', description: 'Records', category: 'navigation' },
+  { key: 'O', description: 'Reports', category: 'navigation' },
   { key: 'P', description: 'Playlists', category: 'navigation' },
+  { key: 'V', description: 'Concerts', category: 'navigation' },
   { key: 'G', description: 'Generators', category: 'navigation' },
+  { key: 'F', description: 'Feed', category: 'navigation' },
   { key: 'S', description: 'Settings', category: 'navigation' },
   { key: 'T', description: 'Go to current track', category: 'now-playing' },
   { key: 'A', description: 'Go to current album', category: 'now-playing' },

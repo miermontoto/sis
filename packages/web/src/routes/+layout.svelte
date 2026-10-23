@@ -21,6 +21,7 @@
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import Wordmark from '$lib/components/Wordmark.svelte';
+  import { NAV_GROUPS } from '$lib/nav';
   import { apiBase, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
@@ -389,57 +390,8 @@
     return () => window.removeEventListener('keydown', handleKeydown);
   });
 
-  const navGroups = [
-    // en escritorio el grupo no existe: el dashboard es el logo de la cabecera
-    // (la columna no cabía con todo) y History se llega desde "Recent plays" del
-    // dashboard, la tarjeta de sesión, las stat cards y el atajo `h`. Ambos siguen
-    // en `nav` para que la cabecera móvil titule la página
-    {
-      label: 'Listen',
-      symbol: 'house',
-      desktopHidden: true,
-      items: [
-        { href: '/', label: 'Dashboard', icon: '~' },
-        { href: '/history', label: 'History', icon: '#', mobileHidden: true },
-      ],
-    },
-    {
-      label: 'Stats',
-      symbol: 'chart.bar',
-      items: [
-        { href: '/top', label: 'Rankings', icon: '*' },
-        { href: '/charts', label: 'Charts', icon: '%' },
-      ],
-    },
-    {
-      label: 'Highlights',
-      symbol: 'star',
-      items: [
-        { href: '/insights', label: 'Insights', icon: '!' },
-        { href: '/records', label: 'Records', icon: '^' },
-        { href: '/reports', label: 'Reports', icon: '¶' },
-      ],
-    },
-    {
-      label: 'Library',
-      symbol: 'square.stack',
-      items: [
-        { href: '/playlists', label: 'Playlists', icon: '+' },
-        { href: '/concerts', label: 'Concerts', icon: '@' },
-        { href: '/generators', label: 'Generators', icon: '&' },
-      ],
-    },
-    // el feed entra por el contenedor de friends del sidebar (desktop); en móvil
-    // no hay sidebar, así que conserva un tab propio
-    {
-      label: 'Feed',
-      symbol: 'person.2',
-      desktopHidden: true,
-      items: [
-        { href: '/feed', label: 'Feed', icon: '=' },
-      ],
-    },
-  ];
+  // grupos del nav en $lib/nav (los comparte el buscador para saltar a una página)
+  const navGroups = NAV_GROUPS;
 
   const nav = navGroups.flatMap(group => group.items);
   const desktopNavGroups = navGroups.filter(g => !('desktopHidden' in g));
