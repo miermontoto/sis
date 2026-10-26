@@ -6,6 +6,8 @@
   import { untrack } from 'svelte';
   import { formatShortDate } from '$lib/utils/format';
   import { hexToRgb, readableTextOn } from '$lib/utils/color';
+  import { errorMessage } from '$lib/utils/errors';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import IconImage from '$lib/icons/IconImage.svelte';
   import CoverEyedropper from './CoverEyedropper.svelte';
 
@@ -121,6 +123,10 @@
     uploading = true;
     try {
       await (backgroundTab && onUploadBackground ? onUploadBackground(file) : onUpload(file));
+    } catch (err) {
+      // único punto común a portada, foto y fondo: sin esto un rechazo (tamaño, tipo)
+      // quitaba el spinner sin decir nada
+      toastStore.show(`Upload failed: ${errorMessage(err, 'unknown error')}`);
     } finally {
       uploading = false;
       // permite reintentar el mismo fichero: sin esto un segundo change no dispara

@@ -31,7 +31,8 @@ import { hasAnyUsers, getUserById, getAllUsers, hardDeleteUser } from './service
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
-import { VERSION, UPLOAD_MAX_BYTES, ALBUM_COLOR_RE } from './constants.js';
+import { VERSION, ALBUM_COLOR_RE } from './constants.js';
+import { UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR } from '@sis/shared';
 
 export type AppVariables = {
   userId: number;
@@ -120,9 +121,10 @@ app.route('/public', publicRoutes);
 // devuelve el error en vez de lanzarlo para que cada ruta responda su propio 400
 async function storeUploadedImage(file: string | File | undefined, entityId: string): Promise<{ imageUrl: string } | { error: string }> {
   if (!file || typeof file === 'string') return { error: 'file required' };
+  // por file.size, antes de copiar a un ArrayBuffer lo que se va a rechazar
+  if (file.size > UPLOAD_MAX_BYTES) return { error: UPLOAD_TOO_LARGE_ERROR };
 
   const arrayBuf = await file.arrayBuffer();
-  if (arrayBuf.byteLength > UPLOAD_MAX_BYTES) return { error: 'max 10MB' };
 
   const contentType = file.type || 'image/jpeg';
   if (!contentType.startsWith('image/')) return { error: 'must be an image' };

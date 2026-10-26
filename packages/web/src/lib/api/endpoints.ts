@@ -18,6 +18,7 @@ import type {
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates, CollectionIndexItem,
   CreditSubjectType, EntityCredits,
 } from '@sis/shared';
+import { UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
 import { getTimeZone } from './settings.js';
 
@@ -506,6 +507,8 @@ export const api = {
 };
 
 async function uploadImage(path: string, file: File): Promise<{ imageUrl: string }> {
+  // el tope se mira antes de subir: el servidor sólo lo rechaza con el fichero ya enviado
+  if (file.size > UPLOAD_MAX_BYTES) throw new Error(UPLOAD_TOO_LARGE_ERROR);
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(`${apiBase()}${path}`, { method: 'POST', body: formData });

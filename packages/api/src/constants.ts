@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w44j';
+export const VERSION = '26w44k';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -178,9 +178,6 @@ export const METADATA_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
 export const ARTIST_IMAGE_MAX_PER_CYCLE = 1500;
 // lotes de /v1/artists (límite del endpoint)
 export const ARTIST_BATCH_SIZE = 50;
-
-// tope de una imagen subida a mano (portada de álbum o foto de artista)
-export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 // --- identidad multi-fuente (isrc/mbid) ---
 

@@ -50,6 +50,16 @@ export const ALBUM_RATING_MAX = 5;
 // tope de caracteres del texto opcional de una valoración
 export const ALBUM_REVIEW_MAX_CHARS = 2000;
 
+// --- imágenes subidas ---
+
+// tope de una imagen subida a mano (portada de álbum, foto o fondo de artista). las
+// portadas animadas (webp/gif de 150-260 frames a 540-700px) ya pesan 8-10 MB y el
+// tope de 10 MB las rechazaba; nginx y cloudflare cortan en 100 MB, muy por encima
+const UPLOAD_MAX_MB = 50;
+export const UPLOAD_MAX_BYTES = UPLOAD_MAX_MB * 1024 * 1024;
+// el mismo texto lo devuelve la api y lo lanza el cliente antes de subir
+export const UPLOAD_TOO_LARGE_ERROR = `image too large (max ${UPLOAD_MAX_MB} MB)`;
+
 // --- conciertos ---
 
 // topes de los campos de texto libre del registro de un concierto
