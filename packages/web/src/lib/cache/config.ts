@@ -119,6 +119,19 @@ const RULES: Array<[string, EndpointConfig]> = [
   ['/admin/users',                  { ttl: 5 * MIN,  maxStale: 1 * HOUR }],
 ];
 
+// endpoints cuya respuesta vale exactamente hasta que cambia el historial: la
+// tarjeta de hover (cifras, serie y ranks) y la posición dentro del artista.
+// Ninguna vista los relee al confirmarse un play (el detalle sólo invalida su
+// propia ficha, y sólo si está abierto), así que la tarjeta enseñaba las cifras
+// de antes durante todo el TTL. Se invalidan en bloque con cada play confirmado
+// (invalidateHistoryBoundCache, desde el layout) y no sobreviven a la sesión
+// (bootCleanup): los plays que aterrizan con la app cerrada (otro dispositivo,
+// un scrobbler) nunca llegan como confirmados, y la copia de IndexedDB se
+// serviría como buena hasta su maxStale.
+// En bloque y no por id: el play trae ids crudos y la tarjeta se abre con el id
+// resuelto (canónico de merge, `collection:N`), que no casarían.
+export const HISTORY_BOUND_PREFIXES = ['/stats/card/', '/stats/rankings/'];
+
 // prefijos no cacheables, para rutas con id variable que el Set de arriba no
 // puede enumerar (casa por ruta exacta).
 //

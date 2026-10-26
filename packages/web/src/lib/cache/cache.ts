@@ -10,7 +10,7 @@
 // dedup de requests en vuelo se hereda de api.ts (caller pasa inflightMap).
 
 import * as store from './store';
-import { getConfig, isNoCache } from './config';
+import { getConfig, isNoCache, HISTORY_BOUND_PREFIXES } from './config';
 import { refreshing } from '../stores/refreshing.svelte';
 
 export interface L1Entry {
@@ -185,8 +185,13 @@ function matches(cacheKey: string, pathPrefix: string): boolean {
   }
 }
 
-// invocar al boot. Limpia cache foreign (otro user / versión vieja) y aplica LRU.
+// invocar al boot. Limpia cache foreign (otro user / versión vieja), lo que no
+// sobrevive a la sesión (HISTORY_BOUND_PREFIXES) y aplica LRU.
 export async function bootCleanup(): Promise<void> {
   await store.pruneForeign();
+  // directo a L2 y no por invalidateByPaths: subir el epoch tiraría las
+  // escrituras de todo lo que el arranque tiene en vuelo, y aquí no hay ninguna
+  // mutación que proteger
+  await store.delByPathPrefixes(HISTORY_BOUND_PREFIXES);
   await store.evictIfOverCap();
 }

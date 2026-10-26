@@ -23,7 +23,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import Wordmark from '$lib/components/Wordmark.svelte';
   import { NAV_GROUPS } from '$lib/nav';
-  import { apiBase, api, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay } from '$lib/api';
+  import { apiBase, api, invalidateHistoryBoundCache, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore } from '$lib/stores/play-updates.svelte';
@@ -214,13 +214,17 @@
 
   // el cambio de tema lee las proyecciones antes de que el play saliente aterrice
   // (el volcado va 8-75s detrás del corte), así que se releen cuando el servidor
-  // lo confirma: es esa lectura la que mueve los puestos y suelta los momentos
+  // lo confirma: es esa lectura la que mueve los puestos y suelta los momentos.
+  // Con el play ya en el historial caduca también lo que vale hasta que éste
+  // cambia (tarjeta de hover y ranks, ver HISTORY_BOUND_PREFIXES): ninguna vista
+  // lo relee, así que sin esto la tarjeta seguía con las cifras de antes
   let lastConfirmedSeq = 0;
 
   $effect(() => {
     const batch = playUpdatesStore.confirmed;
     if (!batch || batch.seq <= lastConfirmedSeq) return;
     lastConfirmedSeq = batch.seq;
+    void invalidateHistoryBoundCache();
     if (untrack(() => sessionTrackingDisplay) !== 'off') projectionsStore.refresh();
   });
 

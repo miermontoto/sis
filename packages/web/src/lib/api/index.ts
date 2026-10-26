@@ -39,7 +39,7 @@ export type {
 export { LOCALE_OPTIONS, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS, CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS, CONCERT_YEAR_OPTIONS, SETLISTFM_AUTO_PAGES, ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES, REPORT_TOP_LIMIT, REPORT_INDEX_HISTORY, COLLECTION_ID_PREFIX, collectionKey, isCollectionKey, parseCollectionKey, COLLECTION_NAME_MAX_CHARS, COLLECTION_NOTES_MAX_CHARS, COLLECTION_CANDIDATES_LIMIT, CREDITS_MAX_ARTISTS } from '@sis/shared';
 
 // --- client / settings / endpoints ---
-export { apiBase, apiFetch, apiMutate, publicFetch, PublicShareError, rangeParams, createFetchController, invalidateCache } from './client.js';
+export { apiBase, apiFetch, apiMutate, publicFetch, PublicShareError, rangeParams, createFetchController, invalidateCache, invalidateHistoryBoundCache } from './client.js';
 export {
   loadSettings, getLocale, setLastPeriod,
   getRankingMetric, setRankingMetric,

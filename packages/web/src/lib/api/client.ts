@@ -3,7 +3,7 @@ import type { DateRangeParams } from '@sis/shared';
 // cache layer: L1 (memoria, ms) + L2 (IndexedDB, persistente) con SWR.
 // se enchufa vía lookup()/fetchAndStore(); ttls por endpoint en cache/config.ts.
 import * as cache from '../cache/cache';
-import { isNoCache } from '../cache/config';
+import { isNoCache, HISTORY_BOUND_PREFIXES } from '../cache/config';
 
 import { instanceOrigin } from '../instance';
 
@@ -236,6 +236,12 @@ export function invalidateCache(pathPrefix?: string): Promise<void> {
   return cache.invalidateByPath(pathPrefix, cacheDeps);
 }
 
+// lo que vale hasta que cambia el historial (ver HISTORY_BOUND_PREFIXES): una
+// sola pasada (un epoch, un recorrido de L2) con cada play confirmado
+export function invalidateHistoryBoundCache(): Promise<void> {
+  return cache.invalidateByPaths(HISTORY_BOUND_PREFIXES, cacheDeps);
+}
+
 // mapeo de mutaciones → prefijos a invalidar. Match por método+prefijo de path.
 // orden importa: el primer match aplica. La lista es deliberadamente concisa;
 // `/` (último fallback para POST/PUT/DELETE desconocidos) limpia todo.
@@ -276,14 +282,15 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'PUT',    prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
   { method: 'DELETE', prefix: '/concerts/',                 clear: ['/concerts', '/stats/artist/', '/stats/track/', '/social/profile/'] },
   // portada y color de álbum viajan dentro de cada lista y detalle que pinta el álbum o
-  // sus temas (tops, detalle de artista, detalle de track): se limpian todos. Es un pick
-  // manual y raro, así que perder esas caches sale barato; un hero con el color viejo no
-  { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/covers/'] },
-  { method: 'PUT',    prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
+  // sus temas (tops, detalle de artista, detalle de track, tarjeta de hover): se limpian
+  // todos. Es un pick manual y raro, así que perder esas caches sale barato; un hero con
+  // el color viejo no
+  { method: 'PUT',    prefix: '/covers/album/',             clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/stats/card/', '/covers/'] },
+  { method: 'PUT',    prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/stats/card/', '/covers/'] },
   // el genérico /covers/ es el de álbum (la ruta es /covers/:albumId): las de artista
   // van antes porque applyMutationInvalidation para en la primera regla que casa
-  { method: 'POST',   prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/covers/'] },
-  { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/covers/'] },
+  { method: 'POST',   prefix: '/covers/artist/',            clear: ['/stats/artist/', '/stats/top-artists', '/stats/card/', '/covers/'] },
+  { method: 'POST',   prefix: '/covers/',                   clear: ['/stats/album/', '/stats/top-albums', '/stats/top-tracks', '/stats/artist/', '/stats/track/', '/stats/card/', '/covers/'] },
   // sin barra final: limpia tanto /like/<id> como el lote /liked?ids=
   { method: 'PUT',    prefix: '/now-playing/like/',         clear: ['/now-playing/like'] },
   { method: 'DELETE', prefix: '/now-playing/like/',         clear: ['/now-playing/like'] },
