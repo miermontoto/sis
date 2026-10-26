@@ -16,6 +16,9 @@ let state = $state<HoverCardState | null>(null);
 let card = $state<EntityCard | null>(null);
 let ranks = $state<Rankings | null>(null);
 let failed = $state(false);
+// la tarjeta reserva el hueco del rank mientras llega; un fallo tiene que
+// distinguirse de "aún cargando" o el hueco se quedaría en shimmer para siempre
+let ranksFailed = $state(false);
 let controller: AbortController | null = null;
 
 // carga en dos tramos: la tarjeta (queries indexadas por entidad, milisegundos) y
@@ -40,7 +43,9 @@ async function load(type: EntityType, id: string) {
     const data = await api.rankings(type, id, getRankingMetric(), signal);
     if (isCurrent()) ranks = data;
   } catch {
-    // sin rank la tarjeta sigue siendo útil: no se marca como fallida
+    // sin rank la tarjeta sigue siendo útil: no se marca como fallida, sólo
+    // pierde la tira de posiciones
+    if (isCurrent()) ranksFailed = true;
   }
 }
 
@@ -49,6 +54,7 @@ export const hoverCard = {
   get card() { return card; },
   get ranks() { return ranks; },
   get failed() { return failed; },
+  get ranksFailed() { return ranksFailed; },
 
   open(type: EntityType, id: string, rect: DOMRect, pointerX: number) {
     // reabrir sobre la misma entidad (el puntero pasa por otro enlace suyo) sólo
@@ -59,6 +65,7 @@ export const hoverCard = {
     card = null;
     ranks = null;
     failed = false;
+    ranksFailed = false;
     load(type, id);
   },
 
@@ -69,5 +76,6 @@ export const hoverCard = {
     card = null;
     ranks = null;
     failed = false;
+    ranksFailed = false;
   },
 };

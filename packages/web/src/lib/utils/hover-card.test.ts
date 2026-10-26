@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseEntityPath, densifySeries, placeCard, sparkPath,
+  parseEntityPath, densifySeries, placeCard, bucketSeries,
   ENTITY_CARD_WIDTH, ENTITY_CARD_GAP, ENTITY_CARD_PAD,
 } from './hover-card';
 import type { EntityCardPoint } from '$lib/api';
@@ -91,19 +91,23 @@ describe('placeCard', () => {
   });
 });
 
-describe('sparkPath', () => {
-  it('normaliza contra el máximo: el pico toca el techo y el cero el suelo', () => {
-    const path = sparkPath([0, 5, 10]);
-    expect(path).not.toBeNull();
-    expect(path!.line).toBe('M0,1.0000 L1,0.5000 L2,0.0000');
-    // el área cierra por el suelo para poder rellenarla
-    expect(path!.area.endsWith(' L2,1 L0,1 Z')).toBe(true);
-    expect(path!.lastX).toBe(2);
+describe('bucketSeries', () => {
+  it('agrupa desde el final: la última barra es la semana que acaba hoy', () => {
+    // 10 días en semanas de 7: la primera barra se queda con los 3 más viejos
+    expect(bucketSeries([1, 1, 1, 2, 2, 2, 2, 2, 2, 2], 7)).toEqual([3, 14]);
   });
 
-  it('no dibuja nada sin actividad en la ventana', () => {
-    expect(sparkPath([0, 0, 0])).toBeNull();
-    expect(sparkPath([])).toBeNull();
-    expect(sparkPath([7])).toBeNull();
+  it('90 días son 13 semanas y no se pierde ningún play', () => {
+    const values = Array.from({ length: 90 }, (_, i) => i);
+    const buckets = bucketSeries(values);
+    expect(buckets).toHaveLength(13);
+    expect(buckets.reduce((s, v) => s + v, 0)).toBe(values.reduce((s, v) => s + v, 0));
+    // la semana actual son los días 83..89
+    expect(buckets[12]).toBe(83 + 84 + 85 + 86 + 87 + 88 + 89);
+  });
+
+  it('una ventana múltiplo del bucket no deja barras parciales', () => {
+    expect(bucketSeries([1, 2, 3, 4], 2)).toEqual([3, 7]);
+    expect(bucketSeries([], 7)).toEqual([]);
   });
 });

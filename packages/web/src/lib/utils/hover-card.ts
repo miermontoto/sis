@@ -1,13 +1,16 @@
 import type { EntityCardPoint, EntityType, RankingMetric } from '$lib/api';
 
 // Lógica pura de la tarjeta de hover de entidad (ver EntityHoverCard.svelte):
-// resolver a qué entidad apunta un enlace, densificar la serie de la sparkline y
-// colocar la tarjeta en el viewport. Vive aparte del componente para poder
-// probarse sin DOM: es donde se esconden los off-by-one.
+// resolver a qué entidad apunta un enlace, densificar y agrupar la serie de la
+// actividad y colocar la tarjeta en el viewport. Vive aparte del componente para
+// poder probarse sin DOM: es donde se esconden los off-by-one.
 
 // ancho fijo de la tarjeta: hace determinista la colocación horizontal (no
 // depende de medir un contenido que además llega por red)
-export const ENTITY_CARD_WIDTH = 300;
+export const ENTITY_CARD_WIDTH = 320;
+// días por barra de la actividad: la serie diaria de 90 días a barras diarias es
+// ruido, por semanas se lee la tendencia
+export const ACTIVITY_BUCKET_DAYS = 7;
 // separación entre ancla y tarjeta, y margen mínimo a los bordes del viewport
 export const ENTITY_CARD_GAP = 8;
 export const ENTITY_CARD_PAD = 8;
@@ -68,11 +71,16 @@ export function placeCard(anchor: AnchorBox, pointerX: number, cardHeight: numbe
   return { top: Math.round(top), left: Math.round(left) };
 }
 
-/** Path de la sparkline en coordenadas normalizadas (x = índice, y = 0 arriba). */
-export function sparkPath(values: number[]): { line: string; area: string; lastX: number } | null {
-  const max = Math.max(...values);
-  if (!(max > 0) || values.length < 2) return null;
-  const lastX = values.length - 1;
-  const line = `M${values.map((v, i) => `${i},${(1 - v / max).toFixed(4)}`).join(' L')}`;
-  return { line, area: `${line} L${lastX},1 L0,1 Z`, lastX };
+/**
+ * Agrupa la serie densa en buckets de `size` días contados desde el FINAL: la
+ * última barra es siempre la semana que acaba hoy y, si la ventana no es
+ * múltiplo de `size`, la que queda parcial es la primera (la más vieja), nunca
+ * la actual.
+ */
+export function bucketSeries(values: number[], size: number = ACTIVITY_BUCKET_DAYS): number[] {
+  const count = Math.ceil(values.length / size);
+  return Array.from({ length: count }, (_, b) => {
+    const to = values.length - size * (count - 1 - b);
+    return values.slice(Math.max(0, to - size), to).reduce((sum, v) => sum + v, 0);
+  });
 }
