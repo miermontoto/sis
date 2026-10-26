@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isPeriodKey, WEEK_START_SHIFT_DAYS, UTC_TIME_ZONE, zoneOffsetMs, zoneSegments, fromWallTime } from '@sis/shared';
+import { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isPeriodKey, weekShiftModifier, UTC_TIME_ZONE, zoneOffsetMs, zoneSegments, fromWallTime } from '@sis/shared';
 import type { Granularity, WeekStartOption } from '@sis/shared';
 
 // la verdad es el propio strftime de sqlite con el mismo modificador que aplica
@@ -15,7 +15,7 @@ const GRANULARITIES: Granularity[] = ['week', 'month', 'year'];
 const DAY_MS = 86_400_000;
 
 function sqliteLabel(iso: string, gran: Granularity, ws: WeekStartOption): string {
-  const modifier = gran === 'week' ? `-${WEEK_START_SHIFT_DAYS[ws]} days` : '+0 days';
+  const modifier = gran === 'week' ? weekShiftModifier(ws) : '+0 days';
   return stmt.get(FORMATS[gran], iso, modifier)!.p as string;
 }
 
@@ -24,7 +24,7 @@ function sqliteLabel(iso: string, gran: Granularity, ws: WeekStartOption): strin
 const zonedStmt = db.prepare('SELECT strftime(?, ?, ?, ?) AS p');
 function sqliteZonedLabel(iso: string, gran: Granularity, ws: WeekStartOption, timeZone: string): string {
   const offsetMinutes = zoneOffsetMs(timeZone, Date.parse(iso)) / 60_000;
-  const shift = gran === 'week' ? `-${WEEK_START_SHIFT_DAYS[ws]} days` : '+0 days';
+  const shift = gran === 'week' ? weekShiftModifier(ws) : '+0 days';
   return zonedStmt.get(FORMATS[gran], iso, `${offsetMinutes < 0 ? '-' : '+'}${Math.abs(offsetMinutes)} minutes`, shift)!.p as string;
 }
 
@@ -98,6 +98,20 @@ describe('periodBounds', () => {
     expect(b.end).toBe('2026-09-11T00:00:00.000Z');
     expect(new Date(b.start).getUTCDay()).toBe(5);
   });
+
+  // cada semana entera empieza el día del ajuste (0 = domingo, como getUTCDay). las
+  // semanas recortadas por nochevieja empiezan el 1 de enero y se saltan
+  const FIRST_WEEKDAY: Record<WeekStartOption, number> = { monday: 1, sunday: 0, friday: 5 };
+  for (const ws of WEEK_STARTS) {
+    it(`toda semana ${ws} completa empieza en su día`, () => {
+      for (const t of days) {
+        const label = periodForDate(new Date(t), 'week', ws);
+        const b = periodBounds(label, 'week', ws)!;
+        if (Date.parse(b.end) - Date.parse(b.start) < 7 * DAY_MS) continue;
+        expect(new Date(b.start).getUTCDay(), label).toBe(FIRST_WEEKDAY[ws]);
+      }
+    });
+  }
 });
 
 describe('isClosedPeriod', () => {

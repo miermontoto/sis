@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { weekKey, weekDateRange, prevPeriod, toIsoDate } from './periods';
 
-// las claves de semana las genera el servidor con strftime('%Y-W%W') tras restar
-// 0/1/4 días según weekStart. Los valores esperados de aquí salen de ejecutar esa
+// las claves de semana las genera el servidor con strftime('%Y-W%W') tras mover la
+// fecha 0/+1/-4 días según weekStart. Los valores esperados de aquí salen de ejecutar esa
 // misma expresión en sqlite: el cliente tenía dos copias del cálculo y las dos
 // daban una semana de menos los años que empiezan en lunes (2024), porque
 // contaban el 1 de enero como semana 00 cuando sqlite lo cuenta como 01.
@@ -11,19 +11,21 @@ const utc = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
 describe('weekKey', () => {
   // [fecha, monday, sunday, friday] tal cual los devuelve sqlite
+  // (la columna sunday se rehízo el 2026-10-26: con el desplazamiento viejo las
+  // semanas sunday iban de martes a lunes; ahora todo domingo abre clave nueva)
   const cases: [string, string, string, string][] = [
-    ['2024-01-01', '2024-W01', '2023-W52', '2023-W52'],
-    ['2024-01-07', '2024-W01', '2024-W01', '2024-W01'],
-    ['2024-01-08', '2024-W02', '2024-W01', '2024-W01'],
-    ['2023-01-01', '2023-W00', '2022-W52', '2022-W52'],
-    ['2023-01-02', '2023-W01', '2023-W00', '2022-W52'],
-    ['2023-12-31', '2023-W52', '2023-W52', '2023-W52'],
-    ['2024-12-30', '2024-W53', '2024-W52', '2024-W52'],
-    ['2024-12-31', '2024-W53', '2024-W53', '2024-W52'],
-    ['2018-12-31', '2018-W53', '2018-W52', '2018-W52'],
-    ['2025-01-01', '2025-W00', '2024-W53', '2024-W52'],
-    ['2025-01-05', '2025-W00', '2025-W00', '2025-W00'],
-    ['2025-01-06', '2025-W01', '2025-W00', '2025-W00'],
+    ['2024-01-01', '2024-W01', '2024-W01', '2023-W52'],
+    ['2024-01-07', '2024-W01', '2024-W02', '2024-W01'],
+    ['2024-01-08', '2024-W02', '2024-W02', '2024-W01'],
+    ['2023-01-01', '2023-W00', '2023-W01', '2022-W52'],
+    ['2023-01-02', '2023-W01', '2023-W01', '2022-W52'],
+    ['2023-12-31', '2023-W52', '2024-W01', '2023-W52'],
+    ['2024-12-30', '2024-W53', '2024-W53', '2024-W52'],
+    ['2024-12-31', '2024-W53', '2025-W00', '2024-W52'],
+    ['2018-12-31', '2018-W53', '2019-W00', '2018-W52'],
+    ['2025-01-01', '2025-W00', '2025-W00', '2024-W52'],
+    ['2025-01-05', '2025-W00', '2025-W01', '2025-W00'],
+    ['2025-01-06', '2025-W01', '2025-W01', '2025-W00'],
   ];
   it.each(cases)('%s → %s / %s / %s', (date, monday, sunday, friday) => {
     expect(weekKey(utc(date), 'monday')).toBe(monday);
@@ -50,9 +52,9 @@ describe('weekDateRange', () => {
   });
 
   it('aplica el desplazamiento de weekStart después del recorte', () => {
-    expect(range('2024-W01', 'sunday')).toEqual(['2024-01-02', '2024-01-08']);
-    expect(range('2023-W52', 'sunday')).toEqual(['2023-12-26', '2024-01-01']);
-    expect(range('2024-W53', 'sunday')).toEqual(['2024-12-31', '2025-01-01']);
+    expect(range('2024-W01', 'sunday')).toEqual(['2023-12-31', '2024-01-06']);
+    expect(range('2023-W52', 'sunday')).toEqual(['2023-12-24', '2023-12-30']);
+    expect(range('2024-W53', 'sunday')).toEqual(['2024-12-29', '2024-12-30']);
     expect(range('2024-W52', 'friday')).toEqual(['2024-12-27', '2025-01-02']);
     expect(range('2025-W00', 'friday')).toEqual(['2025-01-05', '2025-01-09']);
   });

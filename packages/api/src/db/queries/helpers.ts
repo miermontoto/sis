@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../connection.js';
 import { TIME_RANGES, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import type { TimeRange } from '../../constants.js';
-import { COLLECTION_ID_PREFIX, UTC_TIME_ZONE, WEEK_START_SHIFT_DAYS, zoneSegments } from '@sis/shared';
+import { COLLECTION_ID_PREFIX, UTC_TIME_ZONE, WEEK_START_SHIFT_DAYS, weekShiftModifier, zoneSegments } from '@sis/shared';
 import type { EntityType, RankingMetric, CreditSubjectType, Granularity, PeriodCalendar, ZoneSegment } from '@sis/shared';
 
 export type Db = ReturnType<typeof getDb>;
@@ -486,8 +486,9 @@ export function periodExpr(granularity: Granularity, calendar: PeriodCalendar): 
   const at = localPlayedAt(calendar.timeZone);
   if (granularity === 'month') return sql`strftime('%Y-%m', ${at})`;
   if (granularity === 'year') return sql`strftime('%Y', ${at})`;
-  const shift = WEEK_START_SHIFT_DAYS[calendar.weekStart];
-  return shift === 0 ? sql`strftime('%Y-W%W', ${at})` : sql`strftime('%Y-W%W', ${at}, ${`-${shift} days`})`;
+  return WEEK_START_SHIFT_DAYS[calendar.weekStart] === 0
+    ? sql`strftime('%Y-W%W', ${at})`
+    : sql`strftime('%Y-W%W', ${at}, ${weekShiftModifier(calendar.weekStart)})`;
 }
 
 export function getDateTruncForDays(days: number): SqlChunk {

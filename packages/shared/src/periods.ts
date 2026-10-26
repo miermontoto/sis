@@ -13,8 +13,16 @@
 import type { Granularity, WeekStartOption } from './settings.js';
 import { UTC_TIME_ZONE, toWallTime, fromWallTime } from './time-zone.js';
 
-// días que periodExpr resta antes de strftime('%W') para mover el corte de semana
-export const WEEK_START_SHIFT_DAYS: Record<WeekStartOption, number> = { monday: 0, sunday: 1, friday: 4 };
+// días que periodExpr resta antes de strftime('%W') para mover el corte de semana: los
+// que lleva el primer día de la semana al lunes de %W (viernes − 4, domingo + 1). el
+// domingo valía 1 y lo llevaba al sábado: sus semanas iban de martes a lunes (hasta 2026-10-26)
+export const WEEK_START_SHIFT_DAYS: Record<WeekStartOption, number> = { monday: 0, sunday: -1, friday: 4 };
+
+/** Modificador de strftime del corte de semana ('-4 days', '+1 days'), el de periodExpr. */
+export function weekShiftModifier(weekStart: WeekStartOption): string {
+  const days = WEEK_START_SHIFT_DAYS[weekStart];
+  return `${days > 0 ? '-' : '+'}${Math.abs(days)} days`;
+}
 
 const DAY_MS = 86_400_000;
 const WEEK_DAYS = 7;
