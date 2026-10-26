@@ -52,7 +52,7 @@ export { getProfileSummary, composeComparison, getFeedActivity, getUserStreaks, 
 export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRow, StreaksRow, FeedPlayRow } from './social.js';
 
 // reports periódicos (semana / mes / año cerrados)
-export { getReport, getReportClock } from './reports.js';
+export { getReport } from './reports.js';
 
 // inline queries extraídas de stats.ts
 export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, getArtistImages, rebuildPlaylistSearchIndex } from './inline.js';

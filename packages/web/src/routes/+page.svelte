@@ -44,7 +44,6 @@
   const LIST_LIMIT = 5;
   const RECENT_LIMIT = 10;
   const RECENT_POLL_MS = 15_000;
-  const TZ_OFFSET_MINUTES = -new Date().getTimezoneOffset();
   // tipo de entidad de "this week last year", recordado como preferencia de vista
   const LAST_YEAR_TYPE_KEY = 'sis:lastYearEntity';
   // granularidad del bloque de latest reports (semana por defecto), preferencia de vista
@@ -221,7 +220,7 @@
     const period = reportPeriod;
     if (!period || lastReports[g]) { loadingReports = false; return; }
     loadingReports = true;
-    api.report(g, period, weekStart, metric, TZ_OFFSET_MINUTES)
+    api.report(g, period, weekStart, metric)
       .then((r) => { lastReports = { ...lastReports, [g]: r }; })
       .catch((e) => console.error(`report ${g}:`, e))
       .finally(() => { loadingReports = false; });

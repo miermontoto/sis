@@ -19,6 +19,12 @@ import type {
   CreditSubjectType, EntityCredits,
 } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
+import { getTimeZone } from './settings.js';
+
+// calendario de los periodos (charts, reports, records): corte de semana + zona. la
+// zona viaja en la url aunque el servidor la tenga guardada, para que cambiarla no
+// sirva de cache los periodos cortados en la anterior
+const calendarParams = (weekStart: string) => ({ weekStart, timeZone: getTimeZone() });
 
 // params comunes de las listas top del detalle de artista (mismo contrato que artistDetail:
 // con range='custom' la ventana viaja en startDate/endDate)
@@ -169,27 +175,27 @@ export const api = {
     apiFetch<SearchResults>('/stats/search', { q, limit: String(limit) }),
 
   chartHistory: (type: string, id: string, weekStart: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
-    apiFetch<ChartHistoryResponse>(`/stats/chart-history/${type}/${encodeURIComponent(id)}`, { weekStart, sort }, signal),
+    apiFetch<ChartHistoryResponse>(`/stats/chart-history/${type}/${encodeURIComponent(id)}`, { ...calendarParams(weekStart), sort }, signal),
 
   chartPeriods: (granularity: string, weekStart: string, signal?: AbortSignal) =>
-    apiFetch<{ periods: string[] }>('/stats/charts/periods', { granularity, weekStart }, signal),
+    apiFetch<{ periods: string[] }>('/stats/charts/periods', { granularity, ...calendarParams(weekStart) }, signal),
 
-  // report de un periodo cerrado. tz = desfase local en minutos, solo para el reloj por horas
-  report: (granularity: Granularity, period: string, weekStart: WeekStartOption, sort: RankingMetric, tz: number, signal?: AbortSignal) =>
-    apiFetch<ReportResponse>('/stats/report', { granularity, period, weekStart, sort, tz: String(tz) }, signal),
+  // report de un periodo cerrado, entero en el calendario del usuario (también el reloj)
+  report: (granularity: Granularity, period: string, weekStart: WeekStartOption, sort: RankingMetric, signal?: AbortSignal) =>
+    apiFetch<ReportResponse>('/stats/report', { granularity, period, ...calendarParams(weekStart), sort }, signal),
 
   chart: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', limit = 25, signal?: AbortSignal) =>
-    apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, weekStart, sort, limit: String(limit) }, signal),
+    apiFetch<ChartResponse>('/stats/charts', { type, granularity, period, ...calendarParams(weekStart), sort, limit: String(limit) }, signal),
 
   chartPeaks: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', ids: string[], signal?: AbortSignal) =>
-    apiFetch<Record<string, ChartPeakStats>>('/stats/charts/peaks', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, signal),
+    apiFetch<Record<string, ChartPeakStats>>('/stats/charts/peaks', { type, granularity, period, ...calendarParams(weekStart), sort, ids: ids.join(',') }, signal),
 
   // NDJSON: `onPeak` se llama por entidad conforme el backend cierra su historial
   chartPeaksStream: (type: string, granularity: string, period: string, weekStart: string, sort: RankingMetric = 'time', ids: string[], onPeak: (peak: ChartPeak) => void, signal?: AbortSignal) =>
-    apiFetchStream<ChartPeak>('/stats/charts/peaks/stream', { type, granularity, period, weekStart, sort, ids: ids.join(',') }, onPeak, signal),
+    apiFetchStream<ChartPeak>('/stats/charts/peaks/stream', { type, granularity, period, ...calendarParams(weekStart), sort, ids: ids.join(',') }, onPeak, signal),
 
   records: (weekStart = 'monday', sort: RankingMetric = 'time', type?: 'tracks' | 'albums' | 'artists', unique = true, signal?: AbortSignal) =>
-    apiFetch<Partial<RecordsResponse>>('/stats/records', { weekStart, sort, unique: String(unique), ...(type && { type }) }, signal),
+    apiFetch<Partial<RecordsResponse>>('/stats/records', { ...calendarParams(weekStart), sort, unique: String(unique), ...(type && { type }) }, signal),
 
   playbackPlay: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/play'),
   playbackPause: () => apiMutate<{ success: boolean }>('PUT', '/now-playing/pause'),

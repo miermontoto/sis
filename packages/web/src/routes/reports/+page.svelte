@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, createFetchController, getWeekStart, REPORT_INDEX_HISTORY, type Granularity, type WeekStartOption } from '$lib/api';
+  import { api, createFetchController, getWeekStart, getTimeZone, REPORT_INDEX_HISTORY, type Granularity, type WeekStartOption } from '$lib/api';
   import { isClosedPeriod } from '@sis/shared';
   import { isAbortError } from '$lib/utils/errors';
   import { periodLabel } from '$lib/utils/periods';
@@ -24,7 +24,7 @@
     try {
       const res = await Promise.all(GRANULARITIES.map(g => api.chartPeriods(g, weekStart, signal)));
       // los periodos de los charts incluyen el que está en curso, que aún no tiene report
-      const closed = (periods: string[], g: Granularity) => periods.filter(p => isClosedPeriod(p, g, weekStart));
+      const closed = (periods: string[], g: Granularity) => periods.filter(p => isClosedPeriod(p, g, weekStart, getTimeZone()));
       history = { week: closed(res[0].periods, 'week'), month: closed(res[1].periods, 'month'), year: closed(res[2].periods, 'year') };
     } catch (e) {
       if (isAbortError(e)) return;

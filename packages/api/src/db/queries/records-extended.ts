@@ -7,9 +7,10 @@ import { sql } from 'drizzle-orm';
 import type { Db, SqlChunk } from './helpers.js';
 import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
-  MonthCountEntry, YearEndFinish, RankingMetric,
+  MonthCountEntry, YearEndFinish, RankingMetric, PeriodCalendar,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, trackArtistsFor, primaryArtistOf, artistNameOf } from './helpers.js';
+import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, trackArtistsFor, primaryArtistOf, artistNameOf, localPlayedAt } from './helpers.js';
+import { periodBounds, periodForDate } from '@sis/shared';
 import { getTopEntities } from './entity.js';
 import { RECORDS_LIMIT } from '../../constants.js';
 
@@ -231,10 +232,13 @@ export function computeLatestDiscoveries(entity: Ent, db: Db, userId: number, li
   }));
 }
 
-export function computeMostUniquePerMonth(entity: Ent, db: Db, userId: number, limit: number): MonthCountEntry[] {
+// mes de un play en la zona del usuario, el mismo que etiqueta los charts mensuales
+const localMonth = (timeZone: string) => sql`strftime('%Y-%m', ${localPlayedAt(timeZone)})`;
+
+export function computeMostUniquePerMonth(entity: Ent, db: Db, userId: number, limit: number, calendar: PeriodCalendar): MonthCountEntry[] {
   const ctx = entityCtx(entity, userId);
   const rows = db.all(sql`
-    SELECT strftime('%Y-%m', lh.played_at) AS month,
+    SELECT ${localMonth(calendar.timeZone)} AS month,
            COUNT(DISTINCT ${ctx.eidExpr}) AS count
     FROM listening_history lh ${ctx.extraJoins}
     WHERE lh.user_id = ${userId} ${ctx.filter}
@@ -246,7 +250,7 @@ export function computeMostUniquePerMonth(entity: Ent, db: Db, userId: number, l
   const months = rows.map(r => ({ month: r.month as string, count: Number(r.count) }));
   if (months.length === 0) return months.map(m => ({ ...m, covers: [] }));
 
-  const coversByMonth = fetchMonthCovers(entity, db, userId, months.map(m => m.month));
+  const coversByMonth = fetchMonthCovers(entity, db, userId, months.map(m => m.month), calendar.timeZone);
   return months.map(m => ({ ...m, covers: coversByMonth.get(m.month) ?? [] }));
 }
 
@@ -254,8 +258,9 @@ export function computeMostUniquePerMonth(entity: Ent, db: Db, userId: number, l
 //  - track  → portada de álbum de los top tracks
 //  - album  → portada del álbum
 //  - artist → foto del artista
-function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[]): Map<string, string[]> {
+function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[], timeZone: string): Map<string, string[]> {
   const perMonth = 4;
+  const month = localMonth(timeZone);
   const monthList = sql.join(months.map(m => sql`${m}`), sql`, `);
   // '' es el centinela de "buscado sin resultado" en albums y artists: no es una
   // portada, así que no puede ocupar un hueco del mosaico
@@ -265,10 +270,10 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
   if (entity === 'track') {
     query = sql`
       WITH ranked AS (
-        SELECT strftime('%Y-%m', lh.played_at) AS month,
+        SELECT ${month} AS month,
                al.image_url AS image_url,
                ROW_NUMBER() OVER (
-                 PARTITION BY strftime('%Y-%m', lh.played_at)
+                 PARTITION BY ${month}
                  ORDER BY COUNT(*) DESC
                ) AS rn
         FROM listening_history lh
@@ -276,7 +281,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
         JOIN albums al ON al.spotify_id = t.album_id
         WHERE lh.user_id = ${userId}
           AND ${hasCover(sql`al.image_url`)}
-          AND strftime('%Y-%m', lh.played_at) IN (${monthList})
+          AND ${month} IN (${monthList})
         GROUP BY month, lh.track_id
       )
       SELECT month, image_url FROM ranked WHERE rn <= ${perMonth}
@@ -285,10 +290,10 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
   } else if (entity === 'album') {
     query = sql`
       WITH ranked AS (
-        SELECT strftime('%Y-%m', lh.played_at) AS month,
+        SELECT ${month} AS month,
                al.image_url AS image_url,
                ROW_NUMBER() OVER (
-                 PARTITION BY strftime('%Y-%m', lh.played_at)
+                 PARTITION BY ${month}
                  ORDER BY COUNT(*) DESC
                ) AS rn
         FROM listening_history lh
@@ -296,7 +301,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
         JOIN albums al ON al.spotify_id = t.album_id
         WHERE lh.user_id = ${userId}
           AND ${hasCover(sql`al.image_url`)}
-          AND strftime('%Y-%m', lh.played_at) IN (${monthList})
+          AND ${month} IN (${monthList})
         GROUP BY month, al.spotify_id
       )
       SELECT month, image_url FROM ranked WHERE rn <= ${perMonth}
@@ -305,10 +310,10 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
   } else {
     query = sql`
       WITH ranked AS (
-        SELECT strftime('%Y-%m', lh.played_at) AS month,
+        SELECT ${month} AS month,
                a.image_url AS image_url,
                ROW_NUMBER() OVER (
-                 PARTITION BY strftime('%Y-%m', lh.played_at)
+                 PARTITION BY ${month}
                  ORDER BY COUNT(*) DESC
                ) AS rn
         FROM listening_history lh
@@ -316,7 +321,7 @@ function fetchMonthCovers(entity: Ent, db: Db, userId: number, months: string[])
         JOIN artists a ON a.spotify_id = ta.artist_id
         WHERE lh.user_id = ${userId}
           AND ${hasCover(sql`a.image_url`)}
-          AND strftime('%Y-%m', lh.played_at) IN (${monthList})
+          AND ${month} IN (${monthList})
         GROUP BY month, ta.artist_id
       )
       SELECT month, image_url FROM ranked WHERE rn <= ${perMonth}
@@ -484,20 +489,25 @@ export function computeMostHeardLive(db: Db, userId: number, limit: number): Rec
 // year-end finishes: top-N de cada año completado (para accolades).
 // Sólo incluye años anteriores al actual (el año en curso todavía no "terminó").
 const YEAR_END_LIMIT = 10;
-export function computeYearEndFinishes(entity: Ent, db: Db, userId: number, sort: Sort): YearEndFinish[] {
-  const currentYear = new Date().getUTCFullYear();
+// años y sus límites en la zona del usuario, los del chart anual
+export function computeYearEndFinishes(entity: Ent, db: Db, userId: number, sort: Sort, calendar: PeriodCalendar): YearEndFinish[] {
+  const { weekStart, timeZone } = calendar;
+  const currentYear = Number(periodForDate(new Date(), 'year', weekStart, timeZone));
+  const localYear = sql`CAST(strftime('%Y', ${localPlayedAt(timeZone)}) AS INTEGER)`;
   const years = db.all(sql`
-    SELECT DISTINCT CAST(strftime('%Y', played_at) AS INTEGER) AS y
-    FROM listening_history
-    WHERE user_id = ${userId} AND CAST(strftime('%Y', played_at) AS INTEGER) < ${currentYear}
+    SELECT DISTINCT ${localYear} AS y
+    FROM listening_history lh
+    WHERE lh.user_id = ${userId} AND ${localYear} < ${currentYear}
     ORDER BY y ASC
   `) as { y: number }[];
 
   const results: YearEndFinish[] = [];
   for (const { y } of years) {
-    const yearStart = `${y}-01-01T00:00:00.000Z`;
-    const yearEnd = `${y}-12-31T23:59:59.999Z`;
-    const top = getTopEntities(db, entity, yearStart, sort, YEAR_END_LIMIT, yearEnd, userId);
+    const bounds = periodBounds(String(y), 'year', weekStart, timeZone);
+    if (!bounds) continue;
+    // getTopEntities cierra con `<=`: el instante anterior al año siguiente
+    const yearEnd = new Date(Date.parse(bounds.end) - 1).toISOString();
+    const top = getTopEntities(db, entity, bounds.start, sort, YEAR_END_LIMIT, yearEnd, userId);
     top.forEach((row, i) => {
       results.push({
         year: y,

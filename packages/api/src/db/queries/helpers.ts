@@ -2,8 +2,8 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../connection.js';
 import { TIME_RANGES, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import type { TimeRange } from '../../constants.js';
-import { COLLECTION_ID_PREFIX } from '@sis/shared';
-import type { EntityType, RankingMetric, CreditSubjectType } from '@sis/shared';
+import { COLLECTION_ID_PREFIX, UTC_TIME_ZONE, WEEK_START_SHIFT_DAYS, zoneSegments } from '@sis/shared';
+import type { EntityType, RankingMetric, CreditSubjectType, Granularity, PeriodCalendar, ZoneSegment } from '@sis/shared';
 
 export type Db = ReturnType<typeof getDb>;
 export type SqlChunk = ReturnType<typeof sql>;
@@ -446,14 +446,48 @@ export function userWhereClause(userId: number): SqlChunk {
   return sql`WHERE lh.user_id = ${userId}`;
 }
 
-export function periodExpr(granularity: 'week' | 'month' | 'year', weekStart: 'monday' | 'sunday' | 'friday' | 'thursday' = 'monday'): SqlChunk {
-  if (granularity === 'week') {
-    if (weekStart === 'monday') return sql`strftime('%Y-W%W', lh.played_at)`;
-    if (weekStart === 'sunday') return sql`strftime('%Y-W%W', lh.played_at, '-1 day')`;
-    return sql`strftime('%Y-W%W', lh.played_at, '-4 days')`;
-  }
-  if (granularity === 'month') return sql`strftime('%Y-%m', lh.played_at)`;
-  return sql`strftime('%Y', lh.played_at)`;
+// desfases de zona precalculados desde aquí: ningún historial llega más atrás
+const ZONE_HISTORY_START = Date.UTC(2000, 0, 1);
+const MINUTE_MS = 60_000;
+// tramos de desfase por zona, hasta el 1 de enero de dentro de dos años (se rehacen al
+// cambiar de año). por worker: cada uno construye sus propias queries
+const zoneSegmentsMemo = new Map<string, { until: number; segments: ZoneSegment[] }>();
+
+function playZoneSegments(timeZone: string): ZoneSegment[] {
+  const until = Date.UTC(new Date().getUTCFullYear() + 2, 0, 1);
+  const memo = zoneSegmentsMemo.get(timeZone);
+  if (memo?.until === until) return memo.segments;
+  const segments = zoneSegments(timeZone, ZONE_HISTORY_START, until);
+  zoneSegmentsMemo.set(timeZone, { until, segments });
+  return segments;
+}
+
+// modificador de las funciones de fecha de sqlite ('+120 minutes', '-300 minutes')
+const offsetModifier = (offsetMs: number) => `${offsetMs < 0 ? '-' : '+'}${Math.abs(offsetMs) / MINUTE_MS} minutes`;
+
+/** Argumentos de fecha de sqlite para la hora de pared de un play en la zona del usuario:
+ *  `strftime(fmt, ${localPlayedAt(tz)})`, `date(${localPlayedAt(tz)})`. En UTC es la
+ *  columna a secas (mismo SQL y mismo plan de siempre); si no, la columna más el
+ *  modificador de su desfase, que cambia con el horario de verano: un CASE por tramos
+ *  del más reciente al más antiguo, así que un play reciente sale en la primera rama. */
+export function localPlayedAt(timeZone: string, col: SqlChunk = sql`lh.played_at`): SqlChunk {
+  if (timeZone === UTC_TIME_ZONE) return col;
+  const segments = playZoneSegments(timeZone);
+  if (segments.every(s => s.offsetMs === 0)) return col;
+  const [oldest, ...rest] = segments;
+  if (rest.length === 0) return sql`${col}, ${offsetModifier(oldest.offsetMs)}`;
+  const branches = rest.reverse().map(s => sql`WHEN ${col} >= ${new Date(s.from).toISOString()} THEN ${offsetModifier(s.offsetMs)}`);
+  return sql`${col}, CASE ${sql.join(branches, sql` `)} ELSE ${offsetModifier(oldest.offsetMs)} END`;
+}
+
+/** Etiqueta de periodo de un play (YYYY-Www / YYYY-MM / YYYY) en el calendario del
+ *  usuario. Espejo de periodForDate (@sis/shared), testeado contra este mismo strftime. */
+export function periodExpr(granularity: Granularity, calendar: PeriodCalendar): SqlChunk {
+  const at = localPlayedAt(calendar.timeZone);
+  if (granularity === 'month') return sql`strftime('%Y-%m', ${at})`;
+  if (granularity === 'year') return sql`strftime('%Y', ${at})`;
+  const shift = WEEK_START_SHIFT_DAYS[calendar.weekStart];
+  return shift === 0 ? sql`strftime('%Y-W%W', ${at})` : sql`strftime('%Y-W%W', ${at}, ${`-${shift} days`})`;
 }
 
 export function getDateTruncForDays(days: number): SqlChunk {

@@ -5,6 +5,8 @@ import { getTopEntities } from './entity.js';
 import { getRawRanking } from './charts.js';
 import type { TimeRange } from '../../constants.js';
 import type { Granularity, WeekStartOption } from '@sis/shared';
+import { resolveTimeZone } from '@sis/shared';
+import { storedTimeZone } from '../../services/user-calendar.js';
 
 export interface PlaylistStrategyParams {
   limit: number;
@@ -317,6 +319,8 @@ export interface ChartParams extends PlaylistStrategyParams {
   granularity: Granularity;
   period: string;
   weekStart: WeekStartOption;
+  /** zona del calendario; las playlists guardadas antes de existir no la traen */
+  timeZone?: string;
 }
 
 /** Chart entries → tracks playlist */
@@ -324,7 +328,8 @@ export function strategyChart(db: Db, userId: number, params: ChartParams): stri
   const limit = Math.min(params.limit || 25, 50);
   // chart rankings sólo admiten 'plays' o 'time'; 'natural' no tiene sentido aquí
   const chartSort = params.sort === 'plays' ? 'plays' : 'time';
-  const entries = getRawRanking(db, params.entityType as EntityType, params.granularity, params.weekStart, params.period, chartSort, limit, userId);
+  const calendar = { weekStart: params.weekStart, timeZone: params.timeZone ? resolveTimeZone(params.timeZone) : storedTimeZone(db, userId) };
+  const entries = getRawRanking(db, params.entityType as EntityType, params.granularity, calendar, params.period, chartSort, limit, userId);
   const entityIds = entries.map(e => e.entity_id);
   if (params.entityType === 'track') {
     return entityIds.filter(id => !id.startsWith('local:'));

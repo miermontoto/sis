@@ -5,32 +5,32 @@ import { getCachedRecords, getEntityAccolades, getUserSettingsForUser, computeAn
 import { getRecentRankChangesCached } from '../../services/recent-changes-cache.js';
 import { getProjectedRankings } from '../../services/projection-cache.js';
 import type { EntityType, RecentRankChangesResponse } from '@sis/shared';
-import { statsRouter, parseWeekStart, parseSort, parseRecordsUnique, toEntityType, requestRead } from './_shared.js';
+import { statsRouter, parseCalendar, parseSort, parseRecordsUnique, toEntityType, requestRead } from './_shared.js';
 
 const records = statsRouter();
 
 records.get('/records', async (c) => {
   const userId = c.get('userId');
-  const weekStart = parseWeekStart(c);
+  const calendar = parseCalendar(c);
   const sort = parseSort(c);
   const unique = parseRecordsUnique(c);
   const limit = Math.min(parseInt(c.req.query('limit') || String(RECORDS_LIMIT)), 50);
   const rawType = c.req.query('type');
   const type = rawType ? toEntityType(rawType) : undefined;
 
-  const cached = getCachedRecords(userId, weekStart, sort, limit, type, unique);
+  const cached = getCachedRecords(userId, calendar, sort, limit, type, unique);
   if (cached) return c.json(cached);
   // con los ajustes del usuario la respuesta es justo la que hornea la cache: esperar a
   // ese horneado (deduplicado por usuario) en vez de lanzar otro escaneo completo por
   // tipo en paralelo con él, que es lo que pasaba en cada arranque con la cache fría
   const spotifyId = c.get('spotifyId');
   const own = getUserSettingsForUser(getDb(), spotifyId);
-  if (own.weekStart === weekStart && own.sort === sort && own.unique === unique) {
+  if (own.weekStart === calendar.weekStart && own.timeZone === calendar.timeZone && own.sort === sort && own.unique === unique) {
     await computeAndCacheForUserAsync(userId, spotifyId, true);
-    const baked = getCachedRecords(userId, weekStart, sort, limit, type, unique);
+    const baked = getCachedRecords(userId, calendar, sort, limit, type, unique);
     if (baked) return c.json(baked);
   }
-  return c.json(await dbRead('getRecords', weekStart, sort, limit, type, userId, unique));
+  return c.json(await dbRead('getRecords', calendar, sort, limit, type, userId, unique));
 });
 
 records.get('/accolades/:type/:id', async (c) => {

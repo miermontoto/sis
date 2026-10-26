@@ -90,7 +90,10 @@ export { mbRecordingQuery, normalizeTitle, sameTitle } from './musicbrainz.js';
 
 // modelo de periodo (etiquetas y límites compartidos con los charts)
 export { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isGranularity, isPeriodKey, WEEK_START_SHIFT_DAYS } from './periods.js';
-export type { PeriodBounds } from './periods.js';
+export type { PeriodBounds, PeriodCalendar } from './periods.js';
+// zona horaria del calendario del usuario (medianoches de los periodos, horario de verano)
+export { UTC_TIME_ZONE, resolveTimeZone, zoneOffsetMs, toWallTime, fromWallTime, zoneSegments } from './time-zone.js';
+export type { ZoneSegment } from './time-zone.js';
 
 // reports periódicos
 export type { ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone } from './reports.js';

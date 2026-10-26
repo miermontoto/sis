@@ -9,6 +9,7 @@ import { PLAYLIST_SCOPES, PLAYLIST_CUSTOM_MAX_TRACKS } from '../constants.js';
 import { hasRequiredScopes } from './token-manager.js';
 import { spotifyFetch } from './spotify-client.js';
 import { getCachedRecords } from './records-cache.js';
+import { storedTimeZone } from './user-calendar.js';
 import {
   enrichTrack,
   strategyTopRange, strategyTopArtist, strategyTopGenre,
@@ -23,6 +24,7 @@ import type {
 } from '../db/queries/index.js';
 import type { Sort } from '../db/queries/helpers.js';
 import type { RecordEntry, ArtistRecordEntry, WeekStartOption, RankingMetric, GeneratedPlaylist } from '@sis/shared';
+import { resolveTimeZone } from '@sis/shared';
 
 type Db = ReturnType<typeof getDb>;
 
@@ -82,6 +84,8 @@ function resolveRecordTracks(db: Db, userId: number, params: Record<string, unkn
   const ws = (['monday', 'sunday', 'friday'].includes(params.weekStart as string)
     ? params.weekStart
     : 'monday') as WeekStartOption;
+  // los records se hornean en la zona del usuario: la de la petición si la trae
+  const timeZone = typeof params.timeZone === 'string' ? resolveTimeZone(params.timeZone) : storedTimeZone(db, userId);
   const sort: RankingMetric = params.sort === 'plays' ? 'plays' : 'time';
   const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 50);
 
@@ -93,7 +97,7 @@ function resolveRecordTracks(db: Db, userId: number, params: Record<string, unkn
   }
 
   const pluralTab = entityType === 'track' ? 'tracks' : entityType === 'album' ? 'albums' : 'artists';
-  const cached = getCachedRecords(userId, ws, sort, limit, entityType);
+  const cached = getCachedRecords(userId, { weekStart: ws, timeZone }, sort, limit, entityType);
   const tabData = cached?.[pluralTab] as Record<string, unknown> | undefined;
   const list = tabData?.[recordKey];
 

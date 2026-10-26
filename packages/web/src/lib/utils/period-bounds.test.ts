@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isPeriodKey, WEEK_START_SHIFT_DAYS } from '@sis/shared';
+import { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isPeriodKey, WEEK_START_SHIFT_DAYS, UTC_TIME_ZONE, zoneOffsetMs, zoneSegments, fromWallTime } from '@sis/shared';
 import type { Granularity, WeekStartOption } from '@sis/shared';
 
 // la verdad es el propio strftime de sqlite con el mismo modificador que aplica
@@ -17,6 +17,15 @@ const DAY_MS = 86_400_000;
 function sqliteLabel(iso: string, gran: Granularity, ws: WeekStartOption): string {
   const modifier = gran === 'week' ? `-${WEEK_START_SHIFT_DAYS[ws]} days` : '+0 days';
   return stmt.get(FORMATS[gran], iso, modifier)!.p as string;
+}
+
+// la etiqueta que da periodExpr en una zona: el desfase del instante como modificador
+// (lo que elige el CASE de localPlayedAt) y luego el corte de semana
+const zonedStmt = db.prepare('SELECT strftime(?, ?, ?, ?) AS p');
+function sqliteZonedLabel(iso: string, gran: Granularity, ws: WeekStartOption, timeZone: string): string {
+  const offsetMinutes = zoneOffsetMs(timeZone, Date.parse(iso)) / 60_000;
+  const shift = gran === 'week' ? `-${WEEK_START_SHIFT_DAYS[ws]} days` : '+0 days';
+  return zonedStmt.get(FORMATS[gran], iso, `${offsetMinutes < 0 ? '-' : '+'}${Math.abs(offsetMinutes)} minutes`, shift)!.p as string;
 }
 
 // una década de días: cubre años que empiezan en lunes (2018, 2024), años con W53
@@ -94,14 +103,108 @@ describe('periodBounds', () => {
 describe('isClosedPeriod', () => {
   const now = new Date('2026-09-06T10:00:00.000Z');
   it('el periodo en curso está abierto y el anterior cerrado', () => {
-    expect(isClosedPeriod('2026-W35', 'week', 'friday', now)).toBe(false);
-    expect(isClosedPeriod('2026-W34', 'week', 'friday', now)).toBe(true);
-    expect(isClosedPeriod('2026-09', 'month', 'friday', now)).toBe(false);
-    expect(isClosedPeriod('2026-08', 'month', 'friday', now)).toBe(true);
-    expect(isClosedPeriod('2026', 'year', 'friday', now)).toBe(false);
-    expect(isClosedPeriod('2025', 'year', 'friday', now)).toBe(true);
+    expect(isClosedPeriod('2026-W35', 'week', 'friday', UTC_TIME_ZONE, now)).toBe(false);
+    expect(isClosedPeriod('2026-W34', 'week', 'friday', UTC_TIME_ZONE, now)).toBe(true);
+    expect(isClosedPeriod('2026-09', 'month', 'friday', UTC_TIME_ZONE, now)).toBe(false);
+    expect(isClosedPeriod('2026-08', 'month', 'friday', UTC_TIME_ZONE, now)).toBe(true);
+    expect(isClosedPeriod('2026', 'year', 'friday', UTC_TIME_ZONE, now)).toBe(false);
+    expect(isClosedPeriod('2025', 'year', 'friday', UTC_TIME_ZONE, now)).toBe(true);
   });
   it('un periodo futuro no está cerrado', () => {
-    expect(isClosedPeriod('2027-W01', 'week', 'friday', now)).toBe(false);
+    expect(isClosedPeriod('2027-W01', 'week', 'friday', UTC_TIME_ZONE, now)).toBe(false);
+  });
+  it('el mes cierra en la medianoche de la zona, no en la de UTC', () => {
+    // 1 de octubre a las 00:30 en Madrid: allí septiembre ya cerró, en UTC aún no
+    const madridMidnight = new Date('2026-09-30T22:30:00.000Z');
+    expect(isClosedPeriod('2026-09', 'month', 'friday', 'Europe/Madrid', madridMidnight)).toBe(true);
+    expect(isClosedPeriod('2026-09', 'month', 'friday', UTC_TIME_ZONE, madridMidnight)).toBe(false);
+  });
+});
+
+// zonas con horario de verano, desfases de media hora y de 45 minutos, los dos
+// extremos del día y una (Santiago) cuyo cambio de hora cae justo a medianoche
+const ZONES = [
+  'Europe/Madrid', 'America/New_York', 'America/Santiago', 'Asia/Kolkata', 'Asia/Kathmandu',
+  'Australia/Lord_Howe', 'Pacific/Chatham', 'America/St_Johns', 'Pacific/Kiritimati', 'Pacific/Pago_Pago',
+];
+const HOUR_MS = 3_600_000;
+
+describe('periodForDate en una zona', () => {
+  // cada 3 horas durante un año y pico: pasa por los cambios de hora de todas las zonas
+  const instants: number[] = [];
+  for (let t = Date.UTC(2025, 11, 1); t <= Date.UTC(2027, 0, 10); t += 3 * HOUR_MS) instants.push(t);
+
+  for (const timeZone of ZONES) {
+    it(`coincide con strftime + el desfase del instante en ${timeZone}`, () => {
+      for (const t of instants) {
+        const iso = new Date(t).toISOString();
+        for (const [gran, ws] of [['week', 'friday'], ['week', 'monday'], ['month', 'monday'], ['year', 'monday']] as const) {
+          expect(periodForDate(new Date(t), gran, ws, timeZone), `${iso} ${gran}/${ws}`).toBe(sqliteZonedLabel(iso, gran, ws, timeZone));
+        }
+      }
+    });
+  }
+});
+
+describe('periodBounds en una zona', () => {
+  for (const timeZone of ZONES) {
+    it(`cada periodo empieza en su medianoche local en ${timeZone}`, () => {
+      for (const [gran, ws] of [['week', 'friday'], ['week', 'sunday'], ['month', 'monday'], ['year', 'monday']] as const) {
+        let label = periodForDate(new Date(Date.UTC(2026, 0, 15)), gran, ws, timeZone);
+        for (let i = 0; i < 60 && label < '2027'; i++) {
+          const b = periodBounds(label, gran, ws, timeZone)!;
+          const start = Date.parse(b.start);
+          // el primer instante es del periodo y el anterior, del de antes
+          expect(periodForDate(new Date(start), gran, ws, timeZone), `${label} start`).toBe(label);
+          expect(periodForDate(new Date(start - 1000), gran, ws, timeZone), `${label} start-1s`).not.toBe(label);
+          label = adjacentPeriod(label, gran, ws, 1)!;
+          expect(periodBounds(label, gran, ws, timeZone)!.start, `${label} contiguo`).toBe(b.end);
+        }
+      }
+    });
+  }
+
+  it('septiembre en Madrid va de medianoche a medianoche locales', () => {
+    expect(periodBounds('2026-09', 'month', 'friday', 'Europe/Madrid')).toEqual({
+      start: '2026-08-31T22:00:00.000Z',
+      end: '2026-09-30T22:00:00.000Z',
+    });
+  });
+
+  it('la semana del cambio de hora mide 7 días más una hora', () => {
+    // 2026-10-25 Europa vuelve a +01:00: la semana friday del 23 al 29 de octubre
+    expect(periodBounds('2026-W42', 'week', 'friday', 'Europe/Madrid')).toEqual({
+      start: '2026-10-22T22:00:00.000Z',
+      end: '2026-10-29T23:00:00.000Z',
+    });
+  });
+
+  it('una medianoche que no existe empieza en el instante del salto', () => {
+    // Santiago adelanta el reloj el 6 de septiembre de 2026 a las 00:00 → 01:00; y una
+    // hora repetida vale la primera vez (Madrid, 25 de octubre, 02:30 dos veces)
+    expect(fromWallTime('America/Santiago', Date.UTC(2026, 8, 6))).toBe(Date.parse('2026-09-06T04:00:00.000Z'));
+    expect(fromWallTime('Europe/Madrid', Date.UTC(2026, 9, 25, 2, 30))).toBe(Date.parse('2026-10-25T00:30:00.000Z'));
+  });
+});
+
+describe('zoneSegments', () => {
+  const start = Date.UTC(2015, 0, 1);
+  const end = Date.UTC(2028, 0, 1);
+  for (const timeZone of ZONES) {
+    it(`cada tramo empieza justo en el cambio de desfase en ${timeZone}`, () => {
+      const segments = zoneSegments(timeZone, start, end);
+      segments.slice(1).forEach((s, i) => {
+        expect(zoneOffsetMs(timeZone, s.from)).toBe(s.offsetMs);
+        expect(zoneOffsetMs(timeZone, s.from - 1000)).toBe(segments[i].offsetMs);
+      });
+      // y entre cambios el desfase no se mueve: muestreo cada 5 horas
+      for (let t = start; t < end; t += 5 * HOUR_MS) {
+        const current = segments.findLast(s => s.from <= t)!;
+        expect(zoneOffsetMs(timeZone, t), new Date(t).toISOString()).toBe(current.offsetMs);
+      }
+    });
+  }
+  it('UTC es un solo tramo sin desfase', () => {
+    expect(zoneSegments(UTC_TIME_ZONE, start, end)).toEqual([{ from: start, offsetMs: 0 }]);
   });
 });

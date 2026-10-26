@@ -11,17 +11,16 @@
 // cerrada en cuanto hemos escaneado más atrás de su primer play: la mayoría de
 // entradas del chart se resuelven en el primer trozo, lo que permite emitirlas
 // en streaming en vez de esperar al escaneo completo.
-import type { Granularity, WeekStartOption, ChartPeak } from '@sis/shared';
+import type { Granularity, ChartPeak, PeriodCalendar } from '@sis/shared';
+import { WEEK_START_SHIFT_DAYS, fromWallTime } from '@sis/shared';
 import { CHART_SIZE } from '../constants.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// periodExpr() desplaza played_at estos días antes de calcular %W. El año del
-// label lo decide la fecha YA desplazada, así que el corte entre los labels de
-// un año y los del anterior cae exactamente en 1-ene + shift, y nunca parte un
-// periodo por la mitad. Espejo exacto de periodExpr(): cualquier weekStart que
-// no sea monday/sunday cae en la rama de -4 días.
-const WEEK_SHIFT_DAYS: Record<WeekStartOption, number> = { monday: 0, sunday: 1, friday: 4 };
+// periodExpr() desplaza la hora local del play WEEK_START_SHIFT_DAYS días antes de
+// calcular %W. El año del label lo decide la fecha YA desplazada, así que el corte
+// entre los labels de un año y los del anterior cae exactamente en la medianoche
+// local de 1-ene + shift, y nunca parte un periodo por la mitad.
 
 /** Año de un label de periodo (YYYY, YYYY-MM, YYYY-Www comparten prefijo). */
 export function periodYear(period: string): number {
@@ -35,16 +34,16 @@ export interface PeakSlice {
   endAt: string;
 }
 
-function yearBoundary(year: number, shiftDays: number): string {
-  return new Date(Date.UTC(year, 0, 1) + shiftDays * DAY_MS).toISOString();
+function yearBoundary(year: number, shiftDays: number, timeZone: string): string {
+  return new Date(fromWallTime(timeZone, Date.UTC(year, 0, 1) + shiftDays * DAY_MS)).toISOString();
 }
 
 /** Trozos de un año de labels cada uno, del más reciente al más antiguo. */
-export function peakSlices(oldestYear: number, newestYear: number, granularity: Granularity, weekStart: WeekStartOption): PeakSlice[] {
-  const shift = granularity === 'week' ? WEEK_SHIFT_DAYS[weekStart] : 0;
+export function peakSlices(oldestYear: number, newestYear: number, granularity: Granularity, calendar: PeriodCalendar): PeakSlice[] {
+  const shift = granularity === 'week' ? WEEK_START_SHIFT_DAYS[calendar.weekStart] : 0;
   const slices: PeakSlice[] = [];
   for (let year = newestYear; year >= oldestYear; year--) {
-    slices.push({ year, startAt: yearBoundary(year, shift), endAt: yearBoundary(year + 1, shift) });
+    slices.push({ year, startAt: yearBoundary(year, shift, calendar.timeZone), endAt: yearBoundary(year + 1, shift, calendar.timeZone) });
   }
   return slices;
 }

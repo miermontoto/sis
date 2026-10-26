@@ -2,12 +2,13 @@
 // de una vez. el periodo se filtra por límites [start, end) —rangos indexados por
 // (user_id, played_at)— y no con `periodExpr() = period` como los charts, que obliga
 // a un scan completo del historial por query; un report son una docena de ellas.
-// los buckets diarios y los días de la semana van en UTC, como los límites del
-// periodo y los charts; solo el reloj por horas se desplaza a la hora local del
-// cliente (tzOffsetMinutes), que es donde un desfase de dos horas se nota
+// todo va en el calendario del usuario, como los charts: los límites son sus
+// medianoches y los buckets por día, hora, día de la semana y mes, su hora de pared
+// (localPlayedAt). con los límites en UTC, al este de Greenwich el último play del
+// periodo salía con fecha del siguiente
 import { sql } from 'drizzle-orm';
 import type {
-  Granularity, WeekStartOption, RankingMetric, ListeningTimeItem,
+  Granularity, PeriodCalendar, RankingMetric, ListeningTimeItem,
   TopArtistItem, TopAlbumItem, TopTrackItem,
   ReportResponse, ReportSummary, ReportFacts, ReportGenre, ReportDecade, ReportDiscovery,
   ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone, ReportEntityRef, ReportPlayRef,
@@ -17,7 +18,7 @@ import {
   REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT,
 } from '@sis/shared';
 import type { Db, SqlChunk, AggregateRow } from './helpers.js';
-import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges, trackArtistsFor, trackArtistsWhere } from './helpers.js';
+import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges, trackArtistsFor, trackArtistsWhere, localPlayedAt } from './helpers.js';
 import { getTopEntities, getPrevPeriodEntities, getGlobalSeries } from './entity.js';
 import { getChartPeaks } from './charts.js';
 import { getTopGenres } from './inline.js';
@@ -42,9 +43,6 @@ interface PrevRank { previousRank: number | null; rankChange: number | null; isN
 // los helpers de rango existentes cierran con `<=`: el instante justo antes del
 // inicio del periodo siguiente equivale al `<` de los límites del periodo
 const inclusiveEnd = (end: string) => new Date(Date.parse(end) - 1).toISOString();
-
-// modificador de strftime con el desfase del cliente ('+120 minutes', '-300 minutes')
-const tzModifier = (minutes: number) => `${minutes < 0 ? '-' : '+'}${Math.abs(minutes)} minutes`;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const pct = (part: number, total: number) => total > 0 ? round1((part / total) * PCT) : 0;
@@ -73,20 +71,19 @@ function toSummary(row: ReturnType<typeof getProfileSummary>, activeDays: number
   };
 }
 
-function activeDayCount(db: Db, userId: number, start: string, end: string): number {
+function activeDayCount(db: Db, userId: number, start: string, end: string, timeZone: string): number {
   const row = db.get(sql`
-    SELECT count(DISTINCT date(lh.played_at)) AS c FROM listening_history lh WHERE ${periodWhere(userId, start, end)}
+    SELECT count(DISTINCT date(${localPlayedAt(timeZone)})) AS c FROM listening_history lh WHERE ${periodWhere(userId, start, end)}
   `) as { c: number } | undefined;
   return row?.c ?? 0;
 }
 
 // --- reloj y días de la semana ---
 
-/** Plays por hora local (24 posiciones). Exportado aparte: es la única sección que
- *  depende de la zona horaria del cliente, así que la cache la recalcula al servir. */
-export function getReportClock(db: Db, userId: number, start: string, end: string, tzOffsetMinutes: number): number[] {
+// plays por hora local (24 posiciones)
+function getClock(db: Db, userId: number, start: string, end: string, timeZone: string): number[] {
   const rows = db.all(sql`
-    SELECT cast(strftime('%H', lh.played_at, ${tzModifier(tzOffsetMinutes)}) AS integer) AS hour, count(*) AS c
+    SELECT cast(strftime('%H', ${localPlayedAt(timeZone)}) AS integer) AS hour, count(*) AS c
     FROM listening_history lh
     WHERE ${periodWhere(userId, start, end)}
     GROUP BY hour
@@ -96,9 +93,9 @@ export function getReportClock(db: Db, userId: number, start: string, end: strin
   return clock;
 }
 
-function getWeekdays(db: Db, userId: number, start: string, end: string): number[] {
+function getWeekdays(db: Db, userId: number, start: string, end: string, timeZone: string): number[] {
   const rows = db.all(sql`
-    SELECT cast(strftime('%w', lh.played_at) AS integer) AS dow, count(*) AS c
+    SELECT cast(strftime('%w', ${localPlayedAt(timeZone)}) AS integer) AS dow, count(*) AS c
     FROM listening_history lh
     WHERE ${periodWhere(userId, start, end)}
     GROUP BY dow
@@ -120,7 +117,7 @@ function edgePlay(db: Db, userId: number, start: string, end: string, edge: 'fir
   `) as { track_id: string; played_at: string } | undefined;
 }
 
-// racha más larga de días consecutivos con plays, sobre la serie diaria (UTC)
+// racha más larga de días consecutivos con plays, sobre la serie diaria (días locales)
 function longestStreak(daily: ListeningTimeItem[]): number {
   let best = 0;
   let run = 0;
@@ -168,12 +165,12 @@ function topWithChanges<T extends object>(rows: AggregateRow[], formatted: T[], 
   });
 }
 
-function getTops(db: Db, userId: number, granularity: Granularity, period: string, weekStart: WeekStartOption, start: string, end: string, prev: { start: string; end: string } | null, sort: Sort) {
+function getTops(db: Db, userId: number, granularity: Granularity, period: string, calendar: PeriodCalendar, start: string, end: string, prev: { start: string; end: string } | null, sort: Sort) {
   const endIncl = inclusiveEnd(end);
   const prevIds = (type: 'artist' | 'album' | 'track') =>
     prev ? getPrevPeriodEntities(db, type, prev.start, prev.end, sort, userId).map(r => r.entity_id) : null;
   const peaks = (type: 'artist' | 'album' | 'track', rows: AggregateRow[]) =>
-    getChartPeaks(db, type, granularity, weekStart, period, sort, userId, rows.map(r => r.entity_id));
+    getChartPeaks(db, type, granularity, calendar, period, sort, userId, rows.map(r => r.entity_id));
 
   const artistRows = getTopEntities(db, 'artist', start, sort, REPORT_TOP_LIMIT, endIncl, userId);
   const albumRows = getTopEntities(db, 'album', start, sort, REPORT_TOP_LIMIT, endIncl, userId);
@@ -425,14 +422,14 @@ function getDiscovery(db: Db, userId: number, start: string, end: string, sort: 
 
 // --- extras del report anual: líder de cada mes ---
 
-function monthlyLeaders(db: Db, userId: number, start: string, end: string, sort: Sort, type: 'artist' | 'track'): Map<string, string> {
+function monthlyLeaders(db: Db, userId: number, start: string, end: string, timeZone: string, sort: Sort, type: 'artist' | 'track'): Map<string, string> {
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const joins = type === 'artist'
     ? sql`JOIN tracks t ON t.spotify_id = lh.track_id JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id AND ta.position = 0 ${entityMergeJoin('artist', userId)}`
     : sql`JOIN tracks t ON t.spotify_id = lh.track_id ${entityMergeJoin('track', userId)}`;
   const rows = db.all(sql`
     WITH m AS (
-      SELECT strftime('%Y-%m', lh.played_at) AS month, ${resolvedEntityId(type)} AS id, ${metric} AS val
+      SELECT strftime('%Y-%m', ${localPlayedAt(timeZone)}) AS month, ${resolvedEntityId(type)} AS id, ${metric} AS val
       FROM listening_history lh ${joins}
       WHERE ${periodWhere(userId, start, end)}
       GROUP BY 1, 2
@@ -444,10 +441,10 @@ function monthlyLeaders(db: Db, userId: number, start: string, end: string, sort
   return new Map(rows.map(r => [r.month, r.id]));
 }
 
-function getMonths(db: Db, userId: number, start: string, end: string, sort: Sort): ReportMonth[] {
-  const series = getGlobalSeries(db, start, 'month', inclusiveEnd(end), userId);
-  const artistByMonth = monthlyLeaders(db, userId, start, end, sort, 'artist');
-  const trackByMonth = monthlyLeaders(db, userId, start, end, sort, 'track');
+function getMonths(db: Db, userId: number, start: string, end: string, timeZone: string, sort: Sort): ReportMonth[] {
+  const series = getGlobalSeries(db, start, 'month', inclusiveEnd(end), userId, timeZone);
+  const artistByMonth = monthlyLeaders(db, userId, start, end, timeZone, sort, 'artist');
+  const trackByMonth = monthlyLeaders(db, userId, start, end, timeZone, sort, 'track');
   const tracks = enrichTracksBatch(db, [...trackByMonth.values()], userId);
   return series.map(s => ({
     month: s.period,
@@ -487,43 +484,45 @@ function firstPlayedAt(db: Db, userId: number): string | null {
   return row?.first ?? null;
 }
 
-/** Report completo de un periodo cerrado. null si la etiqueta no existe en el calendario. */
-export function getReport(db: Db, userId: number, granularity: Granularity, period: string, weekStart: WeekStartOption, sort: Sort, tzOffsetMinutes: number): ReportResponse | null {
-  const bounds = periodBounds(period, granularity, weekStart);
+/** Report completo de un periodo cerrado en el calendario del usuario. null si la
+ *  etiqueta no existe en el calendario. */
+export function getReport(db: Db, userId: number, granularity: Granularity, period: string, calendar: PeriodCalendar, sort: Sort): ReportResponse | null {
+  const { weekStart, timeZone } = calendar;
+  const bounds = periodBounds(period, granularity, weekStart, timeZone);
   if (!bounds) return null;
   const { start, end } = bounds;
 
   // periodo anterior solo si el usuario ya tenía historial entonces; siguiente solo si ya cerró
   const prevLabel = adjacentPeriod(period, granularity, weekStart, -1);
-  const prevBounds = prevLabel ? periodBounds(prevLabel, granularity, weekStart) : null;
+  const prevBounds = prevLabel ? periodBounds(prevLabel, granularity, weekStart, timeZone) : null;
   const first = firstPlayedAt(db, userId);
   const prev = prevBounds && first && prevBounds.end > first ? prevBounds : null;
   const nextLabel = adjacentPeriod(period, granularity, weekStart, 1);
-  const next = nextLabel && isClosedPeriod(nextLabel, granularity, weekStart) ? nextLabel : null;
+  const next = nextLabel && isClosedPeriod(nextLabel, granularity, weekStart, timeZone) ? nextLabel : null;
 
-  const daily = getGlobalSeries(db, start, 'day', inclusiveEnd(end), userId);
+  const daily = getGlobalSeries(db, start, 'day', inclusiveEnd(end), userId, timeZone);
   const summary = toSummary(getProfileSummary(db, userId, start, inclusiveEnd(end)), daily.length, start, end);
   const previous = prev
-    ? toSummary(getProfileSummary(db, userId, prev.start, inclusiveEnd(prev.end)), activeDayCount(db, userId, prev.start, prev.end), prev.start, prev.end)
+    ? toSummary(getProfileSummary(db, userId, prev.start, inclusiveEnd(prev.end)), activeDayCount(db, userId, prev.start, prev.end, timeZone), prev.start, prev.end)
     : null;
 
-  const clock = getReportClock(db, userId, start, end, tzOffsetMinutes);
-  const top = getTops(db, userId, granularity, period, weekStart, start, end, prev, sort);
+  const clock = getClock(db, userId, start, end, timeZone);
+  const top = getTops(db, userId, granularity, period, calendar, start, end, prev, sort);
 
   return {
     period: { granularity, period, start, end, prev: prev ? prevLabel : null, next },
     summary,
     previous,
     facts: buildFacts(db, userId, start, end, daily, clock, summary, top.tracks[0]),
-    series: granularity === 'year' ? getGlobalSeries(db, start, 'month', inclusiveEnd(end), userId) : daily,
+    series: granularity === 'year' ? getGlobalSeries(db, start, 'month', inclusiveEnd(end), userId, timeZone) : daily,
     clock,
-    weekdays: getWeekdays(db, userId, start, end),
+    weekdays: getWeekdays(db, userId, start, end, timeZone),
     top,
     genres: getGenres(db, userId, start, end, prev, summary.plays),
     genreCoveragePct: genreCoverage(db, userId, start, end, summary.plays),
     decades: getDecades(db, userId, start, end, summary.plays),
     discovery: getDiscovery(db, userId, start, end, sort),
-    months: granularity === 'year' ? getMonths(db, userId, start, end, sort) : null,
+    months: granularity === 'year' ? getMonths(db, userId, start, end, timeZone, sort) : null,
     milestones: getMilestones(db, userId, start, end, summary.plays),
   };
 }

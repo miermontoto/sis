@@ -1,7 +1,9 @@
 // helpers de periodo para las páginas de reports, sobre el modelo compartido con el
-// servidor (@sis/shared): la misma regla y el mismo UTC que etiquetan los plays, así
-// que "último cerrado" aquí coincide con lo que el endpoint acepta como cerrado
+// servidor (@sis/shared): la misma regla y la misma zona que etiquetan los plays, así
+// que "último cerrado" aquí coincide con lo que el endpoint acepta como cerrado. los
+// rangos legibles y los buckets son cuentas de calendario y van sin zona
 import type { Granularity, WeekStartOption } from '$lib/api';
+import { getTimeZone } from '$lib/api';
 import { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod } from '@sis/shared';
 import { formatMonthYear, formatShortDateUTC } from './format';
 
@@ -11,9 +13,9 @@ export const GRANULARITIES: Granularity[] = ['week', 'month', 'year'];
 export const GRANULARITY_LABELS: Record<Granularity, string> = { week: 'Weekly', month: 'Monthly', year: 'Yearly' };
 export const GRANULARITY_NOUNS: Record<Granularity, string> = { week: 'Week', month: 'Month', year: 'Year' };
 
-/** Último periodo cerrado: el anterior al que contiene ahora mismo. */
+/** Último periodo cerrado: el anterior al que contiene ahora mismo en la zona del usuario. */
 export function latestClosedPeriod(gran: Granularity, ws: WeekStartOption, now = new Date()): string | null {
-  return adjacentPeriod(periodForDate(now, gran, ws), gran, ws, -1);
+  return adjacentPeriod(periodForDate(now, gran, ws, getTimeZone()), gran, ws, -1);
 }
 
 /** Rango de fechas de un periodo para leer: "Sep 4 – Sep 10", "August 2026", "2025". */
@@ -32,7 +34,7 @@ export function siblingPeriod(period: string, from: Granularity, to: Granularity
   const bounds = periodBounds(period, from, ws);
   if (!bounds) return latestClosedPeriod(to, ws);
   const sibling = periodForDate(new Date(bounds.start), to, ws);
-  return isClosedPeriod(sibling, to, ws) ? sibling : latestClosedPeriod(to, ws);
+  return isClosedPeriod(sibling, to, ws, getTimeZone()) ? sibling : latestClosedPeriod(to, ws);
 }
 
 /** Claves de todos los buckets de un periodo (días 'YYYY-MM-DD' o meses 'YYYY-MM'),

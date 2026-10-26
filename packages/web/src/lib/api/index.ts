@@ -45,6 +45,7 @@ export {
   getRankingMetric, setRankingMetric,
   getRankChangeLookback, setRankChangeLookback,
   getWeekStart, setWeekStart,
+  getTimeZone, setTimeZone, deviceTimeZone,
   getRecordsUnique, setRecordsUnique,
   getRawLocale, setLocale,
   getAlbumTrackDisplay, setAlbumTrackDisplay,

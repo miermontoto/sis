@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType, Sort, StatsRow, AggregateRow, SeriesRow, RecentPlayRow, SqlChunk } from './helpers.js';
-import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, trackJoinResolvingMerges, playDuration, trackArtistPairs } from './helpers.js';
+import { entityGroupCol, entityWhereCol, rangeWhere, orderByCol, getDateTrunc, getDateTruncForDays, resolvedEntityId, userFilter, albumIdIn, tracksWithArtistIn, albumPlaysPredicate, resolvedPlayJoins, albumNullFilter, trackJoinResolvingMerges, playDuration, trackArtistPairs, localPlayedAt } from './helpers.js';
 import type { TimeRange } from '../../constants.js';
 import { resolveEntityIds } from './merge.js';
 import { getCollectionSeries } from './collections.js';
-import { parseCollectionKey, type HistorySource } from '@sis/shared';
+import { parseCollectionKey, UTC_TIME_ZONE, type HistorySource } from '@sis/shared';
 
 /** Stats agregados para cualquier entidad. Para álbumes y artistas, pasar IDs pre-resueltos. */
 export function getEntityStats(db: Db, entityType: EntityType, entityId: string, rangeStart: string | null, rangeEnd: string | null | undefined, entityIds: string[] | undefined, userId: number): StatsRow {
@@ -151,14 +151,15 @@ export function getEntitySeriesBatch(db: Db, entityType: EntityType, ids: string
   }));
 }
 
-/** Serie temporal global */
-export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: string, rangeEnd: string | null | undefined, userId: number): SeriesRow[] {
+/** Serie temporal global, con los buckets en la zona dada (UTC salvo el report) */
+export function getGlobalSeries(db: Db, rangeStart: string | null, granularity: string, rangeEnd: string | null | undefined, userId: number, timeZone = UTC_TIME_ZONE): SeriesRow[] {
   const uf = userFilter(userId);
+  const at = localPlayedAt(timeZone);
   const dateTrunc = granularity === 'month'
-    ? sql`strftime('%Y-%m', lh.played_at)`
+    ? sql`strftime('%Y-%m', ${at})`
     : granularity === 'week'
-    ? sql`strftime('%Y-W%W', lh.played_at)`
-    : sql`date(lh.played_at)`;
+    ? sql`strftime('%Y-W%W', ${at})`
+    : sql`date(${at})`;
 
   const whereClause = rangeStart
     ? (rangeEnd ? sql`WHERE lh.played_at >= ${rangeStart} AND lh.played_at <= ${rangeEnd}` : sql`WHERE lh.played_at >= ${rangeStart}`)

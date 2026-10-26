@@ -4,14 +4,14 @@ import { prevPeriod } from '../../db/queries/index.js';
 import { CHART_SIZE, PEAKS_SLICE_LOOKAHEAD } from '../../constants.js';
 import type { Granularity } from '@sis/shared';
 import { ChartPeaksAccumulator, type ChartRankSlice } from '../../services/chart-peaks.js';
-import { statsRouter, parseWeekStart, parseSort, periodMatchesGranularity, toEntityType, requestRead } from './_shared.js';
+import { statsRouter, parseCalendar, parseSort, periodMatchesGranularity, toEntityType, requestRead } from './_shared.js';
 
 const charts = statsRouter();
 
 charts.get('/charts/periods', async (c) => {
   const userId = c.get('userId');
   const granularity = (c.req.query('granularity') || 'week') as Granularity;
-  return c.json({ periods: await dbRead('getAvailablePeriods', granularity, parseWeekStart(c), userId) });
+  return c.json({ periods: await dbRead('getAvailablePeriods', granularity, parseCalendar(c), userId) });
 });
 
 charts.get('/charts', async (c) => {
@@ -24,7 +24,7 @@ charts.get('/charts', async (c) => {
   if (!period) return c.json({ error: 'period is required' }, 400);
   if (!periodMatchesGranularity(period, granularity)) return c.json({ error: 'period format does not match granularity' }, 400);
 
-  return c.json(await dbRead('getChart', type, granularity, parseWeekStart(c), period, parseSort(c), userId, limit));
+  return c.json(await dbRead('getChart', type, granularity, parseCalendar(c), period, parseSort(c), userId, limit));
 });
 
 charts.get('/charts/peaks', async (c) => {
@@ -38,7 +38,7 @@ charts.get('/charts/peaks', async (c) => {
   if (!ids) return c.json({ error: 'ids is required' }, 400);
 
   const entityIds = ids.split(',').filter(Boolean);
-  return c.json(await dbRead('getChartPeaks', type, granularity, parseWeekStart(c), period, parseSort(c), userId, entityIds));
+  return c.json(await dbRead('getChartPeaks', type, granularity, parseCalendar(c), period, parseSort(c), userId, entityIds));
 });
 
 // mismas stats que /charts/peaks pero en NDJSON, una línea por entidad conforme
@@ -49,7 +49,7 @@ charts.get('/charts/peaks/stream', async (c) => {
   const userId = c.get('userId');
   const type = toEntityType(c.req.query('type') || 'tracks');
   const granularity = (c.req.query('granularity') || 'week') as Granularity;
-  const weekStart = parseWeekStart(c);
+  const calendar = parseCalendar(c);
   const sort = parseSort(c);
   const period = c.req.query('period');
   const ids = c.req.query('ids');
@@ -58,7 +58,7 @@ charts.get('/charts/peaks/stream', async (c) => {
   if (!ids) return c.json({ error: 'ids is required' }, 400);
 
   const entityIds = ids.split(',').filter(Boolean);
-  const { slices, firstPeriods } = await dbRead('chartPeakSlices', type, granularity, weekStart, period, userId, entityIds);
+  const { slices, firstPeriods } = await dbRead('chartPeakSlices', type, granularity, calendar, period, userId, entityIds);
   const acc = new ChartPeaksAccumulator(entityIds, firstPeriods, period, prevPeriod(period, granularity));
 
   c.header('Content-Type', 'application/x-ndjson; charset=utf-8');
@@ -71,7 +71,7 @@ charts.get('/charts/peaks/stream', async (c) => {
     const pending: (Promise<ChartRankSlice> | null)[] = new Array(slices.length).fill(null);
     const fetchSlice = (i: number) => {
       if (i >= slices.length || pending[i]) return;
-      pending[i] = dbRead('getChartRankSlice', type, granularity, weekStart, period, sort, userId, entityIds, slices[i].startAt, slices[i].endAt);
+      pending[i] = dbRead('getChartRankSlice', type, granularity, calendar, period, sort, userId, entityIds, slices[i].startAt, slices[i].endAt);
     };
 
     for (let i = 0; i < slices.length; i++) {
@@ -95,7 +95,7 @@ charts.get('/chart-history/:type/:id', async (c) => {
   const entityType = toEntityType(c.req.param('type'));
   const id = c.req.param('id');
 
-  return c.json(await requestRead(c, 'getEntityChartHistory', entityType, id, parseWeekStart(c), parseSort(c), userId));
+  return c.json(await requestRead(c, 'getEntityChartHistory', entityType, id, parseCalendar(c), parseSort(c), userId));
 });
 
 export default charts;

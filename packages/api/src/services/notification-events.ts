@@ -6,7 +6,7 @@
 // el envío real (sendPush) es credential-gated y fire-and-forget: nunca bloquea
 // ni lanza hacia el polling / recomputo de cache.
 import { eq, sql } from 'drizzle-orm';
-import { adjacentPeriod, periodForDate } from '@sis/shared';
+import { adjacentPeriod, periodForDate, resolveTimeZone } from '@sis/shared';
 import { getDb } from '../db/connection.js';
 import { getChart } from '../db/queries/index.js';
 import { userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter, trackArtistsFor } from '../db/queries/helpers.js';
@@ -15,6 +15,7 @@ import { fetchEntityMetadata } from '../db/queries/charts.js';
 import { userSettings } from '../db/schema.js';
 import { sendPush, hasDeliverableChannel } from './push-dispatch.js';
 import { getReportCached } from './report-cache.js';
+import { TIME_ZONE_SETTING } from './user-calendar.js';
 import {
   RECORDS_LIMIT,
   RECORD_NOTIFY_CATEGORIES,
@@ -43,6 +44,7 @@ import type {
   RecordEntry,
   WeekStartOption,
   RankingMetric,
+  PeriodCalendar,
 } from '@sis/shared';
 import { createLogger } from './logger.js';
 
@@ -61,8 +63,6 @@ const EMPTY_ENTITY = '';
 const DEFAULT_WEEK_START: WeekStartOption = 'friday';
 // deep link de la push: el report del periodo cerrado (/reports/<granularidad>/<periodo>)
 const REPORTS_ROUTE = '/reports/';
-// el report de la push se lee en el reloj horneado (UTC): la push no pinta el reloj por horas
-const REPORT_TZ_OFFSET = 0;
 // ventana de throttle: 24h para datetime('now', ...)
 const THROTTLE_WINDOW = '-1 day';
 
@@ -228,8 +228,8 @@ export function emitRecordEvents(userId: number, spotifyId: string, prev: Record
 
 // número 1 nuevo del chart semanal de tracks recién cerrado: la entrada rank 1 que no
 // era #1 la semana anterior
-function emitNumberOne(userId: number, locale: NotifyLocale, weekStart: WeekStartOption, sort: RankingMetric, closedLabel: string): void {
-  const entries = getChart(getDb(), CHART_ENTITY_TYPE, GRANULARITY_WEEK, weekStart, closedLabel, sort, userId).entries;
+function emitNumberOne(userId: number, locale: NotifyLocale, calendar: PeriodCalendar, sort: RankingMetric, closedLabel: string): void {
+  const entries = getChart(getDb(), CHART_ENTITY_TYPE, GRANULARITY_WEEK, calendar, closedLabel, sort, userId).entries;
   const top1 = entries.find(e => e.rank === 1);
   if (!top1 || top1.previousRank === 1) return;
 
@@ -253,10 +253,10 @@ function emitNumberOne(userId: number, locale: NotifyLocale, weekStart: WeekStar
 // report que abre su deep link, así que al pulsarla ya está listo; un periodo sin plays
 // no avisa de nada. en secuencia, como el tick horario: el 1 de enero cierran semana,
 // mes y año a la vez y en paralelo ocuparían el pool de lectura entero
-async function emitReportsReady(userId: number, locale: NotifyLocale, closings: { granularity: Granularity; closed: string }[], weekStart: WeekStartOption, sort: RankingMetric): Promise<void> {
+async function emitReportsReady(userId: number, locale: NotifyLocale, closings: { granularity: Granularity; closed: string }[], calendar: PeriodCalendar, sort: RankingMetric): Promise<void> {
   for (const { granularity, closed } of closings) {
     try {
-      const report = await getReportCached(userId, granularity, closed, weekStart, sort, REPORT_TZ_OFFSET);
+      const report = await getReportCached(userId, granularity, closed, calendar, sort);
       if (!report || report.summary.plays === 0) continue;
 
       // dedup period = '<granularidad>:<periodo>' ('month:2026-09')
@@ -291,16 +291,17 @@ export function checkPeriodClosings(userId: number, spotifyId: string): void {
   if (!hasDeliverableChannel(userId)) return;
 
   const weekStart = (settings.get(PREF_WEEK_START) as WeekStartOption) || DEFAULT_WEEK_START;
+  const calendar: PeriodCalendar = { weekStart, timeZone: resolveTimeZone(settings.get(TIME_ZONE_SETTING)) };
   const sort: RankingMetric = settings.get(PREF_RANKING_METRIC) === 'plays' ? 'plays' : 'time';
   const locale = resolveLocale(settings.get(PREF_LOCALE));
   const reportsEnabled = boolPref(settings, PREF_REPORTS, true);
   // el periodo vigente se mira PERIOD_CLOSE_GRACE_MS atrás: un periodo no se da por
-  // cerrado hasta que han aterrizado sus últimos plays. misma regla UTC que el report
+  // cerrado hasta que han aterrizado sus últimos plays. mismo calendario que el report
   const asOf = new Date(Date.now() - PERIOD_CLOSE_GRACE_MS);
   const closings: { granularity: Granularity; closed: string }[] = [];
 
   for (const granularity of REPORT_GRANULARITIES) {
-    const current = periodForDate(asOf, granularity, weekStart);
+    const current = periodForDate(asOf, granularity, weekStart, calendar.timeZone);
     const stored = db.all(sql`
       SELECT last_period as p FROM notification_period_state
       WHERE user_id = ${userId} AND granularity = ${granularity}
@@ -331,11 +332,11 @@ export function checkPeriodClosings(userId: number, spotifyId: string): void {
     if (reportsEnabled) closings.push({ granularity, closed });
     // el report semanal ya nombra su tema número 1: el aviso suelto sólo va sin él
     if (granularity === GRANULARITY_WEEK && !reportsEnabled && boolPref(settings, PREF_NUMBER_ONE, true)) {
-      emitNumberOne(userId, locale, weekStart, sort, closed);
+      emitNumberOne(userId, locale, calendar, sort, closed);
     }
   }
 
-  if (closings.length > 0) void emitReportsReady(userId, locale, closings, weekStart, sort);
+  if (closings.length > 0) void emitReportsReady(userId, locale, closings, calendar, sort);
 }
 
 // --- C) eventos diarios time-driven -> release_anniversary / first_listen_anniversary / milestone ---

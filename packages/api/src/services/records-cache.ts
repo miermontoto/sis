@@ -9,7 +9,9 @@ import { emitRecordEvents } from './notification-events.js';
 import { hasDeliverableChannel } from './push-dispatch.js';
 import { RECORDS_LIMIT } from '../constants.js';
 
-import type { RankingMetric, WeekStartOption, EntityType } from '@sis/shared';
+import type { RankingMetric, WeekStartOption, EntityType, PeriodCalendar } from '@sis/shared';
+import { resolveTimeZone } from '@sis/shared';
+import { TIME_ZONE_SETTING } from './user-calendar.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('records-cache');
@@ -17,7 +19,7 @@ type WeekStart = WeekStartOption;
 type Sort = RankingMetric;
 type EntityTypeFilter = EntityType;
 
-// cache: "userId:weekStart:sort" → resultado completo (all types, limit 50)
+// cache: "userId:weekStart:sort:unique:timeZone" → resultado completo (all types, limit 50)
 const cache = new Map<string, RecordsResponse>();
 // marca de agua: MAX(played_at) en el momento de la última computación por usuario
 const lastDataTs = new Map<number, string>();
@@ -29,8 +31,9 @@ const notifyBaseline = new Map<number, RecordsResponse>();
 // sepa que su resultado ya nació viejo (ver bakeForUser)
 const generation = new Map<number, number>();
 
-function cacheKey(userId: number, ws: WeekStart, sort: Sort, unique: boolean) {
-  return `${userId}:${ws}:${sort}:${unique ? 'u' : 'a'}`;
+// la zona va al final: getEntityAccolades lee el metric de la tercera posición
+function cacheKey(userId: number, calendar: PeriodCalendar, sort: Sort, unique: boolean) {
+  return `${userId}:${calendar.weekStart}:${sort}:${unique ? 'u' : 'a'}:${calendar.timeZone}`;
 }
 
 function getLatestPlayedAt(db: ReturnType<typeof getDb>, userId: number): string | null {
@@ -49,7 +52,7 @@ function updateDataTimestamp(db: ReturnType<typeof getDb>, userId: number) {
   if (latest) lastDataTs.set(userId, latest);
 }
 
-export function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; sort: Sort; unique: boolean } {
+export function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: string): { weekStart: WeekStart; timeZone: string; sort: Sort; unique: boolean } {
   const rows = db.select().from(userSettings)
     .where(eq(userSettings.userId, spotifyId))
     .all();
@@ -57,6 +60,7 @@ export function getUserSettingsForUser(db: ReturnType<typeof getDb>, spotifyId: 
   const map = new Map(rows.map(r => [r.key, r.value]));
   return {
     weekStart: (map.get('weekStart') as WeekStart) || 'friday',
+    timeZone: resolveTimeZone(map.get(TIME_ZONE_SETTING)),
     sort: ((map.get('rankingMetric') === 'plays' ? 'plays' : 'time') as Sort),
     // recordsUnique: por defecto true (un registro por entidad)
     unique: map.get('recordsUnique') !== 'false',
@@ -128,8 +132,9 @@ async function bakeForUser(userId: number, spotifyId: string) {
   // Por eso se compara la generación al entrar y al escribir, y se repite si cambió.
   for (;;) {
     const gen = generation.get(userId) ?? 0;
-    const { weekStart, sort, unique } = getUserSettingsForUser(db, spotifyId);
-    const k = cacheKey(userId, weekStart, sort, unique);
+    const { weekStart, timeZone, sort, unique } = getUserSettingsForUser(db, spotifyId);
+    const calendar = { weekStart, timeZone };
+    const k = cacheKey(userId, calendar, sort, unique);
 
     if (cache.has(k) && !hasNewData(db, userId)) {
       log.info(`skip user ${userId} — no new data`);
@@ -139,8 +144,8 @@ async function bakeForUser(userId: number, spotifyId: string) {
     log.info(`computing records for user ${userId} (${k}) [worker]...`);
     const start = performance.now();
     const readRecords = (type: EntityTypeFilter) => urgentBakes.has(userId)
-      ? dbRead('getRecords', weekStart, sort, 50, type, userId, unique)
-      : dbReadBackground(bakeTag(userId), 'getRecords', weekStart, sort, 50, type, userId, unique);
+      ? dbRead('getRecords', calendar, sort, 50, type, userId, unique)
+      : dbReadBackground(bakeTag(userId), 'getRecords', calendar, sort, 50, type, userId, unique);
     const [trackResult, albumResult, artistResult] = await Promise.all([
       readRecords('track'),
       readRecords('album'),
@@ -170,8 +175,8 @@ async function bakeForUser(userId: number, spotifyId: string) {
 }
 
 /** Devuelve records cacheados para un usuario, o null si no hay cache */
-export function getCachedRecords(userId: number, weekStart: WeekStart, sort: Sort, limit: number, type?: EntityTypeFilter, unique = true): Partial<RecordsResponse> | null {
-  const cached = cache.get(cacheKey(userId, weekStart, sort, unique));
+export function getCachedRecords(userId: number, calendar: PeriodCalendar, sort: Sort, limit: number, type?: EntityTypeFilter, unique = true): Partial<RecordsResponse> | null {
+  const cached = cache.get(cacheKey(userId, calendar, sort, unique));
   if (!cached) return null;
 
   const sliceBase = (e: EntityRecords) => ({

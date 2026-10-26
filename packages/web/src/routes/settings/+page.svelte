@@ -7,7 +7,7 @@
   import IconMier from '$lib/icons/IconMier.svelte';
   import type { LastfmStatus, MieridStatus, ListenTokenStatus } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
-  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getShowAccolades, setShowAccolades, getShowGlobalRanks, setShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getAutoMergeSingles, setAutoMergeSingles, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
+  import { api, invalidateCache, getRankingMetric, setRankingMetric, getRankChangeLookback, setRankChangeLookback, getWeekStart, setWeekStart, getTimeZone, setTimeZone, deviceTimeZone, getRecordsUnique, setRecordsUnique, getRawLocale, setLocale, getLocale, getAlbumTrackDisplay, setAlbumTrackDisplay, getAlbumShowDuration, setAlbumShowDuration, getShowAccolades, setShowAccolades, getShowGlobalRanks, setShowGlobalRanks, getShowPlaylistBadges, setShowPlaylistBadges, getArtistBackdrop, setArtistBackdrop, getSessionRankDisplay, setSessionRankDisplay, getSessionRankLimitYear, setSessionRankLimitYear, getSessionRankLimitAll, setSessionRankLimitAll, getSessionTrackingDisplay, setSessionTrackingDisplay, getNowPlayingDisplay, setNowPlayingDisplay, getNowPlayingUpNext, setNowPlayingUpNext, getSocialVisibility, setSocialVisibility, getAutoMergeSingles, setAutoMergeSingles, getNotificationsEnabled, setNotificationsEnabled, getNotifyRecords, setNotifyRecords, getNotifyNumberOne, setNotifyNumberOne, getNotifyChartClosings, setNotifyChartClosings, getNotifyAnniversaries, setNotifyAnniversaries, getNotifyMilestones, setNotifyMilestones, LOCALE_OPTIONS, type HealthData, type ImportResult, type RankingMetric, type RankChangeLookback, type AlbumTrackDisplay, type SessionTrackingDisplay, type SessionRankDisplay, type NowPlayingDisplay, type SocialVisibility, type ArtistBackdrop, type WeekStartOption, type LocaleSetting, type MeResponse } from '$lib/api';
   import { formatNumber, formatDate, formatHistoryStamp, formatShortDate } from '$lib/utils/format';
   import IconClock from '$lib/icons/IconClock.svelte';
   import IconPlayOutline from '$lib/icons/IconPlayOutline.svelte';
@@ -191,6 +191,11 @@
   let rankingMetric = $state<RankingMetric>('time');
   let lookbackPref = $state<RankChangeLookback>('disabled');
   let weekStartPref = $state<WeekStartOption>('monday');
+  let timeZonePref = $state('UTC');
+  // zonas IANA del motor, con la guardada y la del dispositivo aunque no salgan en la
+  // lista (algunos motores no incluyen 'UTC')
+  const deviceZone = deviceTimeZone();
+  let timeZoneOptions = $derived([...new Set([timeZonePref, deviceZone, ...Intl.supportedValuesOf('timeZone')])].sort());
   let recordsUniquePref = $state(true);
   let localePref = $state<LocaleSetting>('auto');
   let albumTrackDisplayPref = $state<AlbumTrackDisplay>('fill');
@@ -433,6 +438,7 @@
     rankingMetric = getRankingMetric();
     lookbackPref = getRankChangeLookback();
     weekStartPref = getWeekStart();
+    timeZonePref = getTimeZone();
     recordsUniquePref = getRecordsUnique();
     localePref = getRawLocale();
     albumTrackDisplayPref = getAlbumTrackDisplay();
@@ -545,6 +551,23 @@
               <button class="segmented-btn" class:segmented-active={weekStartPref === 'friday'} onclick={() => { weekStartPref = 'friday'; setWeekStart('friday'); }}>Fri</button>
               <button class="segmented-btn" class:segmented-active={weekStartPref === 'sunday'} onclick={() => { weekStartPref = 'sunday'; setWeekStart('sunday'); }}>Sun</button>
             </div>
+          </div>
+        </div>
+        <div class="pref-row row-border">
+          <div class="pref-info">
+            <div class="pref-label">Time zone</div>
+            <div class="pref-desc">Where days, weeks, months and years start for charts, reports and records</div>
+          </div>
+          <div class="pref-control">
+            <select
+              class="locale-select"
+              value={timeZonePref}
+              onchange={(e) => { const v = (e.target as HTMLSelectElement).value; timeZonePref = v; setTimeZone(v); }}
+            >
+              {#each timeZoneOptions as zone (zone)}
+                <option value={zone}>{zone === deviceZone ? `${zone} (this device)` : zone}</option>
+              {/each}
+            </select>
           </div>
         </div>
         <div class="pref-row row-border">

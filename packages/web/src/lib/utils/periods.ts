@@ -1,5 +1,5 @@
 import type { Granularity, WeekStartOption } from '$lib/api';
-import { getWeekStart, setLastPeriod } from '$lib/api';
+import { getWeekStart, getTimeZone, setLastPeriod } from '$lib/api';
 import { periodForDate, periodBounds, adjacentPeriod } from '@sis/shared';
 import { formatMonthYear } from './format';
 
@@ -31,13 +31,9 @@ export function weekDateRange(period: string, ws: WeekStartOption): { start: Dat
   return bounds ? { start: new Date(bounds.start), end: new Date(Date.parse(bounds.end) - DAY_MS) } : null;
 }
 
-/** Periodo actual: el que el servidor asignaría a un play de hoy */
+/** Periodo actual: el que el servidor asignaría a un play de ahora, en la zona del usuario */
 export function computeCurrentPeriod(gran: Granularity, ws: WeekStartOption): string {
-  const now = new Date();
-  if (gran === 'year') return String(now.getFullYear());
-  if (gran === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  // el día natural local, llevado a UTC para que weekKey() no vuelva a aplicar la zona
-  return weekKey(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())), ws);
+  return periodForDate(new Date(), gran, ws, getTimeZone());
 }
 
 /** Periodo anterior */
@@ -84,13 +80,13 @@ function granLabel(gran: Granularity): string {
 }
 
 /**
- * Periodo cerrado más reciente: el inmediatamente anterior al actual, en UTC como
- * el servidor (no con el día local de `computeCurrentPeriod`). El aviso enlaza al
- * report, que sólo existe para periodos cerrados en UTC: con el día local, al este
- * de Greenwich el aviso aparecía horas antes de que su report se pudiera abrir.
+ * Periodo cerrado más reciente: el inmediatamente anterior al actual, en la zona del
+ * usuario como el servidor. El aviso enlaza al report, que sólo existe para periodos
+ * cerrados: con otra regla que la del servidor, el aviso aparecía horas antes de que
+ * su report se pudiera abrir.
  */
 function justClosedPeriod(gran: Granularity, ws: WeekStartOption): string | null {
-  return adjacentPeriod(periodForDate(new Date(), gran, ws), gran, ws, -1);
+  return adjacentPeriod(periodForDate(new Date(), gran, ws, getTimeZone()), gran, ws, -1);
 }
 
 /**

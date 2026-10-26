@@ -13,7 +13,7 @@ import type { AppVariables } from '../app.js';
 const log = createLogger('settings');
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'showAccolades', 'showGlobalRanks', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'timeZone', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'showAccolades', 'showGlobalRanks', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
 // toggle unificado -> claves legacy de las que hereda su valor en la primera lectura
 const LEGACY_TOGGLE_SOURCES: [string, string[]][] = [
   ['showAccolades', ['albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades']],
@@ -23,6 +23,9 @@ const DEFAULTS: Record<string, string> = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
   weekStart: 'friday',
+  // zona IANA del calendario de los periodos; '' = sin fijar (UTC hasta que el cliente
+  // la rellena con la del dispositivo, ver services/user-calendar.ts)
+  timeZone: '',
   // records: un registro por entidad (true) vs permitir duplicados en peak week / longest run
   recordsUnique: 'true',
   locale: 'auto',
@@ -113,7 +116,7 @@ settings.put('/', async (c) => {
   // recomputar records cache si cambiaron settings relevantes. son ajustes de ESTE
   // usuario: antes se vaciaba la cache de todos y se recomputaban todos en el propio
   // handler, sobre el main thread (~28s congelado por usuario activo)
-  if (body.weekStart !== undefined || body.rankingMetric !== undefined || body.recordsUnique !== undefined) {
+  if (body.weekStart !== undefined || body.timeZone !== undefined || body.rankingMetric !== undefined || body.recordsUnique !== undefined) {
     const userId = c.get('userId');
     invalidateRecordsCacheForUser(userId);
     computeAndCacheForUserAsync(userId, spotifyId)

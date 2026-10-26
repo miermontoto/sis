@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm';
-import type { Db } from './helpers.js';
-import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, ChartPeakStats, RankingMetric, WeekStartOption, Granularity, EntityType } from '@sis/shared';
+import type { Db, SqlChunk } from './helpers.js';
+import type { ChartEntry, DropoutEntry, ChartResponse, ChartHistoryResponse, ChartPeakStats, RankingMetric, PeriodCalendar, Granularity, EntityType } from '@sis/shared';
+import { periodBounds } from '@sis/shared';
 import { resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, albumNullFilter, playDuration, periodExpr, albumArtistId, albumArtistName, trackArtistsFor, artistPerTrackScores } from './helpers.js';
 import { CHART_SIZE } from '../../constants.js';
 import { ChartPeaksAccumulator, peakSlices, periodYear, type ChartRankSlice, type PeakSlice, type RankSliceRow } from '../../services/chart-peaks.js';
 
 type Sort = RankingMetric;
-type WeekStart = WeekStartOption;
 
 // periodo anterior (para rank changes)
 export function prevPeriod(period: string, granularity: Granularity): string | null {
@@ -27,9 +27,18 @@ export function prevPeriod(period: string, granularity: Granularity): string | n
   return `${ys}-W${String(wn - 1).padStart(2, '0')}`;
 }
 
+// plays de un periodo por sus límites en el calendario: un rango por el índice
+// (user_id, played_at) en vez de etiquetar el historial entero para quedarse con uno
+// (periodBounds y periodExpr están testeados contra el mismo strftime). una etiqueta
+// que no existe (la W52 que prevPeriod supone tras una W00) no casa con ningún play
+function periodRange(granularity: Granularity, calendar: PeriodCalendar, period: string): SqlChunk {
+  const bounds = periodBounds(period, granularity, calendar.weekStart, calendar.timeZone);
+  return bounds ? sql`lh.played_at >= ${bounds.start} AND lh.played_at < ${bounds.end}` : sql`0`;
+}
+
 // obtener ranking para un periodo específico (raw, sin metadata)
-export function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, limit: number, userId: number) {
-  const pExpr = periodExpr(granularity, weekStart);
+export function getRawRanking(db: Db, entityType: EntityType, granularity: Granularity, calendar: PeriodCalendar, period: string, sort: Sort, limit: number, userId: number) {
+  const inPeriod = periodRange(granularity, calendar, period);
   const uf = userFilter(userId);
 
   // artistas: dedupe por play dentro de una CTE antes de agregar (evita doble count con merges)
@@ -39,12 +48,12 @@ export function getRawRanking(db: Db, entityType: EntityType, granularity: Granu
     return db.all(sql`
       SELECT entity_id, count(*) as plays, sum(duration_ms) as total_ms
       FROM (
-        SELECT DISTINCT ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms, ${pExpr} as p
+        SELECT DISTINCT ${resolvedEntityId('artist')} as entity_id, lh.id as play_id, ${playDuration()} as duration_ms
         FROM listening_history lh
         JOIN tracks t ON t.spotify_id = lh.track_id
         JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
         ${mrJoin}
-        WHERE lh.user_id = ${userId} AND ${pExpr} = ${period}
+        WHERE lh.user_id = ${userId} AND ${inPeriod}
       )
       GROUP BY entity_id
       ORDER BY ${metric} DESC
@@ -59,7 +68,7 @@ export function getRawRanking(db: Db, entityType: EntityType, granularity: Granu
     SELECT ${groupCol} as entity_id, count(*) as plays, sum(${playDuration()}) as total_ms
     FROM listening_history lh
     ${resolvedPlayJoins(entityType, userId)}
-    WHERE ${pExpr} = ${period} ${uf}
+    WHERE ${inPeriod} ${uf}
     ${albumNullFilter(entityType)}
     GROUP BY entity_id
     ORDER BY ${metric} DESC
@@ -69,10 +78,10 @@ export function getRawRanking(db: Db, entityType: EntityType, granularity: Granu
 
 // primer periodo con datos de cada entidad (hasta currentPeriod). Marca hasta
 // dónde hay que escanear hacia atrás para cerrar sus stats de chart.
-export function getChartFirstPeriods(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, currentPeriod: string, userId: number, entityIds: string[]): Record<string, string> {
+export function getChartFirstPeriods(db: Db, entityType: EntityType, granularity: Granularity, calendar: PeriodCalendar, currentPeriod: string, userId: number, entityIds: string[]): Record<string, string> {
   if (entityIds.length === 0) return {};
 
-  const pExpr = periodExpr(granularity, weekStart);
+  const pExpr = periodExpr(granularity, calendar);
   const idsIn = sql.join(entityIds.map(id => sql`${id}`), sql`, `);
 
   const rows = entityType === 'artist'
@@ -110,8 +119,8 @@ export function getChartFirstPeriods(db: Db, entityType: EntityType, granularity
 // siempre entre periodos, así que ninguna partición se calcula a medias.
 // Devuelve sólo las filas de las entidades pedidas, más las labels de periodo
 // con datos del tramo (necesarias para la racha consecutiva).
-export function getChartRankSlice(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, currentPeriod: string, sort: Sort, userId: number, entityIds: string[], startAt: string, endAt: string): ChartRankSlice {
-  const pExpr = periodExpr(granularity, weekStart);
+export function getChartRankSlice(db: Db, entityType: EntityType, granularity: Granularity, calendar: PeriodCalendar, currentPeriod: string, sort: Sort, userId: number, entityIds: string[], startAt: string, endAt: string): ChartRankSlice {
+  const pExpr = periodExpr(granularity, calendar);
   const window = sql`AND lh.played_at >= ${startAt} AND lh.played_at < ${endAt}`;
 
   let ranked: { period: string; entity_id: string; rank: number }[];
@@ -164,12 +173,12 @@ export function getChartRankSlice(db: Db, entityType: EntityType, granularity: G
 
 // trozos a escanear para cerrar las stats de un set de entidades, del más
 // reciente al más antiguo. Compartido por el endpoint batch y el de streaming.
-export function chartPeakSlices(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, currentPeriod: string, userId: number, entityIds: string[]): { slices: PeakSlice[]; firstPeriods: Record<string, string> } {
-  const firstPeriods = getChartFirstPeriods(db, entityType, granularity, weekStart, currentPeriod, userId, entityIds);
+export function chartPeakSlices(db: Db, entityType: EntityType, granularity: Granularity, calendar: PeriodCalendar, currentPeriod: string, userId: number, entityIds: string[]): { slices: PeakSlice[]; firstPeriods: Record<string, string> } {
+  const firstPeriods = getChartFirstPeriods(db, entityType, granularity, calendar, currentPeriod, userId, entityIds);
   const years = Object.values(firstPeriods).map(periodYear);
   const newestYear = periodYear(currentPeriod);
   const oldestYear = years.length > 0 ? Math.min(...years, newestYear) : newestYear;
-  return { slices: peakSlices(oldestYear, newestYear, granularity, weekStart), firstPeriods };
+  return { slices: peakSlices(oldestYear, newestYear, granularity, calendar), firstPeriods };
 }
 
 // batch fetch de metadata para un conjunto de entidades (reemplaza N+1 queries individuales)
@@ -221,18 +230,18 @@ export function fetchEntityMetadata(db: Db, entityType: EntityType, ids: string[
 }
 
 // obtener chart completo con metadata y rank changes (sin historial — se carga async)
-export function getChart(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, userId: number, limit = CHART_SIZE, signal?: AbortSignal): ChartResponse {
+export function getChart(db: Db, entityType: EntityType, granularity: Granularity, calendar: PeriodCalendar, period: string, sort: Sort, userId: number, limit = CHART_SIZE, signal?: AbortSignal): ChartResponse {
   const aborted = () => signal?.aborted;
   const empty: ChartResponse = { period, entries: [], dropouts: [] };
 
-  const current = getRawRanking(db, entityType, granularity, weekStart, period, sort, limit, userId);
+  const current = getRawRanking(db, entityType, granularity, calendar, period, sort, limit, userId);
   if (aborted()) return empty;
 
   // ranking del periodo anterior para rank changes
   const prev = prevPeriod(period, granularity);
   const prevMap = new Map<string, number>();
   if (prev) {
-    const prevRows = getRawRanking(db, entityType, granularity, weekStart, prev, sort, CHART_SIZE, userId);
+    const prevRows = getRawRanking(db, entityType, granularity, calendar, prev, sort, CHART_SIZE, userId);
     prevRows.forEach((r, i) => prevMap.set(r.entity_id, i + 1));
   }
   if (aborted()) return empty;
@@ -290,42 +299,33 @@ export function getChart(db: Db, entityType: EntityType, granularity: Granularit
  *  entityIds del frontend para no repetir getRawRanking. Escanea por trozos de
  *  un año, del más reciente al más antiguo, cerrando entidades por el camino;
  *  el endpoint de streaming hace lo mismo pero emitiéndolas conforme se cierran. */
-export function getChartPeaks(db: Db, entityType: EntityType, granularity: Granularity, weekStart: WeekStart, period: string, sort: Sort, userId: number, entityIds: string[]): Record<string, ChartPeakStats> {
+export function getChartPeaks(db: Db, entityType: EntityType, granularity: Granularity, calendar: PeriodCalendar, period: string, sort: Sort, userId: number, entityIds: string[]): Record<string, ChartPeakStats> {
   const result: Record<string, ChartPeakStats> = {};
   if (entityIds.length === 0) return result;
 
-  const { slices, firstPeriods } = chartPeakSlices(db, entityType, granularity, weekStart, period, userId, entityIds);
+  const { slices, firstPeriods } = chartPeakSlices(db, entityType, granularity, calendar, period, userId, entityIds);
   const acc = new ChartPeaksAccumulator(entityIds, firstPeriods, period, prevPeriod(period, granularity));
 
   slices.forEach((slice, i) => {
     if (acc.done) return;
-    acc.addSlice(getChartRankSlice(db, entityType, granularity, weekStart, period, sort, userId, entityIds, slice.startAt, slice.endAt));
+    acc.addSlice(getChartRankSlice(db, entityType, granularity, calendar, period, sort, userId, entityIds, slice.startAt, slice.endAt));
     for (const { entityId, ...stats } of acc.drain(slice.year, i === slices.length - 1)) result[entityId] = stats;
   });
 
   return result;
 }
 
-// listar periodos disponibles (que tienen datos)
-export function getAvailablePeriods(db: Db, granularity: Granularity, weekStart: WeekStart, userId: number): string[] {
-  const pExpr = periodExpr(granularity, weekStart);
-  const uf = userFilter(userId);
-
-  const rows = db.all(sql`
-    SELECT DISTINCT ${pExpr} as period
-    FROM listening_history lh
-    WHERE 1=1 ${uf}
-    ORDER BY period DESC
-  `) as { period: string }[];
-
-  return rows.map(r => r.period);
+// listar periodos disponibles (que tienen datos), del más reciente al más antiguo
+export function getAvailablePeriods(db: Db, granularity: Granularity, calendar: PeriodCalendar, userId: number): string[] {
+  return [...userPlayPeriods(db, userId, granularity, calendar)].reverse();
 }
 
 // --- historial de chart para una entidad individual ---
 
-// semanas con algún play del usuario, por weekStart: la lista con la que se rellenan los
-// huecos del historial de chart. Es igual para toda entidad y sólo depende de los
-// played_at del usuario, así que se memoiza (por worker: cada uno tiene su conexión) con
+// periodos con algún play del usuario, por granularidad y calendario: la lista de
+// /charts/periods y, en semanas, la que rellena los huecos del historial de chart. Es
+// igual para toda entidad y sólo depende de los played_at del usuario, así que se
+// memoiza (por worker: cada uno tiene su conexión) con
 // una huella barata —count/sum(id)/min/max por idx (user_id, played_at)— que detecta
 // cualquier alta o baja. Si lo único nuevo son plays posteriores al último visto (el
 // play que acaba de sonar), sólo se calculan las semanas de ese tramo. Recalcularla era
@@ -333,9 +333,9 @@ export function getAvailablePeriods(db: Db, granularity: Granularity, weekStart:
 interface PlayPeriodsMemo { n: number; ids: number; min: string | null; max: string | null; periods: string[] }
 const playPeriodsMemo = new Map<string, PlayPeriodsMemo>();
 
-function userPlayPeriods(db: Db, userId: number, weekStart: WeekStart): string[] {
-  const key = `${userId}:${weekStart}`;
-  const pExpr = periodExpr('week', weekStart);
+function userPlayPeriods(db: Db, userId: number, granularity: Granularity, calendar: PeriodCalendar): string[] {
+  const key = `${userId}:${granularity}:${calendar.weekStart}:${calendar.timeZone}`;
+  const pExpr = periodExpr(granularity, calendar);
   const fp = db.get(sql`
     SELECT count(*) as n, coalesce(sum(lh.id), 0) as ids, min(lh.played_at) as min, max(lh.played_at) as max
     FROM listening_history lh WHERE lh.user_id = ${userId}
@@ -367,8 +367,8 @@ function userPlayPeriods(db: Db, userId: number, weekStart: WeekStart): string[]
   return periods;
 }
 
-export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, weekStart: WeekStart, sort: Sort, userId: number): ChartHistoryResponse {
-  const pExpr = periodExpr('week', weekStart);
+export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: string, calendar: PeriodCalendar, sort: Sort, userId: number): ChartHistoryResponse {
+  const pExpr = periodExpr('week', calendar);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
   const albumFilter = entityType === 'album' ? sql`AND t.album_id IS NOT NULL` : sql``;
@@ -480,7 +480,7 @@ export function getEntityChartHistory(db: Db, entityType: EntityType, entityId: 
   const firstOnChart = rows[0].period;
   const lastPeriod = latestPeriod?.period ?? lastRow.period;
 
-  const allPeriods = userPlayPeriods(db, userId, weekStart)
+  const allPeriods = userPlayPeriods(db, userId, 'week', calendar)
     .filter(period => period >= firstPeriod)
     .map(period => ({ period }));
 

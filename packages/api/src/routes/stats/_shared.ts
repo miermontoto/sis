@@ -3,7 +3,10 @@ import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppVariables } from '../../app.js';
 import { dbReadCancellable, RequestAbortedError, type QueryName, type QueryArgs, type QueryResult } from '../../db/read-pool.js';
-import type { WeekStartOption, EntityType, RankingMetric } from '@sis/shared';
+import type { WeekStartOption, EntityType, RankingMetric, PeriodCalendar } from '@sis/shared';
+import { resolveTimeZone } from '@sis/shared';
+import { getDb } from '../../db/connection.js';
+import { storedTimeZone } from '../../services/user-calendar.js';
 import type { TimeRange } from '../../constants.js';
 import { DEFAULT_PAGE_LIMIT, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import { getRangeStart, getPreviousPeriodRange } from '../../db/queries/index.js';
@@ -40,6 +43,13 @@ export function toEntityType(plural: string): EntityType {
 export function parseWeekStart(c: any): WeekStart {
   const ws = c.req.query('weekStart');
   return ws === 'sunday' ? 'sunday' : ws === 'friday' ? 'friday' : 'monday';
+}
+
+/** Calendario de los periodos del request: corte de semana + zona IANA (`?timeZone=`).
+ *  Sin zona en la query (apks publicados) vale la guardada del usuario. */
+export function parseCalendar(c: any): PeriodCalendar {
+  const timeZone = c.req.query('timeZone');
+  return { weekStart: parseWeekStart(c), timeZone: timeZone ? resolveTimeZone(timeZone) : storedTimeZone(getDb(), c.get('userId')) };
 }
 
 export function parseSort(c: any): RankingMetric {

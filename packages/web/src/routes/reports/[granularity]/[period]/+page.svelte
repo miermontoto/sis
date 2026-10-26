@@ -2,7 +2,7 @@
   import { untrack, onDestroy } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { api, createFetchController, getWeekStart, getRankingMetric, getArtistBackdrop, type ReportResponse, type ReportFacts, type Granularity, type WeekStartOption, type RankingMetric, type ArtistBackdrop, type ListeningTimeItem } from '$lib/api';
+  import { api, createFetchController, getWeekStart, getTimeZone, getRankingMetric, getArtistBackdrop, type ReportResponse, type ReportFacts, type Granularity, type WeekStartOption, type RankingMetric, type ArtistBackdrop, type ListeningTimeItem } from '$lib/api';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import { closedChartsStore } from '$lib/stores/closed-charts.svelte';
   import { creditsModal } from '$lib/stores/credits-modal.svelte';
@@ -28,12 +28,9 @@
   import ReportTopCard from '$lib/components/reports/ReportTopCard.svelte';
   import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
 
-  // desfase local en minutos: solo mueve el reloj por horas; el resto del report va
-  // en UTC, como los límites del periodo y los charts
   // la cifra de tiempo se pulsa y cambia de unidad (misma tarjeta que en insights)
   const listening = createDurationUnit('hours');
 
-  const TZ_OFFSET_MINUTES = -new Date().getTimezoneOffset();
   const HOURS_PER_DAY = 24;
   const DAYS_PER_WEEK = 7;
   const CLOCK_LABEL_EVERY = 6;
@@ -59,9 +56,9 @@
     error = null;
     report = null;
     // misma regla de cierre que el servidor: evita pedir un periodo que responderá 400
-    if (!isClosedPeriod(key, gran, weekStart)) { error = 'open'; loading = false; return; }
+    if (!isClosedPeriod(key, gran, weekStart, getTimeZone())) { error = 'open'; loading = false; return; }
     try {
-      report = await api.report(gran, key, weekStart, metric, TZ_OFFSET_MINUTES, signal);
+      report = await api.report(gran, key, weekStart, metric, signal);
     } catch (e) {
       if (isAbortError(e)) return;
       error = 'missing';

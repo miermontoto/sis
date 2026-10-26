@@ -10,6 +10,8 @@ interface SettingsData {
   rankingMetric: RankingMetric;
   rankChangeLookback: RankChangeLookback;
   weekStart: WeekStartOption;
+  // zona IANA del calendario de charts, reports y records; '' = aún sin fijar
+  timeZone: string;
   recordsUnique: boolean;
   locale: LocaleSetting;
   albumTrackDisplay: AlbumTrackDisplay;
@@ -50,6 +52,8 @@ const SETTINGS_DEFAULTS: SettingsData = {
   rankingMetric: 'time',
   rankChangeLookback: 'disabled',
   weekStart: 'friday',
+  // la rellena loadSettings con la del dispositivo la primera vez
+  timeZone: '',
   // records únicos por entidad (true) vs permitir duplicados en peak week / longest run
   recordsUnique: true,
   locale: 'auto',
@@ -146,6 +150,15 @@ export async function loadSettings(): Promise<void> {
     else writeCache(key as keyof SettingsData, raw || def);
   }
 
+  // la zona del calendario la fija el primer cliente que la ve vacía, con la del
+  // dispositivo: es la que el usuario espera, y los horneados del servidor (records,
+  // reports, pushes de cierre) no tienen otra forma de conocerla. luego sólo cambia
+  // en Settings, no al viajar
+  if (!settingsCache.timeZone) {
+    writeCache('timeZone', deviceTimeZone());
+    healPatch.timeZone = settingsCache.timeZone;
+  }
+
   for (const [key, val] of Object.entries(settingsCache)) {
     if (val !== null) localStorage.setItem(lsKey(key), String(val));
   }
@@ -195,6 +208,13 @@ function withNotify<T>(setter: (v: T) => void) {
 export const [getRankingMetric, setRankingMetric] = stringSetting<RankingMetric>('rankingMetric', 'time');
 export const [getRankChangeLookback, setRankChangeLookback] = stringSetting<RankChangeLookback>('rankChangeLookback', 'disabled');
 export const [getWeekStart, setWeekStart] = stringSetting<WeekStartOption>('weekStart', 'friday');
+
+/** Zona del dispositivo (UTC si el navegador no la expone). */
+export const deviceTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const [getStoredTimeZone, _setTimeZone] = stringSetting<string>('timeZone', '');
+/** Zona del calendario de los periodos: la guardada, o la del dispositivo mientras no haya. */
+export const getTimeZone = (): string => getStoredTimeZone() || deviceTimeZone();
+export const setTimeZone = _setTimeZone;
 export const [getRecordsUnique, setRecordsUnique] = boolSetting('recordsUnique');
 export const [getRawLocale, setLocale] = stringSetting<LocaleSetting>('locale', 'auto');
 export const [getAlbumTrackDisplay, setAlbumTrackDisplay] = stringSetting<AlbumTrackDisplay>('albumTrackDisplay', 'fill');

@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
 import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
-  RecordsResponse, RankingMetric, WeekStartOption, EntityType,
+  RecordsResponse, RankingMetric, PeriodCalendar, EntityType,
 } from '@sis/shared';
 import { periodForDate } from '@sis/shared';
 import { albumArtistId, albumArtistName, resolvedEntityId, entityMergeJoin, userFilter, resolvedPlayJoins, playDuration, periodExpr, trackArtistsFor, primaryArtistOf, artistNameOf } from './helpers.js';
@@ -22,8 +22,6 @@ const log = createLogger('records-timing');
 
 // records semanales solo permiten 'time' o 'plays' — no usan 'natural' (irrelevante para charts).
 type Sort = RankingMetric;
-// alias para legibilidad — apunta al tipo canónico de @sis/shared.
-type WeekStart = WeekStartOption;
 
 const PROFILE = process.env.RECORDS_PROFILE !== '0';
 function timed<T>(label: string, fn: () => T): T {
@@ -37,16 +35,16 @@ function timed<T>(label: string, fn: () => T): T {
   }
 }
 
-const weekExpr = (ws: WeekStart) => periodExpr('week', ws);
+const weekExpr = (calendar: PeriodCalendar) => periodExpr('week', calendar);
 
 // Escucha total de cada semana, sin filtrar por entidad: es el denominador de
 // `dominance`. Se calcula aparte porque no se puede derivar de las filas del
 // ranking semanal — para artists un play con varios artistas suma en cada uno,
 // así que la suma por semana pasaría del 100%.
 type WeekTotal = { val: number; plays: number };
-function getWeekTotals(db: Db, ws: WeekStart, sort: Sort, userId: number): Map<string, WeekTotal> {
+function getWeekTotals(db: Db, calendar: PeriodCalendar, sort: Sort, userId: number): Map<string, WeekTotal> {
   const rows = db.all(sql`
-    SELECT ${weekExpr(ws)} as w,
+    SELECT ${weekExpr(calendar)} as w,
            ${sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`} as val,
            count(*) as plays
     FROM listening_history lh
@@ -60,8 +58,8 @@ function getWeekTotals(db: Db, ws: WeekStart, sort: Sort, userId: number): Map<s
 
 // --- queries de records semanales (peak/debuts/weeks-at-#1/etc.) ---
 
-function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number, unique: boolean): TrackRecords {
-  const week = weekExpr(ws);
+function getTrackRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: number, userId: number, unique: boolean): TrackRecords {
+  const week = weekExpr(calendar);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
   const trackMrJoin = entityMergeJoin('track', userId);
@@ -89,7 +87,7 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     LEFT JOIN albums al ON al.spotify_id = t.album_id
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)), ws);
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, calendar, sort, userId)), calendar);
   // resuelve track merges: un track fusionado se cuenta bajo su id canónico
   // (nombre/artista/álbum del track target), no bajo su id de origen.
   base.inMostPlaylists = db.all(sql`
@@ -113,17 +111,17 @@ function getTrackRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     longestGap: timed('track.longestGap', () => computeLongestGap('track', db, userId, limit)),
     goldenOldies: timed('track.goldenOldies', () => computeGoldenOldies('track', db, userId, limit)),
     latestDiscoveries: timed('track.latestDiscoveries', () => computeLatestDiscoveries('track', db, userId, limit)),
-    mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit)),
+    mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit, calendar)),
     mostHeardLive: timed('track.mostHeardLive', () => computeMostHeardLive(db, userId, limit)),
-    yearEndFinishes: timed('track.yearEndFinishes', () => computeYearEndFinishes('track', db, userId, sort)),
+    yearEndFinishes: timed('track.yearEndFinishes', () => computeYearEndFinishes('track', db, userId, sort, calendar)),
     mostAccolades: [],
   };
   result.mostAccolades = computeMostAccolades(result);
   return result;
 }
 
-function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number, unique: boolean): AlbumRecords {
-  const week = weekExpr(ws);
+function getAlbumRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: number, userId: number, unique: boolean): AlbumRecords {
+  const week = weekExpr(calendar);
   const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
   const uf = userFilter(userId);
 
@@ -148,7 +146,7 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     JOIN albums al ON al.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)), ws);
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, calendar, sort, userId)), calendar);
   // resuelve merges (track y album) igual que el ranking semanal: agrupa por el
   // álbum canónico para no listar un álbum ya fusionado bajo su id de origen.
   // nombre/artista se toman del target (join por el eid resuelto).
@@ -180,16 +178,16 @@ function getAlbumRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userI
     longestGap: timed('album.longestGap', () => computeLongestGap('album', db, userId, limit)),
     goldenOldies: timed('album.goldenOldies', () => computeGoldenOldies('album', db, userId, limit)),
     latestDiscoveries: timed('album.latestDiscoveries', () => computeLatestDiscoveries('album', db, userId, limit)),
-    mostUniquePerMonth: timed('album.mostUniquePerMonth', () => computeMostUniquePerMonth('album', db, userId, limit)),
-    yearEndFinishes: timed('album.yearEndFinishes', () => computeYearEndFinishes('album', db, userId, sort)),
+    mostUniquePerMonth: timed('album.mostUniquePerMonth', () => computeMostUniquePerMonth('album', db, userId, limit, calendar)),
+    yearEndFinishes: timed('album.yearEndFinishes', () => computeYearEndFinishes('album', db, userId, sort, calendar)),
     mostAccolades: [],
   };
   result.mostAccolades = computeMostAccolades(result);
   return result;
 }
 
-function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, userId: number, unique: boolean): ArtistRecordsData {
-  const week = weekExpr(ws);
+function getArtistRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: number, userId: number, unique: boolean): ArtistRecordsData {
+  const week = weekExpr(calendar);
   const uf = userFilter(userId);
   const metricDedup = sort === 'plays' ? sql`count(*)` : sql`sum(duration_ms)`;
   const mrArtistJoin = entityMergeJoin('artist', userId);
@@ -221,10 +219,10 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     JOIN artists a ON a.spotify_id = w.eid
   `) as any[];
 
-  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, ws, sort, userId)), ws);
+  const base = deriveRecords(ranked, limit, unique, timed('weekTotals', () => getWeekTotals(db, calendar, sort, userId)), calendar);
 
   // artistas con más tracks en #1 (por semana)
-  const trackWeek = weekExpr(ws);
+  const trackWeek = weekExpr(calendar);
   const trackMetric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
 
   // artistResolveJoin y resolved devuelven el artist_id canónico (target si mergeado)
@@ -295,11 +293,11 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
     longestGap: timed('artist.longestGap', () => computeLongestGap('artist', db, userId, limit)),
     goldenOldies: timed('artist.goldenOldies', () => computeGoldenOldies('artist', db, userId, limit)),
     latestDiscoveries: timed('artist.latestDiscoveries', () => computeLatestDiscoveries('artist', db, userId, limit)),
-    mostUniquePerMonth: timed('artist.mostUniquePerMonth', () => computeMostUniquePerMonth('artist', db, userId, limit)),
+    mostUniquePerMonth: timed('artist.mostUniquePerMonth', () => computeMostUniquePerMonth('artist', db, userId, limit, calendar)),
     mostDistinctTracks: timed('artist.mostDistinctTracks', () => computeMostDistinctTracks('artist', db, userId, limit)),
     oneHitWonders: timed('artist.oneHitWonders', () => computeOneHitWonders('artist', db, userId, limit)),
     mostConcerts: timed('artist.mostConcerts', () => computeMostConcerts(db, userId, limit)),
-    yearEndFinishes: timed('artist.yearEndFinishes', () => computeYearEndFinishes('artist', db, userId, sort)),
+    yearEndFinishes: timed('artist.yearEndFinishes', () => computeYearEndFinishes('artist', db, userId, sort, calendar)),
     mostAccolades: [],
   };
   result.mostAccolades = computeMostAccolades(result);
@@ -310,7 +308,7 @@ function getArtistRecords(db: Db, ws: WeekStart, sort: Sort, limit: number, user
 
 // unique=true: un registro por entidad (comportamiento por defecto). unique=false:
 // peak week, dominance y longest run permiten que la misma entidad aparezca varias veces.
-function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: Map<string, WeekTotal>, ws: WeekStart): EntityRecords {
+function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: Map<string, WeekTotal>, calendar: PeriodCalendar): EntityRecords {
   // agrupar por entidad
   const byEntity = new Map<string, { rows: any[]; debutWeek: string; name: string; imageUrl: string | null; artistId: string | null; artistName: string | null }>();
   for (const r of rows) {
@@ -410,7 +408,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
   // primer día (el viernes, con el corte por defecto) su chart lleva un puñado de
   // plays, así que tratarla como cerrada daba por acabada toda racha viva.
   const allWeekLabels = [...new Set(rows.map((r) => r.w as string))].sort();
-  const openWeek = periodForDate(new Date(), 'week', ws);
+  const openWeek = periodForDate(new Date(), 'week', calendar.weekStart, calendar.timeZone);
   const longestChartRun: RecordEntry[] = [];
   type Run = { streak: number; start: string; end: string; ongoing: boolean };
   for (const [eid, data] of byEntity) {
@@ -481,13 +479,13 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
 
 export type EntityTypeFilter = EntityType;
 
-export function getRecords(db: Db, weekStart: WeekStart = 'monday', sort: Sort = 'time', limit = 10, type: EntityTypeFilter | undefined, userId: number, unique = true): Partial<RecordsResponse> {
-  if (type === 'track') return { tracks: getTrackRecords(db, weekStart, sort, limit, userId, unique) };
-  if (type === 'album') return { albums: getAlbumRecords(db, weekStart, sort, limit, userId, unique) };
-  if (type === 'artist') return { artists: getArtistRecords(db, weekStart, sort, limit, userId, unique) };
+export function getRecords(db: Db, calendar: PeriodCalendar, sort: Sort = 'time', limit = 10, type: EntityTypeFilter | undefined, userId: number, unique = true): Partial<RecordsResponse> {
+  if (type === 'track') return { tracks: getTrackRecords(db, calendar, sort, limit, userId, unique) };
+  if (type === 'album') return { albums: getAlbumRecords(db, calendar, sort, limit, userId, unique) };
+  if (type === 'artist') return { artists: getArtistRecords(db, calendar, sort, limit, userId, unique) };
   return {
-    tracks: getTrackRecords(db, weekStart, sort, limit, userId, unique),
-    albums: getAlbumRecords(db, weekStart, sort, limit, userId, unique),
-    artists: getArtistRecords(db, weekStart, sort, limit, userId, unique),
+    tracks: getTrackRecords(db, calendar, sort, limit, userId, unique),
+    albums: getAlbumRecords(db, calendar, sort, limit, userId, unique),
+    artists: getArtistRecords(db, calendar, sort, limit, userId, unique),
   };
 }

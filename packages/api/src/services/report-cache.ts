@@ -3,10 +3,9 @@
 // lectura final de un chart cerrado, así que se calcula una vez y se sirve durante
 // REPORT_CACHE_TTL_MS. pasado el TTL se sirve igualmente y se rehornea en segundo
 // plano (SWR): un report un día desfasado por un scrobble tardío o un merge es
-// aceptable, esperar una docena de queries al abrirlo no. el reloj por horas depende
-// de la zona horaria del cliente y queda fuera de lo horneado: es una query barata
-// que se aplica encima al servir
-import type { Granularity, WeekStartOption, RankingMetric, ReportResponse } from '@sis/shared';
+// aceptable, esperar una docena de queries al abrirlo no. se hornea entero en el
+// calendario del usuario (corte de semana + zona), que forma parte de la clave
+import type { Granularity, PeriodCalendar, RankingMetric, ReportResponse } from '@sis/shared';
 import { adjacentPeriod, periodForDate } from '@sis/shared';
 import { dbRead } from '../db/read-pool.js';
 import { getDb } from '../db/connection.js';
@@ -18,19 +17,17 @@ import { createLogger } from './logger.js';
 const log = createLogger('report-cache');
 
 const GRANULARITIES: Granularity[] = ['week', 'month', 'year'];
-// desfase con el que se hornea: el reloj real se recalcula al servir con el del cliente
-const BAKE_TZ_OFFSET = 0;
 
 interface CacheEntry { report: ReportResponse; computedAt: number }
 
-// "userId:granularity:period:weekStart:sort" → report horneado (reloj en UTC). Map
-// itera en orden de inserción, que es lo que usa el recorte por usuario
+// "userId:granularity:period:weekStart:sort:timeZone" → report horneado. Map itera
+// en orden de inserción, que es lo que usa el recorte por usuario
 const cache = new Map<string, CacheEntry>();
 // horneados en vuelo por clave: dos peticiones simultáneas no computan lo mismo dos veces
 const inflight = new Map<string, Promise<ReportResponse | null>>();
 
-const cacheKey = (userId: number, granularity: Granularity, period: string, weekStart: WeekStartOption, sort: RankingMetric) =>
-  `${userId}:${granularity}:${period}:${weekStart}:${sort}`;
+const cacheKey = (userId: number, granularity: Granularity, period: string, calendar: PeriodCalendar, sort: RankingMetric) =>
+  `${userId}:${granularity}:${period}:${calendar.weekStart}:${sort}:${calendar.timeZone}`;
 
 const isFresh = (entry: CacheEntry) => Date.now() - entry.computedAt <= REPORT_CACHE_TTL_MS;
 
@@ -42,13 +39,13 @@ function store(userId: number, key: string, report: ReportResponse) {
   own.slice(0, Math.max(0, own.length - REPORT_CACHE_MAX_PER_USER)).forEach(k => cache.delete(k));
 }
 
-function bake(userId: number, granularity: Granularity, period: string, weekStart: WeekStartOption, sort: RankingMetric): Promise<ReportResponse | null> {
-  const key = cacheKey(userId, granularity, period, weekStart, sort);
+function bake(userId: number, granularity: Granularity, period: string, calendar: PeriodCalendar, sort: RankingMetric): Promise<ReportResponse | null> {
+  const key = cacheKey(userId, granularity, period, calendar, sort);
   const pending = inflight.get(key);
   if (pending) return pending;
 
   const startedAt = performance.now();
-  const task = dbRead('getReport', userId, granularity, period, weekStart, sort, BAKE_TZ_OFFSET)
+  const task = dbRead('getReport', userId, granularity, period, calendar, sort)
     .then((report) => {
       if (report) {
         store(userId, key, report);
@@ -61,25 +58,13 @@ function bake(userId: number, granularity: Granularity, period: string, weekStar
   return task;
 }
 
-// reloj en la zona del cliente encima del report horneado en UTC (y la hora punta que
-// se deriva de él)
-async function withClientClock(report: ReportResponse, userId: number, tzOffsetMinutes: number): Promise<ReportResponse> {
-  if (tzOffsetMinutes === BAKE_TZ_OFFSET) return report;
-  const clock = await dbRead('getReportClock', userId, report.period.start, report.period.end, tzOffsetMinutes);
-  const max = Math.max(...clock);
-  return { ...report, clock, facts: { ...report.facts, busiestHour: max > 0 ? clock.indexOf(max) : null } };
-}
-
 /** Report de un periodo cerrado, de cache si existe (caducado se sirve y se rehornea
  *  detrás); si no, se hornea en el momento. null = la etiqueta no existe. */
-export async function getReportCached(userId: number, granularity: Granularity, period: string, weekStart: WeekStartOption, sort: RankingMetric, tzOffsetMinutes: number): Promise<ReportResponse | null> {
-  const hit = cache.get(cacheKey(userId, granularity, period, weekStart, sort));
-  if (hit) {
-    if (!isFresh(hit)) bake(userId, granularity, period, weekStart, sort).catch(err => log.error(`error rehorneando ${granularity} ${period} del usuario ${userId}:`, err));
-    return withClientClock(hit.report, userId, tzOffsetMinutes);
-  }
-  const report = await bake(userId, granularity, period, weekStart, sort);
-  return report ? withClientClock(report, userId, tzOffsetMinutes) : null;
+export async function getReportCached(userId: number, granularity: Granularity, period: string, calendar: PeriodCalendar, sort: RankingMetric): Promise<ReportResponse | null> {
+  const hit = cache.get(cacheKey(userId, granularity, period, calendar, sort));
+  if (!hit) return bake(userId, granularity, period, calendar, sort);
+  if (!isFresh(hit)) bake(userId, granularity, period, calendar, sort).catch(err => log.error(`error rehorneando ${granularity} ${period} del usuario ${userId}:`, err));
+  return hit.report;
 }
 
 /** Hornea los últimos periodos cerrados (semana, mes y año) de un usuario con sus
@@ -87,14 +72,15 @@ export async function getReportCached(userId: number, granularity: Granularity, 
  *  cuenta como cerrado PERIOD_CLOSE_GRACE_MS después de su fin, la misma regla que la
  *  push del report: hornearlo antes lo guardaría sin sus últimos plays todo el TTL. */
 export async function warmLatestReports(userId: number, spotifyId: string): Promise<void> {
-  const { weekStart, sort } = getUserSettingsForUser(getDb(), spotifyId);
+  const { weekStart, timeZone, sort } = getUserSettingsForUser(getDb(), spotifyId);
+  const calendar = { weekStart, timeZone };
   const now = new Date(Date.now() - PERIOD_CLOSE_GRACE_MS);
   for (const granularity of GRANULARITIES) {
-    const period = adjacentPeriod(periodForDate(now, granularity, weekStart), granularity, weekStart, -1);
+    const period = adjacentPeriod(periodForDate(now, granularity, weekStart, timeZone), granularity, weekStart, -1);
     if (!period) continue;
-    const hit = cache.get(cacheKey(userId, granularity, period, weekStart, sort));
+    const hit = cache.get(cacheKey(userId, granularity, period, calendar, sort));
     if (hit && isFresh(hit)) continue;
-    await bake(userId, granularity, period, weekStart, sort);
+    await bake(userId, granularity, period, calendar, sort);
   }
 }
 
@@ -108,7 +94,7 @@ export async function warmAllLatestReports(): Promise<void> {
 }
 
 /** Descarta lo horneado de un usuario (ediciones del historial: scrobbles manuales,
- *  borrados, imports). Los merges y scrobbles tardíos los absorbe el TTL. */
+ *  borrados, imports; cambio de zona). Los merges y scrobbles tardíos los absorbe el TTL. */
 export function invalidateReportCacheForUser(userId: number) {
   for (const key of cache.keys()) {
     if (key.startsWith(`${userId}:`)) cache.delete(key);
