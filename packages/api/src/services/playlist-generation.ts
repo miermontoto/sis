@@ -9,7 +9,7 @@ import { PLAYLIST_SCOPES, PLAYLIST_CUSTOM_MAX_TRACKS } from '../constants.js';
 import { hasRequiredScopes } from './token-manager.js';
 import { spotifyFetch } from './spotify-client.js';
 import { getCachedRecords } from './records-cache.js';
-import { storedTimeZone } from './user-calendar.js';
+import { storedSetting, storedTimeZone } from './user-settings.js';
 import {
   enrichTrack,
   strategyTopRange, strategyTopArtist, strategyTopGenre,
@@ -69,10 +69,7 @@ const UNSUPPORTED_RECORD_KEYS = new Set(['mostUniquePerMonth', 'yearEndFinishes'
 
 // leer la preferencia de ranking metric del usuario (time o plays)
 function getUserSort(db: Db, userId: number): Sort {
-  const row = db.get(sql`
-    SELECT value FROM user_settings WHERE user_id = ${String(userId)} AND key = 'rankingMetric'
-  `) as { value: string } | undefined;
-  return (row?.value === 'plays' ? 'plays' : 'time') as Sort;
+  return storedSetting(db, userId, 'rankingMetric') === 'plays' ? 'plays' : 'time';
 }
 
 type RecordEntityType = 'track' | 'album' | 'artist';

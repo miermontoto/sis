@@ -6,7 +6,7 @@ import { getRawRanking } from './charts.js';
 import type { TimeRange } from '../../constants.js';
 import type { Granularity, WeekStartOption } from '@sis/shared';
 import { resolveTimeZone } from '@sis/shared';
-import { storedTimeZone } from '../../services/user-calendar.js';
+import { storedTimeZone } from '../../services/user-settings.js';
 
 export interface PlaylistStrategyParams {
   limit: number;

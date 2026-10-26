@@ -6,7 +6,7 @@ import { dbReadCancellable, RequestAbortedError, type QueryName, type QueryArgs,
 import type { WeekStartOption, EntityType, RankingMetric, PeriodCalendar } from '@sis/shared';
 import { resolveTimeZone } from '@sis/shared';
 import { getDb } from '../../db/connection.js';
-import { storedTimeZone } from '../../services/user-calendar.js';
+import { storedTimeZone } from '../../services/user-settings.js';
 import type { TimeRange } from '../../constants.js';
 import { DEFAULT_PAGE_LIMIT, DEFAULT_TIME_RANGE, isTimeRange } from '../../constants.js';
 import { getRangeStart, getPreviousPeriodRange } from '../../db/queries/index.js';

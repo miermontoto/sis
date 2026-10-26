@@ -15,7 +15,7 @@ import { fetchEntityMetadata } from '../db/queries/charts.js';
 import { userSettings } from '../db/schema.js';
 import { sendPush, hasDeliverableChannel } from './push-dispatch.js';
 import { getReportCached } from './report-cache.js';
-import { TIME_ZONE_SETTING } from './user-calendar.js';
+import { TIME_ZONE_SETTING } from './user-settings.js';
 import {
   RECORDS_LIMIT,
   RECORD_NOTIFY_CATEGORIES,

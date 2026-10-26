@@ -24,7 +24,7 @@ const DEFAULTS: Record<string, string> = {
   rankChangeLookback: 'disabled',
   weekStart: 'friday',
   // zona IANA del calendario de los periodos; '' = sin fijar (UTC hasta que el cliente
-  // la rellena con la del dispositivo, ver services/user-calendar.ts)
+  // la rellena con la del dispositivo, ver services/user-settings.ts)
   timeZone: '',
   // records: un registro por entidad (true) vs permitir duplicados en peak week / longest run
   recordsUnique: 'true',

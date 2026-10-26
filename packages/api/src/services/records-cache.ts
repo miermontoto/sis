@@ -11,7 +11,7 @@ import { RECORDS_LIMIT } from '../constants.js';
 
 import type { RankingMetric, WeekStartOption, EntityType, PeriodCalendar } from '@sis/shared';
 import { resolveTimeZone } from '@sis/shared';
-import { TIME_ZONE_SETTING } from './user-calendar.js';
+import { TIME_ZONE_SETTING } from './user-settings.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('records-cache');
