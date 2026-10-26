@@ -2,7 +2,8 @@
   // safe areas de ios como tokens (columna lateral del iPhone Duo + rail de pestañas nativo)
   import '@platform/ui/safe-area.css';
   import '../app.css';
-  import { nativeTabBar } from '@platform/mobile/native-tab-bar';
+  import { nativeTabBar, NATIVE_TABRAIL_CLASS } from '@platform/mobile/native-tab-bar';
+  import { MediaQuery } from 'svelte/reactivity';
   // el store del tema vive desde el arranque: es quien sigue al sistema (y a otras
   // pestañas) cuando la preferencia es 'system'
   import '$lib/stores/theme.svelte';
@@ -406,6 +407,21 @@
   // misma query que el @media del layout móvil de app.css
   const MOBILE_QUERY = '(max-width: 768px)';
   const nativeTabs = mobileNavGroups.map(g => ({ id: g.label, title: g.label, symbol: g.symbol }));
+  const mobileLayout = new MediaQuery(MOBILE_QUERY);
+
+  // rail del Duo (html.native-tabrail, lo pone y lo quita la acción nativeTabBar al
+  // girar, abrir o plegar): con la nav en el rail, el sidebar de escritorio se queda
+  // en columna del reproductor. Plegado (64px) sigue siendo el rail de siempre
+  let tabRail = $state(false);
+  $effect(() => {
+    const root = document.documentElement;
+    const sync = () => { tabRail = root.classList.contains(NATIVE_TABRAIL_CLASS); };
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => mo.disconnect();
+  });
+  let playerColumn = $derived(tabRail && !mobileLayout.current && !sidebarCollapsed);
   const activeGroupLabel = $derived(mobileNavGroups.find(g => isGroupActive(g))?.label ?? null);
 
   function onNativeTab(label: string) {
@@ -449,10 +465,20 @@
 <svelte:window onfocus={refreshNowPlayingOnFocus} />
 <svelte:document onvisibilitychange={refreshNowPlayingOnFocus} />
 
+<!-- la tarjeta va al pie del sidebar o, en la columna del Duo, arriba y entera:
+     sin la nav no compite por el alto, así que ni el ajuste ni el modo compacto aplican -->
+{#snippet nowPlayingSlot()}
+  {#if nowPlayingDisplay !== 'off'}
+    <div class="sidebar-now-playing" bind:this={npWrapEl}>
+      <NowPlaying compact rail={sidebarCollapsed} inline={npInline && !playerColumn} column={playerColumn} />
+    </div>
+  {/if}
+{/snippet}
+
 {#if isBareRoute(page.url.pathname)}
   {@render children()}
 {:else if authChecked}
-  <div class="app-layout" class:sidebar-collapsed={sidebarCollapsed}>
+  <div class="app-layout" class:sidebar-collapsed={sidebarCollapsed} class:player-column={playerColumn}>
     <aside class="sidebar" bind:this={sidebarEl}>
       <div class="sidebar-top">
         <div class="sidebar-head">
@@ -526,6 +552,8 @@
           {/if}
         {/each}
       </nav>
+      <!-- columna del reproductor: arriba, donde estaba la nav -->
+      {#if playerColumn}{@render nowPlayingSlot()}{/if}
       <MobilePlayer sessionTracking={sessionTrackingDisplay} />
       <nav
         class="mobile-tabbar"
@@ -570,11 +598,7 @@
           <ProjectedChanges />
         </div>
       {/if}
-      {#if nowPlayingDisplay !== 'off'}
-        <div class="sidebar-now-playing" bind:this={npWrapEl}>
-          <NowPlaying compact rail={sidebarCollapsed} inline={npInline} />
-        </div>
-      {/if}
+      {#if !playerColumn}{@render nowPlayingSlot()}{/if}
       {#if user?.authenticated}
         <!-- el control accesible es el botón; el div solo capta el hover del ratón -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->

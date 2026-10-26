@@ -1,4 +1,4 @@
-import { api, getNowPlayingUpNext, onNowPlayingUpNextChange, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem, type EntityType } from '$lib/api';
+import { api, getNowPlayingUpNext, onNowPlayingUpNextChange, type NowPlayingResponse, type PlayContextRequest, type PlayContextResponse, type HistoryItem, type PlaybackQueueItem, type EntityType, type TrackInfo } from '$lib/api';
 import { MIN_PLAY_MS } from '@sis/shared';
 import { playUpdatesStore } from './play-updates.svelte';
 import { playlistMembershipStore } from './playlist-membership.svelte';
@@ -16,6 +16,11 @@ let _liveGuardUntil = 0;
 let _spotifyReadAtMs = 0;
 let _focusRefreshing = false;
 let _lastFinishedPlay = $state<HistoryItem | null>(null);
+// el último tema que pintó la tarjeta, sin umbral de escucha (a diferencia de
+// _lastFinishedPlay): es lo que enseña en reposo la columna del iPhone Duo. En
+// frío (la app abre sin nada sonando) sale del play más reciente del historial
+let _lastTrack = $state<TrackInfo | null>(null);
+let _lastTrackRequested = false;
 let _volumePercent = $state<number | null>(null);
 // base de progreso del track: valor conocido + instante (reloj cliente) en que
 // se conoció; el progreso mostrado se extrapola desde aquí mientras suena.
@@ -115,6 +120,7 @@ function applyNowPlaying(data: NowPlayingResponse | null, source: NowPlayingSour
   }
 
   _data = data;
+  if (data?.playing && data.track) _lastTrack = data.track;
   playUpdatesStore.applyHistoryTail(data?.historyWatermark, data?.landedPlays);
   if (data?.volumePercent != null) _volumePercent = data.volumePercent;
 
@@ -280,6 +286,19 @@ async function refreshAfterPlayback() {
   await pollLive();
 }
 
+// una sola petición por carga: si el historial está vacío no hay nada que
+// enseñar, y lo que suene después ya lo apunta applyNowPlaying
+async function ensureLastTrack() {
+  if (_lastTrack || _lastTrackRequested) return;
+  _lastTrackRequested = true;
+  try {
+    const { items } = await api.history(1, 1);
+    _lastTrack ??= items[0]?.track ?? null;
+  } catch {
+    _lastTrackRequested = false;
+  }
+}
+
 async function playContext(opts: PlayContextRequest): Promise<PlayContextResponse | null> {
   try {
     const result = await api.playbackPlayContext(opts);
@@ -342,6 +361,8 @@ export const nowPlayingStore = {
   get isLiked() { return playlistMembershipStore.isLiked(_data?.track?.id) === true; },
   get likeLoading() { return _likeLoading; },
   get lastFinishedPlay() { return _lastFinishedPlay; },
+  get lastTrack() { return _lastTrack; },
+  ensureLastTrack,
   get volumePercent() { return _volumePercent; },
   progressMsAt,
   seek,
@@ -354,6 +375,7 @@ export const nowPlayingStore = {
   stopPolling,
   pollLive,
   refreshIfStale,
+  refreshAfterPlayback,
   playContext,
   toggleLike,
   setVolume,

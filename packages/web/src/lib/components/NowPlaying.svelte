@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { api } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { formatClock } from '$lib/utils/format';
@@ -30,8 +31,11 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   // mini: la barra del móvil sobre las pestañas; pulsarla abre la hoja (onopen).
   // sheet: el reproductor completo de esa hoja, que cierra con onclose.
   // sessionLine: tercera línea del mini player (el resumen de la sesión)
-  let { compact = false, inline = false, rail = false, mini = false, sheet = false, onopen, onclose, sessionLine }: {
-    compact?: boolean; inline?: boolean; rail?: boolean; mini?: boolean; sheet?: boolean;
+  // column: la tarjeta en la columna del iPhone Duo, donde el rail nativo lleva la
+  // nav y el sidebar queda para el reproductor: el siguiente tema es una fila fija
+  // (no se asoma) y en reposo enseña el último tema, en pausa, para retomarlo
+  let { compact = false, inline = false, rail = false, mini = false, sheet = false, column = false, onopen, onclose, sessionLine }: {
+    compact?: boolean; inline?: boolean; rail?: boolean; mini?: boolean; sheet?: boolean; column?: boolean;
     onopen?: (section: SheetSection) => void; onclose?: () => void; sessionLine?: Snippet;
   } = $props();
 
@@ -49,6 +53,14 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   let volIcon = $derived<0 | 1 | 2>(vol === null || vol === 0 ? 0 : vol < 50 ? 1 : 2);
   // usuarios solo-last.fm: sin token de spotify no hay controles (read-only)
   let controllable = $derived(data?.controllable !== false);
+
+  // reposo de la columna: sólo con la primera respuesta ya leída (sin ella aún no
+  // se sabe si suena algo) y en untrack, porque ensureLastTrack escribe lo que lee
+  let idle = $derived(column && !!data && !data.playing);
+  let lastTrack = $derived(idle ? nowPlayingStore.lastTrack : null);
+  $effect(() => {
+    if (idle) untrack(() => nowPlayingStore.ensureLastTrack());
+  });
 
   // tick de 1s para animar el progreso extrapolado mientras suena
   let nowMs = $state(Date.now());
@@ -186,6 +198,26 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   {#if progressPct != null}
     <div class="np-progress-strip">
       <div class="np-progress-fill" style="width: {progressPct.toFixed(2)}%"></div>
+    </div>
+  {/if}
+{/snippet}
+
+<!-- siguiente tema: superpuesto al filo de la carátula o, en la columna del
+     Duo, como fila fija bajo el progreso -->
+{#snippet upNextLine(row: boolean)}
+  {#if upNext}
+    <div class="np-next" class:np-next--row={row}>
+      <span class="np-next-label">next</span>
+      {#if upNext.album?.imageUrl}
+        {#if upNext.album.known}
+          <a href="/album/{upNext.album.id}" class="np-next-art-link"><img class="np-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} /></a>
+        {:else}
+          <img class="np-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} />
+        {/if}
+      {/if}
+      <span class="np-next-text marquee-line" use:marquee={upNext.id}>
+        <span>{#if upNext.known}<a class="np-next-link" href="/track/{upNext.id}">{upNext.name}</a>{:else}{upNext.name}{/if}{#if upNext.artists.length}<span class="np-next-artists">{' · '}{#each upNext.artists as artist, i}{#if artist.known}<a class="np-next-link" href="/artist/{artist.id}">{artist.name}</a>{:else}{artist.name}{/if}{#if i < upNext.artists.length - 1}{', '}{/if}{/each}</span>{/if}</span>
+      </span>
     </div>
   {/if}
 {/snippet}
@@ -360,7 +392,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
       {@render progressStrip()}
     </div>
   {:else}
-  <div class="np" class:np--compact={compact} class:np--inline={inline}>
+  <div class="np" class:np--compact={compact} class:np--inline={inline} class:np--column={column}>
     <div class="np-row-info">
       <div class="np-art-wrap">
         {#if data.track.album?.imageUrl}
@@ -374,22 +406,9 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
           <div class="np-art"></div>
         {/if}
         <!-- siguiente tema: se superpone al filo de la carátula, nunca en el
-             flujo — asomarse no puede recolocar el resto del sidebar -->
-        {#if upNext && upNextDue && !inline}
-          <div class="np-next">
-            <span class="np-next-label">next</span>
-            {#if upNext.album?.imageUrl}
-              {#if upNext.album.known}
-                <a href="/album/{upNext.album.id}" class="np-next-art-link"><img class="np-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} /></a>
-              {:else}
-                <img class="np-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} />
-              {/if}
-            {/if}
-            <span class="np-next-text marquee-line" use:marquee={upNext.id}>
-              <span>{#if upNext.known}<a class="np-next-link" href="/track/{upNext.id}">{upNext.name}</a>{:else}{upNext.name}{/if}{#if upNext.artists.length}<span class="np-next-artists">{' · '}{#each upNext.artists as artist, i}{#if artist.known}<a class="np-next-link" href="/artist/{artist.id}">{artist.name}</a>{:else}{artist.name}{/if}{#if i < upNext.artists.length - 1}{', '}{/if}{/each}</span>{/if}</span>
-            </span>
-          </div>
-        {/if}
+             flujo — asomarse no puede recolocar el resto del sidebar. En la
+             columna del Duo va fijo debajo, que ahí el sitio sobra -->
+        {#if upNextDue && !inline && !column}{@render upNextLine(false)}{/if}
       </div>
       <div class="np-info">
         <a href="/track/{data.track.id}" class="np-track marquee-line" use:marquee={data.track.name}><span>{data.track.name}</span></a>
@@ -444,8 +463,29 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     </div>
     {/if}
     {@render progressRow()}
+    {#if column}{@render upNextLine(true)}{/if}
   </div>
   {/if}
+{:else if lastTrack}
+  <!-- columna del Duo en reposo: el último tema, en pausa. Elegir dispositivo es
+       el camino para retomarlo: sin uno activo spotify no acepta un play a secas -->
+  <div class="np np--compact np--idle">
+    <span class="np-next-label">Last played</span>
+    {#if lastTrack.album?.imageUrl}
+      <a href="/album/{lastTrack.album.id}" class="np-art-link"><img class="np-art" src={lastTrack.album.imageUrl} alt={lastTrack.album.name} /></a>
+    {:else}
+      <div class="np-art"></div>
+    {/if}
+    <div class="np-info">
+      <a href="/track/{lastTrack.id}" class="np-track marquee-line" use:marquee={lastTrack.name}><span>{lastTrack.name}</span></a>
+      <div class="np-artist marquee-line" use:marquee={lastTrack.id}>
+        <span>{#each lastTrack.artists as artist, i}<a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < lastTrack.artists.length - 1}{', '}{/if}{/each}</span>
+      </div>
+    </div>
+    {#if controllable}
+      <DevicePicker bind:show={showDevices} label="Play on…" ontransfer={() => nowPlayingStore.refreshAfterPlayback()} />
+    {/if}
+  </div>
 {/if}
 
 <style>
@@ -554,6 +594,22 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   .np-controls--vertical {
     flex-direction: column;
     gap: 0.1rem;
+  }
+
+  /* la columna suma la fila del siguiente tema y tiene que caber entera en el
+     alto del Duo abierto (669pt) junto a amigos, sesión y badge */
+  .np--column {
+    gap: 0.4rem;
+  }
+
+  /* reposo: sin el degradado de acento, que en la app significa "suena ahora" */
+  .np--idle {
+    background: none;
+    border-color: var(--border);
+  }
+
+  .np--idle .np-art {
+    opacity: 0.6;
   }
 
   .np--compact:not(.np--inline) .np-art {
@@ -683,6 +739,15 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   @keyframes np-next-in {
     from { opacity: 0; transform: translateY(100%); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* en la columna del Duo: en el flujo, bajo el progreso, y sin entrada animada
+     (está siempre, no se asoma) */
+  .np-next--row {
+    position: static;
+    padding: 0.2rem 0.4rem;
+    border-radius: var(--radius);
+    animation: none;
   }
 
   .np-next-label {

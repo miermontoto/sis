@@ -1106,6 +1106,16 @@ a.track-item {
   padding: 0 0.5rem;
 }
 
+/* columna del Duo: el alto no se reparte con la escalera de ajuste (no hay nav
+   que compactar y la tarjeta va siempre entera), así que lo que sobra lo cede la
+   sesión, que crece con cada cambio de puesto: se encoge y scrollea dentro en vez
+   de mover el badge fuera de la pantalla */
+.player-column .sidebar-projections {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .sidebar-friends {
   padding: 0 0.5rem;
 }
@@ -1121,6 +1131,13 @@ a.track-item {
 /* sidebar user badge */
 .sidebar-user-wrap {
   padding: 0 0.5rem 0.5rem;
+}
+
+/* el hueco sobre el badge lo pone normalmente la tarjeta de now playing; sin
+   ella en medio (columna del Duo, o la tarjeta apagada) la sesión se pegaba al
+   badge y el pill de admin, que sobresale, la pisaba */
+.sidebar-projections + .sidebar-user-wrap {
+  padding-top: 0.5rem;
 }
 
 .sidebar-user-anchor {

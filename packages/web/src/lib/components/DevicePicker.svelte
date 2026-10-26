@@ -2,7 +2,11 @@
   import { api, type SpotifyDevice } from '$lib/api';
   import IconWifi from '$lib/icons/IconWifi.svelte';
 
-  let { show = $bindable(false) }: { show: boolean } = $props();
+  // label: botón con texto a todo el ancho en vez del icono suelto (la columna del
+  // Duo en reposo, donde elegir dispositivo ES retomar la reproducción).
+  // ontransfer: tras pasar la reproducción, para que quien lo aloja relea sin
+  // esperar al poll (en reposo la tarjeta no existe hasta que algo suena)
+  let { show = $bindable(false), label, ontransfer }: { show: boolean; label?: string; ontransfer?: () => void } = $props();
 
   let devices = $state<SpotifyDevice[]>([]);
   let loading = $state(false);
@@ -29,6 +33,7 @@
     if (!device.id) return;
     try {
       await api.playbackTransfer(device.id, true);
+      ontransfer?.();
     } catch {}
     show = false;
   }
@@ -81,15 +86,17 @@
   }
 </script>
 
-<div class="dp-root" bind:this={rootEl}>
+<div class="dp-root" class:dp-root--labeled={!!label} bind:this={rootEl}>
   <button
     bind:this={triggerEl}
     class="dp-trigger"
     class:dp-trigger--open={show}
+    class:dp-trigger--labeled={!!label}
     title="Devices"
     onclick={() => show = !show}
   >
     <IconWifi />
+    {#if label}<span>{label}</span>{/if}
   </button>
   {#if show}
     <div class="dp-menu" role="listbox" style={menuStyle}>
@@ -151,6 +158,20 @@
   .dp-trigger:hover,
   .dp-trigger--open {
     color: var(--accent);
+  }
+
+  .dp-root--labeled {
+    display: block;
+  }
+
+  .dp-trigger--labeled {
+    width: 100%;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    letter-spacing: var(--track-tight);
   }
 
   .dp-menu {
