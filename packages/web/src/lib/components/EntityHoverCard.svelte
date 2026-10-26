@@ -1,9 +1,10 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { hoverCard } from '$lib/stores/hover-card.svelte';
-  import { getRankingMetric, isCollectionKey, type EntityType, type RankingMetric, type Rankings } from '$lib/api';
+  import { getRankingMetric, isCollectionKey, type EntityType, type RankingMetric } from '$lib/api';
   import { formatDuration, formatNumber, formatShortDate, formatTrackLength, timeAgo } from '$lib/utils/format';
   import { medalColor } from '$lib/utils/medals';
+  import { RANK_PERIODS } from '$lib/utils/rank-periods';
   import { parseEntityPath, densifySeries, bucketSeries, placeCard, ENTITY_CARD_WIDTH } from '$lib/utils/hover-card';
 
   // Tarjeta de detalle de una entidad al pasar el ratón por encima. Se monta una
@@ -26,19 +27,6 @@
   // seguir viéndose distinta de una vacía
   const MIN_BAR_PCT = 6;
 
-  // tira de posiciones: los cuatro periodos que ya trae /stats/rankings. label
-  // null = el año en curso, que se rotula con su número
-  interface RankPeriod {
-    key: keyof Rankings;
-    label: string | null;
-  }
-  const RANK_PERIODS: RankPeriod[] = [
-    { key: 'all', label: 'all-time' },
-    { key: 'thisYear', label: null },
-    { key: 'month', label: 'month' },
-    { key: 'week', label: 'week' },
-  ];
-
   // sólo con ratón: en táctil no hay hover y el gesto chocaría con el scroll
   const HOVER_QUERY = '(hover: hover) and (pointer: fine)';
   const ENTITY_LINK = 'a[href^="/track/"], a[href^="/album/"], a[href^="/artist/"]';
@@ -56,8 +44,6 @@
   let cardEl = $state<HTMLDivElement | null>(null);
   let cardH = $state(0);
   let metric = $state<RankingMetric>('time');
-  // el "this year" del servidor arranca el 1 de enero UTC
-  let year = $state(new Date().getUTCFullYear());
   let pending: Pending | null = null;
   let openTimer: ReturnType<typeof setTimeout> | null = null;
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -108,7 +94,6 @@
     // el ancla puede haber desaparecido durante la espera (lista repintada)
     if (!anchor.isConnected) return;
     metric = getRankingMetric();
-    year = new Date().getUTCFullYear();
     hoverCard.open(type, id, anchor.getBoundingClientRect(), pointerX);
   }
 
@@ -267,7 +252,7 @@
           {#each RANK_PERIODS as period (period.key)}
             {@const rank = ranks?.[period.key]}
             <div class="hc-rank">
-              <span class="hc-label">{period.label ?? year}</span>
+              <span class="hc-label">{period.label}</span>
               {#if !ranks}
                 <span class="hc-rank-value"><span class="ghost-text"></span></span>
               {:else if rank}

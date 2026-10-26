@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { Rankings, EntityType } from '$lib/api';
+  import type { EntityType } from '$lib/api';
   import type { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import { medalColor } from '$lib/utils/medals';
+  import { RANK_PERIODS } from '$lib/utils/rank-periods';
   import { periodLabel } from '$lib/utils/periods';
   import RankHistoryChart from './charts/RankHistoryChart.svelte';
 
@@ -19,7 +20,6 @@
     highlightedMonth?: string;
   } = $props();
 
-  const rankLabels = { week: '7D', month: '30D', thisYear: 'YTD', all: 'All' } as const;
   let chartType = $derived(entityType === 'artist' ? 'artists' : entityType === 'album' ? 'albums' : 'tracks');
   let rankings = $derived(ranks.rankings);
   let rankingsLoading = $derived(ranks.rankingsLoading);
@@ -39,8 +39,8 @@
 </script>
 
 <div class="rankings-row">
-  {#each Object.entries(rankLabels) as [key, label]}
-    {@const rank = rankings?.[key as keyof Rankings] ?? null}
+  {#each RANK_PERIODS as { key, label } (key)}
+    {@const rank = rankings?.[key] ?? null}
     {@const color = rank ? medalColor(rank) : undefined}
     <!-- el pico all-time vive dentro del badge "All": misma métrica, mejor posición alcanzada.
          solo se muestra si mejora la actual (si coincide, la entidad está en su pico ahora) -->
