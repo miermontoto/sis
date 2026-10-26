@@ -11,7 +11,7 @@ import type {
   Granularity, PeriodCalendar, RankingMetric, ListeningTimeItem,
   TopArtistItem, TopAlbumItem, TopTrackItem,
   ReportResponse, ReportSummary, ReportFacts, ReportGenre, ReportDecade, ReportDiscovery,
-  ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone, ReportEntityRef, ReportPlayRef,
+  ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportEntityRef, ReportPlayRef,
 } from '@sis/shared';
 import {
   periodBounds, adjacentPeriod, isClosedPeriod, COLLECTION_ID_PREFIX,
@@ -26,7 +26,6 @@ import { getProfileSummary } from './social.js';
 import { formatTopTrackRows, formatTopArtistRow, formatTopAlbumRow, lookupArtist, lookupAlbum } from './formatters.js';
 import { getAlbumArtists } from './album.js';
 import { enrichTracksBatch } from './track.js';
-import { MILESTONE_THRESHOLDS } from '../../constants.js';
 
 const DAY_MS = 86_400_000;
 const HOURS_PER_DAY = 24;
@@ -455,28 +454,6 @@ function getMonths(db: Db, userId: number, start: string, end: string, timeZone:
   }));
 }
 
-// --- milestones: umbrales de plays de la historia cruzados dentro del periodo ---
-
-function getMilestones(db: Db, userId: number, start: string, end: string, periodPlays: number): ReportMilestone[] {
-  const before = (db.get(sql`
-    SELECT count(*) AS c FROM listening_history lh WHERE lh.user_id = ${userId} AND lh.played_at < ${start}
-  `) as { c: number } | undefined)?.c ?? 0;
-
-  const crossed = MILESTONE_THRESHOLDS.filter(n => n > before && n <= before + periodPlays);
-  const hits = crossed.flatMap((n) => {
-    // el play nº n de la historia es el (n - before)-ésimo del periodo, en orden cronológico
-    const row = db.get(sql`
-      SELECT lh.track_id, lh.played_at FROM listening_history lh
-      WHERE ${periodWhere(userId, start, end)}
-      ORDER BY lh.played_at ASC
-      LIMIT 1 OFFSET ${n - before - 1}
-    `) as { track_id: string; played_at: string } | undefined;
-    return row ? [{ n, ...row }] : [];
-  });
-  const tracks = enrichTracksBatch(db, hits.map(h => h.track_id), userId);
-  return hits.map(h => ({ n: h.n, playedAt: h.played_at, track: tracks.get(h.track_id) ?? null }));
-}
-
 // --- ensamblado ---
 
 function firstPlayedAt(db: Db, userId: number): string | null {
@@ -523,6 +500,6 @@ export function getReport(db: Db, userId: number, granularity: Granularity, peri
     decades: getDecades(db, userId, start, end, summary.plays),
     discovery: getDiscovery(db, userId, start, end, sort),
     months: granularity === 'year' ? getMonths(db, userId, start, end, timeZone, sort) : null,
-    milestones: getMilestones(db, userId, start, end, summary.plays),
+    milestones: [],
   };
 }

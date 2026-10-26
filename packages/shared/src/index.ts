@@ -96,7 +96,7 @@ export { UTC_TIME_ZONE, resolveTimeZone, zoneOffsetMs, toWallTime, fromWallTime,
 export type { ZoneSegment } from './time-zone.js';
 
 // reports periódicos
-export type { ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone } from './reports.js';
+export type { ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth } from './reports.js';
 export { REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT, REPORT_INDEX_HISTORY } from './constants.js';
 
 // logo (wordmark "sis"): geometría compartida por la web, la imagen og y los assets

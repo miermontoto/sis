@@ -32,7 +32,7 @@ export type {
   DirectoryUser, DirectoryResponse, FollowUser, FollowListResponse, FeedItem, FeedPlayItem, FeedResponse,
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertSong, ConcertRef, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse,
-  ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth, ReportMilestone,
+  ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionRef, CollectionInput, CollectionConflict, CollectionCandidate, CollectionCandidates, CollectionIndexItem,
   CreditSubjectType, CreditArtist, EntityCredits,
 } from '@sis/shared';

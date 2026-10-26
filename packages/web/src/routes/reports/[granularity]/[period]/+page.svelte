@@ -424,7 +424,7 @@
       {/if}
     </div>
 
-    <!-- extras del año: cada mes con su líder, y los hitos de plays -->
+    <!-- extra del año: cada mes con su artista y su tema nº 1, cada uno con su imagen -->
     {#if report.months && report.months.length > 0}
       <h2 class="section-title">Month by month</h2>
       <div class="report-months">
@@ -433,29 +433,22 @@
             <span class="data-label">{monthNames[Number(m.month.slice(5, 7)) - 1]}</span>
             <span class="report-month-plays data-count">{formatNumber(m.plays)} plays · {formatHours(m.totalMs)}</span>
             {#if m.topArtist}
-              <a class="report-month-artist" href="/artist/{m.topArtist.id}">
-                {#if m.topArtist.imageUrl}<img class="report-month-face" src={m.topArtist.imageUrl} alt="" />{/if}
+              <a class="report-month-entity" href="/artist/{m.topArtist.id}">
+                {#if m.topArtist.imageUrl}<img class="report-month-img report-month-img--round" src={m.topArtist.imageUrl} alt="" />{/if}
                 <span>{m.topArtist.name}</span>
               </a>
             {/if}
             {#if m.topTrack}
-              <a class="report-month-track" href="/track/{m.topTrack.id}">{m.topTrack.name}</a>
+              <a class="report-month-entity report-month-entity--track" href="/track/{m.topTrack.id}">
+                {#if m.topTrack.album?.imageUrl}<img class="report-month-img" src={m.topTrack.album.imageUrl} alt="" />{/if}
+                <span>{m.topTrack.name}</span>
+              </a>
             {/if}
           </div>
         {/each}
       </div>
     {/if}
 
-    {#if report.milestones.length > 0}
-      <h2 class="section-title">Milestones</h2>
-      <div class="track-list">
-        {#each report.milestones as ms (ms.n)}
-          <TrackItem compact imageUrl={ms.track?.album?.imageUrl} name={ms.track?.name ?? 'Unknown track'} nameHref={ms.track ? `/track/${ms.track.id}` : undefined}>
-            {#snippet subtitle()}Play #{formatNumber(ms.n)} of all time · {formatHistoryStamp(ms.playedAt)}{/snippet}
-          </TrackItem>
-        {/each}
-      </div>
-    {/if}
   {/if}
 {/if}
 
@@ -648,7 +641,7 @@
     font-size: var(--fs-sm);
     color: var(--text-muted);
   }
-  .report-month-artist {
+  .report-month-entity {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -656,26 +649,28 @@
     font-weight: 600;
     min-width: 0;
   }
-  .report-month-artist span,
-  .report-month-track {
+  .report-month-entity span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .report-month-artist:hover { color: var(--accent); }
-  .report-month-face {
+  .report-month-entity:hover { color: var(--accent); }
+  .report-month-entity--track {
+    font-size: var(--fs-sm);
+    font-weight: normal;
+    color: var(--text-muted);
+  }
+  /* foto del artista redonda y portada del tema cuadrada, al mismo tamaño para que
+     los dos nombres arranquen a la misma altura */
+  .report-month-img {
     width: 28px;
     height: 28px;
-    border-radius: 50%;
+    border-radius: var(--radius);
     object-fit: cover;
     flex-shrink: 0;
     background: var(--border);
   }
-  .report-month-track {
-    font-size: var(--fs-sm);
-    color: var(--text-muted);
-  }
-  .report-month-track:hover { color: var(--accent); }
+  .report-month-img--round { border-radius: 50%; }
   @media (max-width: 1024px) {
     .report-columns { grid-template-columns: 1fr; grid-template-rows: none; }
     .report-column { grid-row: auto; grid-template-rows: auto auto; }

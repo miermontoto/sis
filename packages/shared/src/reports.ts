@@ -8,7 +8,7 @@ import type { ListeningTimeItem } from './stats.js';
 export interface ReportPeriod {
   granularity: Granularity;
   period: string;
-  /** límites [start, end) en ISO UTC, los mismos que etiquetan el chart del periodo */
+  /** límites [start, end): las medianoches locales del usuario en ISO UTC, las mismas que etiquetan el chart del periodo */
   start: string;
   end: string;
   /** periodo cerrado inmediatamente anterior / siguiente (null = no hay o aún abierto) */
@@ -22,7 +22,7 @@ export interface ReportSummary {
   distinctArtists: number;
   distinctTracks: number;
   distinctAlbums: number;
-  /** días (UTC) con al menos un play */
+  /** días (locales) con al menos un play */
   activeDays: number;
   /** longitud del periodo en días */
   days: number;
@@ -40,7 +40,7 @@ export interface ReportPlayRef {
 }
 
 export interface ReportDayFact {
-  /** YYYY-MM-DD (UTC, como los buckets diarios de los charts) */
+  /** YYYY-MM-DD local, como los buckets diarios del report */
   date: string;
   plays: number;
   totalMs: number;
@@ -109,24 +109,17 @@ export interface ReportMonth {
   topTrack: TrackInfo | null;
 }
 
-export interface ReportMilestone {
-  /** play nº N de la historia del usuario (umbral de MILESTONE_THRESHOLDS) */
-  n: number;
-  playedAt: string;
-  track: TrackInfo | null;
-}
-
 export interface ReportResponse {
   period: ReportPeriod;
   summary: ReportSummary;
   /** mismo resumen del periodo anterior, para los deltas (null si no existe) */
   previous: ReportSummary | null;
   facts: ReportFacts;
-  /** plays por día (semana/mes) o por mes (año), buckets UTC sin rellenar huecos */
+  /** plays por día (semana/mes) o por mes (año), buckets locales sin rellenar huecos */
   series: ListeningTimeItem[];
   /** plays por hora local, 24 posiciones */
   clock: number[];
-  /** plays por día de la semana (UTC), 7 posiciones empezando en domingo como strftime('%w') */
+  /** plays por día de la semana (local), 7 posiciones empezando en domingo como strftime('%w') */
   weekdays: number[];
   top: {
     artists: TopArtistItem[];
@@ -140,5 +133,7 @@ export interface ReportResponse {
   discovery: ReportDiscovery;
   /** solo en el report anual */
   months: ReportMonth[] | null;
-  milestones: ReportMilestone[];
+  /** siempre vacío: la sección se retiró (2026-10-26) y la clave sigue por los apks
+   *  publicados, que leen `milestones.length` y con una lista vacía no la pintan */
+  milestones: [];
 }
