@@ -11,9 +11,8 @@
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
   import { toastStore } from '$lib/stores/toast.svelte';
-  import { formatDuration, formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
+  import { formatTrackLength, formatNumber, formatDate, formatShortDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
-  import { medalColor } from '$lib/utils/medals';
   import { compareByMetric } from '$lib/utils/library-items';
   import { resolveEntityColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
@@ -295,24 +294,24 @@
       {#if albumBreakdown.length > 1}
         <section class="detail-section">
           <h2 class="section-title">Played in</h2>
+          <!-- el DTO no trae los artistas de cada álbum: el padre del menú es el
+               principal del tema, que casi siempre es el del álbum -->
           <div class="track-list">
-            {#each albumBreakdown as item, i}
-              <a href="/album/{item.album.id}" class="track-item">
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                {#if item.album.imageUrl}
-                  <img class="track-art" src={item.album.imageUrl} alt={item.album.name} />
-                {:else}
-                  <div class="track-art"></div>
-                {/if}
-                <div class="track-info">
-                  <div class="track-name">{item.album.name}</div>
-                  <div class="track-artist">{item.album.releaseDate ?? ''}</div>
-                </div>
-                <div class="track-meta">
-                  <div class="track-plays">{metric === 'plays' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                  <div class="track-time">{metric === 'time' ? `${item.playCount} plays` : formatDuration(item.totalMs)}</div>
-                </div>
-              </a>
+            {#each albumBreakdown as item, i (item.albumId)}
+              {#snippet albumSubtitle()}{item.album.releaseDate ?? ''}{/snippet}
+              {#snippet albumMeta()}
+                <MetricMeta playCount={item.playCount} totalMs={item.totalMs} {metric} />
+              {/snippet}
+              <TrackItem
+                href="/album/{item.album.id}"
+                rank={i + 1}
+                imageUrl={item.album.imageUrl}
+                name={item.album.name}
+                isLive={nowPlayingStore.isLive('album', item.album.id)}
+                entity={{ type: 'album', id: item.album.id, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: d.track.artists[0]?.id }}
+                subtitle={albumSubtitle}
+                meta={albumMeta}
+              />
             {/each}
           </div>
         </section>

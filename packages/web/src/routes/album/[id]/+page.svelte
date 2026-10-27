@@ -11,7 +11,6 @@
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
-  import { medalColor } from '$lib/utils/medals';
   import { extractColor, hexToRgb, rgbToHex, type Rgb } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
@@ -457,27 +456,24 @@
       {#if (d.relatedSingles ?? []).length > 0}
         <section class="detail-section">
           <h2 class="section-title">Singles</h2>
+          <!-- van por fecha de lanzamiento (el servidor ordena por release_date), no por
+               escuchas: sin columna de puesto, que RankCell la pintaría con medallas -->
           <div class="track-list singles-list">
-            {#each d.relatedSingles as s, i}
-              <a href="/album/{s.id}" class="track-item">
-                <span class="track-rank">{i + 1}</span>
-                {#if s.imageUrl}
-                  <img class="track-art" src={s.imageUrl} alt={s.name} />
-                {:else}
-                  <div class="track-art"></div>
-                {/if}
-                <div class="track-info">
-                  <div class="track-name">{s.name}</div>
-                  <div class="track-artist">{s.date}</div>
-                </div>
-                {#if singleGlobalRanks?.[s.id] != null}
-                  <span class="global-rank" title="All-time rank" style:color={medalColor(singleGlobalRanks[s.id])}>#{singleGlobalRanks[s.id]}</span>
-                {/if}
-                <div class="track-meta">
-                  <div class="track-plays">{metric === 'plays' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
-                  <div class="track-time">{metric === 'time' ? `${s.playCount} plays` : formatDuration(s.totalMs)}</div>
-                </div>
-              </a>
+            {#each d.relatedSingles as s (s.id)}
+              {#snippet singleSubtitle()}{s.date}{/snippet}
+              {#snippet singleMeta()}
+                <MetricMeta playCount={s.playCount} totalMs={s.totalMs} {metric} />
+              {/snippet}
+              <TrackItem
+                href="/album/{s.id}"
+                imageUrl={s.imageUrl}
+                name={s.name}
+                globalRank={singleGlobalRanks?.[s.id]}
+                isLive={nowPlayingStore.isLive('album', s.id)}
+                entity={{ type: 'album', id: s.id, name: s.name, imageUrl: s.imageUrl, parentArtistId: d.artists[0]?.id }}
+                subtitle={singleSubtitle}
+                meta={singleMeta}
+              />
             {/each}
           </div>
         </section>
