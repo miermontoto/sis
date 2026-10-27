@@ -7,6 +7,9 @@ export interface Match {
   b: number;
   // fase legible del enfrentamiento ("Sweet 16", "Group B · Matchday 2")
   label: string;
+  // la ronda a la que pertenece, para los rótulos de cambio de fase de la ui;
+  // solo hace falta cuando el label lleva detalle del partido (grupo, retador)
+  phase?: string;
   // contexto de cada lado (récord, derrotas, racha), alineado con a/b
   notes?: [string, string];
 }
@@ -40,6 +43,7 @@ export interface TableRow {
   c: number;
   cells: string[];
   qualified: boolean;
+  eliminated: boolean;
 }
 
 export interface Table {
@@ -70,8 +74,6 @@ export interface Outcome {
 
 export interface Spec {
   n: number;
-  // tamaño del playoff tras el suizo (0 = sin playoff)
-  playoffCut: number;
 }
 
 export type FormatId = 'knockout' | 'double' | 'groups' | 'swiss' | 'koth';

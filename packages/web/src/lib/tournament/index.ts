@@ -21,4 +21,4 @@ export { nextPow2, roundName, seedOrder } from './bracket';
 export { DRAW_MODES, drawOrder, type DrawMode } from './draw';
 export { groupCount, roundRobin } from './groups';
 export { replay, upsets, type Replay, type Upset } from './replay';
-export { maxPlayoffCut, pairSwiss, PLAYOFF_CUTS, swissRounds } from './swiss';
+export { pairSwiss, swissTarget } from './swiss';

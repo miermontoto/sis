@@ -56,25 +56,61 @@ export interface BoardRender {
   owner: string;
   // oculta seeds y cifras (modo a ciegas mientras el torneo sigue abierto)
   blind: boolean;
+  // el último partido decidido: el render devuelve dónde quedó (ver RenderResult)
+  focus: { a: number; b: number } | null;
 }
 
-// cssWidth/cssHeight son las dimensiones lógicas, sin el factor de escala
+// rectángulo en unidades lógicas del canvas
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+// cssWidth/cssHeight son las dimensiones lógicas, sin el factor de escala;
+// focus, dónde cayó el último partido, para que la ui lo resalte encima sin
+// ensuciar el png exportado
 export interface RenderResult {
   canvas: HTMLCanvasElement;
   cssWidth: number;
   cssHeight: number;
+  focus: Rect[];
 }
 
 type Tone = 'normal' | 'win' | 'lose' | 'champion';
 
 // primitivas de dibujo compartidas por los tres tipos de bloque
 class Painter {
+  // dónde se ha pintado el foco: el partido (en cuadros y listas) o las filas
+  // de sus dos lados (en tablas)
+  readonly hits: { matches: Rect[]; rows: Rect[] } = { matches: [], rows: [] };
+
   constructor(
     readonly ctx: CanvasRenderingContext2D,
     private readonly entries: BoardEntry[],
     private readonly images: Map<string, HTMLImageElement | null>,
     private readonly blind: boolean,
+    private readonly focus: BoardRender['focus'],
   ) {}
+
+  // el foco es un partido ya decidido entre esos dos, en cualquier orden
+  private isFocus(m: BoardMatch): boolean {
+    const f = this.focus;
+    return f !== null && m.winner !== null && ((m.a === f.a && m.b === f.b) || (m.a === f.b && m.b === f.a));
+  }
+
+  markRow(c: Slot, rect: Rect) {
+    if (this.focus && (c === this.focus.a || c === this.focus.b)) this.hits.rows.push(rect);
+  }
+
+  // un partido resaltado gana a las filas: si el foco es del playoff, sus
+  // dos lados siguen en la clasificación y no hay que marcarlos
+  focusRects(): Rect[] {
+    const { matches, rows } = this.hits;
+    // con el mismo cruce dos veces (gran final y reset) el último pintado es el más reciente
+    return matches.length ? [matches[matches.length - 1]] : rows;
+  }
 
   // recorta un texto al ancho disponible añadiendo elipsis
   fit(text: string, maxW: number): string {
@@ -168,6 +204,7 @@ class Painter {
 
   match(x: number, y: number, m: BoardMatch) {
     const { ctx } = this;
+    if (this.isFocus(m)) this.hits.matches.push({ x, y, w: COL_W, h: MATCH_H });
     this.box(x, y, COL_W, MATCH_H, m.a === null && m.b === null ? CANVAS_EMPTY : CANVAS_SLOT);
     ctx.strokeStyle = CANVAS_BG;
     ctx.lineWidth = 1;
@@ -265,9 +302,11 @@ function layTables(b: TablesBlock): Laid {
           pnl.rows.forEach((r, i) => {
             const ry = rowY + TABLE_TITLE_H + i * (ROW_H + ROW_GAP);
             p.box(px, ry, TABLE_W, ROW_H, CANVAS_SLOT, 4);
+            p.markRow(r.c, { x: px, y: ry, w: TABLE_W, h: ROW_H });
             if (r.qualified) p.box(px, ry, QUALIFIED_BAR, ROW_H, CANVAS_ACCENT, 1);
             // las celdas se pintan de derecha a izquierda
-            p.entry(px, ry, TABLE_W, r.c, r.qualified ? 'win' : 'normal', String(pnl.offset + i + 1), [...r.cells].reverse());
+            const tone = r.qualified ? 'win' : r.eliminated ? 'lose' : 'normal';
+            p.entry(px, ry, TABLE_W, r.c, tone, String(pnl.offset + i + 1), [...r.cells].reverse());
           });
         });
         rowY += rowHeights[gr] + GRID_GAP;
@@ -317,7 +356,7 @@ export async function renderBoard(input: BoardRender, scale: number): Promise<Re
   // una sola carga por url aunque la entrada aparezca en varias rondas
   const urls = [...new Set(input.entries.map((e) => e.imageUrl).filter((u): u is string => !!u))];
   const loaded = await Promise.all(urls.map((u) => tryLoadImage(u)));
-  const p = new Painter(ctx, input.entries, new Map(urls.map((u, i) => [u, loaded[i]])), input.blind);
+  const p = new Painter(ctx, input.entries, new Map(urls.map((u, i) => [u, loaded[i]])), input.blind, input.focus);
 
   ctx.textBaseline = 'middle';
   p.text(input.title, PAD, PAD + 22, 'bold 34px sans-serif', CANVAS_TEXT);
@@ -333,5 +372,5 @@ export async function renderBoard(input: BoardRender, scale: number): Promise<Re
   p.text(input.owner, PAD, footerY, '600 16px sans-serif', CANVAS_MUTED);
   p.text('sis', width - PAD, footerY, '600 16px sans-serif', CANVAS_DIM, 'right');
 
-  return { canvas, cssWidth: width, cssHeight: height };
+  return { canvas, cssWidth: width, cssHeight: height, focus: p.focusRects() };
 }

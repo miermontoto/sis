@@ -68,7 +68,9 @@ export const groupsFormat: TournamentFormat = {
     const refresh = () => {
       block.tables = members.map((group, g) => ({
         title: `Group ${GROUP_LETTERS[g]}`,
-        rows: standings(group).map((c, pos) => ({ c, cells: [record(c)], qualified: unplayed[g] === 0 && pos < ADVANCE })),
+        rows: standings(group).map((c, pos) => ({
+          c, cells: [record(c)], qualified: unplayed[g] === 0 && pos < ADVANCE, eliminated: unplayed[g] === 0 && pos >= ADVANCE,
+        })),
       }));
     };
     board.push(block);
@@ -80,7 +82,9 @@ export const groupsFormat: TournamentFormat = {
       for (const [g, schedule] of schedules.entries()) {
         for (const [a, b] of schedule[day] ?? []) {
           refresh();
-          const w = yield { a, b, label: `Group ${GROUP_LETTERS[g]} · Matchday ${day + 1}`, notes: [record(a), record(b)] };
+          const w = yield {
+            a, b, label: `Group ${GROUP_LETTERS[g]} · Matchday ${day + 1}`, phase: `Group stage · Matchday ${day + 1}`, notes: [record(a), record(b)],
+          };
           wins[w]++;
           losses[w === a ? b : a]++;
           beat.set(pairKey(a, b), w);

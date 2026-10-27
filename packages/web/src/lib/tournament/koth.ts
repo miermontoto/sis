@@ -1,6 +1,8 @@
 import { powerTier } from './bracket';
 import type { ListBlock, Slot, TournamentFormat } from './types';
 
+const GAUNTLET = 'The gauntlet';
+
 const streakNote = (streak: number) => (streak === 0 ? 'Opens the gauntlet' : `${streak} straight ${streak === 1 ? 'win' : 'wins'}`);
 
 export const kothFormat: TournamentFormat = {
@@ -17,7 +19,7 @@ export const kothFormat: TournamentFormat = {
     // primero, que llega al final como jefe
     const queue = Array.from({ length: n }, (_, i) => n - 1 - i);
     const list: ListBlock = {
-      kind: 'list', title: 'The gauntlet', matches: queue.slice(1).map((b) => ({ a: null, b, winner: null })),
+      kind: 'list', title: GAUNTLET, matches: queue.slice(1).map((b) => ({ a: null, b, winner: null })),
     };
     board.push(list);
 
@@ -28,7 +30,7 @@ export const kothFormat: TournamentFormat = {
       const challenger = queue[i + 1];
       m.a = holder;
       const w = yield {
-        a: holder, b: challenger, label: `Challenger ${i + 1} of ${list.matches.length}`, notes: [streakNote(streak), 'Challenger'],
+        a: holder, b: challenger, label: `Challenger ${i + 1} of ${list.matches.length}`, phase: GAUNTLET, notes: [streakNote(streak), 'Challenger'],
       };
       m.winner = w;
       runnerUp = w === holder ? challenger : holder;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  FORMATS, drawOrder, groupCount, maxPlayoffCut, replay, roundRobin, seedOrder, swissRounds, upsets,
+  FORMATS, drawOrder, groupCount, replay, roundRobin, seedOrder, swissTarget, upsets,
   type BracketBlock, type Played, type Spec, type TablesBlock, type TournamentFormat,
 } from './index';
 import { powerTier } from './bracket';
@@ -69,12 +69,12 @@ describe('drawOrder', () => {
 describe('knockout', () => {
   it('siempre son n-1 elecciones, con byes o sin ellos', () => {
     for (const n of [2, 5, 8, 13, 64]) {
-      expect(playOut(FORMATS.knockout, { n, playoffCut: 0 }, randomPicks(n)).log).toHaveLength(n - 1);
+      expect(playOut(FORMATS.knockout, { n }, randomPicks(n)).log).toHaveLength(n - 1);
     }
   });
 
   it('a favor de los datos gana el primer seed y el segundo es finalista', () => {
-    const { outcome } = playOut(FORMATS.knockout, { n: 16, playoffCut: 0 }, chalk);
+    const { outcome } = playOut(FORMATS.knockout, { n: 16 }, chalk);
     expect(outcome).toEqual({ champion: 0, runnerUp: 1 });
   });
 });
@@ -83,7 +83,7 @@ describe('double elimination', () => {
   it('todos menos el campeón caen con exactamente dos derrotas', () => {
     for (const n of [3, 5, 8, 13, 16]) {
       for (let seed = 1; seed <= 20; seed++) {
-        const { log, outcome } = playOut(FORMATS.double, { n, playoffCut: 0 }, randomPicks(seed * n));
+        const { log, outcome } = playOut(FORMATS.double, { n }, randomPicks(seed * n));
         const champion = outcome.champion as number;
         expect(losses(log, champion)).toBeLessThanOrEqual(1);
         for (let c = 0; c < n; c++) if (c !== champion) expect(losses(log, c)).toBe(2);
@@ -95,7 +95,7 @@ describe('double elimination', () => {
 
   it('el reset de la gran final solo existe si gana el que viene de perdedores', () => {
     const top = (a: number, b: number) => (a < b ? a : b);
-    const { board } = playOut(FORMATS.double, { n: 8, playoffCut: 0 }, top);
+    const { board } = playOut(FORMATS.double, { n: 8 }, top);
     const final = board[2] as BracketBlock;
     expect(final.columns).toHaveLength(1);
     expect(final.champion).toBe(0);
@@ -119,7 +119,7 @@ describe('groups', () => {
 
   it('liguilla completa y los de un mismo grupo solo pueden verse en la final', () => {
     for (const n of [8, 13, 16, 32]) {
-      const { log, board } = playOut(FORMATS.groups, { n, playoffCut: 0 }, randomPicks(n));
+      const { log, board } = playOut(FORMATS.groups, { n }, randomPicks(n));
       const groups = (board[0] as TablesBlock).tables.map((t) => t.rows.map((r) => r.c));
       const groupOf = new Map(groups.flatMap((g, i) => g.map((c) => [c, i] as const)));
       const groupMatches = groups.reduce((sum, g) => sum + (g.length * (g.length - 1)) / 2, 0);
@@ -139,41 +139,72 @@ describe('groups', () => {
 });
 
 describe('swiss', () => {
-  it('rondas y cortes según el tamaño del campo', () => {
-    expect([8, 13, 16, 64].map(swissRounds)).toEqual([3, 4, 4, 6]);
-    expect([4, 8, 13, 16, 64].map(maxPlayoffCut)).toEqual([2, 4, 4, 8, 32]);
+  // récord de cada lado justo antes del partido, leído de sus notas ("2–1 · win and in")
+  const recordsOf = (p: Played) => (p.notes ?? []).map((note) => note.split(' · ')[0].split('–').map(Number));
+  const swissStage = (log: Played[]) => log.filter((p) => p.label.startsWith('Swiss'));
+
+  it('umbral según el tamaño del campo', () => {
+    expect([8, 13, 16, 32, 64].map(swissTarget)).toEqual([2, 2, 3, 3, 3]);
   });
 
   it('la primera ronda cruza la mitad alta contra la baja', () => {
-    const { log } = playOut(FORMATS.swiss, { n: 16, playoffCut: 8 }, chalk);
+    const { log } = playOut(FORMATS.swiss, { n: 16 }, chalk);
     expect(log.slice(0, 8).map((p) => [p.a, p.b])).toEqual([...Array(8).keys()].map((i) => [i, i + 8]));
   });
 
-  it('nunca repite cruce en la fase suiza y el playoff es del corte', () => {
-    for (let seed = 1; seed <= 30; seed++) {
-      const { log, board } = playOut(FORMATS.swiss, { n: 16, playoffCut: 8 }, randomPicks(seed));
-      const swiss = log.filter((p) => p.label.startsWith('Swiss'));
-      expect(swiss).toHaveLength(4 * 8);
-      expect(new Set(swiss.map((p) => pairKey(p.a, p.b))).size).toBe(swiss.length);
-      expect(log).toHaveLength(32 + 7);
-      expect((board[1] as BracketBlock).columns[0].matches).toHaveLength(4);
+  it('con un campo potencia de dos, cada partido es entre vivos del mismo récord y pasa justo la mitad', () => {
+    for (const n of [8, 16, 32, 64]) {
+      const target = swissTarget(n);
+      for (let seed = 1; seed <= 10; seed++) {
+        const { log, board } = playOut(FORMATS.swiss, { n }, randomPicks(seed * n));
+        const stage = swissStage(log);
+        for (const p of stage) {
+          const [a, b] = recordsOf(p);
+          expect(a).toEqual(b);
+          expect(Math.max(...a)).toBeLessThan(target);
+        }
+        expect(new Set(stage.map((p) => pairKey(p.a, p.b))).size).toBe(stage.length);
+        const rows = (board[0] as TablesBlock).tables[0].rows;
+        expect(rows.filter((r) => r.qualified)).toHaveLength(n / 2);
+        expect(rows.every((r) => r.qualified !== r.eliminated)).toBe(true);
+        expect(log).toHaveLength(stage.length + n / 2 - 1);
+      }
     }
   });
 
-  it('con impares cada ronda descansa uno distinto y el descanso suma victoria', () => {
-    const n = 13;
-    const { log, board } = playOut(FORMATS.swiss, { n, playoffCut: 0 }, randomPicks(3));
-    expect(log).toHaveLength(swissRounds(n) * 6);
+  it('16 entradas: 33 partidos de suizo y un playoff de 8 sembrado por récord', () => {
+    const { log, board } = playOut(FORMATS.swiss, { n: 16 }, randomPicks(4));
+    expect(swissStage(log)).toHaveLength(33);
     const rows = (board[0] as TablesBlock).tables[0].rows;
-    const games = rows.map((r) => r.cells[0].split('–').map(Number).reduce((x, y) => x + y));
-    expect(games.every((g) => g === swissRounds(n))).toBe(true);
-    expect(board).toHaveLength(1);
+    const playoff = board[1] as BracketBlock;
+    // el 1 y el 2 de la clasificación solo pueden cruzarse en la final
+    const firstRound = playoff.columns[0].matches;
+    expect(firstRound).toHaveLength(4);
+    expect(firstRound[0].a).toBe(rows[0].c);
+    expect(firstRound.findIndex((m) => m.a === rows[1].c)).toBe(firstRound.length / 2);
+  });
+
+  it('con impares nadie juega decidido, el descanso suma victoria y todos acaban dentro o fuera', () => {
+    for (const n of [9, 13, 24, 45]) {
+      const target = swissTarget(n);
+      for (let seed = 1; seed <= 10; seed++) {
+        const { log, board } = playOut(FORMATS.swiss, { n }, randomPicks(seed + n));
+        for (const p of swissStage(log)) {
+          for (const [w, l] of recordsOf(p)) expect(Math.max(w, l)).toBeLessThan(target);
+        }
+        const rows = (board[0] as TablesBlock).tables[0].rows;
+        expect(rows.every((r) => r.qualified !== r.eliminated)).toBe(true);
+        const qualified = new Set(rows.filter((r) => r.qualified).map((r) => r.c));
+        const seated = (board[1] as BracketBlock).columns[0].matches.flatMap((m) => [m.a, m.b]).filter((c) => c !== null);
+        expect(new Set(seated)).toEqual(qualified);
+      }
+    }
   });
 });
 
 describe('king of the hill', () => {
   it('n-1 retadores y el primero del sorteo llega al final', () => {
-    const { log, outcome } = playOut(FORMATS.koth, { n: 8, playoffCut: 0 }, randomPicks(5));
+    const { log, outcome } = playOut(FORMATS.koth, { n: 8 }, randomPicks(5));
     expect(log).toHaveLength(7);
     expect(log.at(-1)?.b).toBe(0);
     expect(outcome.champion).toBe(log.at(-1)?.winner);
@@ -181,12 +212,12 @@ describe('king of the hill', () => {
 
   it('si el trono no cae, el que lo abrió es campeón', () => {
     const holder = (a: number) => a;
-    expect(playOut(FORMATS.koth, { n: 6, playoffCut: 0 }, holder).outcome.champion).toBe(5);
+    expect(playOut(FORMATS.koth, { n: 6 }, holder).outcome.champion).toBe(5);
   });
 });
 
 describe('replay', () => {
-  const spec = { n: 16, playoffCut: 8 };
+  const spec = { n: 16 };
 
   it('deshacer es quitar el último ganador', () => {
     for (const format of Object.values(FORMATS)) {
@@ -212,7 +243,7 @@ describe('replay', () => {
 
   it('el reset de la doble suma un partido al total en cuanto ocurre', () => {
     const format = FORMATS.double;
-    const base = { n: 4, playoffCut: 0 };
+    const base = { n: 4 };
     const { log } = playOut(format, base, chalk);
     const beforeFinal = log.slice(0, -1).map((p) => p.winner);
     const final = replay(format, base, beforeFinal).pending!;

@@ -9,10 +9,10 @@
   import { weightedSample } from '$lib/utils/sample';
   import { fromTopItem, metricValue, type EntityTab, type LibraryItem, type TopItem } from '$lib/utils/library-items';
   import {
-    DRAW_MODES, FORMATS, FORMAT_IDS, PLAYOFF_CUTS, drawOrder, maxPlayoffCut, replay, upsets,
-    type DrawMode, type FormatId, type Upset,
+    DRAW_MODES, FORMATS, FORMAT_IDS, drawOrder, replay, upsets,
+    type Block, type DrawMode, type FormatId, type Match, type TableRow, type Upset,
   } from '$lib/tournament';
-  import { renderBoard, type BoardRender } from './board-canvas';
+  import { renderBoard, type BoardRender, type Rect } from './board-canvas';
 
   const FIELD_SIZES = [8, 16, 32, 64] as const;
   // tope del campo en pick: el roster puede crecer sin límite, el torneo no
@@ -26,14 +26,26 @@
     pots: 'Shuffled within seed tiers: a fresh draw every time, but top seeds are still kept apart.',
     random: 'Anything goes: top seeds can meet straight away.',
   };
-  // nombre del formato en el subtítulo del png (al suizo se le añade el corte)
+  // nombre del formato en el subtítulo del png
   const FORMAT_NAMES: Record<FormatId, string> = {
-    knockout: 'knockout', double: 'double elimination', groups: 'groups + knockout', swiss: 'swiss', koth: 'king of the hill',
+    knockout: 'knockout', double: 'double elimination', groups: 'groups + knockout', swiss: 'swiss + knockout', koth: 'king of the hill',
   };
 
   // factores de supersampling del canvas (ver renderBoard)
   const MIN_RENDER_SCALE = 2;
   const EXPORT_SCALE = 2;
+
+  // duraciones de las animaciones: llegan al css como custom properties, así
+  // los @keyframes y los temporizadores que retiran cada efecto no se desalinean
+  const PICK_MS = 420;
+  const BANNER_MS = 1300;
+  const TOAST_MS = 2600;
+  // avisos de pase o caída a la vez: cerrar un grupo de cuatro da cuatro
+  const MAX_TOASTS = 4;
+  // lluvia del campeón: px de caída (mínimo + variación), deriva lateral en px,
+  // giro en grados y escalonado de salida
+  const CONFETTI = { count: 40, fallMin: 140, fallSpread: 220, sway: 60, spin: 540, staggerMs: 350 } as const;
+  const CONFETTI_COLORS = ['var(--accent)', 'var(--gold)', 'var(--info)', 'var(--like)', 'var(--warning)'];
 
   type Source = 'top' | 'random' | 'pick';
   // seed = puesto real por la métrica dentro del campo, no la posición del sorteo
@@ -49,7 +61,6 @@
   let endDate = $state('');
   let format = $state<FormatId>('knockout');
   let draw = $state<DrawMode>('seeded');
-  let playoffCut = $state<number>(8);
   let blind = $state(false);
 
   let pool = $state<LibraryItem[]>([]);
@@ -67,12 +78,36 @@
   let previewCanvas = $state<HTMLCanvasElement | null>(null);
   let rendering = $state(false);
   let renderSeq = 0;
+  let previewWrap = $state<HTMLDivElement | null>(null);
+  // dónde cayó la última elección en el tablero; `step` son los partidos jugados
+  // al pintarlo, y solo un step nuevo rehace el destello
+  let boardFocus = $state<{ step: number; rects: Rect[] }>({ step: -1, rects: [] });
+
+  // el partido recién decidido, pintado encima un instante mientras entra el
+  // siguiente: el elegido se ilumina y el otro cae
+  interface Ghost {
+    id: number;
+    sides: [Entry, Entry];
+    notes?: [string, string];
+    won: number;
+    upset: boolean;
+  }
+  let ghost = $state<Ghost | null>(null);
+  // rótulo del cambio de fase ("Sweet 16", "Swiss · Round 3 of 5")
+  let banner = $state<{ id: number; text: string } | null>(null);
+  // quién acaba de pasar o caer en las tablas (suizo y grupos)
+  let toasts = $state<{ id: number; entry: Entry; advanced: boolean; record: string }[]>([]);
+  // sentido del último paso: el partido siguiente entra por la derecha al
+  // elegir y por la izquierda al deshacer
+  let stepDir = $state<1 | -1>(1);
+  // entra en la clave del partido: un sorteo nuevo anima aunque el índice no cambie
+  let drawSeq = $state(0);
+  let fxSeq = 0;
 
   const fetchCtrl = createFetchController();
 
   const fmt = $derived(FORMATS[format]);
-  const cutCap = $derived(maxPlayoffCut(entries.length));
-  const spec = $derived({ n: entries.length, playoffCut: format === 'swiss' ? Math.min(playoffCut, cutCap) : 0 });
+  const spec = $derived({ n: entries.length });
   const run = $derived(entries.length >= fmt.minEntries ? replay(fmt, spec, winners) : null);
   const pending = $derived(run?.pending ?? null);
   const finished = $derived(run?.outcome != null);
@@ -84,6 +119,27 @@
   const canReshuffle = $derived(source === 'random' || draw !== 'seeded');
   const upsetList = $derived(run ? upsets(run.log, (c) => entries[c].seed) : []);
   const biggestUpset = $derived(upsetList.reduce<Upset | null>((best, u) => (!best || u.gap > best.gap ? u : best), null));
+  // cada pieza con su columna, su caída y su giro, sorteados al coronar
+  const confetti = $derived(finished
+    ? Array.from({ length: CONFETTI.count }, (_, i) => ({
+      left: Math.random() * 100,
+      fall: CONFETTI.fallMin + Math.random() * CONFETTI.fallSpread,
+      sway: (Math.random() * 2 - 1) * CONFETTI.sway,
+      spin: (Math.random() * 2 - 1) * CONFETTI.spin,
+      delay: Math.random() * CONFETTI.staggerMs,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    }))
+    : []);
+
+  const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const phaseOf = (m: Match | null): string | null => (m ? (m.phase ?? m.label) : null);
+
+  // filas ya decididas de las tablas: los motores las marcan al pasar o caer
+  const decidedRows = (board: Block[]): Map<number, TableRow> =>
+    new Map(board
+      .flatMap((b) => (b.kind === 'tables' ? b.tables.flatMap((t) => t.rows) : []))
+      .filter((r) => r.qualified || r.eliminated)
+      .map((r) => [r.c, r]));
 
   function getCustomDates(): DateRangeParams | undefined {
     if (range === 'custom' && startDate && endDate) return { startDate, endDate };
@@ -175,7 +231,45 @@
   // volver a sortear sin tocar quién entra
   function drawField() {
     entries = drawOrder(ranked.length, draw, fmt.tierOf).map((i) => ranked[i]);
+    freshStart();
+  }
+
+  // vuelve al primer partido: tira los efectos en vuelo y anuncia la primera fase
+  function freshStart() {
     winners = [];
+    ghost = null;
+    toasts = [];
+    stepDir = 1;
+    drawSeq++;
+    showBanner(phaseOf(pending));
+  }
+
+  // con movimiento reducido el css esconde el rótulo; el temporizador lo retira igual
+  function showBanner(text: string | null) {
+    if (!text) return;
+    const id = ++fxSeq;
+    banner = { id, text };
+    setTimeout(() => { if (banner?.id === id) banner = null; }, BANNER_MS);
+  }
+
+  function showGhost(match: Match, c: number) {
+    const id = ++fxSeq;
+    const sides: [Entry, Entry] = [entries[match.a], entries[match.b]];
+    const won = c === match.a ? 0 : 1;
+    // a ciegas no se delata el seed
+    ghost = { id, sides, notes: match.notes, won, upset: !blind && sides[won].seed > sides[1 - won].seed };
+    setTimeout(() => { if (ghost?.id === id) ghost = null; }, PICK_MS);
+  }
+
+  // avisa de lo que la elección acaba de decidir en las tablas
+  function announceRows(before: Map<number, TableRow>, after: Map<number, TableRow>) {
+    const fresh = [...after.values()]
+      .filter((r) => !before.has(r.c))
+      .map((r) => ({ id: ++fxSeq, entry: entries[r.c], advanced: r.qualified, record: r.cells[0] }));
+    if (!fresh.length) return;
+    toasts = [...toasts, ...fresh].slice(-MAX_TOASTS);
+    const ids = new Set(fresh.map((t) => t.id));
+    setTimeout(() => { toasts = toasts.filter((t) => !ids.has(t.id)); }, TOAST_MS);
   }
 
   // nuevo sorteo; con campo aleatorio también cambia quién entra
@@ -193,15 +287,33 @@
   }
 
   function choose(c: number) {
-    if (pending && (c === pending.a || c === pending.b)) winners = [...winners, c];
+    if (!run || !pending || (c !== pending.a && c !== pending.b)) return;
+    const match = pending;
+    const before = decidedRows(run.board);
+    showGhost(match, c);
+    winners = [...winners, c];
+    stepDir = 1;
+    // `run` y `pending` son $derived: leídos tras la escritura ya son el estado nuevo
+    if (finished) {
+      // la corona no comparte escena con avisos de rondas anteriores
+      banner = null;
+      toasts = [];
+      return;
+    }
+    announceRows(before, decidedRows(run.board));
+    const next = phaseOf(pending);
+    if (next !== phaseOf(match)) showBanner(next);
   }
 
   function undo() {
     winners = winners.slice(0, -1);
+    stepDir = -1;
+    ghost = null;
+    toasts = [];
   }
 
   function restart() {
-    winners = [];
+    freshStart();
     showBoard = false;
   }
 
@@ -224,9 +336,8 @@
     const fieldLabel = source === 'random' ? `random from top ${Math.min(poolDepth, pool.length)}`
       : source === 'pick' ? `${entries.length} hand-picked`
       : `top ${entries.length}`;
-    const formatName = spec.playoffCut ? `${FORMAT_NAMES[format]} + top ${spec.playoffCut}` : FORMAT_NAMES[format];
     const parts = [
-      source === 'pick' ? null : entityTab, rangeLabel(), fieldLabel, formatName,
+      source === 'pick' ? null : entityTab, rangeLabel(), fieldLabel, FORMAT_NAMES[format],
       draw === 'seeded' ? null : `${draw} draw`,
       finished ? `${upsetList.length} ${upsetList.length === 1 ? 'upset' : 'upsets'}` : null,
     ];
@@ -241,11 +352,14 @@
       owner: me?.displayName ?? me?.spotifyId ?? 'sis',
       // a ciegas el tablero tampoco enseña cifras hasta que hay campeón
       blind: blind && !finished,
+      // tras deshacer no se resalta nada: el último partido ya no es la última elección
+      focus: stepDir > 0 ? (run?.log.at(-1) ?? null) : null,
     };
   }
 
   async function updatePreview() {
     const seq = ++renderSeq;
+    const step = played;
     rendering = true;
     try {
       // nunca por debajo de 2x: el PNG descargado y el preview comparten render,
@@ -260,9 +374,20 @@
       // tamaño de lectura; los tableros anchos hacen scroll en vez de encogerse
       previewCanvas.style.width = `${r.cssWidth}px`;
       previewCanvas.getContext('2d')?.drawImage(r.canvas, 0, 0);
+      const fresh = step !== boardFocus.step;
+      boardFocus = { step, rects: r.focus };
+      if (fresh) revealFocus(r.focus[0]);
     } finally {
       if (seq === renderSeq) rendering = false;
     }
+  }
+
+  // trae a la vista lo recién decidido si el tablero ancho lo dejó fuera por un lado
+  function revealFocus(rect: Rect | undefined) {
+    if (!rect || !previewWrap) return;
+    const { scrollLeft, clientWidth } = previewWrap;
+    if (rect.x >= scrollLeft && rect.x + rect.w <= scrollLeft + clientWidth) return;
+    previewWrap.scrollTo({ left: rect.x + rect.w / 2 - clientWidth / 2, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }
 
   async function download() {
@@ -291,12 +416,6 @@
   });
 
   $effect(() => {
-    // otro corte de playoff es otro torneo
-    void playoffCut;
-    untrack(() => { winners = []; });
-  });
-
-  $effect(() => {
     // el tablero se repinta al terminar o al abrirlo, y con cada elección mientras está abierto
     void run; void blind;
     if ((finished || showBoard) && run) untrack(updatePreview);
@@ -304,6 +423,20 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
+
+{#snippet contenderBody(side: Entry, note: string | undefined, i: number)}
+  {#if side.imageUrl}
+    <img class="contender-img" src={side.imageUrl} alt={side.name} />
+  {:else}
+    <div class="contender-img placeholder">{side.name.charAt(0)}</div>
+  {/if}
+  {#if !blind}<div class="seed-badge">{side.seed}</div>{/if}
+  <div class="contender-name">{side.name}</div>
+  {#if side.subtitle}<div class="contender-sub">{side.subtitle}</div>{/if}
+  {#if note}<div class="contender-note">{note}</div>{/if}
+  {#if !blind}<div class="contender-stat">{metricLabel(side)}</div>{/if}
+  <div class="contender-key">{i === 0 ? '←' : '→'}</div>
+{/snippet}
 
 <TimeRangeSelector value={range} onchange={setRange} {startDate} {endDate} ondatechange={setCustomDates} />
 
@@ -377,23 +510,6 @@
       {/each}
     </div>
   </div>
-
-  {#if format === 'swiss'}
-    <div class="control-group">
-      <span class="control-label">Playoff</span>
-      <div class="toggle-group">
-        {#each PLAYOFF_CUTS as cut}
-          <button
-            class="toggle-btn"
-            class:active={spec.playoffCut === cut}
-            disabled={cut > cutCap}
-            title={cut > cutCap ? `Needs a field of at least ${cut * 2}` : ''}
-            onclick={() => playoffCut = cut}
-          >{cut ? `Top ${cut}` : 'None'}</button>
-        {/each}
-      </div>
-    </div>
-  {/if}
 
   <div class="control-group">
     <span class="control-label">Draw</span>
@@ -491,79 +607,115 @@
     </div>
   </div>
 
-  {#if finished && champion}
-    <div class="card champion-card">
-      <div class="champion-label">Your champion</div>
-      <div class="champion-body">
-        {#if champion.imageUrl}
-          <img class="champion-img" src={champion.imageUrl} alt={champion.name} />
-        {:else}
-          <div class="champion-img placeholder">{champion.name.charAt(0)}</div>
-        {/if}
-        <div class="champion-info">
-          <div class="champion-name">{champion.name}</div>
-          {#if champion.subtitle}<div class="champion-sub">{champion.subtitle}</div>{/if}
-          <div class="champion-stats">
-            Seed {champion.seed} · {formatNumber(champion.playCount)} plays · {formatHours(champion.totalMs)}
+  <div class="match-stage" style:--pick-ms="{PICK_MS}ms" style:--banner-ms="{BANNER_MS}ms" style:--toast-ms="{TOAST_MS}ms">
+    {#if finished && champion}
+      <div class="card champion-card">
+        <div class="champion-label">Your champion</div>
+        <div class="champion-body">
+          <div class="champion-portrait">
+            <svg class="crown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 15 1 4l6 4 5-7 5 7 6-4-1 11z" /></svg>
+            {#if champion.imageUrl}
+              <img class="champion-img" src={champion.imageUrl} alt={champion.name} />
+            {:else}
+              <div class="champion-img placeholder">{champion.name.charAt(0)}</div>
+            {/if}
+          </div>
+          <div class="champion-info">
+            <div class="champion-name">{champion.name}</div>
+            {#if champion.subtitle}<div class="champion-sub">{champion.subtitle}</div>{/if}
+            <div class="champion-stats">
+              Seed {champion.seed} · {formatNumber(champion.playCount)} plays · {formatHours(champion.totalMs)}
+            </div>
           </div>
         </div>
-      </div>
-      <div class="champion-footnote">
-        {#if runnerUp}
-          {#if format === 'swiss' && !spec.playoffCut}
-            Topped the standings ahead of <strong>{runnerUp.name}</strong>.
+        <div class="champion-footnote">
+          {#if runnerUp}Beat <strong>{runnerUp.name}</strong> in the final.{/if}
+          {#if ranked[0] && ranked[0].key !== champion.key}
+            {source === 'random' ? 'The top seed in this field was' : 'Your most-played was'}
+            <strong>{ranked[0].name}</strong> — the tournament disagreed.
           {:else}
-            Beat <strong>{runnerUp.name}</strong> in the final.
+            Your top seed went all the way.
           {/if}
-        {/if}
-        {#if ranked[0] && ranked[0].key !== champion.key}
-          {source === 'random' ? 'The top seed in this field was' : 'Your most-played was'}
-          <strong>{ranked[0].name}</strong> — the tournament disagreed.
-        {:else}
-          Your top seed went all the way.
-        {/if}
-      </div>
-      <div class="recap">
-        <span class="recap-label">Heart vs data</span>
-        {#if upsetList.length === 0}
-          You sided with your stats in all {played} picks: every matchup went to the higher seed.
-        {:else}
-          You went against your own stats in <strong>{upsetList.length}</strong> of {played} picks
-          ({Math.round((upsetList.length / played) * 100)}%).
-          {#if biggestUpset}
-            Biggest upset: <strong>#{entries[biggestUpset.winner].seed} {entries[biggestUpset.winner].name}</strong>
-            over <strong>#{entries[biggestUpset.loser].seed} {entries[biggestUpset.loser].name}</strong>
-            ({biggestUpset.label}).
-          {/if}
-        {/if}
-      </div>
-      <div class="champion-actions">
-        <button class="download-btn" onclick={download} disabled={rendering}>
-          {rendering ? 'Generating...' : 'Download PNG'}
-        </button>
-        <button class="ghost-btn" onclick={restart}>Play again</button>
-      </div>
-    </div>
-  {:else if pending}
-    <div class="matchup">
-      {#each [pending.a, pending.b] as c, i (c)}
-        {@const side = entries[c]}
-        <button class="contender" onclick={() => choose(c)}>
-          {#if side.imageUrl}
-            <img class="contender-img" src={side.imageUrl} alt={side.name} />
+        </div>
+        <div class="recap">
+          <span class="recap-label">Heart vs data</span>
+          {#if upsetList.length === 0}
+            You sided with your stats in all {played} picks: every matchup went to the higher seed.
           {:else}
-            <div class="contender-img placeholder">{side.name.charAt(0)}</div>
+            You went against your own stats in <strong>{upsetList.length}</strong> of {played} picks
+            ({Math.round((upsetList.length / played) * 100)}%).
+            {#if biggestUpset}
+              Biggest upset: <strong>#{entries[biggestUpset.winner].seed} {entries[biggestUpset.winner].name}</strong>
+              over <strong>#{entries[biggestUpset.loser].seed} {entries[biggestUpset.loser].name}</strong>
+              ({biggestUpset.label}).
+            {/if}
           {/if}
-          {#if !blind}<div class="seed-badge">{side.seed}</div>{/if}
-          <div class="contender-name">{side.name}</div>
-          {#if side.subtitle}<div class="contender-sub">{side.subtitle}</div>{/if}
-          {#if pending.notes}<div class="contender-note">{pending.notes[i]}</div>{/if}
-          {#if !blind}<div class="contender-stat">{metricLabel(side)}</div>{/if}
-          <div class="contender-key">{i === 0 ? '←' : '→'}</div>
-        </button>
-        {#if i === 0}<div class="versus">vs</div>{/if}
+        </div>
+        <div class="champion-actions">
+          <button class="download-btn" onclick={download} disabled={rendering}>
+            {rendering ? 'Generating...' : 'Download PNG'}
+          </button>
+          <button class="ghost-btn" onclick={restart}>Play again</button>
+        </div>
+        <div class="confetti" aria-hidden="true">
+          {#each confetti as p, i (i)}
+            <span
+              style:left="{p.left}%"
+              style:background={p.color}
+              style:--fall="{p.fall}px"
+              style:--sway="{p.sway}px"
+              style:--spin="{p.spin}deg"
+              style:--delay="{p.delay}ms"
+            ></span>
+          {/each}
+        </div>
+      </div>
+    {:else if pending}
+      {#key `${drawSeq}-${played}`}
+        <div class="matchup matchup-live" style:--dir={stepDir}>
+          {#each [pending.a, pending.b] as c, i (c)}
+            <button class="contender" onclick={() => choose(c)}>
+              {@render contenderBody(entries[c], pending.notes?.[i], i)}
+            </button>
+            {#if i === 0}<div class="versus">vs</div>{/if}
+          {/each}
+        </div>
+      {/key}
+    {/if}
+
+    {#if ghost}
+      {#key ghost.id}
+        <div class="matchup ghost" aria-hidden="true" inert>
+          {#each ghost.sides as side, i (i)}
+            <div class="contender" class:won={ghost.won === i} class:lost={ghost.won !== i}>
+              {@render contenderBody(side, ghost.notes?.[i], i)}
+              {#if ghost.upset && ghost.won === i}<div class="upset-stamp">Upset</div>{/if}
+            </div>
+            {#if i === 0}<div class="versus">vs</div>{/if}
+          {/each}
+        </div>
+      {/key}
+    {/if}
+
+    {#if banner}
+      {#key banner.id}
+        <div class="phase-banner" aria-hidden="true"><span>{banner.text}</span></div>
+      {/key}
+    {/if}
+
+    <div class="toasts" aria-live="polite">
+      {#each toasts as t (t.id)}
+        <div class="toast" class:out={!t.advanced}>
+          {#if t.entry.imageUrl}<img src={t.entry.imageUrl} alt="" />{/if}
+          <strong>{t.entry.name}</strong>
+          <span class="toast-verdict">{t.advanced ? 'Through' : 'Out'}</span>
+          <span class="toast-record">{t.record}</span>
+        </div>
       {/each}
     </div>
+  </div>
+
+  {#if pending}
     <div class="hint-row">Click a card, or use ← / → to pick. Backspace undoes.</div>
   {/if}
 
@@ -572,8 +724,15 @@
       {showBoard ? `Hide ${fmt.board}` : `Show ${fmt.board}`}
     </button>
     {#if showBoard || finished}
-      <div class="preview-wrap">
-        <canvas bind:this={previewCanvas} class="preview"></canvas>
+      <div class="preview-wrap" bind:this={previewWrap}>
+        <div class="preview-stage">
+          <canvas bind:this={previewCanvas} class="preview"></canvas>
+          {#key boardFocus.step}
+            {#each boardFocus.rects as r, i (i)}
+              <div class="board-focus" style:left="{r.x}px" style:top="{r.y}px" style:width="{r.w}px" style:height="{r.h}px"></div>
+            {/each}
+          {/key}
+        </div>
       </div>
       {#if !finished}
         <button class="download-btn" onclick={download} disabled={rendering}>
@@ -782,11 +941,179 @@
     transition: width 0.15s;
   }
 
+  /* partido, fantasma del anterior, rótulo y campeón comparten celda: se
+     superponen en vez de empujarse mientras dura la transición. El clip en x
+     es para el móvil, donde la card ocupa el ancho entero y el escalado del
+     elegido sacaba la página de lado; el margen deja respirar al halo */
+  .match-stage {
+    position: relative;
+    display: grid;
+    overflow-x: clip;
+    overflow-clip-margin: 1rem;
+  }
+
+  .match-stage > * {
+    grid-area: 1 / 1;
+  }
+
   .matchup {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     gap: 1rem;
     align-items: center;
+    align-self: start;
+  }
+
+  .matchup-live {
+    animation: matchup-in 280ms cubic-bezier(0.2, 0.8, 0.3, 1) calc(var(--pick-ms) * 0.4) both;
+  }
+
+  @keyframes matchup-in {
+    from { opacity: 0; transform: translateX(calc(var(--dir) * 32px)); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .ghost {
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .ghost .won {
+    animation: pick-won var(--pick-ms) ease-out forwards;
+  }
+
+  .ghost .lost {
+    animation: pick-lost var(--pick-ms) ease-in forwards;
+  }
+
+  @keyframes pick-won {
+    0% { border-color: var(--accent); box-shadow: 0 0 0 0 var(--accent-a40); }
+    35% { transform: scale(1.04); border-color: var(--accent); box-shadow: 0 0 0 6px var(--accent-a25); opacity: 1; }
+    100% { transform: scale(1.06); border-color: var(--accent); box-shadow: 0 0 0 14px transparent; opacity: 0; }
+  }
+
+  @keyframes pick-lost {
+    to { transform: translateY(18px) rotate(-2deg); filter: grayscale(1); opacity: 0; }
+  }
+
+  .upset-stamp {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--warning);
+    border-radius: var(--radius);
+    color: var(--warning);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--track-wide);
+    transform: rotate(8deg);
+    animation: stamp calc(var(--pick-ms) * 0.5) cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  }
+
+  @keyframes stamp {
+    from { transform: rotate(8deg) scale(2.2); opacity: 0; }
+  }
+
+  .phase-banner {
+    z-index: 2;
+    align-self: center;
+    display: flex;
+    justify-content: center;
+    padding: 0.7rem 1rem;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    border-block: 1px solid var(--accent-a40);
+    pointer-events: none;
+    animation: banner var(--banner-ms) ease both;
+  }
+
+  .phase-banner span {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xl);
+    text-transform: uppercase;
+    letter-spacing: var(--track-wide);
+    color: var(--accent);
+    text-align: center;
+    animation: banner-text var(--banner-ms) ease both;
+  }
+
+  @keyframes banner {
+    0% { opacity: 0; transform: scaleY(0.2); }
+    12% { opacity: 1; transform: none; }
+    78% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  @keyframes banner-text {
+    0% { opacity: 0; letter-spacing: 0.5em; }
+    20% { opacity: 1; letter-spacing: var(--track-wide); }
+  }
+
+  .toasts {
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 90vw;
+    padding: 0.3rem 0.7rem 0.3rem 0.3rem;
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--shadow-color) 35%, transparent);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+    animation: toast var(--toast-ms) ease both;
+  }
+
+  .toast.out { border-color: var(--danger); }
+
+  .toast img {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .toast strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .toast-verdict {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--track-wide);
+    color: var(--accent);
+  }
+
+  .toast.out .toast-verdict { color: var(--danger); }
+
+  .toast-record {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @keyframes toast {
+    0% { opacity: 0; transform: translateY(-8px); }
+    10% { opacity: 1; transform: none; }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
   }
 
   .versus {
@@ -885,10 +1212,60 @@
     margin-top: 0.9rem;
   }
 
+  /* entra cuando el fantasma de la final ya se ha ido */
   .champion-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 0.9rem;
+    animation: champion-in 560ms cubic-bezier(0.2, 0.9, 0.3, 1.15) var(--pick-ms) both;
+  }
+
+  @keyframes champion-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  }
+
+  .champion-portrait {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .crown {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 44px;
+    fill: var(--gold);
+    transform: translate(-50%, -62%) rotate(-12deg);
+    animation: crown-drop 600ms cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--pick-ms) + 250ms) both;
+  }
+
+  @keyframes crown-drop {
+    from { opacity: 0; transform: translate(-50%, -180%) rotate(-40deg); }
+  }
+
+  /* la lluvia cae dentro de la card: suelta por la página estiraría el scroll */
+  .confetti {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .confetti span {
+    position: absolute;
+    top: -12px;
+    width: 7px;
+    height: 11px;
+    border-radius: 1px;
+    opacity: 0;
+    animation: confetti 1.8s cubic-bezier(0.25, 0.6, 0.4, 1) calc(var(--pick-ms) + var(--delay)) forwards;
+  }
+
+  @keyframes confetti {
+    0% { opacity: 1; transform: none; }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--sway), var(--fall)) rotate(var(--spin)); }
   }
 
   .champion-label {
@@ -909,6 +1286,12 @@
     height: 120px;
     object-fit: cover;
     border-radius: var(--radius);
+    animation: champion-glow 1.4s ease-out calc(var(--pick-ms) + 300ms) 2;
+  }
+
+  @keyframes champion-glow {
+    from { box-shadow: 0 0 0 0 var(--accent-a40); }
+    to { box-shadow: 0 0 0 18px transparent; }
   }
 
   .champion-info {
@@ -992,19 +1375,61 @@
     overflow-x: auto;
   }
 
+  /* el marco va aquí y no en el canvas: así el canvas empieza en el origen de
+     la caja y los rects del foco se posicionan tal cual vienen del render */
+  .preview-stage {
+    position: relative;
+    width: fit-content;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
   /* sin max-width: el ancho lo fija updatePreview en px lógicos y el wrapper
      hace scroll horizontal, en vez de encoger el bracket hasta ser ilegible */
   .preview {
     display: block;
     height: auto;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
+  }
+
+  /* el último partido decidido queda enmarcado; al llegar, destella */
+  .board-focus {
+    position: absolute;
+    border-radius: 6px;
+    box-shadow: 0 0 0 2px var(--accent);
+    pointer-events: none;
+    animation: board-focus 1.4s ease-out both;
+  }
+
+  @keyframes board-focus {
+    from { box-shadow: 0 0 0 2px var(--accent), 0 0 22px 6px var(--accent-a40); }
+    to { box-shadow: 0 0 0 2px var(--accent), 0 0 22px 6px transparent; }
   }
 
   .empty {
     text-align: center;
     color: var(--text-muted);
     padding: 3rem;
+  }
+
+  /* sin movimiento queda lo que informa: los avisos de pase o caída y el marco
+     del último partido del tablero, quietos */
+  @media (prefers-reduced-motion: reduce) {
+    .ghost,
+    .phase-banner,
+    .confetti {
+      display: none;
+    }
+
+    .matchup-live,
+    .upset-stamp,
+    .toast,
+    .champion-card,
+    .crown,
+    .champion-img,
+    .board-focus {
+      animation: none;
+    }
   }
 
   @media (max-width: 640px) {
