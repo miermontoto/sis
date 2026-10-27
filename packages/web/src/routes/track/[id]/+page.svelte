@@ -17,6 +17,8 @@
   import { compareByMetric } from '$lib/utils/library-items';
   import { resolveEntityColor } from '$lib/utils/color';
   import RecentPlaysRail from '$lib/components/RecentPlaysRail.svelte';
+  import TrackItem from '$lib/components/TrackItem.svelte';
+  import MetricMeta from '$lib/components/MetricMeta.svelte';
   import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
   import { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import EntityRelations from '$lib/components/EntityRelations.svelte';
@@ -326,29 +328,25 @@
       {#if versions.length > 0}
         <section class="detail-section">
           <h2 class="section-title">Versions</h2>
+          <!-- filas de TrackItem como el resto de listas: con ellas llegan el menú
+               contextual, el ecualizador de lo que suena y MetricMeta. Una versión
+               comparte artista principal por definición, de ahí el padre del menú -->
           <div class="track-list versions-list">
-            {#each versions as v, i}
-              <svelte:element
-                this={v.isCurrent ? 'div' : 'a'}
-                {...(v.isCurrent ? {} : { href: `/track/${v.trackId}` })}
-                class="track-item"
-                class:track-item--current={v.isCurrent}
-              >
-                <span class="track-rank" style:color={medalColor(i + 1)}>{i + 1}</span>
-                {#if v.album?.imageUrl}
-                  <img class="track-art" src={v.album.imageUrl} alt={v.album.name} />
-                {:else}
-                  <div class="track-art"></div>
-                {/if}
-                <div class="track-info">
-                  <div class="track-name">{v.name}</div>
-                  <div class="track-artist">{v.album?.name ?? ''}</div>
-                </div>
-                <div class="track-meta">
-                  <div class="track-plays">{metric === 'plays' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
-                  <div class="track-time">{metric === 'time' ? `${v.playCount} plays` : formatDuration(v.totalMs)}</div>
-                </div>
-              </svelte:element>
+            {#each versions as v, i (v.trackId)}
+              {#snippet versionSubtitle()}{v.album?.name ?? ''}{/snippet}
+              {#snippet versionMeta()}
+                <MetricMeta playCount={v.playCount} totalMs={v.totalMs} {metric} />
+              {/snippet}
+              <TrackItem
+                href={v.isCurrent ? undefined : `/track/${v.trackId}`}
+                rank={i + 1}
+                imageUrl={v.album?.imageUrl}
+                name={v.name}
+                isLive={nowPlayingStore.isLive('track', v.trackId)}
+                entity={{ type: 'track', id: v.trackId, name: v.name, imageUrl: v.album?.imageUrl ?? null, parentArtistId: d.track.artists[0]?.id }}
+                subtitle={versionSubtitle}
+                meta={versionMeta}
+              />
             {/each}
           </div>
         </section>
@@ -560,8 +558,9 @@
 {/if}
 
 <style>
-  /* resaltar la versión que se está viendo ahora mismo */
-  .track-item--current {
+  /* resaltar la versión que se está viendo ahora mismo: es la única fila sin enlace
+     (no se enlaza a sí misma), así que TrackItem la pinta como div */
+  .versions-list > :global(div.track-item) {
     background: color-mix(in srgb, var(--accent) 9%, transparent);
     border-radius: 8px;
   }
