@@ -44,7 +44,7 @@ export type { NotificationType, DevicePlatform, PushPayload, DeviceTokenRecord, 
 export type { ChartEntry, DropoutEntry, ChartResponse, ChartPeak, ChartPeakStats, RankingHistoryPoint, RankingHistoryPointWithCrossovers, RankingsWithHistory, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';
 
 // records
-export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish } from './records.js';
+export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish, YearRank } from './records.js';
 
 // accolades
 export type { Accolade, AccoladesResponse } from './accolades.js';

@@ -29,6 +29,7 @@ export const ACCOLADE_RECORD_KEYS = {
   bubblingUnder: 'bubblingUnder',
   weeksInChart: 'mostWeeksInTop5',
   longestRun: 'longestChartRun',
+  avgYearFinish: 'averageYearFinish',
   inMostPlaylists: 'inMostPlaylists',
   longestGap: 'longestGap',
   goldenOldies: 'goldenOldies',

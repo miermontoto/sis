@@ -195,6 +195,7 @@ export function getCachedRecords(userId: number, calendar: PeriodCalendar, sort:
     mostUniquePerMonth: e.mostUniquePerMonth.slice(0, limit),
     // year-end finishes no se recortan por `limit` — siempre son top-10 por año
     yearEndFinishes: e.yearEndFinishes,
+    averageYearFinish: e.averageYearFinish.slice(0, limit),
     mostAccolades: e.mostAccolades.slice(0, limit),
   });
 

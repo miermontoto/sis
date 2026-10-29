@@ -4,15 +4,15 @@
 // Los charts semanales viven en records.ts y consumen estos helpers.
 
 import { sql } from 'drizzle-orm';
-import type { Db, SqlChunk } from './helpers.js';
+import type { Db, SqlChunk, AggregateRow } from './helpers.js';
 import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
-  MonthCountEntry, YearEndFinish, RankingMetric, PeriodCalendar,
+  MonthCountEntry, YearEndFinish, YearRank, RankingMetric, PeriodCalendar,
 } from '@sis/shared';
 import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, trackArtistsFor, primaryArtistOf, artistNameOf, localPlayedAt } from './helpers.js';
 import { periodBounds, periodForDate } from '@sis/shared';
 import { getTopEntities } from './entity.js';
-import { RECORDS_LIMIT } from '../../constants.js';
+import { RECORDS_LIMIT, CHART_SIZE, AVG_YEAR_FINISH_MIN_YEARS } from '../../constants.js';
 
 type Sort = RankingMetric;
 export type Ent = 'track' | 'album' | 'artist';
@@ -486,11 +486,16 @@ export function computeMostHeardLive(db: Db, userId: number, limit: number): Rec
   return rows.map(r => mapSimple(r));
 }
 
-// year-end finishes: top-N de cada año completado (para accolades).
-// Sólo incluye años anteriores al actual (el año en curso todavía no "terminó").
+// year-end: charts de cada año completado. Sólo incluye años anteriores al actual
+// (el año en curso todavía no "terminó"). De la misma pasada salen los year-end
+// finishes (top-10, para accolades) y la media de puesto anual, que necesita el
+// chart entero (top CHART_SIZE): pedir 25 filas en vez de 10 no cuesta nada, el
+// GROUP BY materializa el año completo igual
 const YEAR_END_LIMIT = 10;
+type YearChart = { year: number; rows: AggregateRow[] };
+
 // años y sus límites en la zona del usuario, los del chart anual
-export function computeYearEndFinishes(entity: Ent, db: Db, userId: number, sort: Sort, calendar: PeriodCalendar): YearEndFinish[] {
+export function computeYearFinishes(entity: Ent, db: Db, userId: number, sort: Sort, calendar: PeriodCalendar, limit: number): Pick<EntityRecords, 'yearEndFinishes' | 'averageYearFinish'> {
   const { weekStart, timeZone } = calendar;
   const currentYear = Number(periodForDate(new Date(), 'year', weekStart, timeZone));
   const localYear = sql`CAST(strftime('%Y', ${localPlayedAt(timeZone)}) AS INTEGER)`;
@@ -501,23 +506,59 @@ export function computeYearEndFinishes(entity: Ent, db: Db, userId: number, sort
     ORDER BY y ASC
   `) as { y: number }[];
 
-  const results: YearEndFinish[] = [];
-  for (const { y } of years) {
+  const charts: YearChart[] = years.flatMap(({ y }) => {
     const bounds = periodBounds(String(y), 'year', weekStart, timeZone);
-    if (!bounds) continue;
+    if (!bounds) return [];
     // getTopEntities cierra con `<=`: el instante anterior al año siguiente
     const yearEnd = new Date(Date.parse(bounds.end) - 1).toISOString();
-    const top = getTopEntities(db, entity, bounds.start, sort, YEAR_END_LIMIT, yearEnd, userId);
-    top.forEach((row, i) => {
-      results.push({
-        year: y,
-        entityId: row.entity_id,
-        rank: i + 1,
-        value: Number(sort === 'plays' ? row.play_count : row.total_ms),
-      });
-    });
-  }
-  return results;
+    return [{ year: y, rows: getTopEntities(db, entity, bounds.start, sort, CHART_SIZE, yearEnd, userId) }];
+  });
+
+  const yearEndFinishes: YearEndFinish[] = charts.flatMap(({ year, rows }) =>
+    rows.slice(0, YEAR_END_LIMIT).map((row, i) => ({
+      year,
+      entityId: row.entity_id,
+      rank: i + 1,
+      value: Number(sort === 'plays' ? row.play_count : row.total_ms),
+    })),
+  );
+
+  return { yearEndFinishes, averageYearFinish: averageYearFinish(entity, db, userId, charts, limit) };
+}
+
+// media del puesto final en los años en que la entidad entró en el chart anual. Los
+// años fuera del chart no cuentan: unos plays sueltos antes de descubrirla (#1150) se
+// comerían una racha de #1 posterior. Un año malo tampoco resta, así que mide lo alto
+// que acaba cuando acaba arriba; cuántos años lo hizo va en `finishes`
+function averageYearFinish(entity: Ent, db: Db, userId: number, charts: YearChart[], limit: number): RecordEntry[] {
+  const byEntity = charts
+    .flatMap(({ year, rows }) => rows.map((row, i) => ({ eid: row.entity_id, year, rank: i + 1 })))
+    .reduce((acc, { eid, year, rank }) => acc.set(eid, [...(acc.get(eid) ?? []), { year, rank }]), new Map<string, YearRank[]>());
+
+  const ranked = [...byEntity]
+    .filter(([, finishes]) => finishes.length >= AVG_YEAR_FINISH_MIN_YEARS)
+    .map(([eid, finishes]) => ({ eid, finishes, avg: finishes.reduce((s, f) => s + f.rank, 0) / finishes.length }))
+    // a igual media, más años arriba es más mérito
+    .sort((a, b) => a.avg - b.avg || b.finishes.length - a.finishes.length)
+    .slice(0, limit);
+  if (ranked.length === 0) return [];
+
+  // nombre, imagen y artista con los mismos fragmentos que el resto de records
+  const ctx = entityCtx(entity, userId);
+  const meta = new Map((db.all(sql`
+    WITH picked(eid) AS (VALUES ${sql.join(ranked.map(r => sql`(${r.eid})`), sql`, `)})
+    SELECT picked.eid AS eid,
+           ${ctx.finalName} AS name,
+           ${ctx.finalImg} AS image_url,
+           ${ctx.finalArtistId} AS artist_id,
+           ${ctx.finalArtistName} AS artist_name
+    FROM picked
+    ${ctx.finalJoin}
+  `) as any[]).map(r => [r.eid as string, r]));
+
+  return ranked
+    .filter(r => meta.has(r.eid))
+    .map(r => ({ ...mapSimple({ ...meta.get(r.eid), value: r.avg }), finishes: r.finishes }));
 }
 
 // --- most accolades: cuenta en cuántas listas de records aparece cada entidad ---
@@ -543,6 +584,7 @@ export function computeMostAccolades(
   tally(data.bubblingUnder);
   tally(data.mostWeeksInTop5);
   tally(data.longestChartRun);
+  tally(data.averageYearFinish);
   tally(data.inMostPlaylists);
   tally(data.longestGap);
   tally(data.goldenOldies);

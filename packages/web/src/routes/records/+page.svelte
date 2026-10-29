@@ -131,6 +131,7 @@
     if (label === 'days') return `${formatNumber(val)} day${val !== 1 ? 's' : ''}`;
     if (label === 'count') return `${val} record${val !== 1 ? 's' : ''}`;
     if (label === 'percent') return `${val.toFixed(1)}%`;
+    if (label === 'avgRank') return `avg #${val.toFixed(1)}`;
     if (label === 'plays' || metric === 'plays') return `${formatNumber(val)} plays`;
     return formatDuration(val);
   }
@@ -258,6 +259,8 @@
                     <span class="record-active">active</span>
                   {:else if item.week}
                     <a href="/charts?type={tab.value}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
+                  {:else if item.finishes?.length}
+                    <span class="record-week" title={item.finishes.map(f => `${f.year} #${f.rank}`).join(' · ')}>{item.finishes.length} years</span>
                   {/if}
                 </div>
               {/snippet}
@@ -551,7 +554,8 @@
     (artistData ? (artistData.mostNo1Tracks.length + artistData.mostNo1Albums.length) > 0 : false)}
   {@const hasLongevity =
     currentData.mostWeeksInTop5.length > 0 ||
-    currentData.longestChartRun.length > 0}
+    currentData.longestChartRun.length > 0 ||
+    (currentData.averageYearFinish?.length ?? 0) > 0}
   {@const hasDiscovery =
     currentData.biggestDebuts.length > 0 ||
     currentData.latestDiscoveries.length > 0}
@@ -583,6 +587,8 @@
     <h2 class="record-group">Longevity</h2>
     {@render recordList('Most weeks in the charts', currentData.mostWeeksInTop5, 'weeks', 'mostWeeksInTop5')}
     {@render chartRunList('Longest chart run', currentData.longestChartRun, 'longestChartRun')}
+    <!-- `??`: una respuesta cacheada por la versión anterior no trae la clave -->
+    {@render recordList('Highest average year-end finish', currentData.averageYearFinish ?? [], 'avgRank', 'averageYearFinish')}
   {/if}
 
   {#if hasDiscovery}

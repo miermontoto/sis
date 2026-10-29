@@ -13,6 +13,13 @@ export interface RecordEntry {
   month?: string | null;            // YYYY-MM para records mensuales
   secondaryLabel?: string | null;   // etiqueta secundaria (ej. nombre del track dominante)
   peakRank?: number | null;         // mejor posición semanal alcanzada
+  finishes?: YearRank[] | null;     // puestos en los charts anuales (media de year-end)
+}
+
+// puesto final de una entidad en el chart de un año cerrado
+export interface YearRank {
+  year: number;
+  rank: number;
 }
 
 export interface ArtistRecordEntry {
@@ -58,6 +65,9 @@ export interface EntityRecords {
   mostUniquePerMonth: MonthCountEntry[];
   // --- year-end finishes (top-10 por año completo) ---
   yearEndFinishes: YearEndFinish[];
+  // media del puesto final en los años cerrados en que entró en el chart anual
+  // (top CHART_SIZE). value = puesto medio, menor es mejor; `finishes` lleva cada año
+  averageYearFinish: RecordEntry[];
   // --- meta: entidades con más records/accolades ---
   mostAccolades: RecordEntry[];
 }

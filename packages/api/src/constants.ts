@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w44u';
+export const VERSION = '26w44v';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -221,6 +221,10 @@ export const RECORDS_CACHE_INTERVAL_MS = 6 * 60 * 60_000;
 // plays mínimos de una semana para que su reparto cuente como record de dominancia:
 // sin suelo, una semana con 3 escuchas regalaría un 100% a la primera entidad
 export const DOMINANCE_MIN_WEEK_PLAYS = 50;
+
+// años en el chart anual que hacen falta para entrar en la media de puesto year-end:
+// con uno solo la "media" sería ese puesto y cualquier #1 aislado encabezaría la lista
+export const AVG_YEAR_FINISH_MIN_YEARS = 2;
 
 // intervalo de resolución de entidades import: (30 min)
 export const RESOLVE_INTERVAL_MS = 30 * 60_000;

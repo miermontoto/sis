@@ -14,7 +14,7 @@ import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
   computeMostUniquePerMonth, computeMostDistinctTracks, computeOneHitWonders,
-  computeYearEndFinishes, computeMostAccolades, computeMostConcerts, computeMostHeardLive,
+  computeYearFinishes, computeMostAccolades, computeMostConcerts, computeMostHeardLive,
 } from './records-extended.js';
 import { createLogger } from '../../services/logger.js';
 
@@ -113,7 +113,7 @@ function getTrackRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: nu
     latestDiscoveries: timed('track.latestDiscoveries', () => computeLatestDiscoveries('track', db, userId, limit)),
     mostUniquePerMonth: timed('track.mostUniquePerMonth', () => computeMostUniquePerMonth('track', db, userId, limit, calendar)),
     mostHeardLive: timed('track.mostHeardLive', () => computeMostHeardLive(db, userId, limit)),
-    yearEndFinishes: timed('track.yearEndFinishes', () => computeYearEndFinishes('track', db, userId, sort, calendar)),
+    ...timed('track.yearFinishes', () => computeYearFinishes('track', db, userId, sort, calendar, limit)),
     mostAccolades: [],
   };
   result.mostAccolades = computeMostAccolades(result);
@@ -179,7 +179,7 @@ function getAlbumRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: nu
     goldenOldies: timed('album.goldenOldies', () => computeGoldenOldies('album', db, userId, limit)),
     latestDiscoveries: timed('album.latestDiscoveries', () => computeLatestDiscoveries('album', db, userId, limit)),
     mostUniquePerMonth: timed('album.mostUniquePerMonth', () => computeMostUniquePerMonth('album', db, userId, limit, calendar)),
-    yearEndFinishes: timed('album.yearEndFinishes', () => computeYearEndFinishes('album', db, userId, sort, calendar)),
+    ...timed('album.yearFinishes', () => computeYearFinishes('album', db, userId, sort, calendar, limit)),
     mostAccolades: [],
   };
   result.mostAccolades = computeMostAccolades(result);
@@ -297,7 +297,7 @@ function getArtistRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: n
     mostDistinctTracks: timed('artist.mostDistinctTracks', () => computeMostDistinctTracks('artist', db, userId, limit)),
     oneHitWonders: timed('artist.oneHitWonders', () => computeOneHitWonders('artist', db, userId, limit)),
     mostConcerts: timed('artist.mostConcerts', () => computeMostConcerts(db, userId, limit)),
-    yearEndFinishes: timed('artist.yearEndFinishes', () => computeYearEndFinishes('artist', db, userId, sort, calendar)),
+    ...timed('artist.yearFinishes', () => computeYearFinishes('artist', db, userId, sort, calendar, limit)),
     mostAccolades: [],
   };
   result.mostAccolades = computeMostAccolades(result);
@@ -471,6 +471,7 @@ function deriveRecords(rows: any[], limit: number, unique: boolean, weekTotals: 
     latestDiscoveries: [],
     mostUniquePerMonth: [],
     yearEndFinishes: [],
+    averageYearFinish: [],
     mostAccolades: [],
   };
 }
