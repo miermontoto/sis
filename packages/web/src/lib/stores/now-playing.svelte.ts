@@ -29,6 +29,7 @@ let _volumePercent = $state<number | null>(null);
 let _progress = $state<{ baseMs: number; baseAtMs: number; playing: boolean; infoAtMs: number } | null>(null);
 let _queue = $state<PlaybackQueueItem[]>([]);
 let _lastQueueTrackId: string | null = null;
+let _queueRefreshSeq = 0;
 let _boundaryTimeout: ReturnType<typeof setTimeout> | null = null;
 let _boundaryAttempts = 0;
 
@@ -42,9 +43,9 @@ const BOUNDARY_MARGIN_MS = 1_500;
 const BOUNDARY_MAX_ATTEMPTS = 4;
 // debounce de la llamada de seek (los arrows del teclado repiten en ráfaga)
 const SEEK_DEBOUNCE_MS = 200;
-// backoff de reintentos tras un comando de reproducción: spotify es
-// eventualmente consistente y una lectura temprana suele devolver aún el
-// estado anterior
+// backoff de reintentos tras un comando de reproducción (play o encolar):
+// spotify es eventualmente consistente y una lectura temprana suele devolver
+// aún el estado anterior
 const PLAY_REFRESH_DELAYS_MS = [500, 1000, 2000, 4000];
 // por debajo de esta edad la lectura de spotify cuenta como reciente y volver a
 // la app no gasta otra: acota a una llamada por ventana aunque se alterne de
@@ -214,6 +215,37 @@ async function checkQueue(trackId: string | undefined) {
 // vacía la cola
 onNowPlayingUpNextChange(() => { _lastQueueTrackId = null; checkQueue(_data?.track?.id); });
 
+const queueKey = (queue: PlaybackQueueItem[]) => queue.map(t => t.id).join();
+
+// encolar mueve la cola (lo encolado entra detrás del tema actual y de lo que ya
+// hubiera encolado el usuario), pero /me/player/queue tarda en reflejarlo: la
+// relectura inmediata devolvía aún la cola de antes y el "next" se quedaba viejo
+// hasta el siguiente tema. Se relee con el backoff de un play hasta verla cambiar.
+// Con la cola de usuario ya más larga que NOW_PLAYING_QUEUE_LIMIT no cambia nada
+// visible y se agotan los intentos. Cuelga de la cola que checkQueue ya pidió
+// para este tema: sin ella (ajuste apagado, sin control) no hay fila que pintar,
+// y un cambio de tema o apagar el ajuste mueven _lastQueueTrackId y la dejan a
+// medias, igual que un encolado nuevo
+async function refreshQueue() {
+  const trackId = _lastQueueTrackId;
+  if (!trackId || trackId !== _data?.track?.id) return;
+  const before = queueKey(_queue);
+  const seq = ++_queueRefreshSeq;
+  const superseded = () => seq !== _queueRefreshSeq || _lastQueueTrackId !== trackId;
+  for (const delayMs of PLAY_REFRESH_DELAYS_MS) {
+    await new Promise(r => setTimeout(r, delayMs));
+    if (superseded()) return;
+    try {
+      const { queue } = await api.playbackQueue();
+      if (superseded()) return;
+      _queue = queue;
+      if (queueKey(queue) !== before) return;
+    } catch {
+      // error puntual: siguiente intento
+    }
+  }
+}
+
 async function poll() {
   try {
     applyNowPlaying(await api.nowPlaying(playUpdatesStore.watermark), 'cached');
@@ -368,9 +400,8 @@ export const nowPlayingStore = {
   seek,
   get playlists() { return playlistMembershipStore.get(_data?.track?.id) ?? []; },
   get queue() { return _queue; },
-  // encolar mueve la cabeza de la cola (spotify pone lo encolado justo detrás
-  // del tema actual), así que el "next" del sidebar miente hasta releerla
-  refreshQueue: () => { _lastQueueTrackId = null; checkQueue(_data?.track?.id); },
+  // encolar mueve la cola, así que el "next" del sidebar miente hasta releerla
+  refreshQueue,
   startPolling,
   stopPolling,
   pollLive,

@@ -32,7 +32,7 @@
   import { collectionKey } from '$lib/api';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
-  import { isSpotifyId } from '$lib/utils/entity-context';
+  import { isSpotifyId, queueEntity } from '$lib/utils/entity-context';
   import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import IconPlay from '$lib/icons/IconPlay.svelte';
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
@@ -178,9 +178,7 @@
       (e) => {
         if (e.key.toLowerCase() === 'q' && isSpotifyId(trackId)) {
           e.preventDefault();
-          api.queueTrack(trackId)
-            .then(() => { nowPlayingStore.refreshQueue(); toastStore.show('Added to queue'); })
-            .catch(() => toastStore.show('Failed to add to queue'));
+          queueEntity('track', trackId);
           return true;
         }
         return false;
@@ -509,7 +507,7 @@
         title="Actions"
         actions={[
           ...(isSpotifyId(trackId) ? [
-            { label: 'Add to queue', icon: IconQueue, onClick: () => api.queueTrack(trackId).then(() => nowPlayingStore.refreshQueue()) },
+            { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('track', trackId) },
             { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${trackId}`, '_blank') },
           ] : []),
           ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
