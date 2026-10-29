@@ -161,7 +161,11 @@ export function getConfig(path: string): EndpointConfig {
 // proceso, o una mutación de colección o de bolo que la invalidaba), y esa lista vacía
 // se guardó aquí una hora por entidad como si fuese la verdad. El servidor ya no
 // miente, pero lo ya escrito en IndexedDB sigue vaciando el badge hasta caducar.
-export const SCHEMA_VERSION = 2;
+// v3: los records ganaron una lista (`averageYearFinish`) que las respuestas cacheadas
+// de `/stats/records` no traen. Fresca, la entrada no se pide en una hora; pasada, se
+// revalida en background, pero `/records` ya pintó la vieja y la sección no salía
+// hasta la visita siguiente.
+export const SCHEMA_VERSION = 3;
 
 // cap blando del cache persistente (bytes aproximados).
 export const STORAGE_SOFT_CAP = 50 * 1024 * 1024;
