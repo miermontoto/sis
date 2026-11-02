@@ -1140,6 +1140,10 @@
     font-family: inherit;
     cursor: pointer;
   }
+  /* esta clase gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .chart-count-select { font-size: var(--fs-input-touch); }
+  }
 
   .chart-count-select:hover {
     color: var(--text);

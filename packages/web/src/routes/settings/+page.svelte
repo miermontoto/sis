@@ -1499,6 +1499,10 @@
     cursor: pointer;
     transition: border-color 0.05s;
   }
+  /* esta clase gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .locale-select { font-size: var(--fs-input-touch); }
+  }
 
   .locale-select:focus {
     border-color: var(--accent);

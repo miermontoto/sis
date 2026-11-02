@@ -471,6 +471,10 @@
     font-size: var(--fs-sm);
     padding: 0.2rem 0.45rem;
   }
+  /* esta clase gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .concert-year { font-size: var(--fs-input-touch); }
+  }
   .concert-year:focus { outline: none; border-color: var(--accent); }
   .concert-year:disabled { opacity: 0.6; }
   .concert-filter-hint {
@@ -619,6 +623,11 @@
     padding: 0.4rem 0.55rem;
     width: 100%;
     box-sizing: border-box;
+  }
+  /* empata con el anti-zoom de base.css y gana por orden: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .concert-form input,
+    .concert-form textarea { font-size: var(--fs-input-touch); }
   }
   .concert-form textarea { resize: vertical; }
   .concert-form input:focus,

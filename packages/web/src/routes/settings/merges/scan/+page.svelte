@@ -371,6 +371,10 @@
   }
   .scan-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .scan-btn:disabled, .scan-select:disabled { opacity: 0.5; cursor: wait; }
+  /* esta clase gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .scan-select { font-size: var(--fs-input-touch); }
+  }
 
   .scan-error {
     color: var(--danger);

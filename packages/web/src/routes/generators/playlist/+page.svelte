@@ -561,6 +561,10 @@
     font-size: var(--fs-md);
     min-width: 0;
   }
+  /* sobre el select esta clase gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .field { font-size: var(--fs-input-touch); }
+  }
   .field:focus { outline: none; border-color: var(--accent); }
   .field--num { width: 5rem; }
   .control-group--wide .field { width: 100%; max-width: 28rem; }

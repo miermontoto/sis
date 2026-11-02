@@ -1,6 +1,9 @@
 <script lang="ts">
   // safe areas de ios como tokens (columna lateral del iPhone Duo + rail de pestañas nativo)
   import '@platform/ui/safe-area.css';
+  // primitivas css compartidas de la plataforma: sin inflado de texto de ios, anti-zoom de ios
+  // en inputs, utilidades safe-area lateral y reveal-en-táctil. ver platform/README → convenciones web
+  import '@platform/ui/base.css';
   import '../app.css';
   import { nativeTabBar, NATIVE_TABRAIL_CLASS } from '@platform/mobile/native-tab-bar';
   import { MediaQuery } from 'svelte/reactivity';

@@ -746,7 +746,9 @@
     padding: 0.4rem 0.3rem;
   }
 
-  .tier-input {
+  /* con el padre en el selector para ganar al anti-zoom de @platform/ui/base.css: su
+     input:not():not() pesa más que una clase sola y en táctil bajaba el nombre a 16px */
+  .tier-label .tier-input {
     width: 100%;
     background: transparent;
     border: none;

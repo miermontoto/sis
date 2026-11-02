@@ -87,6 +87,11 @@
   --fs-display: 1.75rem;
   --fs-2xl: 2rem;
   --fs-3xl: 2.8rem;
+  /* suelo de un campo en táctil, el mismo que el anti-zoom de @platform/ui/base.css (con
+     menos de 16px ios hace zoom al enfocar). para las reglas que le ganan en especificidad:
+     @media (hover: none) { .mi-select { font-size: var(--fs-input-touch); } }. el 1em se
+     resuelve en el campo, así que es el tamaño de su padre */
+  --fs-input-touch: max(16px, 1em);
   /* tracking de la monospace: tight en controles, normal en etiquetas, wide en mayúsculas diminutas */
   --track-tight: 0.02em;
   --track: 0.05em;

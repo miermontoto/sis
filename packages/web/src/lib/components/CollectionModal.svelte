@@ -394,4 +394,8 @@
     padding: 0.35rem 0.5rem;
     font-size: var(--fs-md);
   }
+  /* empata con el anti-zoom de base.css y gana por orden: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .col-new input { font-size: var(--fs-input-touch); }
+  }
 </style>

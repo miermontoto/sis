@@ -531,6 +531,11 @@
     appearance: auto;
     padding-right: 0.5rem;
   }
+  /* .edit-toggle gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios (sólo el
+     select, que la clase la comparten los botones) */
+  @media (hover: none) {
+    .source-select { font-size: var(--fs-input-touch); }
+  }
   .edit-toggle:hover {
     color: var(--text);
     border-color: var(--text-muted);

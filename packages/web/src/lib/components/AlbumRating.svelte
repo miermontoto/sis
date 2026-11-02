@@ -235,6 +235,10 @@
     font-size: var(--fs-sm);
     padding: 0.45rem 0.55rem;
   }
+  /* esta regla gana al anti-zoom de base.css: en táctil, el suelo sin zoom de ios */
+  @media (hover: none) {
+    .review-popover textarea { font-size: var(--fs-input-touch); }
+  }
   .review-popover textarea:focus {
     outline: none;
     border-color: var(--accent);
