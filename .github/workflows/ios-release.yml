@@ -12,10 +12,12 @@
 # AUTOMÁTICO: cada push a main que toque packages/web, el submódulo platform o los
 # workflows construye y sube a TestFlight. el filtrado por paths lo hace el job
 # `guard` del workflow reutilizable (input path_filter), no un `paths:` nativo, que
-# rompería el release por tag. la versión de marketing se queda fija y lo que crece es
-# el CFBundleVersion (run_number): TestFlight lista "1.0.0 (12)", "1.0.0 (13)"… para
-# una submission real a la App Store, lanza a mano con un marketing_version nuevo o
-# pushea un tag ios-vX.Y.Z.
+# rompería el release por tag. la versión de marketing la resuelve el reutilizable
+# contra App Store Connect (la versión en preparación si la hay; si no, el patch
+# siguiente a la última aprobada) y lo que crece en cada build es el CFBundleVersion
+# (run_number): TestFlight lista "1.0.1 (12)", "1.0.1 (13)"… para la próxima
+# submission real, crea la versión en App Store Connect y los builds siguientes caen
+# solos en ese tren (o pushea un tag ios-vX.Y.Z).
 #
 # el login es oauth (spotify/last.fm) en el browser del sistema con vuelta por deep
 # link info.mier.sis:// (deep_link_scheme); no hay Sign in with Apple porque la app es
@@ -35,10 +37,10 @@ on:
   workflow_dispatch:
     inputs:
       marketing_version:
-        # SIN default a propósito: la versión viva se declara UNA vez, en el `||` de
-        # abajo. un default aquí lo taparía sin que se note (le pasó a duckhunt: todo
-        # dispatch manual apuntaba a un tren ya cerrado y moría en el upload).
-        description: 'Versión de marketing (CFBundleShortVersionString). Vacío = la versión viva del workflow.'
+        # SIN default a propósito: vacío = la que resuelve el reutilizable contra App
+        # Store Connect. un default fijo acaba apuntando a un tren ya cerrado (le pasó a
+        # duckhunt, y a sis con el 1.0.0 en cuanto apple aprobó la 1.0).
+        description: 'Versión de marketing (CFBundleShortVersionString). Vacío = la siguiente que acepta App Store Connect.'
         required: false
       upload:
         description: 'Subir a App Store Connect (TestFlight). Si no, solo build + artifact.'
@@ -55,12 +57,11 @@ jobs:
     with:
       app: sis
       bundle_id: info.mier.sis
-      # en tag ios-vX.Y.Z la versión se deriva del tag; en push a main y en dispatch
-      # sin valor manda este default, ÚNICA declaración de la versión VIVA de la app
-      # (la snapshot 26wNNx no sirve: apple solo acepta dígitos y puntos). si App Store
-      # Connect cierra ese tren al publicarla, el upload falla con "Invalid Pre-Release
-      # Train" (90186) y se sube el número AQUÍ, que es el único sitio donde vive.
-      marketing_version: ${{ inputs.marketing_version || '1.0.0' }}
+      # vacío (push a main, dispatch sin valor) = la resuelve el reutilizable contra App
+      # Store Connect; en tag ios-vX.Y.Z se deriva del tag. antes vivía aquí hardcodeada
+      # ('1.0.0') y, en cuanto apple aprobó la 1.0, el guard rechazaba cada push (el tren
+      # estaba cerrado: 90062/90186). no le vuelvas a poner un `||` con una versión fija.
+      marketing_version: ${{ inputs.marketing_version }}
       upload: ${{ github.event_name == 'push' || inputs.upload }}
       icon_bg: '#080a0c'
       deep_link_scheme: info.mier.sis
