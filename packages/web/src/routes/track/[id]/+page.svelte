@@ -556,10 +556,11 @@
 
 <style>
   /* resaltar la versión que se está viendo ahora mismo: es la única fila sin enlace
-     (no se enlaza a sí misma), así que TrackItem la pinta como div */
+     (no se enlaza a sí misma), así que TrackItem la pinta como div. el radio no se
+     toca: lo pone .track-item con --radius, y un valor propio aquí redondeaba
+     también el anillo de now playing (box-shadow) cuando esa versión suena */
   .versions-list > :global(div.track-item) {
     background: color-mix(in srgb, var(--accent) 9%, transparent);
-    border-radius: 8px;
   }
   /* la portada enlaza al álbum: el track hereda su carátula, no hay nada que editar aquí */
   .cover-link {
