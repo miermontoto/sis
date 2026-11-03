@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
-import type { ArtistScopedRank } from '@sis/shared';
+import { COLLECTION_ID_PREFIX, type ArtistScopedRank } from '@sis/shared';
 import type { Db, Sort, SqlChunk } from './helpers.js';
-import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, artistPlaysPredicate, resolvedPlayJoins, playDuration, artistCreditedAlbums, trackArtistsFor } from './helpers.js';
+import { rangeWhere, orderByCol, resolvedEntityId, userFilter, tracksWithArtistIn, artistPlaysPredicate, resolvedPlayJoins, playDuration, artistCreditedAlbums, trackArtistsFor, albumNullFilter } from './helpers.js';
 import { resolveEntityIds } from './merge.js';
 
 /** Plays por track canónico (merge-aware) de los temas del grupo de artista `ids`: la base
@@ -17,23 +17,43 @@ function artistTrackScores(ids: string[], wr: SqlChunk, userId: number): SqlChun
 
 /** Plays por álbum resuelto de los álbumes del grupo de artista `ids`. Sólo los que lo
  *  acreditan a nivel de álbum (`artistCreditedAlbums`): un tema suyo en una recopilación
- *  no hace suyo el disco. */
+ *  no hace suyo el disco.
+ *
+ *  El crédito se mira sobre la FILA que se pinta (el id ya resuelto: canónico del merge o
+ *  `collection:N`), nunca sobre el álbum crudo del play. Con el crudo, un single a dos
+ *  nombres plegado en el disco de uno solo metía ese disco en la página del invitado con
+ *  las escuchas del single: Hyperion (sólo Gesaffelstein) salía nº 1 de Pharrell por
+ *  "Blast Off (feat. Pharrell Williams)", y UTOPIA en la de Bad Bunny por K-POP (222
+ *  pares artista-disco en prod, 2026-11-03, casi todos de `autoMergeSingles`). Al revés
+ *  también acierta: un sintético sin crédito mergeado en un disco del artista suma, y
+ *  el tema suelto de una recopilación que el usuario metió en una colección cuenta para
+ *  ella como en su propia página.
+ *
+ *  Una colección es del artista que la creó (`album_collections.artist_id`), no de cada
+ *  artista acreditado en sus miembros: por la misma razón que el disco de arriba, la de
+ *  otro no sale aquí aunque absorba un álbum compartido. */
 function artistAlbumScores(ids: string[], wr: SqlChunk, userId: number): SqlChunk {
   const artistPlaceholders = ids.length === 1 ? sql`${ids[0]}` : sql.join(ids.map(id => sql`${id}`), sql`, `);
   const artistCmp = ids.length === 1 ? sql`= ${ids[0]}` : sql`IN (${artistPlaceholders})`;
+  const rowId = resolvedEntityId('album');
 
+  // el filtro de crédito va DENTRO y con la expresión, no fuera sobre `album_id`: fuera,
+  // el push-down de sqlite lo copia al subquery sin quitarlo del exterior y materializa
+  // artistCreditedAlbums dos veces (2-3× medido). Tampoco vale un HAVING con el alias:
+  // `album_id` a secas resuelve a `t.album_id`, que es justo el crudo que no hay que mirar
   return sql`
     SELECT album_id, SUM(play_count) as play_count, SUM(total_ms) as total_ms
     FROM (
-      SELECT ${resolvedEntityId('album')} as album_id, count(*) as play_count, sum(${playDuration()}) as total_ms
+      SELECT ${rowId} as album_id, count(*) as play_count, sum(${playDuration()}) as total_ms
       FROM listening_history lh
       ${resolvedPlayJoins('album', userId)}
       WHERE t.spotify_id IN (
         SELECT DISTINCT ta_sub.track_id FROM ${trackArtistsFor(userId)} ta_sub WHERE ta_sub.artist_id ${artistCmp}
-      ) AND t.album_id IS NOT NULL ${wr} ${userFilter(userId)}
+      ) ${albumNullFilter('album')} ${wr} ${userFilter(userId)}
         ${artistPlaysPredicate(ids, userId)}
-        AND t.album_id IN ${artistCreditedAlbums(ids, userId)}
-      GROUP BY ${resolvedEntityId('album')}
+        AND (${rowId} IN ${artistCreditedAlbums(ids, userId)}
+          OR ${rowId} IN (SELECT ${COLLECTION_ID_PREFIX} || ac.id FROM album_collections ac WHERE ac.user_id = ${userId} AND ac.artist_id ${artistCmp}))
+      GROUP BY ${rowId}
     )
     GROUP BY album_id`;
 }
