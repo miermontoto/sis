@@ -11,7 +11,8 @@
   // pestañas) cuando la preferencia es 'system'
   import '$lib/stores/theme.svelte';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+  import { trackNavigations } from '@platform/observability/browser';
   import type { Snippet } from 'svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
@@ -85,6 +86,9 @@
   });
 
   const CONNECT_ROUTE = '/connect';
+
+  // spans de carga y de cada navegación: los fetch de sus load cuelgan de ellos en la traza
+  trackNavigations({ beforeNavigate, afterNavigate });
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);

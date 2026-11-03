@@ -45,6 +45,7 @@ Required in `.env` at repo root:
 - `DATABASE_PATH` — default: `./data/sis.db` (relative to repo root)
 - `PORT` — default: `3000`
 - `LOG_LEVEL` — `debug|info|warn|error|silent`, default `info`. Read once at startup; an invalid value falls back to `info` rather than muting the process.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` — optional OTLP export (see `platform/README.md` → trazas y logs). Also turns on client telemetry: web/APK errors, web vitals and navigation→API traces arrive as service `sis-web` (`src/hooks.client.ts`, `trackNavigations` in the root `+layout.svelte`); query with `platform/tooling/observability/obs.sh errors --service sis-web`.
 
 Push notifications (optional — credential-gated; if unset the pipeline detects events but the sender no-ops + logs, never throws — see `docs/PUSH_NOTIFICATIONS_SETUP.md`):
 - `FIREBASE_SERVICE_ACCOUNT` — path to the Firebase service-account JSON (enables Android/FCM)

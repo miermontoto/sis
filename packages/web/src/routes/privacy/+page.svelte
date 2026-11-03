@@ -13,7 +13,7 @@
     appName="sis"
     authProvider="Spotify"
     contactEmail="support@mier.info"
-    updated="2026-10-20"
+    updated="2026-11-03"
   >
     <section class="privacy-extra">
       <h2>Spotify listening data</h2>

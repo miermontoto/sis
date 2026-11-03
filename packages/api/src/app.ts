@@ -42,7 +42,18 @@ export type AppVariables = {
 
 type SisEnv = { Variables: AppVariables };
 
-const app = createPlatformApp<SisEnv>();
+// cookie de sesión (la misma que emiten las rutas de auth)
+const SESSION_COOKIE = 'sis_session';
+
+// errores y trazas del cliente (web y apk) con el usuario de la cookie de sesión, como el gate
+const app = createPlatformApp<SisEnv>({
+  clientTelemetry: {
+    identify: (c) => {
+      const token = getCookie(c, SESSION_COOKIE);
+      return token ? validateSession(token)?.userId : undefined;
+    },
+  },
+});
 
 // servir portadas descargadas desde data/covers/. va ANTES del gate: son assets
 // públicos (album art, ya visibles en share links) y las <img> del webview móvil
@@ -69,7 +80,7 @@ app.get('/api/covers/:filename', (c) => {
 app.use(
   '/api/*',
   sessionGate<SisEnv, Session>({
-    cookieName: 'sis_session',
+    cookieName: SESSION_COOKIE,
     validate: validateSession,
     // health check y versión públicos (el frontend los usa para verificar auth)
     isPreAuth: (p) => p === '/api/health' || p === '/api/version',
@@ -229,7 +240,7 @@ app.get('/api/version', (c) => c.json({ version: VERSION }));
 // health check — público pero retorna 401 si hay usuarios y no hay sesión válida
 app.get('/api/health', (c) => {
   if (hasAnyUsers()) {
-    const token = getCookie(c, 'sis_session');
+    const token = getCookie(c, SESSION_COOKIE);
     if (!token || !validateSession(token)) {
       return c.json({ error: 'no autorizado' }, 401);
     }
@@ -237,7 +248,7 @@ app.get('/api/health', (c) => {
 
   const db = getDb();
   const userId = (() => {
-    const token = getCookie(c, 'sis_session');
+    const token = getCookie(c, SESSION_COOKIE);
     if (token) {
       const session = validateSession(token);
       if (session) return session.userId;
