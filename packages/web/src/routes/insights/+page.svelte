@@ -11,7 +11,7 @@
   import { getLocalizedDayNames, getLocalizedMonthNames } from '$lib/utils/format';
   import { createDurationUnit } from '$lib/utils/duration-unit.svelte';
   import { canvasColors } from '$lib/stores/theme.svelte';
-  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, linearRegression, trendSeries, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, AXIS_LINE, AXIS_LABEL, SPLIT_LINE, categoryAxis, valueAxis, secondaryValueAxis, dualAxisGrid, lineSeries, barSeries, cumulativeLineSeries, areaGradient, GREEN, tooltipPoint, tooltipPoints, tooltipTuplePoint, type TooltipParams } from '$lib/utils/chart';
   import type { EChartsOption } from 'echarts';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
 
@@ -207,11 +207,6 @@
     return [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   });
 
-  let playsRegression = $derived(linearRegression(listeningData.map(d => d.play_count)));
-  let timeRegression = $derived(linearRegression(listeningData.map(d => d.total_ms)));
-  let yearlyRegression = $derived(linearRegression(yearlyData.map(d => d[1])));
-  let discoveryRegression = $derived(linearRegression(discovery.map(d => d.distinct_count)));
-
   let currentYearIdx = $derived(yearlyData.findIndex(d => d[0] === String(new Date().getFullYear())));
   let currentHour = new Date().getHours();
   // derived: wsOffset cambia con la preferencia de inicio de semana y heatmapMapped
@@ -226,28 +221,28 @@
   let lineChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Plays: <b>${p.value}</b>` + `<br/><span style="color:var(--text-muted)">trend R² ${playsRegression.r2.toFixed(2)}</span>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Plays: <b>${p.value}</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis(),
-    series: [lineSeries(pulseData(listeningData.map(d => d.play_count), listeningData.length - 1), { areaStyle: areaGradient() }), trendSeries(playsRegression.line)],
+    series: [lineSeries(pulseData(listeningData.map(d => d.play_count), listeningData.length - 1), { areaStyle: areaGradient() })],
   });
 
   let barChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>` + `<br/><span style="color:var(--text-muted)">trend R² ${timeRegression.r2.toFixed(2)}</span>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(listeningData.map(d => d.period), { axisLabel: { ...AXIS_LABEL, ...periodLabel(listeningData) } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(pulseData(listeningData.map(d => d.total_ms), listeningData.length - 1)), trendSeries(timeRegression.line)],
+    series: [barSeries(pulseData(listeningData.map(d => d.total_ms), listeningData.length - 1))],
   });
 
   let yearlyChartOption = $derived<EChartsOption>({
     ...PULSE_ANIM,
     grid: { ...GRID },
-    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>` + `<br/><span style="color:var(--text-muted)">trend R² ${yearlyRegression.r2.toFixed(2)}</span>`; } },
+    tooltip: { ...TOOLTIP_BASE, formatter: (params: TooltipParams) => { const p = tooltipPoint(params); return `${p.axisValue}<br/>Listening: <b>${(p.value / 3_600_000).toFixed(1)}h</b>`; } },
     xAxis: categoryAxis(yearlyData.map(d => d[0]), { axisLabel: { ...AXIS_LABEL } }),
     yAxis: valueAxis({ axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `${(v / 3_600_000).toFixed(0)}h` } }),
-    series: [barSeries(pulseData(yearlyData.map(d => d[1]), currentYearIdx)), trendSeries(yearlyRegression.line)],
+    series: [barSeries(pulseData(yearlyData.map(d => d[1]), currentYearIdx))],
   });
 
   let heatmapOption = $derived<EChartsOption>({
@@ -300,7 +295,6 @@
         const ps = tooltipPoints(params);
         let s = ps[0].axisValue;
         for (const p of ps) s += `<br/>${p.seriesName}: <b>${p.value}</b>`;
-        if (discovery.length > 1) s += `<br/><span style="color:var(--text-muted)">trend R² ${discoveryRegression.r2.toFixed(2)}</span>`;
         return s;
       },
     },
@@ -316,7 +310,6 @@
         lineStyle: { color: entityColors[discoveryEntity], width: 2 },
         itemStyle: { color: entityColors[discoveryEntity] },
       }),
-      trendSeries(discoveryRegression.line, { yAxisIndex: 0 }),
     ],
   });
 

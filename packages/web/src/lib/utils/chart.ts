@@ -449,43 +449,6 @@ export function eventsMarkLine(events: ChartEvent[], periods: string[]) {
   };
 }
 
-// --- Trend line ---
-
-export function linearRegression(values: number[]): { line: number[]; r2: number } {
-  const n = values.length;
-  if (n < 2) return { line: [...values], r2: 0 };
-  let sx = 0, sy = 0, sxx = 0, sxy = 0;
-  for (let i = 0; i < n; i++) {
-    sx += i; sy += values[i]; sxx += i * i; sxy += i * values[i];
-  }
-  const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-  const intercept = (sy - slope * sx) / n;
-  const line = Array.from({ length: n }, (_, i) => intercept + slope * i);
-  const mean = sy / n;
-  let ssTot = 0, ssRes = 0;
-  for (let i = 0; i < n; i++) {
-    ssTot += (values[i] - mean) ** 2;
-    ssRes += (values[i] - line[i]) ** 2;
-  }
-  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot;
-  return { line, r2 };
-}
-
-export function trendSeries(line: number[], overrides?: Record<string, any>) {
-  const color = `rgba(${canvasColors().fg},0.25)`;
-  return {
-    type: 'line' as const,
-    data: line,
-    smooth: false,
-    symbol: 'none',
-    lineStyle: { color, width: 1.5, type: 'dashed' as const },
-    itemStyle: { color },
-    silent: true,
-    tooltip: { show: false },
-    ...overrides,
-  };
-}
-
 // --- Pie chart ---
 
 export const PIE_TOOLTIP = { trigger: 'item' as const, formatter: '{b}: {c} ({d}%)' };
