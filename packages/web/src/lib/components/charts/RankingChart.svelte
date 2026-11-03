@@ -30,7 +30,6 @@
   import { periodLabel } from '$lib/utils/periods';
   import { resolveEntityColor, readableTextOn } from '$lib/utils/color';
   import { canvasColors } from '$lib/stores/theme.svelte';
-  import { fitZipf } from '$lib/utils/zipf';
   import {
     GRID, TOOLTIP_BASE, SPLIT_LINE, AXIS_LINE, AXIS_LABEL, SANS_STACK, MONO_STACK, zoomX,
     tooltipPoint, tooltipTuplePoints, measureTextWidth, truncateToWidth, niceAxisMax,
@@ -105,11 +104,8 @@
 
   // --- bar chart ---
   // filas en orden de ranking (posición 0 = nº1). El chart las invierte para
-  // pintar de arriba abajo; el ajuste de zipf las lee tal cual
+  // pintar de arriba abajo
   let chartRows = $derived(items.map(i => ({ id: i.id, name: i.name, value: metricValue(i), image: i.imageUrl, href: i.href })));
-
-  // el exponente describe las barras dibujadas, así que se recalcula con la lista
-  let zipf = $derived(fitZipf(chartRows.map(r => r.value)));
 
   // --- geometría de las etiquetas ---
   // el nombre va DENTRO de la barra cuando cabe y fuera, delante de su cifra,
@@ -477,14 +473,6 @@
   <div class="vel-loading" style:height="{mode === 'bar' ? barHeight : velHeight}px"></div>
 {:else if mode === 'bar'}
   <BaseChart option={barChartOption} height="{barHeight}px" onclick={handleBarClick} />
-  {#if zipf}
-    <div class="zipf-row">
-      <span
-        class="zipf-pill"
-        title="Least-squares fit of log({metric === 'plays' ? 'plays' : 'listening time'}) against log(rank) over the {zipf.n} bars shown. α=1 is classic Zipf (each rank keeps half of the one above it), α&lt;1 a flatter spread, α&gt;1 a head that dominates. R² is how closely the ranking follows a power law at all: a low R² means the α is not describing much."
-      >ZIPF α {zipf.alpha.toFixed(2)} · R² {zipf.r2.toFixed(2)}</span>
-    </div>
-  {/if}
 {:else if velLoading}
   <div class="vel-loading" style:height="{velHeight}px"><div class="spinner"></div></div>
 {:else if velSeries.length > 0}
@@ -517,25 +505,6 @@
 </div>
 
 <style>
-  .zipf-row {
-    display: flex;
-    justify-content: flex-end;
-    padding: 0 0.75rem 0.25rem;
-  }
-
-  .zipf-pill {
-    background: var(--bg);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.2rem 0.4rem;
-    font-size: var(--fs-xs);
-    /* cifras en mono: es el mismo criterio que las etiquetas de valor del chart */
-    font-family: var(--font-mono);
-    white-space: nowrap;
-    cursor: help;
-  }
-
   .vel-loading {
     display: flex;
     justify-content: center;
