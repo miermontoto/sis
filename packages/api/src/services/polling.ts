@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { withSpan } from '@platform/observability';
+import { runJob, type JobContext, type JobOptions } from '@platform/observability';
 import { getDb } from '../db/connection.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch } from './spotify-client.js';
@@ -50,6 +50,14 @@ import { createLogger } from './logger.js';
 // que necesita el scope de cada uno. `log` a secas es el suyo propio; los ciclos por
 // usuario usan log.child(userId) para escribir `[poll:12]`.
 const log = createLogger('poll');
+// fallo de una tarea dentro de un trabajo de fondo: se loguea como siempre y además cuenta como
+// fallo del trabajo (su span en error, job.outcome=error en la métrica job.duration)
+const failInto = (job: JobContext, logger: ReturnType<typeof createLogger>, msg: string) => (err: unknown) => {
+  job.fail(err);
+  logger.error(msg, err);
+};
+// polls de spotify: el proveedor va a la métrica, el usuario solo al span
+const spotifyJob = (userId: number): JobOptions => ({ labels: { provider: 'spotify' }, attrs: { 'user.id': userId } });
 const logMetadata = createLogger('metadata');
 const logResolve = createLogger('resolve');
 const logLastfm = createLogger('lastfm');
@@ -126,16 +134,16 @@ function scheduleHistoryFlush(userId: number, step = 0) {
   if (step >= HISTORY_FLUSH_DELAYS_MS.length) return;
   const pending = historyFlushTimers.get(userId);
   if (pending) clearTimeout(pending);
-  historyFlushTimers.set(userId, setTimeout(async () => {
+  historyFlushTimers.set(userId, setTimeout(() => void runJob('poll spotify-history', async (job) => {
     historyFlushTimers.delete(userId);
     const before = completedPlays.get(userId)?.length ?? 0;
-    await pollRecentlyPlayed(userId);
+    await pollRecentlyPlayed(userId, job);
     const after = completedPlays.get(userId)?.length ?? 0;
     // no se correlacionó nada: spotify aún no lo expone, reintentar más tarde.
     // si se consumió algo, lo que quede son plays que spotify nunca registrará
     // (demasiado cortos) y caducan solos por TTL
     if (after > 0 && after === before) scheduleHistoryFlush(userId, step + 1);
-  }, HISTORY_FLUSH_DELAYS_MS[step]));
+  }, spotifyJob(userId)), HISTORY_FLUSH_DELAYS_MS[step]));
 }
 
 export function getCompletedPlayDuration(userId: number, trackId: string): number | null {
@@ -169,7 +177,7 @@ let tokenlessEnrichTimer: ReturnType<typeof setInterval> | null = null;
 function startLastfmPolling() {
   if (lastfmSyncTimer || !isLastfmConfigured()) return;
   const tick = () =>
-    withSpan('poll lastfm', () => syncAllLastfmAccounts(), { root: true }).catch(err => logLastfm.error('error en sync:', err));
+    runJob('poll lastfm', (job) => syncAllLastfmAccounts().catch(failInto(job, logLastfm, 'error en sync:')), { labels: { provider: 'lastfm' } });
   lastfmSyncTimer = setInterval(tick, LASTFM_POLL_INTERVAL_MS);
   tick();
   log.info(`last.fm sync cada ${LASTFM_POLL_INTERVAL_MS / 1000}s`);
@@ -181,7 +189,7 @@ function startLastfmPolling() {
 // enriquecen desde estas fuentes. arranca una vez y se repite cada 24h.
 function startTokenlessEnrichment() {
   if (tokenlessEnrichTimer) return;
-  const run = async () => {
+  const run = async (job: JobContext) => {
     // duraciones secuenciadas: last.fm (rápido) primero rellena lo que puede, el
     // resto lo intenta musicbrainz. ambas filtran duration_ms<=0, así que en
     // paralelo competirían por los mismos tracks.
@@ -189,7 +197,7 @@ function startTokenlessEnrichment() {
       if (isLastfmConfigured()) await enrichLastfmDurations();
       await enrichImportTrackDurations();
     } catch (err) {
-      logMetadata.error('error duraciones:', err);
+      failInto(job, logMetadata, 'error duraciones:')(err);
     }
     // identidad musicbrainz (mbid/isrc de sintéticos) tras las duraciones (mismo
     // throttle de MB, secuencial para no solaparlo) y convergencia inmediata de
@@ -200,7 +208,7 @@ function startTokenlessEnrichment() {
       mergeDuplicateTracksByIsrc();
       pruneOrphanSearchIndex();
     } catch (err) {
-      logMetadata.error('error identidad:', err);
+      failInto(job, logMetadata, 'error identidad:')(err);
     }
     // dedup de plays también en el ciclo diario (además del boot): los scrobbles
     // push (/1/submit-listens) y los de last.fm pueden duplicar un play que el
@@ -212,14 +220,16 @@ function startTokenlessEnrichment() {
       cleanStartEndTwins();
       cleanCrossTrackDuplicates();
     } catch (err) {
-      logMetadata.error('error dedup de plays:', err);
+      failInto(job, logMetadata, 'error dedup de plays:')(err);
     }
-    // portadas (musicbrainz) y géneros (last.fm) son independientes entre sí
-    enrichLocalAlbumCovers().catch(err => logMetadata.error('error portadas:', err));
-    if (isLastfmConfigured()) enrichLastfmGenres().catch(err => logLastfmMeta.error('error géneros:', err));
+    // portadas (musicbrainz) y géneros (last.fm) son independientes entre sí: en paralelo, dentro del trabajo
+    await Promise.all([
+      enrichLocalAlbumCovers().catch(failInto(job, logMetadata, 'error portadas:')),
+      isLastfmConfigured() && enrichLastfmGenres().catch(failInto(job, logLastfmMeta, 'error géneros:')),
+    ]);
   };
   // cada pasada es una traza propia: aquí viven las queries pesadas (dedup, merges)
-  const traced = () => withSpan('job tokenless-enrichment', run, { root: true });
+  const traced = () => runJob('enrich tokenless', run);
   traced();
   tokenlessEnrichTimer = setInterval(traced, METADATA_REFRESH_INTERVAL_MS);
   log.info('enrichment sin-token activo (musicbrainz + last.fm)');
@@ -248,7 +258,7 @@ function computeNextPollDelay(data: SpotifyCurrentlyPlayingResponse | null): num
   return Math.max(CURRENTLY_PLAYING_MIN_MS, Math.min(remaining + CURRENTLY_PLAYING_BUFFER_MS, CURRENTLY_PLAYING_MAX_MS));
 }
 
-async function pollCurrentlyPlaying(userId: number): Promise<number> {
+async function pollCurrentlyPlaying(userId: number, job?: JobContext): Promise<number> {
   try {
     const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
 
@@ -340,6 +350,7 @@ async function pollCurrentlyPlaying(userId: number): Promise<number> {
     }
     return computeNextPollDelay(data);
   } catch (err) {
+    job?.fail(err);
     log.child(userId).error(`error en currently playing:`, err);
     return CURRENTLY_PLAYING_INTERVAL_MS;
   }
@@ -357,7 +368,7 @@ function scheduleNextCurrentlyPlaying(userId: number, delayMs: number) {
   const gen = (pollGeneration.get(userId) ?? 0) + 1;
   pollGeneration.set(userId, gen);
   timers.currentlyPlaying = setTimeout(async () => {
-    const delay = await pollCurrentlyPlaying(userId);
+    const delay = (await runJob('poll spotify-current', (job) => pollCurrentlyPlaying(userId, job), spotifyJob(userId))) ?? CURRENTLY_PLAYING_INTERVAL_MS;
     if (pollGeneration.get(userId) !== gen) return; // reprogramado mientras leíamos
     scheduleNextCurrentlyPlaying(userId, delay);
   }, delayMs);
@@ -372,7 +383,7 @@ export function triggerCurrentlyPlayingPoll(userId: number, delayMs = CURRENTLY_
   scheduleNextCurrentlyPlaying(userId, delayMs);
 }
 
-async function pollRecentlyPlayed(userId: number) {
+async function pollRecentlyPlayed(userId: number, job?: JobContext) {
   // cierre de periodo y eventos diarios (time-driven): deben correr cada ciclo aún sin
   // datos nuevos, por eso van antes del early-return de recently-played. guardados
   // para que nunca rompan el polling.
@@ -383,6 +394,7 @@ async function pollRecentlyPlayed(userId: number) {
       checkDailyEvents(userId, spotifyId);
     }
   } catch (err) {
+    job?.fail(err);
     log.child(userId).error(`error en eventos de notificación:`, err);
   }
 
@@ -441,6 +453,7 @@ async function pollRecentlyPlayed(userId: number) {
       log.child(userId).debug(`${discarded} reproducciones descartadas por durar menos de ${MIN_PLAY_MS / 1000}s`);
     }
   } catch (err) {
+    job?.fail(err);
     log.child(userId).error(`error en recently played:`, err);
   }
 }
@@ -459,19 +472,19 @@ function startPollingForUser(userId: number) {
   const timers: UserTimers = {
     currentlyPlaying: null,
     recentlyPlayed: setInterval(
-      () => withSpan('poll recently-played', () => pollRecentlyPlayed(userId), { root: true, attributes: { 'user.id': userId } }),
+      () => void runJob('poll spotify-recent', (job) => pollRecentlyPlayed(userId, job), spotifyJob(userId)),
       RECENTLY_PLAYED_INTERVAL_MS,
     ),
   };
   userTimers.set(userId, timers);
 
   // ejecutar inmediatamente y encadenar con scheduling dinámico
-  pollRecentlyPlayed(userId);
-  pollCurrentlyPlaying(userId).then(delay => {
+  void runJob('poll spotify-recent', (job) => pollRecentlyPlayed(userId, job), spotifyJob(userId));
+  void runJob('poll spotify-current', (job) => pollCurrentlyPlaying(userId, job), spotifyJob(userId)).then(delay => {
     // si un trigger externo ya reprogramó durante esta primera lectura (login
     // seguido de una acción de playback), respetar su timer
     if (pollGeneration.has(userId)) return;
-    scheduleNextCurrentlyPlaying(userId, delay);
+    scheduleNextCurrentlyPlaying(userId, delay ?? CURRENTLY_PLAYING_INTERVAL_MS);
   });
 }
 
@@ -493,6 +506,46 @@ function getAnyActiveUserId(): number | null {
   const users = getAllActiveUsersWithTokens();
   return users.length > 0 ? users[0].userId : null;
 }
+
+// pasadas de catálogo que comparten el arranque y su timer: tareas en paralelo, cada fallo se
+// loguea y cuenta en el trabajo
+const refreshMetadata = (job: JobContext, uid: number) =>
+  Promise.all([
+    // imágenes/géneros de artistas y artist_ids de álbumes con IDs reales vía spotify api (requiere token)
+    enrichArtistMetadata(uid).catch(failInto(job, logMetadata, 'error:')),
+    enrichAlbumMetadata(uid).catch(failInto(job, logMetadata, 'error:')),
+    // portadas: quitar miniaturas de vídeo y recuperar el arte del hermano de audio
+    fixVideoCovers(uid)
+      .then(() => recoverSingleCovers(uid))
+      .catch(failInto(job, logMetadata, 'error portadas de vídeo:')),
+    // isrcs del catálogo real (evidencia de identidad) y convergencia de sintéticos
+    harvestTrackIsrcs(uid)
+      .then(() => { mergeTracksByIdentity(); mergeDuplicateTracksByIsrc(); pruneOrphanSearchIndex(); })
+      .catch(failInto(job, logMetadata, 'error isrcs:')),
+  ]);
+
+const resolveImports = (job: JobContext, uid: number) =>
+  Promise.all([
+    resolveImportArtists(uid).catch(failInto(job, logResolve, 'error artistas:')),
+    resolveImportAlbums(uid).catch(failInto(job, logResolve, 'error álbumes:')),
+    fixTrackAlbumAssignments(uid).catch(failInto(job, logResolve, 'error álbumes tracks:')),
+  ]);
+
+const fixArtists = (job: JobContext, uid: number) =>
+  fixTrackArtistAssociations(uid)
+    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateEmptyAlbumShells(); deduplicateLocalAlbums(); deduplicateSyntheticTracks(); pruneOrphanSearchIndex(); })
+    .catch(failInto(job, logResolve, 'error artistas:'));
+
+// tick de un timer de catálogo con cualquier usuario activo (su token); sin ninguno, no hace nada
+const withAnyUser = (name: string, pass: (job: JobContext, uid: number) => Promise<unknown>) => () =>
+  void runJob(name, async (job) => {
+    const uid = getAnyActiveUserId();
+    if (uid) await pass(job, uid);
+  });
+
+// tick de un timer de una sola tarea
+const task = (name: string, run: () => Promise<unknown>, logger: ReturnType<typeof createLogger>) => () =>
+  void runJob(name, (job) => run().catch(failInto(job, logger, 'error:')));
 
 export function startPolling() {
   // arranca aunque no haya usuarios spotify: las cuentas last.fm van aparte
@@ -517,103 +570,55 @@ export function startPolling() {
   // operaciones globales de catálogo (usan cualquier token activo)
   const globalUserId = activeUsers[0].userId;
 
-  cleanOrphanImports();
-  // antes de cleanDuplicatePlays: su desempate conserva la fila CON duración, así que
-  // una duración fantasma ganaría a la del scrobble equivalente (NULL = track completo)
-  cleanStaleShortDurations();
-  cleanDuplicatePlays();
-  cleanBasicExtendedDuplicates();
-  cleanStartEndTwins();
-  cleanCrossTrackDuplicates();
-  mergeImportTracks();
-  cleanNonMusicImports();
+  // limpieza y enriquecimiento de arranque como un trabajo con su traza: las limpiezas síncronas
+  // corren en el acto (runJob ejecuta ya) y las pasadas async en paralelo dentro del trabajo
+  void runJob('catalog startup', async (job) => {
+    cleanOrphanImports();
+    // antes de cleanDuplicatePlays: su desempate conserva la fila CON duración, así que
+    // una duración fantasma ganaría a la del scrobble equivalente (NULL = track completo)
+    cleanStaleShortDurations();
+    cleanDuplicatePlays();
+    cleanBasicExtendedDuplicates();
+    cleanStartEndTwins();
+    cleanCrossTrackDuplicates();
+    mergeImportTracks();
+    cleanNonMusicImports();
 
-  // duraciones/portadas/géneros sin token (musicbrainz + last.fm) — corre en su
-  // propio timer, compartido con el escenario solo-last.fm
-  startTokenlessEnrichment();
+    // duraciones/portadas/géneros sin token (musicbrainz + last.fm) — corre en su
+    // propio timer, compartido con el escenario solo-last.fm
+    startTokenlessEnrichment();
 
-  // imágenes/géneros de artistas y artist_ids de álbumes con IDs reales vía spotify api (requiere token)
-  enrichArtistMetadata(globalUserId).catch(err => logMetadata.error('error:', err));
-  enrichAlbumMetadata(globalUserId).catch(err => logMetadata.error('error:', err));
-  // portadas: quitar miniaturas de vídeo y recuperar el arte del hermano de audio
-  fixVideoCovers(globalUserId)
-    .then(() => recoverSingleCovers(globalUserId))
-    .catch(err => logMetadata.error('error portadas de vídeo:', err));
-  // isrcs del catálogo real (evidencia de identidad) y convergencia de sintéticos
-  harvestTrackIsrcs(globalUserId)
-    .then(() => { mergeTracksByIdentity(); mergeDuplicateTracksByIsrc(); pruneOrphanSearchIndex(); })
-    .catch(err => logMetadata.error('error isrcs:', err));
+    await Promise.all([refreshMetadata(job, globalUserId), resolveImports(job, globalUserId), fixArtists(job, globalUserId)]);
+  });
 
-  metadataRefreshTimer = setInterval(() => {
-    const uid = getAnyActiveUserId();
-    if (!uid) return;
-    enrichArtistMetadata(uid).catch(err => logMetadata.error('error:', err));
-    enrichAlbumMetadata(uid).catch(err => logMetadata.error('error:', err));
-    fixVideoCovers(uid)
-      .then(() => recoverSingleCovers(uid))
-      .catch(err => logMetadata.error('error portadas de vídeo:', err));
-    harvestTrackIsrcs(uid)
-      .then(() => { mergeTracksByIdentity(); mergeDuplicateTracksByIsrc(); pruneOrphanSearchIndex(); })
-      .catch(err => logMetadata.error('error isrcs:', err));
-  }, METADATA_REFRESH_INTERVAL_MS);
-
+  metadataRefreshTimer = setInterval(withAnyUser('refresh metadata', refreshMetadata), METADATA_REFRESH_INTERVAL_MS);
   // resolución de entidades import:
-  const runResolve = (uid: number) => {
-    resolveImportArtists(uid).catch(err => logResolve.error('error artistas:', err));
-    resolveImportAlbums(uid).catch(err => logResolve.error('error álbumes:', err));
-    fixTrackAlbumAssignments(uid).catch(err => logResolve.error('error álbumes tracks:', err));
-  };
-  runResolve(globalUserId);
-  resolveImportsTimer = setInterval(() => {
-    const uid = getAnyActiveUserId();
-    if (!uid) return;
-    runResolve(uid);
-  }, RESOLVE_INTERVAL_MS);
-
-  fixTrackArtistAssociations(globalUserId)
-    .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateEmptyAlbumShells(); deduplicateLocalAlbums(); deduplicateSyntheticTracks(); pruneOrphanSearchIndex(); })
-    .catch(err => logResolve.error('error artistas:', err));
-  artistFixTimer = setInterval(() => {
-    const uid = getAnyActiveUserId();
-    if (!uid) return;
-    fixTrackArtistAssociations(uid)
-      .then(() => { deduplicateTracks(); deduplicateAlbums(); deduplicateAlbumShells(); deduplicateEmptyAlbumShells(); deduplicateLocalAlbums(); deduplicateSyntheticTracks(); pruneOrphanSearchIndex(); })
-      .catch(err => logResolve.error('error artistas:', err));
-  }, ARTIST_FIX_INTERVAL_MS);
+  resolveImportsTimer = setInterval(withAnyUser('resolve imports', resolveImports), RESOLVE_INTERVAL_MS);
+  artistFixTimer = setInterval(withAnyUser('fix artists', fixArtists), ARTIST_FIX_INTERVAL_MS);
 
   // records cache — la primera computación se delega al login/navegación del usuario
-  recordsCacheTimer = setInterval(
-    () => { bakeRecordsForAllUsers().catch(err => logRecordsCache.error('error:', err)); },
-    RECORDS_CACHE_INTERVAL_MS,
-  );
+  recordsCacheTimer = setInterval(task('bake records', bakeRecordsForAllUsers, logRecordsCache), RECORDS_CACHE_INTERVAL_MS);
 
   // reports pre-horneados: la semana / mes / año recién cerrados existen antes de que
   // nadie los abra. el primer horneado se delega al arranque diferido del usuario
-  reportWarmTimer = setInterval(() => { warmAllLatestReports().catch(err => logReportCache.error('error:', err)); }, REPORT_WARM_INTERVAL_MS);
+  reportWarmTimer = setInterval(task('warm reports', warmAllLatestReports, logReportCache), REPORT_WARM_INTERVAL_MS);
 
   // playlist sync (6h) — la primera sync se delega al login/navegación del usuario
-  playlistSyncTimer = setInterval(() => {
-    syncAllUsersPlaylists()
-      .then(() => bakeRecordsForAllUsers())
-      .catch(err => logPlaylistSync.error('error:', err));
-  }, PLAYLIST_SYNC_INTERVAL_MS);
+  playlistSyncTimer = setInterval(
+    task('sync playlists', () => syncAllUsersPlaylists().then(() => bakeRecordsForAllUsers()), logPlaylistSync),
+    PLAYLIST_SYNC_INTERVAL_MS,
+  );
 
   // espejo de liked songs (6h) — el primer sync se delega al login/navegación
-  likedSyncTimer = setInterval(() => {
-    syncAllUsersLikedTracks().catch(err => logLikedSync.error('error:', err));
-  }, LIKED_SYNC_INTERVAL_MS);
+  likedSyncTimer = setInterval(task('sync liked', syncAllUsersLikedTracks, logLikedSync), LIKED_SYNC_INTERVAL_MS);
 
   // auto-regeneración de playlists generadas (check horario; la cadencia real por
   // playlist la fija su regenerate_interval_ms). solo por intervalo, sin run inicial.
-  autoRegenerateTimer = setInterval(() => {
-    runDueRegenerations().catch(err => logAutoRegen.error('error:', err));
-  }, AUTO_REGENERATE_CHECK_INTERVAL_MS);
+  autoRegenerateTimer = setInterval(task('regenerate playlists', runDueRegenerations, logAutoRegen), AUTO_REGENERATE_CHECK_INTERVAL_MS);
 
   // singles de adelanto plegados en su álbum (ajuste autoMergeSingles). la primera pasada
   // de cada usuario la lanza su arranque diferido, que un deploy reinicia este timer
-  singleFoldTimer = setInterval(() => {
-    foldSinglesForAllUsers().catch(err => logSingleFold.error('error:', err));
-  }, SINGLE_FOLD_INTERVAL_MS);
+  singleFoldTimer = setInterval(task('fold singles', foldSinglesForAllUsers, logSingleFold), SINGLE_FOLD_INTERVAL_MS);
 
   log.info(`currently playing con scheduling dinámico (${CURRENTLY_PLAYING_MIN_MS / 1000}s–${CURRENTLY_PLAYING_MAX_MS / 1000}s)`);
   log.info(`recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
