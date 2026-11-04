@@ -2099,11 +2099,15 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     color: var(--accent);
   }
 
+  /* la safe area de arriba (status bar, isla; en el Duo abierto en vertical, 82pt) va siempre: en
+     la app de ios el webview no es display-mode standalone, y con la regla solo para ese modo la
+     cabecera quedaba bajo la isla. en web y android --safe-top vale 0 */
   .mobile-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1rem;
+    padding-top: var(--safe-top);
   }
 
   .mobile-header-logo {
@@ -2199,12 +2203,6 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
 
   .page-header {
     display: none;
-  }
-}
-
-@media (display-mode: standalone) {
-  .mobile-header {
-    padding-top: var(--safe-top);
   }
 }
 
@@ -2306,6 +2304,14 @@ html.native-tabrail .sidebar-nav--desktop {
 }
 
 @media (max-width: 768px) {
+  /* lo que tapa la barra nativa desde el pie: la regla de @platform/ui/safe-area.css que lo
+     cuenta exige html.compact, y sis no la usa (le pasa compactQuery a nativeTabBar), así que
+     se repite aquí con la misma media query. sin ella --bottom-chrome se quedaba en la safe
+     area (34pt) y el mini player iba debajo de la barra (83pt en el Duo). */
+  html.native-tabbar:not(.native-tabrail):not(.keyboard-open) {
+    --bottom-chrome: var(--native-tabbar-h, 0px);
+  }
+
   /* el panel inferior (mini player y su hoja) va sobre la barra nativa (con el rail, al pie) y
      fuera de la columna lateral */
   html.native-tabbar .sidebar {
