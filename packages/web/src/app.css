@@ -1111,16 +1111,6 @@ a.track-item {
   padding: 0 0.5rem;
 }
 
-/* columna del Duo: el alto no se reparte con la escalera de ajuste (no hay nav
-   que compactar y la tarjeta va siempre entera), así que lo que sobra lo cede la
-   sesión, que crece con cada cambio de puesto: se encoge y scrollea dentro en vez
-   de mover el badge fuera de la pantalla */
-.player-column .sidebar-projections {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 .sidebar-friends {
   padding: 0 0.5rem;
 }

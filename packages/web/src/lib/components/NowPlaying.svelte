@@ -32,8 +32,9 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   // sheet: el reproductor completo de esa hoja, que cierra con onclose.
   // sessionLine: tercera línea del mini player (el resumen de la sesión)
   // column: la tarjeta en la columna del iPhone Duo, donde el rail nativo lleva la
-  // nav y el sidebar queda para el reproductor: el siguiente tema es una fila fija
-  // (no se asoma) y en reposo enseña el último tema, en pausa, para retomarlo
+  // nav y sobra alto: entera, el siguiente tema es una fila fija (no se asoma); en
+  // línea (el ajuste del sidebar la pliega si no cabe) es la de siempre. en reposo
+  // enseña el último tema, en pausa, para retomarlo
   let { compact = false, inline = false, rail = false, mini = false, sheet = false, column = false, onopen, onclose, sessionLine }: {
     compact?: boolean; inline?: boolean; rail?: boolean; mini?: boolean; sheet?: boolean; column?: boolean;
     onopen?: (section: SheetSection) => void; onclose?: () => void; sessionLine?: Snippet;
@@ -392,7 +393,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
       {@render progressStrip()}
     </div>
   {:else}
-  <div class="np" class:np--compact={compact} class:np--inline={inline} class:np--column={column}>
+  <div class="np" class:np--compact={compact} class:np--inline={inline} class:np--column={column && !inline}>
     <div class="np-row-info">
       <div class="np-art-wrap">
         {#if data.track.album?.imageUrl}
@@ -407,7 +408,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
         {/if}
         <!-- siguiente tema: se superpone al filo de la carátula, nunca en el
              flujo — asomarse no puede recolocar el resto del sidebar. En la
-             columna del Duo va fijo debajo, que ahí el sitio sobra -->
+             columna del Duo, entera, va fijo debajo, que ahí el sitio sobra -->
         {#if upNextDue && !inline && !column}{@render upNextLine(false)}{/if}
       </div>
       <div class="np-info">
@@ -463,7 +464,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     </div>
     {/if}
     {@render progressRow()}
-    {#if column}{@render upNextLine(true)}{/if}
+    {#if column && !inline}{@render upNextLine(true)}{/if}
   </div>
   {/if}
 {:else if lastTrack}
@@ -596,8 +597,8 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     gap: 0.1rem;
   }
 
-  /* la columna suma la fila del siguiente tema y tiene que caber entera en el
-     alto del Duo abierto (669pt) junto a amigos, sesión y badge */
+  /* la columna suma la fila del siguiente tema; si con amigos, sesión y badge no
+     cabe en el alto del Duo abierto (669pt), el ajuste del sidebar la pasa a línea */
   .np--column {
     gap: 0.4rem;
   }
