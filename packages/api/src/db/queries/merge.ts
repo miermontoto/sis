@@ -2,7 +2,8 @@
 // Cada regla es una fila en merge_rules con entity_type distinguiendo el tipo.
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType } from './helpers.js';
-import { entityTableName } from './helpers.js';
+import { entityTableName, trackArtistsWhere } from './helpers.js';
+import { getEntityCredits } from './credits.js';
 
 export interface MergeInfo {
   mergedFrom: { rule_id: number; source_id: string; name: string; image_url: string | null }[];
@@ -51,11 +52,13 @@ export function getEntityMergeGroup(db: Db, type: EntityType, entityId: string, 
 export interface MergeSuggestionRow { id: string; name: string; image_url: string | null; plays: number }
 
 /** Candidatos a merge del usuario por plays: entidades con escuchas que no son source de
- *  ningún merge suyo. Artistas = el pool entero; álbumes y temas = los del grupo de merge
- *  de `parent`. Cada brazo ancla primero en lo pequeño y cuenta después: agregar el
- *  historial entero de entrada y filtrar al final costaba 180-270ms por apertura del
- *  modal (349k plays), y corría en el main thread. */
-export function getMergeSuggestions(db: Db, type: EntityType, userId: number, parent: string | null): MergeSuggestionRow[] {
+ *  ningún merge suyo. Artistas = el pool entero; álbumes y temas = los de los grupos de
+ *  merge de `parent` y de los artistas acreditados en `target`, con los créditos que ve el
+ *  usuario: con los del catálogo, un artista añadido a mano no tenía candidatos y su álbum
+ *  corregido abría el modal vacío. Cada brazo ancla primero en lo pequeño y cuenta después:
+ *  agregar el historial entero de entrada y filtrar al final costaba 180-270ms por apertura
+ *  del modal (349k plays), y corría en el main thread. */
+export function getMergeSuggestions(db: Db, type: EntityType, userId: number, parent: string | null, target: string | null): MergeSuggestionRow[] {
   const sourceFilter = sql`e.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = ${type} AND user_id = ${userId})`;
   const importFilter = sql`e.spotify_id NOT LIKE 'unresolved:%'`;
 
@@ -74,19 +77,33 @@ export function getMergeSuggestions(db: Db, type: EntityType, userId: number, pa
       ORDER BY s.plays DESC
     `) as MergeSuggestionRow[];
   }
-  if (!parent) return [];
 
-  // el grupo de merge del padre: álbumes y temas de sus alias también son candidatos
-  const parentIds = getEntityMergeGroup(db, 'artist', parent, userId);
-  const artistIn = sql`ta.artist_id IN (${sql.join(parentIds.map(id => sql`${id}`), sql`, `)})`;
+  // `parent` es el contexto de la fila (y lo único que mandan los apks publicados); el
+  // resto de artistas sale de la misma lista que enseña el modal de créditos del target
+  const seeds = [
+    ...(parent ? [parent] : []),
+    ...(target ? getEntityCredits(db, type, target, userId).credits.map(a => a.id) : []),
+  ];
+  if (seeds.length === 0) return [];
+
+  // el grupo de merge de cada uno: álbumes y temas de sus alias también son candidatos
+  const artistIds = [...new Set(seeds.flatMap(id => getEntityMergeGroup(db, 'artist', id, userId)))];
+  const artistIn = sql`IN (${sql.join(artistIds.map(id => sql`${id}`), sql`, `)})`;
 
   // los CROSS JOIN fijan el orden candidatos → tracks → plays: con JOIN a secas el planner
-  // arranca por listening_history filtrando sólo por user_id (8.6s en vez de 31ms)
+  // arranca por listening_history filtrando sólo por user_id (8.6s en vez de 31ms).
+  // de los créditos de álbum entran sólo los corregidos, por índice: artistCreditedAlbums
+  // recorre el json de los 28k álbumes y pasaba el pool de 10ms a 180ms
   if (type === 'album') {
     return db.all(sql`
       WITH cand AS (
-        SELECT DISTINCT t.album_id FROM track_artists ta JOIN tracks t ON t.spotify_id = ta.track_id
-        WHERE ${artistIn} AND ta.position = 0 AND t.album_id IS NOT NULL
+        SELECT t.album_id
+        FROM ${trackArtistsWhere(userId, col => sql`${col('artist_id')} ${artistIn} AND ${col('position')} = 0`)} ta
+        JOIN tracks t ON t.spotify_id = ta.track_id
+        WHERE t.album_id IS NOT NULL
+        UNION
+        SELECT subject_id FROM credit_overrides
+        WHERE user_id = ${userId} AND subject_type = 'album' AND artist_id ${artistIn}
       )
       SELECT e.spotify_id AS id, e.name, e.image_url, COUNT(*) AS plays
       FROM cand
@@ -106,7 +123,7 @@ export function getMergeSuggestions(db: Db, type: EntityType, userId: number, pa
   // misma canción lo acreditan en distinto orden (ej. "The Line" en el álbum de la banda
   // sonora vs. el single), y con position = 0 no aparecerían como candidatos
   return db.all(sql`
-    WITH cand AS (SELECT DISTINCT ta.track_id FROM track_artists ta WHERE ${artistIn})
+    WITH cand AS (SELECT DISTINCT ta.track_id FROM ${trackArtistsWhere(userId, col => sql`${col('artist_id')} ${artistIn}`)} ta)
     SELECT e.spotify_id AS id, e.name, al.image_url, COUNT(*) AS plays
     FROM cand
     CROSS JOIN listening_history lh

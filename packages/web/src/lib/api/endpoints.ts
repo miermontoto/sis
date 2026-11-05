@@ -294,8 +294,12 @@ export const api = {
   // opts.parent — artistId (requerido para album/track, ignorado para artist). Sin
   // `exclude`: el target se quita en cliente, y así el pool de artistas (~10k filas) es
   // UNA entrada de cache compartida por todas las fichas y por las dos pestañas del modal
-  mergeSuggestions: (entityType: 'album' | 'artist' | 'track', opts: { parent?: string } = {}) =>
-    apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', opts.parent ? { entityType, parent: opts.parent } : { entityType }),
+  mergeSuggestions: (entityType: 'album' | 'artist' | 'track', opts: { parent?: string; target?: string } = {}) =>
+    apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', {
+      entityType,
+      ...(opts.parent ? { parent: opts.parent } : {}),
+      ...(opts.target ? { target: opts.target } : {}),
+    }),
 
   // `signal` fuerza red: apiFetch salta la lectura de cache cuando lo recibe. Los botones
   // de "scan"/"rescan" lo pasan porque piden explícitamente datos frescos; la carga inicial

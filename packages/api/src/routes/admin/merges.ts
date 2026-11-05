@@ -398,7 +398,9 @@ merges.post('/batch-merge-tracks', async (c) => {
 // sugerencias de merge unificadas.
 // Query params:
 //   entityType (required): 'album' | 'artist' | 'track'
-//   parent (optional): artist spotifyId — para albums/tracks, restringe a entidades con ese artista principal
+//   parent (optional): artist spotifyId — para albums/tracks, restringe a entidades de ese artista
+//   target (optional): id de la entidad que se mergea — añade los artistas acreditados en ella
+//     tal como los ve el usuario (créditos corregidos incluidos). Los apks publicados no lo mandan
 //   exclude (optional): id a excluir. La web ya no lo manda (filtra en cliente, y así el pool
 //     de artistas es UNA entrada de cache para todas las fichas); sigue por los apks publicados
 // Devuelve [{id, name, image_url, plays}] ordenado por plays DESC.
@@ -406,16 +408,17 @@ merges.get('/merge-suggestions', async (c) => {
   const userId = c.get('userId');
   const entityType = c.req.query('entityType');
   const parent = c.req.query('parent');
+  const target = c.req.query('target');
   const exclude = c.req.query('exclude');
 
   if (!isValidEntityType(entityType)) {
     return c.json({ error: `entityType query param required — must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
   }
-  if (entityType !== 'artist' && !parent) {
-    return c.json({ error: `parent (artistId) is required for ${entityType} suggestions` }, 400);
+  if (entityType !== 'artist' && !parent && !target) {
+    return c.json({ error: `parent (artistId) or target is required for ${entityType} suggestions` }, 400);
   }
 
-  const rows = await dbRead('getMergeSuggestions', entityType, userId, parent ?? null);
+  const rows = await dbRead('getMergeSuggestions', entityType, userId, parent ?? null, target ?? null);
   return c.json(exclude ? rows.filter(r => r.id !== exclude) : rows);
 });
 

@@ -267,9 +267,10 @@ const MUTATION_INVALIDATIONS: Array<{ method: string; prefix: string; clear: str
   { method: 'PUT',    prefix: '/admin/users/',              clear: ['/admin/users'] },
   { method: 'DELETE', prefix: '/admin/users/',              clear: ['/admin/users'] },
   // los créditos viajan en casi todo lo que pinta un tema o un álbum (tops, detalles,
-  // perfiles, playlists, setlists) y deciden a qué artista cuenta cada play
-  { method: 'PUT',    prefix: '/credits/',                  clear: ['/stats/', '/social/', '/playlists/', '/concerts', '/credits/'] },
-  { method: 'DELETE', prefix: '/credits/',                  clear: ['/stats/', '/social/', '/playlists/', '/concerts', '/credits/'] },
+  // perfiles, playlists, setlists), deciden a qué artista cuenta cada play y de ellos
+  // salen los candidatos de los modales de merge
+  { method: 'PUT',    prefix: '/credits/',                  clear: ['/stats/', '/social/', '/playlists/', '/concerts', '/credits/', '/admin/merge'] },
+  { method: 'DELETE', prefix: '/credits/',                  clear: ['/stats/', '/social/', '/playlists/', '/concerts', '/credits/', '/admin/merge'] },
   // las valoraciones solo se pintan en el detalle del álbum: nada más que invalidar
   { method: 'PUT',    prefix: '/ratings/album/',            clear: ['/stats/album/'] },
   { method: 'DELETE', prefix: '/ratings/album/',            clear: ['/stats/album/'] },

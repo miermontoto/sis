@@ -148,7 +148,6 @@ export function entityContextActions(entity: EntityContext, { relations = true, 
     actions.push({
       label: 'Relations',
       icon: IconLink,
-      disabled: entity.type !== 'artist' && !entity.parentArtistId,
       onClick: () => mergeModal.open({
         entityType: entity.type,
         target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },

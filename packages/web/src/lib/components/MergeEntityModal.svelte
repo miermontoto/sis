@@ -34,9 +34,9 @@
   } = $props();
 
   const LABELS: Record<EntityType, { title: string; canonical: string; placeholder: string; verb: string; empty: string; noSuggested: string; round: boolean }> = {
-    album:  { title: 'Manage album merges',  canonical: 'Canonical album',  placeholder: 'Filter albums...',  verb: 'album',  empty: 'No other albums found for this artist',  noSuggested: 'No close matches — type to search',           round: false },
+    album:  { title: 'Manage album merges',  canonical: 'Canonical album',  placeholder: 'Filter albums...',  verb: 'album',  empty: 'No other albums found for its artists',  noSuggested: 'No close matches — type to search',           round: false },
     artist: { title: 'Manage artist merges', canonical: 'Canonical artist', placeholder: 'Search all artists...', verb: 'artist', empty: 'No other artists with plays available', noSuggested: 'No close matches — type to search all artists', round: true  },
-    track:  { title: 'Manage track merges',  canonical: 'Canonical track',  placeholder: 'Filter tracks...',  verb: 'track',  empty: 'No other tracks found for this artist',  noSuggested: 'No close matches — type to search',           round: false },
+    track:  { title: 'Manage track merges',  canonical: 'Canonical track',  placeholder: 'Filter tracks...',  verb: 'track',  empty: 'No other tracks found for its artists',  noSuggested: 'No close matches — type to search',           round: false },
   };
 
   let labels = $derived(LABELS[entityType]);
@@ -140,15 +140,9 @@
   async function loadSuggestions() {
     loading = true;
     try {
-      const opts: { parent?: string } = {};
-      if (entityType !== 'artist') {
-        if (!parentId) {
-          console.warn('[merge] no parentId for', entityType, target.id);
-          suggestions = [];
-          return;
-        }
-        opts.parent = parentId;
-      }
+      // el target pone en el pool a todos sus artistas (créditos corregidos incluidos); el
+      // pool de artistas no depende de él y sigue siendo una sola entrada de cache
+      const opts = entityType === 'artist' ? {} : { parent: parentId, target: target.id };
       const all = await api.mergeSuggestions(entityType, opts);
       console.log('[merge] got', all.length, 'suggestions for', entityType, opts);
       suggestions = all;
