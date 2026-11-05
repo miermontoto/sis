@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Accolade } from '$lib/api';
-import { alignTimelines, canonicalArtistId, leadHistory, leaderOf, listeningSplit, pickedVersusHref, recordRows, versusHref, versusRow, VERSUS_NO_VALUE } from './artist-versus';
+import { alignTimelines, canonicalArtistId, leadHistory, leaderOf, listeningSplit, pickedVersusHref, placeTimelineLabels, recordRows, versusHref, versusRow, yearTicks, VERSUS_NO_VALUE } from './artist-versus';
 
 const NOW = new Date('2026-03-15T12:00:00Z');
 const month = (period: string, play_count: number, total_ms = play_count * 1000) => ({ period, play_count, total_ms });
@@ -141,7 +141,7 @@ describe('leadHistory', () => {
 
   it('ponerse primero al empezar no es adelantar a nadie', () => {
     const { a, b } = lines([['2026-01', 5]], [['2026-02', 1]]);
-    expect(leadHistory(a, b, 'plays')).toEqual({ leader: 'a', since: '2026-01', changes: [] });
+    expect(leadHistory(a, b, 'plays')).toMatchObject({ leader: 'a', since: '2026-01', changes: [] });
   });
 
   it('registra cada adelantamiento y la racha actual', () => {
@@ -149,11 +149,33 @@ describe('leadHistory', () => {
       [['2026-01', 5], ['2026-04', 10]],
       [['2026-02', 8]],
     );
-    expect(leadHistory(a, b, 'plays')).toEqual({
+    expect(leadHistory(a, b, 'plays')).toMatchObject({
       leader: 'a',
       since: '2026-04',
-      changes: [{ month: '2026-02', leader: 'b' }, { month: '2026-04', leader: 'a' }],
+      changes: [{ month: '2026-02', index: 1, leader: 'b' }, { month: '2026-04', index: 3, leader: 'a' }],
     });
+  });
+
+  it('los tramos cubren el eje sin huecos desde el primero que se pone delante', () => {
+    const { a, b } = lines(
+      [['2026-01', 5], ['2026-04', 10]],
+      [['2026-02', 8]],
+    );
+    expect(leadHistory(a, b, 'plays').spans).toEqual([
+      { leader: 'a', start: 0, end: 1 },
+      { leader: 'b', start: 1, end: 3 },
+      { leader: 'a', start: 3, end: 4 },
+    ]);
+  });
+
+  it('sin adelantamientos hay un solo tramo hasta el final del eje', () => {
+    const { a, b } = lines([['2026-01', 5]], [['2026-02', 1]]);
+    expect(leadHistory(a, b, 'plays').spans).toEqual([{ leader: 'a', start: 0, end: 4 }]);
+  });
+
+  it('un tramo no empieza hasta que alguien se pone delante', () => {
+    const { a, b } = lines([['2026-01', 5], ['2026-03', 1]], [['2026-01', 5]]);
+    expect(leadHistory(a, b, 'plays').spans).toEqual([{ leader: 'a', start: 2, end: 4 }]);
   });
 
   it('un mes empatado no cambia al que iba delante', () => {
@@ -162,7 +184,7 @@ describe('leadHistory', () => {
       [['2026-02', 5]],
     );
     // ene 5-0 · feb 5-5 (empate) · mar 6-5: siempre a
-    expect(leadHistory(a, b, 'plays')).toEqual({ leader: 'a', since: '2026-01', changes: [] });
+    expect(leadHistory(a, b, 'plays')).toMatchObject({ leader: 'a', since: '2026-01', changes: [] });
   });
 
   it('se calcula sobre la métrica elegida: se puede ir delante en plays y detrás en tiempo', () => {
@@ -177,7 +199,126 @@ describe('leadHistory', () => {
 
   it('empatados de principio a fin no lidera nadie', () => {
     const { a, b } = lines([['2026-01', 5]], [['2026-01', 5]]);
-    expect(leadHistory(a, b, 'plays')).toEqual({ leader: null, since: null, changes: [] });
+    expect(leadHistory(a, b, 'plays')).toEqual({ leader: null, since: null, changes: [], spans: [] });
+  });
+});
+
+describe('placeTimelineLabels', () => {
+  const WIDTH = 100;
+  const GAP = 10;
+  const place = (offsets: number[], track = 1000) => placeTimelineLabels(offsets, track, WIDTH, GAP);
+  const lanes = (offsets: number[], track = 1000) => place(offsets, track).map(p => p.lane);
+  const boxes = (offsets: number[], track: number) => place(offsets, track).map((p, i) => ({
+    ...p,
+    x: offsets[i],
+    start: p.flip ? offsets[i] - p.width : offsets[i],
+    end: p.flip ? offsets[i] : offsets[i] + p.width,
+  }));
+  type Box = ReturnType<typeof boxes>[number];
+  // el tallo de x sube hasta la banda: cruza a y si y está más arriba y le cae dentro
+  const crosses = (x: Box, y: Box) => y.lane < x.lane && x.x > y.start && x.x < y.end;
+  const worstCase = [3, 8, 14, 20, 30, 41, 120, 190, 250, 300, 318];
+
+  it('etiquetas separadas comparten el primer carril', () => {
+    expect(lanes([0, 200, 400])).toEqual([0, 0, 0]);
+  });
+
+  it('en un racimo el último va arriba y los anteriores más abajo', () => {
+    expect(lanes([0, 50, 100])).toEqual([2, 1, 0]);
+  });
+
+  it('una etiqueta aislada no baja por culpa de un racimo anterior', () => {
+    expect(lanes([0, 50, 800])).toEqual([1, 0, 0]);
+  });
+
+  it('el hueco cuenta: justo al límite cabe, un píxel menos no', () => {
+    expect(lanes([0, 110])).toEqual([0, 0]);
+    expect(lanes([0, 109])).toEqual([1, 0]);
+  });
+
+  it('una anterior no vuelve a un hueco de arriba si la siguiente quedó más abajo', () => {
+    // el primer hueco libre pondría 0 en el carril 0, encima de 100, cuyo tallo la cruzaría
+    const offsets = [0, 100, 200];
+    expect(lanes(offsets)).toEqual([2, 1, 0]);
+    const placed = boxes(offsets, 1000);
+    expect(placed.flatMap(x => placed.filter(y => crosses(x, y)))).toEqual([]);
+  });
+
+  it('cerca del borde derecho crece hacia la izquierda', () => {
+    expect(place([100, 950]).map(p => p.flip)).toEqual([false, true]);
+  });
+
+  it('las que crecen hacia la izquierda van al revés: la primera arriba', () => {
+    expect(lanes([910, 950, 990])).toEqual([0, 1, 2]);
+    const placed = boxes([910, 950, 990], 1000);
+    expect(placed.flatMap(x => placed.filter(y => crosses(x, y)))).toEqual([]);
+  });
+
+  it('una girada también choca por donde crece', () => {
+    expect(lanes([800, 950])).toEqual([0, 1]);
+  });
+
+  it('el peor racimo real no se pisa ni cruza nada a ningún ancho que quepa', () => {
+    for (const track of [320, 1000]) {
+      const placed = boxes(worstCase, track);
+      for (const x of placed) for (const y of placed) {
+        if (x !== y && x.lane === y.lane) expect(x.end + GAP <= y.start || y.end + GAP <= x.start).toBe(true);
+        if (x !== y && x.flip === y.flip) expect(crosses(x, y)).toBe(false);
+      }
+    }
+  });
+
+  it('en un eje más estrecho que dos etiquetas nada se sale de él', () => {
+    const track = 150;
+    for (const box of boxes([5, 60, 75, 90, 145], track)) {
+      expect(box.start).toBeGreaterThanOrEqual(0);
+      expect(box.end).toBeLessThanOrEqual(track);
+    }
+  });
+
+  it('con sitio de sobra ninguna se encoge', () => {
+    expect(place([0, 500, 950]).every(p => p.width === WIDTH)).toBe(true);
+  });
+});
+
+describe('yearTicks', () => {
+  const months = (first: string, n: number) => {
+    const [y, m] = first.split('-').map(Number);
+    return Array.from({ length: n }, (_, i) => {
+      const date = new Date(Date.UTC(y, m - 1 + i, 1));
+      return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+    });
+  };
+
+  it('el año del primer mes y cada enero', () => {
+    expect(yearTicks(months('2024-03', 24), 1000, 40)).toEqual([
+      { index: 0, label: '2024' },
+      { index: 10, label: '2025' },
+      { index: 22, label: '2026' },
+    ]);
+  });
+
+  it('un enero en el primer mes no se repite', () => {
+    expect(yearTicks(months('2024-01', 13), 1000, 40).map(t => t.index)).toEqual([0, 12]);
+  });
+
+  it('un primer año de dos meses no echa al enero siguiente', () => {
+    expect(yearTicks(months('2018-11', 26), 260, 40).map(t => t.label)).toEqual(['2019', '2020']);
+  });
+
+  it('un eje de unos meses sin enero enseña al menos su año', () => {
+    expect(yearTicks(months('2026-03', 6), 1000, 40)).toEqual([{ index: 0, label: '2026' }]);
+  });
+
+  it('sin sitio se salta marcas en vez de pisarlas', () => {
+    const ticks = yearTicks(months('2018-02', 105), 320, 40);
+    const gaps = ticks.slice(1).map((t, i) => (t.index - ticks[i].index) * (320 / 105));
+    expect(ticks.length).toBeLessThan(9);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(40);
+  });
+
+  it('el eje aún sin medir no revienta', () => {
+    expect(yearTicks(months('2024-03', 24), 0, 40).length).toBeLessThanOrEqual(1);
   });
 });
 

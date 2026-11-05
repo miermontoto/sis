@@ -15,7 +15,6 @@
   import { fitTimeline } from '$lib/utils/entity-timeline';
   import { formatDuration, formatNumber, formatShortDate } from '$lib/utils/format';
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
-  import { periodLabel } from '$lib/utils/periods';
   import { RANK_PERIODS } from '$lib/utils/rank-periods';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import { isAbortError } from '$lib/utils/errors';
@@ -27,6 +26,7 @@
   import VersusLineChart from '$lib/components/charts/VersusLineChart.svelte';
   import VersusRows from '$lib/components/versus/VersusRows.svelte';
   import VersusSplit from '$lib/components/versus/VersusSplit.svelte';
+  import VersusTimeline from '$lib/components/versus/VersusTimeline.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconShare from '$lib/icons/IconShare.svelte';
   import IconSwap from '$lib/icons/IconSwap.svelte';
@@ -39,7 +39,6 @@
   // listas largas cuestan más que lo que aportan: el resto, tras "show all"
   const RECORD_ROWS_COLLAPSED = 10;
   const TOGETHER_COLLAPSED = 10;
-  const LEAD_CHANGES_SHOWN = 5;
   const RANK_PENDING = '…';
 
   interface Pair {
@@ -81,7 +80,6 @@
   let ranksLoading = $derived(ranksA.rankingsLoading || ranksB.rankingsLoading);
 
   let names = $derived<[string, string]>(pair ? [pair.a.artist.name, pair.b.artist.name] : ['', '']);
-  const nameOf = (side: VersusSide) => names[side === 'a' ? 0 : 1];
   let sides = $derived(pair ? [
     { key: 'a' as const, id: aId, detail: pair.a },
     { key: 'b' as const, id: bId, detail: pair.b },
@@ -149,8 +147,7 @@
 
   let lead = $derived(leadHistory(months.a, months.b, metric));
   let leadMonths = $derived(lead.changes.map(change => change.month));
-  let recentChanges = $derived(lead.changes.slice(-LEAD_CHANGES_SHOWN).reverse());
-  const otherSide = (side: VersusSide): VersusSide => (side === 'a' ? 'b' : 'a');
+  let monthKeys = $derived(months.a.map(bucket => bucket.key));
 
   // --- carga ---
 
@@ -419,23 +416,9 @@
     <!-- explica las líneas discontinuas de las dos gráficas: va debajo de ambas, no dentro de una -->
     {#if lead.leader && lead.since}
       <section class="detail-section">
-        <div class="card vs-lead-card">
-          <p class="vs-lead">
-            <span class="versus-key versus-key--{lead.leader}"></span>
-            <strong>{nameOf(lead.leader)}</strong> has led since {periodLabel(lead.since, 'month')}
-            {#if lead.changes.length > 0}· {lead.changes.length} lead {lead.changes.length === 1 ? 'change' : 'changes'}{/if}
-          </p>
-          {#if recentChanges.length > 0}
-            <ul class="vs-lead-list">
-              {#each recentChanges as change (change.month)}
-                <li>
-                  <span class="versus-key versus-key--{change.leader}"></span>
-                  <span>{nameOf(change.leader)} passed {nameOf(otherSide(change.leader))}</span>
-                  <span class="vs-lead-month">{periodLabel(change.month, 'month')}</span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
+        <div class="section-header"><h2 class="section-title">Lead history</h2></div>
+        <div class="card">
+          <VersusTimeline months={monthKeys} history={lead} {names} bind:highlightedMonth />
         </div>
       </section>
     {/if}
@@ -628,41 +611,6 @@
     background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-placeholder) 50%, var(--bg-hover) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
-  }
-  .vs-lead-card {
-    padding: 0.75rem 1rem;
-  }
-  .vs-lead {
-    margin: 0;
-    font-size: var(--fs-md);
-    color: var(--text-secondary);
-  }
-  .vs-lead .versus-key {
-    margin-right: 0.35rem;
-  }
-  .vs-lead strong {
-    color: var(--text);
-  }
-  .vs-lead-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1.5rem;
-    margin: 0.5rem 0 0;
-    padding: 0;
-    list-style: none;
-    font-size: var(--fs-sm);
-    color: var(--text-secondary);
-  }
-  .vs-lead-list li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .vs-lead-month {
-    font-family: var(--font-mono);
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-    white-space: nowrap;
   }
   .vs-together-meta {
     font-family: var(--font-mono);

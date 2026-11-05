@@ -149,6 +149,13 @@ export function isToday(dateStr: string): boolean {
   return new Date(dateStr).toDateString() === new Date().toDateString();
 }
 
+// mes y año cortos ("sept 2021") de una clave YYYY-MM, para donde el largo no cabe. En UTC:
+// las claves de mes de las gráficas son meses UTC
+export function formatMonthKeyShort(month: string): string {
+  const [year, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, m - 1, 1)).toLocaleDateString(getLocale(), { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
 // "January 2024"
 export function formatMonthYear(dateStr: string): string {
   const d = new Date(dateStr);
