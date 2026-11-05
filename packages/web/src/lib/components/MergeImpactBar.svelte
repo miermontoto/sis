@@ -17,7 +17,7 @@
     impact?: MergeImpact | null;
   } = $props();
 
-  const DEBOUNCE_MS = 350;
+  const DEBOUNCE_MS = 120;
   const LABELS: Record<EntityType, string> = { track: 'tracks', album: 'albums', artist: 'artists' };
 
   let metric = $state<RankingMetric>('time');

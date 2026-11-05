@@ -6,7 +6,7 @@ import type {
   ArtistDetail, ArtistOverlap, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
   AccoladesResponse, Rankings, ArtistScopedRank, EntityCard, RankingsWithHistory, HealthData, EntityType,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
+  MergeRule, MergeSource, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail, PlaylistPresenceItem,
@@ -284,6 +284,9 @@ export const api = {
     apiMutate<MergeImpact>('POST', '/admin/merge-impact', { entityType, pairs, metric }, { invalidate: false }),
 
   listMerges: () => apiFetch<MergeRule[]>('/admin/merges'),
+
+  mergeSources: (entityType: EntityType, id: string) =>
+    apiFetch<MergeSource[]>(`/admin/merges/${entityType}/${encodeURIComponent(id)}`),
 
   albumMergePreview: (sourceId: string, targetId: string) =>
     apiFetch<AlbumMergePreview>('/admin/album-merge-preview', { source: sourceId, target: targetId }),

@@ -18,12 +18,11 @@ let target = $state<MergeModalTarget | null>(null);
 let changeVersion = $state(0);
 
 async function resolveExistingMerges(entityType: EntityType, targetId: string) {
-  // cargamos todas las reglas y filtramos. Evita añadir un endpoint nuevo y es ligero en tamaño.
+  // el modal no se abre hasta tener esto: nada de cargar la lista entera y filtrarla aquí,
+  // que eran 480kB y ~300ms bloqueando el servidor por cada apertura
   try {
-    const all = await api.listMerges();
-    return all
-      .filter(m => m.entity_type === entityType && m.target_id === targetId)
-      .map(m => ({ id: m.source_id, ruleId: m.id, name: m.source_name, imageUrl: m.source_image }));
+    const sources = await api.mergeSources(entityType, targetId);
+    return sources.map(m => ({ id: m.source_id, ruleId: m.rule_id, name: m.name, imageUrl: m.image_url }));
   } catch {
     return [];
   }

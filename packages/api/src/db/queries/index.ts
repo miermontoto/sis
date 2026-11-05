@@ -27,7 +27,7 @@ export { getCollectionSummary, getArtistCollections, getCollectionMembers, getCo
 export type { CollectionScope } from './collections.js';
 
 // merge (genérico para albums / artists / tracks)
-export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup, getMergeSuggestions } from './merge.js';
+export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup, getMergeSuggestions, listMergeRules } from './merge.js';
 export type { MergeInfo, MergeSuggestionRow } from './merge.js';
 
 // plegado automático de singles de adelanto en su álbum (ajuste autoMergeSingles)

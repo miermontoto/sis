@@ -61,7 +61,7 @@ export { inFoldWindow, pickSingleFold } from './single-fold.js';
 export type { FoldTrack, FoldRelease, FoldTrackPair, SingleFold, SingleFoldOptions } from './single-fold.js';
 
 // merge
-export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
+export type { MergeRule, MergeSource, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 
 // colecciones ("álbumes lógicos"): agregan álbumes y temas de un artista y
 // sustituyen a sus miembros en los rankings

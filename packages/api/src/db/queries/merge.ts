@@ -4,9 +4,10 @@ import { sql } from 'drizzle-orm';
 import type { Db, EntityType } from './helpers.js';
 import { entityTableName, trackArtistsWhere } from './helpers.js';
 import { getEntityCredits } from './credits.js';
+import type { MergeRule, MergeSource } from '@sis/shared';
 
 export interface MergeInfo {
-  mergedFrom: { rule_id: number; source_id: string; name: string; image_url: string | null }[];
+  mergedFrom: MergeSource[];
   mergedInto: { rule_id: number; target_id: string; name: string; image_url: string | null } | null;
 }
 
@@ -64,12 +65,22 @@ export function getMergeSuggestions(db: Db, type: EntityType, userId: number, pa
 
   if (type === 'artist') {
     // eje artista = agregar por track y expandir a créditos: el COUNT sobre lh × créditos
-    // multiplicaba las filas antes de agrupar (274ms → 75ms, mismas filas)
+    // multiplicaba las filas antes de agrupar (274ms → 75ms, mismas filas). Los temas
+    // corregidos se cuentan aparte, cada brazo por su índice: cruzar pt con el UNION
+    // materializado de trackArtistsFor da las mismas filas en 192ms en vez de 94ms
     return db.all(sql`
       WITH pt AS (
         SELECT track_id, COUNT(*) AS c FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
       ), s AS (
-        SELECT ta.artist_id, SUM(pt.c) AS plays FROM pt JOIN track_artists ta ON ta.track_id = pt.track_id GROUP BY ta.artist_id
+        SELECT artist_id, SUM(plays) AS plays FROM (
+          SELECT ta.artist_id, SUM(pt.c) AS plays FROM pt JOIN track_artists ta ON ta.track_id = pt.track_id
+          WHERE pt.track_id NOT IN (SELECT subject_id FROM credit_overrides WHERE user_id = ${userId} AND subject_type = 'track')
+          GROUP BY ta.artist_id
+          UNION ALL
+          SELECT co.artist_id, SUM(pt.c) FROM credit_overrides co JOIN pt ON pt.track_id = co.subject_id
+          WHERE co.user_id = ${userId} AND co.subject_type = 'track'
+          GROUP BY co.artist_id
+        ) GROUP BY artist_id
       )
       SELECT e.spotify_id AS id, e.name, e.image_url, s.plays
       FROM s JOIN artists e ON e.spotify_id = s.artist_id
@@ -135,6 +146,68 @@ export function getMergeSuggestions(db: Db, type: EntityType, userId: number, pa
     GROUP BY e.spotify_id
     ORDER BY plays DESC, e.name
   `) as MergeSuggestionRow[];
+}
+
+/** Todas las reglas del usuario, con metadata para la vista de settings. El campo `artist_*`
+ *  es la agrupación padre: el artista principal del target en álbumes y temas, null en
+ *  artistas (se agrupa por target en el cliente). Los subquery se acotan a los targets de
+ *  las reglas: agrupar el catálogo entero costaba ~290ms por llamada. */
+export function listMergeRules(db: Db, userId: number): MergeRule[] {
+  const targetsOf = (type: EntityType) => sql`SELECT target_id FROM merge_rules WHERE user_id = ${userId} AND entity_type = ${type}`;
+
+  const albumRows = db.all(sql`
+    SELECT mr.id, mr.entity_type, mr.source_id, mr.target_id, mr.created_at,
+           sa.name as source_name, sa.image_url as source_image,
+           ta.name as target_name, ta.image_url as target_image,
+           ar.spotify_id as artist_id, ar.name as artist_name, ar.image_url as artist_image
+    FROM merge_rules mr
+    JOIN albums sa ON sa.spotify_id = mr.source_id
+    JOIN albums ta ON ta.spotify_id = mr.target_id
+    LEFT JOIN (
+      SELECT DISTINCT t.album_id, ta2.artist_id
+      FROM tracks t
+      JOIN track_artists ta2 ON ta2.track_id = t.spotify_id AND ta2.position = 0
+      WHERE t.album_id IN (${targetsOf('album')})
+    ) album_artist ON album_artist.album_id = mr.target_id
+    LEFT JOIN artists ar ON ar.spotify_id = album_artist.artist_id
+    WHERE mr.user_id = ${userId} AND mr.entity_type = 'album'
+    ORDER BY ar.name, ta.name, sa.name
+  `) as MergeRule[];
+
+  const artistRows = db.all(sql`
+    SELECT mr.id, mr.entity_type, mr.source_id, mr.target_id, mr.created_at,
+           sa.name as source_name, sa.image_url as source_image,
+           ta.name as target_name, ta.image_url as target_image,
+           NULL as artist_id, NULL as artist_name, NULL as artist_image
+    FROM merge_rules mr
+    JOIN artists sa ON sa.spotify_id = mr.source_id
+    JOIN artists ta ON ta.spotify_id = mr.target_id
+    WHERE mr.user_id = ${userId} AND mr.entity_type = 'artist'
+    ORDER BY ta.name, sa.name
+  `) as MergeRule[];
+
+  const trackRows = db.all(sql`
+    SELECT mr.id, mr.entity_type, mr.source_id, mr.target_id, mr.created_at,
+           st.name as source_name, sal.image_url as source_image,
+           tt.name as target_name, tal.image_url as target_image,
+           ar.spotify_id as artist_id, ar.name as artist_name, ar.image_url as artist_image
+    FROM merge_rules mr
+    JOIN tracks st ON st.spotify_id = mr.source_id
+    LEFT JOIN albums sal ON sal.spotify_id = st.album_id
+    JOIN tracks tt ON tt.spotify_id = mr.target_id
+    LEFT JOIN albums tal ON tal.spotify_id = tt.album_id
+    LEFT JOIN (
+      SELECT track_id, MIN(artist_id) as artist_id
+      FROM track_artists
+      WHERE position = 0 AND track_id IN (${targetsOf('track')})
+      GROUP BY track_id
+    ) ta_pri ON ta_pri.track_id = mr.target_id
+    LEFT JOIN artists ar ON ar.spotify_id = ta_pri.artist_id
+    WHERE mr.user_id = ${userId} AND mr.entity_type = 'track'
+    ORDER BY ar.name, tt.name, st.name
+  `) as MergeRule[];
+
+  return [...albumRows, ...artistRows, ...trackRows];
 }
 
 /** mergedFrom (sources que apuntan a este ID) + mergedInto (target si este ID es un source).
