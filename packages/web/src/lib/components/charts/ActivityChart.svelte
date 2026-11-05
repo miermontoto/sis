@@ -3,9 +3,9 @@
   import { goto } from '$app/navigation';
   import { getLocale, type EntityType, type RankingMetric } from '$lib/api';
   import { formatDuration, formatNumber } from '$lib/utils/format';
-  import { periodLabel } from '$lib/utils/periods';
+  import { timelineKeyLabel } from '$lib/utils/periods';
   import {
-    dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries,
+    dualAxisGrid, TOOLTIP_BASE, AXIS_LABEL, categoryAxis, valueAxis, secondaryValueAxis, barSeries, cumulativeLineSeries, metricAxisScale,
     eventsMarkLine, groupEventsByBucket, escapeHtml, tooltipPoint, type ChartEvent, type TooltipParams,
   } from '$lib/utils/chart';
   import { timelineMonths, fitTimeline, isMonthBucket, type TimelineBucket, type TimelineGranularity } from '$lib/utils/entity-timeline';
@@ -38,11 +38,6 @@
   } = $props();
 
   const HEIGHT = '250px';
-  // los ejes de tiempo se pintan en la unidad de su etiqueta: en ms, echarts elegía
-  // ticks redondos en ms y salían "16.667 min". Desde 10h el eje pasa a horas
-  const MINUTE_MS = 60_000;
-  const HOUR_MS = 3_600_000;
-  const HOUR_AXIS_FROM_MS = 10 * HOUR_MS;
   // por debajo de este ancho de card el eje del acumulado pierde sus etiquetas (la línea
   // sigue, y su cifra va en el tooltip): las dos columnas de etiquetas dejaban la
   // gráfica en menos de la mitad de un móvil
@@ -53,9 +48,6 @@
     { value: 'year', label: 'Year' },
   ];
   const EVENT_LABEL: Record<ChartEvent['kind'], string> = { album: 'Album', single: 'Single', concert: 'Concert' };
-
-  // unidad de un eje: divisor del valor crudo y su etiqueta
-  interface AxisScale { div: number; label: (v: number) => string }
 
   function readGranularity(): TimelineGranularity {
     try {
@@ -91,14 +83,8 @@
   const value = (b: TimelineBucket) => (isPlays ? b.plays : b.ms);
   const cumulative = (b: TimelineBucket) => (isPlays ? b.cumPlays : b.cumMs);
 
-  function axisScale(max: number): AxisScale {
-    if (isPlays) return { div: 1, label: v => formatNumber(v) };
-    return max >= HOUR_AXIS_FROM_MS
-      ? { div: HOUR_MS, label: v => `${formatNumber(v)}h` }
-      : { div: MINUTE_MS, label: v => `${formatNumber(v)} min` };
-  }
-  let barScale = $derived(axisScale(Math.max(0, ...buckets.map(value))));
-  let cumScale = $derived(axisScale(buckets.length ? cumulative(buckets[buckets.length - 1]) : 0));
+  let barScale = $derived(metricAxisScale(Math.max(0, ...buckets.map(value)), metric));
+  let cumScale = $derived(metricAxisScale(buckets.length ? cumulative(buckets[buckets.length - 1]) : 0, metric));
   let narrow = $derived(containerWidth > 0 && containerWidth < NARROW_CARD_PX);
 
   function monthShort(month: string): string {
@@ -106,18 +92,12 @@
     return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(getLocale(), { month: 'short', timeZone: 'UTC' });
   }
 
-  function bucketLabel(b: TimelineBucket): string {
-    if (isMonthBucket(b)) return periodLabel(b.key, 'month');
-    const quarter = b.key.match(/^(\d{4})-Q(\d)$/);
-    return quarter ? `Q${quarter[2]} ${quarter[1]}` : b.key;
-  }
-
   function tooltipHtml(idx: number): string {
     const b = buckets[idx];
     if (!b) return '';
     const total = isPlays ? `${formatNumber(b.cumPlays)} plays` : formatDuration(b.cumMs);
     const lines = [
-      `<b>${escapeHtml(bucketLabel(b))}</b>`,
+      `<b>${escapeHtml(timelineKeyLabel(b.key))}</b>`,
       isPlays ? `${formatNumber(b.plays)} plays` : formatDuration(b.ms),
       `<span class="tl-muted">Total:</span> ${total}`,
     ];

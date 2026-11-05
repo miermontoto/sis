@@ -37,6 +37,8 @@ export interface CanvasPalette {
   placeholder: string;
   fg: string;
   heat: readonly string[];
+  versusA: string;
+  versusB: string;
 }
 
 const CANVAS_PALETTES: Record<Theme, CanvasPalette> = {
@@ -51,6 +53,8 @@ const CANVAS_PALETTES: Record<Theme, CanvasPalette> = {
     placeholder: '#1e2a2a',
     fg: '255, 255, 255',
     heat: ['#0f1214', '#0d3320', '#1a6b3f', '#1db954'],
+    versusA: '#3f8fef',
+    versusB: '#dc6a1f',
   },
   light: {
     bg: '#f3f6f6',
@@ -63,6 +67,8 @@ const CANVAS_PALETTES: Record<Theme, CanvasPalette> = {
     placeholder: '#e3eaea',
     fg: '13, 20, 20',
     heat: ['#ffffff', '#cdeedb', '#6fd197', '#1db954'],
+    versusA: '#1f6fd1',
+    versusB: '#c2560f',
   },
 };
 

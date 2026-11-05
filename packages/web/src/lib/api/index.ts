@@ -19,7 +19,7 @@ export type {
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
-  ArtistDetail, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, Rankings, ArtistScopedRank, EntityCard, EntityCardPoint,
+  ArtistDetail, ArtistOverlap, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, Rankings, ArtistScopedRank, EntityCard, EntityCardPoint,
   ChartEntry, DropoutEntry, ChartResponse, ChartPeak, ChartPeakStats, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, PlaylistPresenceItem, MonthCountEntry,

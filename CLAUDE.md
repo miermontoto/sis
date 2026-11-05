@@ -256,6 +256,15 @@ Hubo una **tercera vía** (créditos conocidos que NO lo nombran, pero lidera la
 
 Esa tercera línea se arma con **`.meta-stat`** (app.css): cada cifra es un span y el `·` lo pone el CSS delante de la que sigue a otra, metido en la propia cifra (inline-block), así que al partirse en móvil baja entera con su punto. No vuelvas a escribir separadores a mano (`{#if a && b} &middot; {/if}`) ni a sacar la duración del tema de su span: un nbsp no basta delante de un botón.
 
+### Comparación de artistas (`/artist/:a/vs/:b`)
+Dos artistas sobre el historial propio, siempre all-time (un enlace compartido enseña las cifras de quien lo abre). Se entra por **"Compare with…"** en el menú del hero del artista y en el menú contextual de cualquier fila de artista: abre `SearchModal` en modo pick, con el store `artist-compare.svelte.ts` y el host en el layout. `comparePick` fija al artista conservado en un `$derived.by` y **no con `{@const}`**: ése es un derived que relee el store, y el buscador se cierra (target a null) antes de llamar a `onPick`.
+
+La página reutiliza `api.artistDetail` (con los `ARTIST_TOP_*_LIMIT` de la ficha, para caer en su entrada de cache), dos `EntityRanks` y `api.accolades`; lo único nuevo en el servidor es `GET /stats/artist/:id/shared/:other` (`getArtistOverlap`, ~30ms). Un alias redirige a su canónico (rankea con ese id) y dos ids del mismo grupo de merge enseñan "same artist". La lógica está en `utils/artist-versus.ts`, pura y con tests.
+
+**Un play de un tema a medias cuenta en los dos artistas**, así que A + B se pasa del total real y un 60/40 a secas mentiría: `listeningSplit` separa lo compartido, y `getArtistOverlap` usa el predicado de `getEntityStats` (`tracksWithArtistIn`) para que `total - compartido` cuadre. Los **adelantamientos** (`leadHistory`) salen del acumulado mensual y no del escaneo de ranking: el ranking all-time ordena por ese acumulado, así que cruzan el mismo mes. Los records se comparan por **puesto en su lista**, no por la cifra.
+
+`VersusLineChart` lleva **un solo eje**: Period y Total son un toggle, no dos escalas sobre la misma gráfica, que inventarían cruces. El color de identidad es `--versus-a/b` (azul y naranja, réplica en `CANVAS_PALETTES`, validados contra daltonismo en los dos temas) porque el verde ya significa "cifra": la que gana va en verde, y la identidad sólo marca aro, columna y línea. Las etiquetas de fin de línea no van en Period: las dos líneas suelen acabar en cero, una encima de otra y de la etiqueta del eje.
+
 ### Stats endpoints (`routes/stats.ts`)
 All top-* endpoints accept `?range=` (from `TIME_RANGES` in constants.ts), `?limit=`, and `?sort=time|plays`. The `sort` param controls SQL ORDER BY (sum of duration vs count). All return both `playCount` and `totalMs`.
 
@@ -413,6 +422,7 @@ Production: `fa:~/dev/sis` → Docker container on port 3004 → nginx reverse p
 - ECharts tree-shaken imports via echarts/core
 - `BaseChart` aplica cada opción una vez (recuerda la aplicada) y sólo redimensiona con cambio de tamaño real. Un dato que late (periodo en curso) va por `pulseIndex` (highlight/downplay) con su aspecto en el `emphasis` del propio dato: **nunca** un `$state` que reconstruya la opción en un intervalo (/insights repintaba 8 gráficas cada 1.5s)
 - ECharts HTML tooltips: echarts sets `white-space:nowrap` **inline** on the tooltip element, so a class rule (via `className`) can't override it silently. Style the box through `tooltip.extraCssText` (appended to that same inline style) — see `RankHistoryChart.svelte`
+- `labelLayout` needs `LabelLayout` from `echarts/features`, registered in `BaseChart` since 2026-11-05: without it `moveOverlap` is silently ignored (velocity labels stacked for that reason). Anything else that isn't a chart or a component goes in that same `echarts.use` list
 - ECharts text layout: zrender takes a line's **height** from the width of `'国'` (assumes CJK = 1em). Without CJK fonts (Juan's Arch desktop, headless chromium) that glyph is the mono fallback at 0.6em, so every label box was 60% tall: overlaps, `hideOverlap` hiding pie labels. `BaseChart`'s module script answers that probe with the font size via `setPlatformAPI`; don't remove it. An `axisLabel` without `fontFamily` makes `containLabel` reserve space in sans-serif while mono is drawn (clipped axis): `valueAxis`/`secondaryValueAxis` merge the override for that reason. The genre donut's ring comes from `fitPieLabels` (measured labels, ECharts' own label geometry), never a reserved band
 
 ## Git & deploy workflow

@@ -3,6 +3,11 @@
 // módulo puro (sin dependencias de settings) para poder testearlo y evitar
 // ciclos de import.
 
+// listas top del detalle de artista, colapsadas. La comparación de artistas pide lo mismo
+// para caer en la misma entrada de cache: llegar desde una ficha no repite su petición
+export const ARTIST_TOP_TRACKS_LIMIT = 10;
+export const ARTIST_TOP_ALBUMS_LIMIT = 5;
+
 export type EntityKind = 'artist' | 'album' | 'track';
 // el dashboard reutiliza toda la maquinaria de layouts, rail incluido: en
 // pantallas anchas se parte en dos columnas igual que las vistas de detalle

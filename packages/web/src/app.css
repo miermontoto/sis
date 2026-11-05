@@ -49,6 +49,11 @@
   --info: #4a9eff;
   --warning: #ffb02e;
   --purple: #a76bff;
+  /* identidad de los dos lados de una comparación de artistas. azul y naranja porque el
+     verde ya significa "cifra" en toda la app; validados contra daltonismo sobre --bg-card,
+     réplica en CANVAS_PALETTES */
+  --versus-a: #3f8fef;
+  --versus-b: #dc6a1f;
   /* veladuras del color del texto: hover y fondos tenues que en oscuro aclaran y en
      claro oscurecen. no escribas rgba(255,255,255,…) a mano */
   --fg-a03: color-mix(in srgb, var(--text) 3%, transparent);
@@ -125,6 +130,8 @@
   --info: #1f6fd1;
   --warning: #a35f00;
   --purple: #7c3aed;
+  --versus-a: #1f6fd1;
+  --versus-b: #c2560f;
   --bg-placeholder: #e3eaea;
   --bg-placeholder-hi: #edf2f2;
   --bg-sunken: #eef3f3;

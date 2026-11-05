@@ -61,6 +61,12 @@ function lsKey(gran: Granularity): string {
 }
 
 /** Label legible para un periodo */
+/** etiqueta de una columna del calendario de las gráficas: YYYY-MM, YYYY-Qn o YYYY */
+export function timelineKeyLabel(key: string): string {
+  const quarter = key.match(/^(\d{4})-Q(\d)$/);
+  return quarter ? `Q${quarter[2]} ${quarter[1]}` : periodLabel(key, 'month');
+}
+
 export function periodLabel(period: string, gran: Granularity): string {
   if (gran === 'year') return period;
   if (gran === 'month') {

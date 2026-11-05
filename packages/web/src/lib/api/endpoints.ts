@@ -3,7 +3,7 @@ import type {
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, QueueResponse, PlaybackQueueResponse, FriendsActivityResponse,
-  ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
+  ArtistDetail, ArtistOverlap, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
   AccoladesResponse, Rankings, ArtistScopedRank, EntityCard, RankingsWithHistory, HealthData, EntityType,
   MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
@@ -109,6 +109,10 @@ export const api = {
 
   // listas top del detalle de artista por separado: el toggle "show all" refresca solo su
   // sección, sin rehacer el detalle entero (y sin repintar las gráficas al reasignarlo)
+  // lo que comparten dos artistas: la página de comparación saca el resto del detalle de cada uno
+  artistOverlap: (id: string, other: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<ArtistOverlap>(`/stats/artist/${encodeURIComponent(id)}/shared/${encodeURIComponent(other)}`, { sort }, signal),
+
   artistTopTracks: (id: string, opts?: { sort?: string; limit?: number; range?: string; dates?: DateRangeParams; signal?: AbortSignal }) =>
     apiFetch<TopTrackItem[]>(`/stats/artist/${encodeURIComponent(id)}/top/tracks`, artistTopParams(opts), opts?.signal),
 

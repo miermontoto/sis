@@ -10,7 +10,7 @@
   import { api, createFetchController, type ArtistDetail, type Concert, type RankingMetric, getRankingMetric, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
-  import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
+  import { ARTIST_TOP_ALBUMS_LIMIT as TOP_ALBUMS_LIMIT, ARTIST_TOP_TRACKS_LIMIT as TOP_TRACKS_LIMIT, defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import type { ChartEvent } from '$lib/utils/chart';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -44,11 +44,11 @@
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import IconSwap from '$lib/icons/IconSwap.svelte';
+  import { artistCompare } from '$lib/stores/artist-compare.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
-  // tamaños de las listas top: colapsadas por defecto, expandidas con "show all"
-  const TOP_TRACKS_LIMIT = 10;
-  const TOP_ALBUMS_LIMIT = 5;
+  // tamaño de las listas top expandidas con "show all" (colapsadas: detail-layout.ts)
   const SHOW_ALL_LIMIT = 200;
 
   // vista de cada lista top: la lista de siempre, o las mismas filas como gráfica
@@ -430,6 +430,7 @@
             // de merges la pestaña de relaciones (ver ModalTabs)
             { label: 'Picture & background', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
             { label: 'Relations', icon: IconLink, onClick: () => { showArtistMergeModal = true; } },
+            { label: 'Compare with…', icon: IconSwap, onClick: () => artistCompare.open({ id: d.artist.id, name: d.artist.name }) },
             { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
             { label: 'Collections', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
           ]}

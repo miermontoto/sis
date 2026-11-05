@@ -41,6 +41,8 @@
   import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { collectionModal } from '$lib/stores/collection-modal.svelte';
+  import { artistCompare } from '$lib/stores/artist-compare.svelte';
+  import { pickedVersusHref } from '$lib/utils/artist-versus';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -74,6 +76,18 @@
   });
   $effect(() => {
     if (!collectionModalShow && collectionModal.target) collectionModal.close();
+  });
+
+  // buscador de "comparar con…". `kept` se fija aquí y no con un {@const} en el template: el
+  // {@const} es un derived que relee el store, y el buscador se cierra (target a null) antes
+  // de llamar a onPick
+  let comparePick = $derived.by(() => {
+    const kept = artistCompare.target;
+    return kept && {
+      types: ['artist' as const],
+      placeholder: `Compare ${kept.name} with…`,
+      onPick: (entity: { id: string }) => goto(pickedVersusHref(kept, entity.id)),
+    };
   });
 
   // ídem para el modal de relaciones soft entre artistas
@@ -722,6 +736,10 @@
     </main>
   </div>
   <SearchModal bind:show={showSearch} />
+  <!-- el buscador en modo pick elige con quién comparar; se monta sólo mientras está abierto -->
+  {#if comparePick}
+    <SearchModal bind:show={() => true, open => { if (!open) artistCompare.close(); }} pick={comparePick} />
+  {/if}
   <KeyboardShortcutsHelp />
   <ContextMenu />
   <PlaylistPicker />
