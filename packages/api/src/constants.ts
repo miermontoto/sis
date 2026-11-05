@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w46b';
+export const VERSION = '26w46c';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -144,6 +144,10 @@ export const ARTIST_SCOPED_RANK_MAX_ARTISTS = 10;
 // series-batch: tope de ids por petición. Es el mayor Top N que pintan las gráficas
 // de ranking (velocity), no un tope de página: por encima, el chart ya no se lee
 export const SERIES_BATCH_LIMIT = 50;
+
+// temas compartidos que devuelve una comparación de artistas: las cifras totales cuentan
+// todos, y por encima de este tope la lista ya no aporta (tema nº 51 de un dúo)
+export const ARTIST_OVERLAP_LIMIT = 50;
 
 // color manual de álbum: hex de 6 dígitos, que es lo único que emite un <input type="color">
 export const ALBUM_COLOR_RE = /^#[0-9a-f]{6}$/i;

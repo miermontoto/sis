@@ -56,6 +56,16 @@ export interface ArtistDetail {
   concerts?: Concert[];
 }
 
+// lo que dos artistas comparten en el historial del usuario: los plays de temas acreditados
+// a los dos. Esos plays cuentan en las cifras de ambos, así que A + B no es el total real
+// y cualquier reparto entre los dos los tiene que separar. Las cifras son de TODOS los
+// temas compartidos; `tracks` va recortado
+export interface ArtistOverlap {
+  playCount: number;
+  totalMs: number;
+  tracks: TopTrackItem[];
+}
+
 // single de adelanto ligado a un álbum: es un ReleaseEvent (sirve de marcador en las gráficas)
 // enriquecido con las escuchas del usuario para poder rankearlo en la sección "Singles"
 export interface AlbumSingle extends ReleaseEvent {

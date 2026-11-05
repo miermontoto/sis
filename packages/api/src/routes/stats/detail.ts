@@ -8,7 +8,7 @@ import type { MergeInfo, RelatedArtistRow, EntityType } from '../../db/queries/i
 import type { EntityCard, EntityRelation } from '@sis/shared';
 import { parseCollectionKey } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
-import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS, SERIES_BATCH_LIMIT } from '../../constants.js';
+import { TIME_RANGES, HOVER_CARD_SERIES_RANGE, HOVER_CARD_SERIES_BUCKET_DAYS, SERIES_BATCH_LIMIT, ARTIST_OVERLAP_LIMIT } from '../../constants.js';
 import { statsRouter, parseParams, requestRead } from './_shared.js';
 
 const detail = statsRouter();
@@ -116,6 +116,19 @@ detail.get('/artist/:id/top/:kind', async (c) => {
   }
   const rows = await dbRead('getArtistTopAlbums', id, rangeStart, sort, limit, rangeEnd, userId, artistIds);
   return c.json(await Promise.all(rows.map((row) => dbRead('formatArtistAlbumRow', row))));
+});
+
+// lo que comparten dos artistas (página de comparación): el resto de la página sale del
+// detalle de cada uno, que ya está cacheado si se llega desde su ficha
+detail.get('/artist/:id/shared/:other', async (c) => {
+  const userId = c.get('userId');
+  const { sort } = parseParams(c);
+  const [artistIds, otherIds] = await Promise.all([
+    dbRead('resolveEntityIds', 'artist', c.req.param('id'), userId),
+    dbRead('resolveEntityIds', 'artist', c.req.param('other'), userId),
+  ]);
+  const { rows, playCount, totalMs } = await dbRead('getArtistOverlap', artistIds, otherIds, sort, ARTIST_OVERLAP_LIMIT, userId);
+  return c.json({ playCount, totalMs, tracks: await dbRead('formatArtistTrackRows', rows, userId) });
 });
 
 // Detalle de una colección con la MISMA forma que el de un álbum (AlbumDetail): la
