@@ -176,23 +176,31 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       tokenize='unicode61 remove_diacritics 2'
     )`);
 
-    sqlite.exec('BEGIN');
-    sqlite.exec('DELETE FROM search_index');
-    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
-      SELECT spotify_id, 'artist', name, '' FROM artists WHERE spotify_id NOT LIKE 'import:%'`);
-    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
-      SELECT spotify_id, 'album', name, '' FROM albums WHERE spotify_id NOT LIKE 'import:%'`);
-    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
-      SELECT t.spotify_id, 'track', t.name, COALESCE(ar.name, '')
-      FROM tracks t
-      LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
-      LEFT JOIN artists ar ON ar.spotify_id = ta.artist_id
-      WHERE t.spotify_id NOT LIKE 'import:%'`);
-    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
-      SELECT CAST(id AS TEXT), 'playlist_library', name, COALESCE(owner_name, '') FROM spotify_playlists`);
-    sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
-      SELECT CAST(id AS TEXT), 'playlist_generated', name, strategy FROM generated_playlists`);
-    sqlite.exec('COMMIT');
+    // sólo si está vacío: de ahí en adelante lo mantienen los triggers de abajo y lo purga
+    // pruneOrphanSearchIndex (medido contra una reconstrucción tras altas, renombres, cambios
+    // de créditos, merges físicos y scrobbles: sin deriva). reconstruirlo en cada arranque
+    // eran ~0.6s y ~105k filas reescritas. si cambias qué se indexa, añade aquí un DROP TABLE
+    // de una sola vez, igual que el resto del ddl legacy
+    const emptyIndex = !sqlite.prepare('SELECT 1 FROM search_index LIMIT 1').get();
+    if (emptyIndex) {
+      sqlite.exec('BEGIN');
+      sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+        SELECT spotify_id, 'artist', name, '' FROM artists WHERE spotify_id NOT LIKE 'import:%'`);
+      sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+        SELECT spotify_id, 'album', name, '' FROM albums WHERE spotify_id NOT LIKE 'import:%'`);
+      sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+        SELECT t.spotify_id, 'track', t.name, COALESCE(ar.name, '')
+        FROM tracks t
+        LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+        LEFT JOIN artists ar ON ar.spotify_id = ta.artist_id
+        WHERE t.spotify_id NOT LIKE 'import:%'`);
+      sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+        SELECT CAST(id AS TEXT), 'playlist_library', name, COALESCE(owner_name, '') FROM spotify_playlists`);
+      sqlite.exec(`INSERT INTO search_index (entity_id, entity_type, name, extra_text)
+        SELECT CAST(id AS TEXT), 'playlist_generated', name, strategy FROM generated_playlists`);
+      sqlite.exec('COMMIT');
+      log.info('índice FTS5 poblado');
+    }
 
     // triggers para mantener el índice sincronizado con inserts/updates.
     // los AFTER UPDATE llevan guarda de cambio: un `ON CONFLICT DO UPDATE SET name = …`
@@ -312,7 +320,6 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
         WHERE t.spotify_id = OLD.track_id AND t.spotify_id NOT LIKE 'import:%';
       END`);
 
-    log.info('índice FTS5 creado y poblado');
   } catch (err) {
     try { sqlite.exec('ROLLBACK'); } catch {}
     log.error('error creando índice FTS5:', err);

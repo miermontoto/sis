@@ -4,6 +4,7 @@ import { createSqliteDb, type SqliteDbHandle } from '@platform/db';
 import * as schema from './schema.js';
 import { applyLegacyDdl } from './legacy-ddl.js';
 import { fileURLToPath } from 'url';
+import { isMainThread } from 'worker_threads';
 import { dirname, resolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,11 +17,13 @@ export function getDb() {
   handle = createSqliteDb({
     schema,
     defaultPath: './data/sis.db',
-    // migraciones en dev (src/db/migrations) y prod (dist/db/migrations)
-    migrationsCandidates: [resolve(__dirname, 'migrations'), resolve(__dirname, 'db/migrations')],
+    // migraciones en dev (src/db/migrations) y prod (dist/db/migrations). sólo el main
+    // thread toca el esquema: abre antes de crear el pool (index.ts), y los workers leen. con
+    // cada uno aplicando el ddl al abrir, competían por el lock de escritura en cada arranque
+    migrationsCandidates: isMainThread ? [resolve(__dirname, 'migrations'), resolve(__dirname, 'db/migrations')] : [],
     // el journal de sis no está saneado: un fallo de migrate no debe tirar el boot
     migrationErrorMode: 'warn',
-    afterOpen: applyLegacyDdl,
+    afterOpen: isMainThread ? applyLegacyDdl : undefined,
   });
   return handle.db;
 }
