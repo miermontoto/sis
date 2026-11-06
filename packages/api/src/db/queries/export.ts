@@ -6,9 +6,17 @@ export type ExportFormat = 'json' | 'csv';
 
 const CSV_HEADER = 'played_at,track_name,artist_names,album_name,duration_ms,context_type';
 
+// lo que una hoja de cálculo ejecutaría como fórmula aunque vaya entre comillas. los nombres
+// vienen de terceros (catálogo de spotify, scrobbles), así que se neutraliza con un apóstrofo
+// (owasp). toca a nombres reales como el álbum "=", pero el json los conserva literales
+const CSV_FORMULA_START = /^[=+\-@\t\r]/;
+
 // rfc 4180: las comillas de dentro se doblan. sin eso, un título como "Heroes" descuadraba
 // la fila entera al abrirla en una hoja de cálculo. sin valor = campo vacío, no "null"
-const csvField = (value: string | null) => `"${(value ?? '').replace(/"/g, '""')}"`;
+const csvField = (value: string | null) => {
+  const text = value ?? '';
+  return `"${(CSV_FORMULA_START.test(text) ? `'${text}` : text).replace(/"/g, '""')}"`;
+};
 
 interface ExportTrack {
   id: string;
