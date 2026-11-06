@@ -70,7 +70,7 @@ const HEAVY_SEED = new Set<string>([
   'computeRankings', 'computeRankingsBatch', 'getRankingHistoryWithCrossovers',
   'getEntityChartHistory', 'getTopEntities', 'getRecords', 'getReport',
   'getRecentRankChanges', 'getProfileSummary', 'getUserStreaks', 'scanProjectionBase',
-  'getRankingsWithHistory',
+  'getRankingsWithHistory', 'getExportBody',
 ]);
 
 type JobClass = 'light' | 'heavy' | 'background';

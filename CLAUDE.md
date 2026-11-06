@@ -289,6 +289,10 @@ Lo que sólo sirve a UN request pesado (las secciones de rank/chart del detalle)
 
 Los triggers `AFTER UPDATE` del FTS llevan **guarda de cambio** (`OLD.name IS NOT NEW.name`…): un `ON CONFLICT DO UPDATE SET name = …` los dispara aunque el valor no cambie, y cada disparo borra de `search_index` por `entity_id` UNINDEXED (escaneo de las 92k filas). Sin ella `upsertTrack` costaba 108ms en vez de 5ms.
 
+**Búsqueda (`searchEntities`, ⌘K): primero qué casa y sólo después sus cifras**, con una subconsulta por fila que va por índice. Antes cada tipo agregaba dos veces el historial entero y filtraba al final (350k plays: "metallica" 1.9s → 95ms, "the" 15.6s → 200ms, mismas filas). Los aciertos del FTS se miran con `IN` sobre un CTE materializado, **nunca con `LEFT JOIN`**: sin índice automático el plan recorre los aciertos por cada fila de la tabla (`SCAN si LEFT-JOIN`, aciertos × 41k: de ahí los 15s de un término corto), y un tema con dos artistas en posición 0 tiene dos entradas en el índice y salía repetido. `nameLike` evita cruzar a js los nombres todo ascii, donde `unaccent` no aporta nada que el `LIKE` no haga ya.
+
+**El export serializa en el worker y devuelve bytes** (`getExportBody`): filas o un string dejarían clonar y codificar 60MB en el main thread (peor parón del servidor durante un export: 2.6s → 55ms). `tracks` y `plays` van en dos lecturas cruzadas en js, no en un join de créditos por play.
+
 ### Records cache y accolades (`services/records-cache.ts`)
 Los records de un usuario se hornean enteros (los tres tipos, limit 50) en **una entrada en memoria** por `userId:weekStart:sort:unique`, y de esa misma entrada salen los accolades del hero (`getEntityAccolades` la busca por prefijo de usuario). El horneado cuesta ~12s de escaneo del historial por tipo, lo lanza el arranque diferido del usuario y lo repite el tick de polling cada 6h (`bakeRecordsForAllUsers`), siempre en la clase background del pool; antes los timers y `PUT /settings` lo corrían síncrono en el main thread (25-38s con el servidor congelado, cuatro veces al día). `PUT /settings` sólo invalida y rehornea al usuario que cambia el ajuste.
 

@@ -51,6 +51,9 @@ export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlayl
 export { getProfileSummary, composeComparison, getFeedActivity, getUserStreaks, getRecentPlaysForUsers, getUserPlayCount } from './social.js';
 export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRow, StreaksRow, FeedPlayRow } from './social.js';
 
+// export del historial del usuario
+export { getExportBody } from './export.js';
+
 // reports periódicos (semana / mes / año cerrados)
 export { getReport } from './reports.js';
 
