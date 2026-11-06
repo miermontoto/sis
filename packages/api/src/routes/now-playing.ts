@@ -30,6 +30,29 @@ function creditedArtists(known: EnrichedTrack | null | undefined, item: SpotifyT
   return known?.artists.length ? known.artists : (item.artists ?? []).map(({ id, name }) => ({ id, name }));
 }
 
+// de estos álbumes, los que este usuario tiene mergeados, cada uno con la fila de su
+// canónico. los grupos son de un nivel: un target nunca es a su vez un alias
+function mergedAlbums(albumIds: string[], userId: number) {
+  const unique = [...new Set(albumIds)];
+  if (!unique.length) return new Map<string, { id: string; name: string; imageUrl: string | null; color: string | null }>();
+  const rows = getDb().all(sql`
+    SELECT mr.source_id AS sourceId, al.spotify_id AS id, al.name, al.image_url AS imageUrl, al.color
+    FROM merge_rules mr
+    JOIN albums al ON al.spotify_id = mr.target_id
+    WHERE mr.user_id = ${userId} AND mr.entity_type = 'album'
+      AND mr.source_id IN (${sql.join(unique.map(id => sql`${id}`), sql`, `)})
+  `) as { sourceId: string; id: string; name: string; imageUrl: string | null; color: string | null }[];
+  return new Map(rows.map(({ sourceId, ...album }) => [sourceId, album]));
+}
+
+// el álbum que enseña la tarjeta: el canónico de su merge, el mismo que rankea. un merge no
+// mueve los temas, que siguen repartidos entre los dos álbumes, así que con el del tema la
+// carátula y los enlaces alternaban de un tema a otro al escuchar un disco y su deluxe.
+// una colección no entra: no es un álbum en el que esté el tema
+function canonicalAlbum<A extends { id: string }>(album: A | null, userId: number) {
+  return album && (mergedAlbums([album.id], userId).get(album.id) ?? album);
+}
+
 // Cola del historial: la marca de agua (played_at más reciente) y, si el cliente
 // manda la suya en `?since=`, los plays que han aterrizado por encima de ella.
 //
@@ -136,7 +159,7 @@ nowPlaying.get('/', (c) => {
     isPlaying: !!(isPlayingRow?.is_playing),
     controllable,
     progressMs: isPlayingRow?.progress_ms ?? null,
-    track,
+    track: { ...track, album: canonicalAlbum(track.album, userId) },
     updatedAt: state.lastCurrentlyPlayingAt,
     liveIds: getTrackLiveIds(db, track.id, userId) ?? undefined,
     ...tail,
@@ -233,11 +256,11 @@ nowPlaying.get('/live', async (c) => {
       durationMs: item.duration_ms,
       // el de la biblioteca (portada y color elegidos, el mismo que el cacheado), o la
       // tarjeta cambia de carátula cada vez que alterna entre las dos lecturas
-      album: known?.album ?? (item.album ? {
+      album: canonicalAlbum(known?.album ?? (item.album ? {
         id: item.album.id,
         name: item.album.name,
         imageUrl: item.album.images?.[0]?.url ?? null,
-      } : null),
+      } : null), userId),
       artists: creditedArtists(known, item),
     },
     updatedAt: new Date().toISOString(),
@@ -532,23 +555,34 @@ nowPlaying.get('/queue', async (c) => {
   const library = enrichTracksBatch(getDb(), items.map(i => i.id), userId);
   const rows = items.map(item => ({ item, artists: creditedArtists(library.get(item.id), item) }));
 
-  const knownAlbums = presentIds('albums', items.flatMap(i => i.album?.id ? [i.album.id] : []));
+  const albumIds = items.flatMap(i => i.album?.id ? [i.album.id] : []);
+  const knownAlbums = presentIds('albums', albumIds);
+  const merged = mergedAlbums(albumIds, userId);
   const knownArtists = presentIds('artists', rows.flatMap(r => r.artists.map(a => a.id)));
 
-  const queue = rows.map(({ item, artists }) => ({
-    id: item.id,
-    name: item.name,
-    known: library.has(item.id),
-    artists: artists.map(a => ({ ...a, known: knownArtists.has(a.id) })),
-    album: item.album ? {
-      id: item.album.id,
-      name: item.album.name,
-      known: knownAlbums.has(item.album.id),
-      // la más pequeña que publique spotify (64px): es una miniatura, no vale
-      // la pena bajar la de 640
-      imageUrl: item.album.images?.at(-1)?.url ?? null,
-    } : null,
-  }));
+  const queue = rows.map(({ item, artists }) => {
+    // el mismo álbum que enseñará la tarjeta cuando le toque sonar
+    const canonical = item.album && merged.get(item.album.id);
+    return {
+      id: item.id,
+      name: item.name,
+      known: library.has(item.id),
+      artists: artists.map(a => ({ ...a, known: knownArtists.has(a.id) })),
+      album: canonical ? {
+        id: canonical.id,
+        name: canonical.name,
+        known: true,
+        imageUrl: canonical.imageUrl,
+      } : item.album ? {
+        id: item.album.id,
+        name: item.album.name,
+        known: knownAlbums.has(item.album.id),
+        // la más pequeña que publique spotify (64px): es una miniatura, no vale
+        // la pena bajar la de 640
+        imageUrl: item.album.images?.at(-1)?.url ?? null,
+      } : null,
+    };
+  });
 
   return c.json({ queue });
 });
