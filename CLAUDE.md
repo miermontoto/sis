@@ -28,14 +28,15 @@ pnpm dev                    # start API with hot reload (tsx watch)
 pnpm check                  # lint (oxlint) + typecheck both packages (api: tsc; web: svelte-check)
 pnpm lint                   # oxlint only
 pnpm build                  # build web → copy to api/static → build api
-pnpm db:generate            # generate drizzle migrations after schema changes
+pnpm db:generate            # drizzle snapshots only: reaches no database (see Database)
 docker compose up --build   # full containerized deployment
 ```
 
 ## Database
 
-SQLite with WAL mode via better-sqlite3 + drizzle-orm. Schema in `packages/api/src/db/schema.ts`.
-Tables: artists, albums, tracks, track_artists, listening_history, auth_tokens, polling_state.
+SQLite with WAL mode via better-sqlite3 + drizzle-orm. `db/schema.ts` is only drizzle's typed view of the tables; the real DDL is `db/base-schema.ts` (the 13 base tables and their indexes, exactly as in production) plus `db/legacy-ddl.ts` (everything newer), applied at every boot on the main thread. **No migrations run**: the journal points to deleted `.sql` files, `migrate()` always threw, and that was logged as "sin migraciones pendientes", which hid until 2026-11-06 that a new database got none of the base tables. New table or column = `legacy-ddl.ts` (an `ALTER` is what reaches existing instances) and `schema.ts`; a new column on a base table also goes in `base-schema.ts`, so a new install is born the same.
+
+First run: with no users `/api/*` still requires a session, so the first visit lands on `/login`; the first login becomes admin (`isAllowedUser`), and after that the instance is invite-only (Settings → Account). There was a gate bypass "for bootstrap" until 2026-11-06: it showed an empty dashboard with no way to sign in and 500s for lack of a `userId`.
 
 ## Environment variables
 
