@@ -3,6 +3,7 @@ import type { Db, AggregateRow } from './helpers.js';
 import { rangeWhere, userFilter, playDuration, primaryArtistOf } from './helpers.js';
 import { getTopEntities } from './entity.js';
 import { getStreakDays } from './inline.js';
+import { enrichTracksBatch } from './track.js';
 import { SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from '../../constants.js';
 
 // --- perfil ---
@@ -237,8 +238,8 @@ export interface FeedPlayRow {
   trackName: string;
   albumId: string | null;
   albumImageUrl: string | null;
-  // json de [{id, name}] en orden de crédito; la ruta lo parsea y deriva los nombres
-  artistsJson: string | null;
+  // en orden de crédito y con las correcciones del dueño del play
+  artists: { id: string; name: string }[];
 }
 
 /** Stream cronológico de plays de un conjunto de usuarios (feed). */
@@ -246,27 +247,26 @@ export function getRecentPlaysForUsers(db: Db, userIds: number[], limit: number)
   if (userIds.length === 0) return [];
   const ids = sql.join(userIds.map(id => sql`${id}`), sql`, `);
 
-  return db.all(sql`
+  const rows = db.all(sql`
     SELECT
       lh.user_id AS userId,
       lh.played_at AS playedAt,
       t.spotify_id AS trackId,
       t.name AS trackName,
       t.album_id AS albumId,
-      a.image_url AS albumImageUrl,
-      (SELECT json_group_array(json_object('id', c.id, 'name', c.name))
-       FROM (SELECT a2.spotify_id AS id, a2.name AS name
-             FROM track_artists ta2
-             JOIN artists a2 ON a2.spotify_id = ta2.artist_id
-             WHERE ta2.track_id = t.spotify_id
-             ORDER BY ta2.position) c) AS artistsJson
+      a.image_url AS albumImageUrl
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     LEFT JOIN albums a ON a.spotify_id = t.album_id
     WHERE lh.user_id IN (${ids})
     ORDER BY lh.played_at DESC
     LIMIT ${limit}
-  `) as FeedPlayRow[];
+  `) as Omit<FeedPlayRow, 'artists'>[];
+
+  // cada play con los créditos de SU dueño, y trackArtistsFor es de un solo usuario: una
+  // lectura por lote y por usuario en vez de una subconsulta que no podría saber de quién es
+  const credits = new Map(userIds.map(id => [id, enrichTracksBatch(db, rows.filter(r => r.userId === id).map(r => r.trackId), id)]));
+  return rows.map(r => ({ ...r, artists: credits.get(r.userId)?.get(r.trackId)?.artists ?? [] }));
 }
 
 /** Total de plays all-time de un usuario (barato: índice por user_id). */

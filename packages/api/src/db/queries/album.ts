@@ -103,17 +103,15 @@ export function getAlbumRelatedSingles(db: Db, albumId: string, ids: string[] | 
       SELECT DISTINCT lower(t.name) AS ln FROM tracks t WHERE t.album_id IN (${albumPlaceholders})
     ),
     album_artists AS (
-      SELECT DISTINCT ta.artist_id FROM tracks t
-      JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
-      WHERE t.album_id IN (${albumPlaceholders})
+      SELECT DISTINCT ta.artist_id
+      FROM ${trackArtistsWhere(userId, col => sql`${col('position')} = 0 AND ${col('track_id')} IN (SELECT t.spotify_id FROM tracks t WHERE t.album_id IN (${albumPlaceholders}))`)} ta
     ),
     -- pre-candidatos por artista, driven desde track_artists/json en vez de escanear todos los
     -- singles del catálogo con un EXISTS por fila (~10x menos coste con el mismo resultado)
     candidate_albums AS (
-      SELECT DISTINCT st.album_id AS id FROM track_artists sta
+      SELECT DISTINCT st.album_id AS id FROM ${trackArtistsWhere(userId, col => sql`${col('artist_id')} IN (SELECT artist_id FROM album_artists) AND ${col('position')} = 0`)} sta
       JOIN tracks st ON st.spotify_id = sta.track_id
-      WHERE sta.artist_id IN (SELECT artist_id FROM album_artists) AND sta.position = 0
-        AND st.album_id IS NOT NULL
+      WHERE st.album_id IS NOT NULL
       UNION
       SELECT s2.spotify_id FROM albums s2, json_each(s2.artist_ids) je
       WHERE s2.album_type = 'single' AND je.value IN (SELECT artist_id FROM album_artists)

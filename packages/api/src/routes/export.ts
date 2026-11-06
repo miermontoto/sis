@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
+import { trackArtistsFor } from '../db/queries/helpers.js';
 import type { AppVariables } from '../app.js';
 
 const exportRoute = new Hono<{ Variables: AppVariables }>();
@@ -16,12 +17,12 @@ exportRoute.get('/', (c) => {
       t.name as track_name,
       t.duration_ms,
       a.name as album_name,
-      GROUP_CONCAT(ar.name, ', ') as artist_names,
+      GROUP_CONCAT(ar.name, ', ' ORDER BY ta.position) as artist_names,
       lh.context_type
     FROM listening_history lh
     JOIN tracks t ON t.spotify_id = lh.track_id
     LEFT JOIN albums a ON a.spotify_id = t.album_id
-    LEFT JOIN track_artists ta ON ta.track_id = t.spotify_id
+    LEFT JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id
     LEFT JOIN artists ar ON ar.spotify_id = ta.artist_id
     WHERE lh.user_id = ${userId}
     GROUP BY lh.id

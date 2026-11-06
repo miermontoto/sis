@@ -2,7 +2,7 @@
 // Cada regla es una fila en merge_rules con entity_type distinguiendo el tipo.
 import { sql } from 'drizzle-orm';
 import type { Db, EntityType } from './helpers.js';
-import { entityTableName, trackArtistsWhere } from './helpers.js';
+import { albumArtistId, entityTableName, trackArtistsWhere } from './helpers.js';
 import { getEntityCredits } from './credits.js';
 import type { MergeRule, MergeSource } from '@sis/shared';
 
@@ -163,13 +163,7 @@ export function listMergeRules(db: Db, userId: number): MergeRule[] {
     FROM merge_rules mr
     JOIN albums sa ON sa.spotify_id = mr.source_id
     JOIN albums ta ON ta.spotify_id = mr.target_id
-    LEFT JOIN (
-      SELECT DISTINCT t.album_id, ta2.artist_id
-      FROM tracks t
-      JOIN track_artists ta2 ON ta2.track_id = t.spotify_id AND ta2.position = 0
-      WHERE t.album_id IN (${targetsOf('album')})
-    ) album_artist ON album_artist.album_id = mr.target_id
-    LEFT JOIN artists ar ON ar.spotify_id = album_artist.artist_id
+    LEFT JOIN artists ar ON ar.spotify_id = ${albumArtistId(sql`mr.target_id`, userId)}
     WHERE mr.user_id = ${userId} AND mr.entity_type = 'album'
     ORDER BY ar.name, ta.name, sa.name
   `) as MergeRule[];
@@ -198,8 +192,7 @@ export function listMergeRules(db: Db, userId: number): MergeRule[] {
     LEFT JOIN albums tal ON tal.spotify_id = tt.album_id
     LEFT JOIN (
       SELECT track_id, MIN(artist_id) as artist_id
-      FROM track_artists
-      WHERE position = 0 AND track_id IN (${targetsOf('track')})
+      FROM ${trackArtistsWhere(userId, col => sql`${col('position')} = 0 AND ${col('track_id')} IN (${targetsOf('track')})`)}
       GROUP BY track_id
     ) ta_pri ON ta_pri.track_id = mr.target_id
     LEFT JOIN artists ar ON ar.spotify_id = ta_pri.artist_id

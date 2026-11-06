@@ -1,7 +1,8 @@
 // Queries que antes estaban inline en stats.ts, extraídas para el worker pool
 import { sql } from 'drizzle-orm';
-import type { Db } from './helpers.js';
-import { rangeWhere, userFilter, trackArtistsFor, trackArtistsWhere, trackArtistPairs, albumArtistId, albumArtistName } from './helpers.js';
+import type { Db, SqlChunk } from './helpers.js';
+import { rangeWhere, userFilter, trackArtistsFor, trackArtistsWhere, trackArtistPairs, albumArtistId, albumArtistName, hasCreditOverrides } from './helpers.js';
+import type { CreditSubjectType } from '@sis/shared';
 
 export function getTopGenres(db: Db, rangeStart: string | null, rangeEnd: string | null, limit: number, userId: number) {
   const rw = rangeWhere(rangeStart, rangeEnd);
@@ -77,6 +78,12 @@ function toFtsQuery(term: string): string {
 export function searchEntities(db: Db, term: string, limit: number, userId: number) {
   const ftsQuery = toFtsQuery(term);
   const likeTerm = `%${term}%`;
+  // el índice FTS es global y del catálogo: lo que el usuario añadió a una lista no está
+  // en él, y buscar por ese artista tiene que encontrar el tema o el álbum
+  const correctedMatch = (type: CreditSubjectType, col: SqlChunk) => hasCreditOverrides(userId, type)
+    ? sql`OR ${col} IN (SELECT co.subject_id FROM credit_overrides co JOIN artists a_co ON a_co.spotify_id = co.artist_id
+        WHERE co.user_id = ${userId} AND co.subject_type = ${type} AND unaccent(a_co.name) LIKE ${likeTerm})`
+    : sql``;
 
   const artistRows = db.all(sql`
     SELECT a.spotify_id as id, a.name, a.image_url as imageUrl,
@@ -139,7 +146,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       GROUP BY mr.target_id
     ) ms ON ms.target_id = al.spotify_id
     WHERE al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId})
-      AND (si.entity_id IS NOT NULL OR unaccent(al.name) LIKE ${likeTerm})
+      AND (si.entity_id IS NOT NULL OR unaccent(al.name) LIKE ${likeTerm} ${correctedMatch('album', sql`al.spotify_id`)})
     ORDER BY (si.entity_id IS NOT NULL) DESC, playCount DESC
     LIMIT ${limit}
   `) as any[];
@@ -174,7 +181,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
       GROUP BY mr.target_id
     ) ms ON ms.target_id = t.spotify_id
     WHERE t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
-      AND (si.entity_id IS NOT NULL OR unaccent(t.name) LIKE ${likeTerm} OR unaccent(ar.name) LIKE ${likeTerm})
+      AND (si.entity_id IS NOT NULL OR unaccent(t.name) LIKE ${likeTerm} OR unaccent(ar.name) LIKE ${likeTerm} ${correctedMatch('track', sql`t.spotify_id`)})
     ORDER BY (si.entity_id IS NOT NULL) DESC, playCount DESC
     LIMIT ${limit}
   `) as any[];

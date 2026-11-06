@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
-import { playDuration, trackArtistsFor } from './helpers.js';
+import { playDuration, trackArtistsFor, trackArtistsWhere } from './helpers.js';
 import type { PlaylistPresenceItem } from '@sis/shared';
 
 export interface LibraryPlaylistRow {
@@ -84,11 +84,11 @@ export interface PlaylistGenreRow {
 }
 
 /** Distribución de géneros de una playlist (basado en artistas de los tracks) */
-export function getPlaylistGenres(db: Db, playlistId: number, limit = 20): PlaylistGenreRow[] {
+export function getPlaylistGenres(db: Db, playlistId: number, userId: number, limit = 20): PlaylistGenreRow[] {
   return db.all(sql`
     SELECT genre.value as genre, COUNT(*) as play_count
     FROM spotify_playlist_tracks spt
-    JOIN track_artists ta ON ta.track_id = spt.track_id
+    JOIN ${trackArtistsWhere(userId, col => sql`${col('track_id')} IN (SELECT track_id FROM spotify_playlist_tracks WHERE playlist_id = ${playlistId})`)} ta ON ta.track_id = spt.track_id
     JOIN artists a ON a.spotify_id = ta.artist_id
     JOIN json_each(a.genres) genre
     WHERE spt.playlist_id = ${playlistId}
