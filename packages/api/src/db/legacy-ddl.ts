@@ -1,12 +1,20 @@
-// ddl legacy de sis fuera de drizzle: columnas/índices añadidos ad-hoc, tablas
-// multi-user/social, fts5 y la tabla canónica de sesiones de la plataforma.
-// se ejecuta en cada boot (idempotente) tras las migraciones de drizzle.
+// el esquema de sis, fuera de drizzle: las tablas base (base-schema.ts), columnas e índices
+// añadidos ad-hoc, tablas multi-user/social, fts5 y la tabla canónica de sesiones de la
+// plataforma. se ejecuta en cada boot (idempotente), sólo en el main thread.
 import type Database from 'better-sqlite3';
 import { ALBUM_RATING_MIN, ALBUM_RATING_MAX } from '@sis/shared';
 import { createLogger } from '../services/logger.js';
+import { BASE_INDEXES, BASE_TABLES } from './base-schema.js';
 
 const log = createLogger('db');
 export function applyLegacyDdl(sqlite: Database.Database): void {
+  // lo primero, y sin capturar el error: casi todo lo de abajo cuelga de estas tablas y va en
+  // un try/catch mudo, que es justo lo que escondía que en una bd nueva no existieran
+  sqlite.exec(BASE_TABLES);
+  for (const ddl of BASE_INDEXES) {
+    try { sqlite.exec(ddl); } catch (err) { log.warn(`índice base no creado (${ddl}):`, err); }
+  }
+
   // columnas e índices adicionales no gestionados por drizzle
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_album INTEGER'); } catch {}
   try { sqlite.exec('ALTER TABLE tracks ADD COLUMN verified_artists INTEGER'); } catch {}
