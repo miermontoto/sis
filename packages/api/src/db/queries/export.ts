@@ -6,6 +6,10 @@ export type ExportFormat = 'json' | 'csv';
 
 const CSV_HEADER = 'played_at,track_name,artist_names,album_name,duration_ms,context_type';
 
+// rfc 4180: las comillas de dentro se doblan. sin eso, un título como "Heroes" descuadraba
+// la fila entera al abrirla en una hoja de cálculo. sin valor = campo vacío, no "null"
+const csvField = (value: string | null) => `"${(value ?? '').replace(/"/g, '""')}"`;
+
 interface ExportTrack {
   id: string;
   track_name: string;
@@ -52,7 +56,7 @@ export function getExportBody(db: Db, userId: number, format: ExportFormat): Uin
 
   const text = format === 'csv'
     ? [CSV_HEADER, ...rows.map(r =>
-        [r.played_at, `"${r.track_name}"`, `"${r.artist_names}"`, `"${r.album_name}"`, r.duration_ms, r.context_type || ''].join(','),
+        [r.played_at, csvField(r.track_name), csvField(r.artist_names), csvField(r.album_name), r.duration_ms, r.context_type || ''].join(','),
       )].join('\n')
     : JSON.stringify(rows);
   return new TextEncoder().encode(text);
