@@ -86,7 +86,7 @@ export type { ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedIte
 export { SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from './constants.js';
 
 // consultas a musicbrainz (query lucene citada + comparación de títulos)
-export { mbRecordingQuery, normalizeTitle, sameTitle } from './musicbrainz.js';
+export { mbRecordingQuery, normalizeTitle, sameTitle, withoutRemasterSuffix } from './musicbrainz.js';
 
 // modelo de periodo (etiquetas y límites compartidos con los charts)
 export { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isGranularity, isPeriodKey, WEEK_START_SHIFT_DAYS, weekShiftModifier } from './periods.js';

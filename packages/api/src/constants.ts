@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w46s';
+export const VERSION = '26w46t';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -192,12 +192,27 @@ export const MB_DELAY_MS = 1100;
 // score mínimo de una búsqueda musicbrainz para dar el match por bueno
 export const MB_MIN_SCORE = 80;
 // resultados que se piden a la búsqueda: de los que coinciden en título y artista se
-// queda el de más lanzamientos de estudio, no el mejor puntuado a secas. 25 porque
-// los directos llenan las primeras posiciones y el orden entre empates no es estable
-// (el estudio de "Lisztomania" ha salido entre el 4º y el 6º)
-export const MB_SEARCH_LIMIT = 25;
+// queda el de más lanzamientos de estudio, no el mejor puntuado a secas. el máximo de la
+// api, porque los directos llenan las primeras posiciones y el orden entre empates no es
+// estable (el estudio de "Lisztomania" ha salido entre el 4º y el 6º). con 25, "Tomorrow"
+// de Silverchair (44 resultados) y "Karma Police" (281) no casaban, o sólo a veces, y un
+// fallo así acaba en un -1 definitivo; con 100 casan siempre (3 de 3, 2026-11-06), con el
+// mismo número de peticiones. "Paint It Black" (337) sigue sin caber
+export const MB_SEARCH_LIMIT = 100;
 // lanzamientos de estudio mínimos para aceptar un recording (ver searchVerifiedRecording)
 export const MB_MIN_STUDIO_RELEASES = 2;
+// reintento de una respuesta transitoria. musicbrainz responde 503 a sus límites de ritmo y
+// esos 503 traen Retry-After: 0 (medido 2026-11-06), así que la espera real es la de
+// respaldo; el tope acota un Retry-After largo para que no retenga el resto del job
+export const MB_RETRIES = 1;
+export const MB_RETRY_BACKOFF_MS = 3_000;
+export const MB_MAX_RETRY_WAIT_MS = 30_000;
+
+// duration_ms de un track sintético sin duración conocida. PENDING es la cola de last.fm y
+// musicbrainz; NOT_FOUND = musicbrainz respondió sin match fiable, se da por perdido y no
+// vuelve a la cola. una duración real que llegue después (upsert de un import) lo sobrescribe
+export const TRACK_DURATION_PENDING = 0;
+export const TRACK_DURATION_NOT_FOUND = -1;
 
 // harvest de isrcs vía /tracks de spotify: lotes de 50 (límite del endpoint),
 // capado por ciclo para no monopolizar la cuota de la API en el backfill inicial

@@ -8,6 +8,7 @@
 import { SETLISTFM_API_BASE, SETLISTFM_REQUEST_SPACING_MS, SETLISTFM_PAGE_SIZE, SETLISTFM_TIMEOUT_MS, SETLISTFM_MAX_ATTEMPTS, SETLISTFM_RETRY_BACKOFF_MS, SETLISTFM_MAX_RETRY_WAIT_MS } from '../constants.js';
 import { createLogger } from './logger.js';
 import { serviceUserAgent } from './public-origin.js';
+import { isTransientStatus, retryWaitMs } from './http-retry.js';
 import { acceptedSetlistfmArtists } from '@sis/shared';
 import type { SetlistfmShow } from '@sis/shared';
 
@@ -53,14 +54,6 @@ interface RawSearchResponse {
   itemsPerPage?: number;
 }
 
-// espera entre reintentos: respeta Retry-After si viene, con backoff lineal de
-// respaldo, y siempre acotada para no dejar el modal colgado
-function retryWaitMs(res: Response, attempt: number): number {
-  const header = Number(res.headers.get('Retry-After'));
-  const wait = Number.isFinite(header) && header > 0 ? header * 1000 : SETLISTFM_RETRY_BACKOFF_MS * attempt;
-  return Math.min(wait, SETLISTFM_MAX_RETRY_WAIT_MS);
-}
-
 async function setlistfmRequest<T>(path: string, params: Record<string, string> = {}): Promise<T | null> {
   if (!isSetlistfmConfigured()) throw new Error('setlist.fm no configurado (SETLISTFM_API_KEY)');
 
@@ -88,11 +81,11 @@ async function setlistfmRequest<T>(path: string, params: Record<string, string> 
     // 429 y 5xx son transitorios: la API falla a ratos bajo ráfagas y sin
     // reintento ese fallo suelto se ve como "faltan conciertos" — la página que
     // tocaba vuelve vacía mientras las de al lado responden bien
-    const transient = res.status === 429 || res.status >= 500;
-    if (!transient || attempt === SETLISTFM_MAX_ATTEMPTS) {
+    if (!isTransientStatus(res.status) || attempt === SETLISTFM_MAX_ATTEMPTS) {
       throw new Error(`setlist.fm ${path}: http ${res.status}`);
     }
-    const wait = retryWaitMs(res, attempt);
+    // backoff lineal de respaldo y acotado, para no dejar el modal colgado
+    const wait = retryWaitMs(res, SETLISTFM_RETRY_BACKOFF_MS * attempt, SETLISTFM_MAX_RETRY_WAIT_MS);
     log.warn(`${path} http ${res.status}, reintento ${attempt}/${SETLISTFM_MAX_ATTEMPTS - 1} en ${wait}ms`);
     await new Promise(r => setTimeout(r, wait));
   }

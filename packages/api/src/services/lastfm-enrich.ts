@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { getTrackInfo, getArtistTopTags } from './lastfm-client.js';
+import { tracksPendingDuration } from './ingestion/enrichment.js';
 import { LASTFM_ENRICH_MAX_TAGS } from '../constants.js';
 import { createLogger } from './logger.js';
 
@@ -17,13 +18,7 @@ const now = () => new Date().toISOString();
 // consultas que ya se dieron por perdidas.
 export async function enrichLastfmDurations(): Promise<number> {
   const db = getDb();
-  const missing = db.all(sql`
-    SELECT t.spotify_id, t.name, a.name as artist_name
-    FROM tracks t
-    JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
-    JOIN artists a ON a.spotify_id = ta.artist_id
-    WHERE t.duration_ms = 0 AND (t.spotify_id LIKE 'import:%' OR t.spotify_id LIKE 'local:%')
-  `) as { spotify_id: string; name: string; artist_name: string }[];
+  const missing = tracksPendingDuration();
 
   if (missing.length === 0) return 0;
   log.info(`${missing.length} tracks sin duración, consultando last.fm...`);
@@ -44,8 +39,10 @@ export async function enrichLastfmDurations(): Promise<number> {
 // géneros: artistas import: con reproducciones y sin géneros. los tags de
 // last.fm son la mejor aproximación disponible (spotify no cubre IDs sintéticos).
 // se guardan en minúsculas para casar con la convención de spotify. los artistas
-// sin tags quedan en '[]' y se reintentan en ciclos futuros (cadencia 24h, coste
-// acotado por el volumen de artistas import: sin resolver).
+// sin tags quedan en '[]' y se reintentan en ciclos futuros (cada 24h y en cada
+// arranque, coste acotado por el volumen de artistas import: sin resolver). no hay
+// marca de intento posible sin una columna: '[]' es también como nace un artista
+// import: y updated_at no separa "recién creado" de "preguntado ayer".
 export async function enrichLastfmGenres(): Promise<number> {
   const db = getDb();
   const missing = db.all(sql`
