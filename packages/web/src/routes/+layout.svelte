@@ -29,6 +29,7 @@
   import { NAV_GROUPS } from '$lib/nav';
   import { apiBase, api, invalidateHistoryBoundCache, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore } from '$lib/stores/play-updates.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
@@ -227,6 +228,11 @@
   function refreshNowPlayingOnFocus() {
     if (document.visibilityState === 'visible') nowPlayingStore.refreshIfStale();
   }
+
+  // la tarjeta vive en el layout y no remonta: corregir unos créditos tiene que releerla
+  $effect(() => {
+    if (creditsModal.changeVersion) untrack(() => nowPlayingStore.refreshAfterCreditChange());
+  });
 
   $effect(() => {
     if (sessionTrackingDisplay === 'off') return;

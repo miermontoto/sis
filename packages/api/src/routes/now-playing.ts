@@ -1,24 +1,33 @@
 import { Hono } from 'hono';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
-import { pollingState, tracks, artists, trackArtists, albums } from '../db/schema.js';
+import { pollingState } from '../db/schema.js';
 import { spotifyFetch, spotifyFetchRaw, isRateLimited } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
 import { triggerCurrentlyPlayingPoll } from '../services/polling.js';
-import { ensureFullAlbumTracks } from '../services/ingestion.js';
+import { ensureFullAlbumTracks, resolveDuplicateTrackId } from '../services/ingestion.js';
 import { isNonSpotifyId, syntheticIdPredicate } from '../services/ids.js';
 import { hiddenSpotifyIdsSubquery } from '../services/social.js';
 import { getTracksPlaylistPresence } from '../db/queries/playlist-library.js';
 import { getTrackLiveIds } from '../db/queries/entity.js';
 import { trackArtistsFor } from '../db/queries/helpers.js';
+import { enrichTrack, enrichTracksBatch, type EnrichedTrack } from '../db/queries/track.js';
 import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
 import type { AppVariables } from '../app.js';
 import { PLAYLIST_MEMBERSHIP_MAX_IDS } from '@sis/shared';
 import type { SpotifyDevice, PlayContextRequest, PlayContextResponse, QueueResponse, LandedPlay } from '@sis/shared';
-import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse } from '../types/spotify.js';
+import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse, SpotifyTrack } from '../types/spotify.js';
 
 const nowPlaying = new Hono<{ Variables: AppVariables }>();
+
+// los artistas de un tema que llega de spotify, que no sabe nada de las correcciones del
+// usuario: si tiene fila en la biblioteca mandan los suyos (ver trackArtistsFor), para que
+// la lectura en vivo y la cola digan lo mismo que la cacheada y que las cifras. Un tema
+// nunca ingestado no tiene más lista que la de spotify
+function creditedArtists(known: EnrichedTrack | null | undefined, item: SpotifyTrack) {
+  return known?.artists.length ? known.artists : (item.artists ?? []).map(({ id, name }) => ({ id, name }));
+}
 
 // Cola del historial: la marca de agua (played_at más reciente) y, si el cliente
 // manda la suya en `?since=`, los plays que han aterrizado por encima de ella.
@@ -116,27 +125,8 @@ nowPlaying.get('/', (c) => {
     if (Date.now() - lastUpdate > staleThresholdMs) return c.json(idle);
   }
 
-  const track = db.select().from(tracks).where(eq(tracks.spotifyId, state.lastCurrentlyPlayingTrackId)).get();
+  const track = enrichTrack(db, state.lastCurrentlyPlayingTrackId, userId);
   if (!track) return c.json(idle);
-
-  const album = track.albumId
-    ? db.select().from(albums).where(eq(albums.spotifyId, track.albumId)).get()
-    : null;
-
-  const trackArtistRows = db
-    .select({ artistId: trackArtists.artistId, position: trackArtists.position })
-    .from(trackArtists)
-    .where(eq(trackArtists.trackId, track.spotifyId))
-    .all();
-
-  const sortedArtistIds = trackArtistRows
-    .sort((a, b) => a.position - b.position)
-    .map(ta => ta.artistId);
-  const artistMap = new Map(
-    db.select().from(artists).where(inArray(artists.spotifyId, sortedArtistIds)).all()
-      .map(a => [a.spotifyId, a])
-  );
-  const artistList = sortedArtistIds.map(id => artistMap.get(id)).filter(Boolean);
 
   const isPlayingRow = db.get(sql`SELECT is_playing, progress_ms FROM polling_state WHERE user_id = ${userId}`) as { is_playing: number; progress_ms: number | null } | undefined;
 
@@ -145,15 +135,9 @@ nowPlaying.get('/', (c) => {
     isPlaying: !!(isPlayingRow?.is_playing),
     controllable,
     progressMs: isPlayingRow?.progress_ms ?? null,
-    track: {
-      id: track.spotifyId,
-      name: track.name,
-      durationMs: track.durationMs,
-      album: album ? { id: album.spotifyId, name: album.name, imageUrl: album.imageUrl } : null,
-      artists: artistList.map(a => ({ id: a!.spotifyId, name: a!.name })),
-    },
+    track,
     updatedAt: state.lastCurrentlyPlayingAt,
-    liveIds: getTrackLiveIds(db, track.spotifyId, userId) ?? undefined,
+    liveIds: getTrackLiveIds(db, track.id, userId) ?? undefined,
     ...tail,
   });
 });
@@ -215,13 +199,19 @@ nowPlaying.get('/live', async (c) => {
   const data = await spotifyFetch<SpotifyCurrentlyPlayingResponse>('/me/player/currently-playing', { userId });
   const item = data?.item && data.currently_playing_type === 'track' ? data.item : null;
 
+  // spotify puede dar el id de un gemelo (el mismo máster en otro shell de álbum) que la
+  // biblioteca guarda bajo el canónico, igual que hace el poller. Sin redirigirlo no se
+  // encuentran sus créditos ni su álbum, y el cacheado, que ya trae el canónico, parecería
+  // otro tema: el cliente daría éste por terminado y emitiría un play optimista
+  if (item) resolveDuplicateTrackId(item);
+
   // esta lectura no escribe polling_state: si contradice al poller (tema o
   // play/pausa cambiados desde otro dispositivo) se adelanta su ciclo, o el
   // historial y el cacheado siguen con lo viejo hasta su siguiente lectura
   // (hasta 60s sonando, 90s en idle) y la tarjeta vuelve atrás en cuanto caduca
   // el guard de la lectura en vivo del cliente. Un null en castigo de rate limit
-  // no es una lectura. Los ids que el poller reescribe (gemelos isrc, ficheros
-  // locales) no casan nunca y cuestan un poll de más, nada peor
+  // no es una lectura. Los ficheros locales, cuyo id reescribe el poller, no casan
+  // nunca y cuestan un poll de más, nada peor
   if (!isRateLimited()) {
     const state = getDb().get(sql`SELECT last_currently_playing_track_id AS trackId, is_playing AS isPlaying FROM polling_state WHERE user_id = ${userId}`) as { trackId: string | null; isPlaying: number } | undefined;
     if ((state?.trackId ?? null) !== (item?.id ?? null) || !!state?.isPlaying !== !!(item && data?.is_playing)) {
@@ -232,6 +222,7 @@ nowPlaying.get('/live', async (c) => {
   const tail = readHistoryTail(userId, c.req.query('since'));
   if (!data || !item) return c.json({ playing: false, isPlaying: false, ...tail });
 
+  const known = enrichTrack(getDb(), item.id, userId);
   return c.json({
     playing: true,
     isPlaying: !!data.is_playing,
@@ -241,12 +232,14 @@ nowPlaying.get('/live', async (c) => {
       id: item.id,
       name: item.name,
       durationMs: item.duration_ms,
-      album: item.album ? {
+      // el de la biblioteca (portada y color elegidos, el mismo que el cacheado), o la
+      // tarjeta cambia de carátula cada vez que alterna entre las dos lecturas
+      album: known?.album ?? (item.album ? {
         id: item.album.id,
         name: item.album.name,
         imageUrl: item.album.images?.[0]?.url ?? null,
-      } : null,
-      artists: (item.artists ?? []).map((a) => ({ id: a.id, name: a.name })),
+      } : null),
+      artists: creditedArtists(known, item),
     },
     updatedAt: new Date().toISOString(),
     // spotify da el id crudo: un tema aún sin ingestar no se resuelve y el cliente se
@@ -506,9 +499,9 @@ nowPlaying.get('/playlists/:trackId', (c) => {
 
 // ids de un lote que existen en la tabla. Los PK de la app son spotify ids, así
 // que esto es todo lo que hace falta para saber si hay ficha a la que enlazar:
-// un tema de la cola que el usuario no ha escuchado nunca no tiene fila y su
-// página respondería 404
-function presentIds(table: 'tracks' | 'albums' | 'artists', ids: string[]): Set<string> {
+// un álbum o artista de la cola que el usuario no ha escuchado nunca no tiene
+// fila y su página respondería 404
+function presentIds(table: 'albums' | 'artists', ids: string[]): Set<string> {
   const unique = [...new Set(ids)];
   if (!unique.length) return new Set();
   const rows = getDb().all(sql`
@@ -535,15 +528,19 @@ nowPlaying.get('/queue', async (c) => {
     .filter(item => item.type === 'track' && !!item.id)
     .slice(0, NOW_PLAYING_QUEUE_LIMIT);
 
-  const knownTracks = presentIds('tracks', items.map(i => i.id));
-  const knownAlbums = presentIds('albums', items.flatMap(i => i.album?.id ? [i.album.id] : []));
-  const knownArtists = presentIds('artists', items.flatMap(i => (i.artists ?? []).map(a => a.id)));
+  // mismo tema y mismos créditos que enseñará la tarjeta cuando le toque sonar
+  items.forEach(resolveDuplicateTrackId);
+  const library = enrichTracksBatch(getDb(), items.map(i => i.id), userId);
+  const rows = items.map(item => ({ item, artists: creditedArtists(library.get(item.id), item) }));
 
-  const queue = items.map(item => ({
+  const knownAlbums = presentIds('albums', items.flatMap(i => i.album?.id ? [i.album.id] : []));
+  const knownArtists = presentIds('artists', rows.flatMap(r => r.artists.map(a => a.id)));
+
+  const queue = rows.map(({ item, artists }) => ({
     id: item.id,
     name: item.name,
-    known: knownTracks.has(item.id),
-    artists: (item.artists ?? []).map(a => ({ id: a.id, name: a.name, known: knownArtists.has(a.id) })),
+    known: library.has(item.id),
+    artists: artists.map(a => ({ ...a, known: knownArtists.has(a.id) })),
     album: item.album ? {
       id: item.album.id,
       name: item.album.name,
