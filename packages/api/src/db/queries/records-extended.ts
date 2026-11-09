@@ -10,7 +10,7 @@ import type {
   MonthCountEntry, YearEndFinish, YearRank, RankingMetric, PeriodCalendar,
 } from '@sis/shared';
 import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, trackArtistsFor, primaryArtistOf, artistNameOf, localPlayedAt } from './helpers.js';
-import { periodBounds, periodForDate } from '@sis/shared';
+import { periodBounds, periodForDate, topDistinctEntries } from '@sis/shared';
 import { getTopEntities } from './entity.js';
 import { RECORDS_LIMIT, CHART_SIZE, AVG_YEAR_FINISH_MIN_YEARS } from '../../constants.js';
 
@@ -568,9 +568,10 @@ export function computeMostAccolades(
 ): RecordEntry[] {
   const counts = new Map<string, RecordEntry>();
 
+  // una lista suma uno por entidad, como el badge del hero: con "record entries" en
+  // duplicados, contar filas daba tres records a quien tiene tres semanas en peak week
   function tally(list: RecordEntry[]) {
-    for (let i = 0; i < Math.min(list.length, RECORDS_LIMIT); i++) {
-      const e = list[i];
+    for (const e of topDistinctEntries(list, (entry) => entry.entityId, RECORDS_LIMIT)) {
       const prev = counts.get(e.entityId);
       if (prev) { prev.value++; }
       else { counts.set(e.entityId, { ...e, value: 1, week: null }); }

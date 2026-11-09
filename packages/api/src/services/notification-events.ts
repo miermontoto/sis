@@ -6,7 +6,7 @@
 // el envío real (sendPush) es credential-gated y fire-and-forget: nunca bloquea
 // ni lanza hacia el polling / recomputo de cache.
 import { eq, sql } from 'drizzle-orm';
-import { adjacentPeriod, periodForDate, resolveTimeZone } from '@sis/shared';
+import { adjacentPeriod, periodForDate, resolveTimeZone, topDistinctEntries } from '@sis/shared';
 import { getDb } from '../db/connection.js';
 import { getChart } from '../db/queries/index.js';
 import { userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter, trackArtistsFor } from '../db/queries/helpers.js';
@@ -198,8 +198,11 @@ export function emitRecordEvents(userId: number, spotifyId: string, prev: Record
     if (!prevEnt || !nextEnt) continue;
 
     for (const category of RECORD_NOTIFY_CATEGORIES) {
-      const prevList = ((prevEnt[category] as RecordEntry[]) ?? []).slice(0, RECORDS_LIMIT);
-      const nextList = ((nextEnt[category] as RecordEntry[]) ?? []).slice(0, RECORDS_LIMIT);
+      // top por entidades, no por filas: en duplicados una entidad repetida avisaría
+      // una vez por fila y con el puesto de la fila (ver topDistinctEntries)
+      const topOf = (ent: EntityRecords) => topDistinctEntries((ent[category] as RecordEntry[]) ?? [], (e) => e.entityId, RECORDS_LIMIT);
+      const prevList = topOf(prevEnt);
+      const nextList = topOf(nextEnt);
       const prevIds = new Set(prevList.map(e => e.entityId));
 
       nextList.forEach((entry, idx) => {

@@ -1,7 +1,7 @@
 import { getDb } from '../db/connection.js';
 import { dbRead, dbReadBackground, promoteBackground } from '../db/read-pool.js';
 import type { RecordsResponse, EntityRecords, Accolade, AccoladesResponse } from '@sis/shared';
-import { ACCOLADE_RECORD_KEYS } from '@sis/shared';
+import { ACCOLADE_RECORD_KEYS, topDistinctEntries } from '@sis/shared';
 import { userSettings } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { getAllActiveUsersWithTokens } from './user-manager.js';
@@ -260,12 +260,15 @@ export async function getEntityAccolades(entityType: 'track' | 'album' | 'artist
   // mostNo1Tracks/Albums son ArtistRecordEntry: id en artistId y valor en count
   type Entry = { entityId?: string; artistId?: string; value?: number; count?: number; week?: string | null };
   const lists = data as unknown as Record<string, Entry[] | undefined>;
+  const idOf = (e: Entry) => (e.entityId ?? e.artistId) as string;
   for (const [type, listKey] of Object.entries(ACCOLADE_RECORD_KEYS)) {
     const list = lists[listKey];
     if (!list) continue;
-    const idx = list.findIndex((e) => (e.entityId ?? e.artistId) === entityId);
-    if (idx === -1 || idx >= RECORDS_LIMIT) continue;
-    const entry = list[idx];
+    // puesto entre entidades, no entre filas (ver topDistinctEntries)
+    const top = topDistinctEntries(list, idOf, RECORDS_LIMIT);
+    const idx = top.findIndex((e) => idOf(e) === entityId);
+    if (idx === -1) continue;
+    const entry = top[idx];
     accolades.push({ type, rank: idx + 1, value: entry.value ?? entry.count ?? 0, week: entry.week ?? null });
   }
 
