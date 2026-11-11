@@ -5,7 +5,7 @@
   // en inputs, utilidades safe-area lateral y reveal-en-táctil. ver platform/README → convenciones web
   import '@platform/ui/base.css';
   import '../app.css';
-  import { nativeTabBar, NATIVE_TABRAIL_CLASS } from '@platform/mobile/native-tab-bar';
+  import { nativeTabBar, NATIVE_TABRAIL_CLASS, type NativeTabAnchor } from '@platform/mobile/native-tab-bar';
   import { MediaQuery } from 'svelte/reactivity';
   // el store del tema vive desde el arranque: es quien sigue al sistema (y a otras
   // pestañas) cuando la preferencia es 'system'
@@ -103,6 +103,7 @@
   let expandedGroup = $state<string | null>(null);
   let userMenuRef = $state<HTMLElement | null>(null);
   let mobileUserMenuRef = $state<HTMLElement | null>(null);
+  let railUserMenuRef = $state<HTMLElement | null>(null);
   let tabbarRef = $state<HTMLElement | null>(null);
   let nowPlayingDisplay = $state<NowPlayingDisplay>('auto');
   let sessionTrackingDisplay = $state<SessionTrackingDisplay>('all');
@@ -311,10 +312,8 @@
   });
 
   function handleClickOutside(e: MouseEvent) {
-    if (showUserMenu) {
-      const inDesktop = userMenuRef?.contains(e.target as Node);
-      const inMobile = mobileUserMenuRef?.contains(e.target as Node);
-      if (!inDesktop && !inMobile) showUserMenu = false;
+    if (showUserMenu && ![userMenuRef, mobileUserMenuRef, railUserMenuRef].some(el => el?.contains(e.target as Node))) {
+      showUserMenu = false;
     }
     if (expandedGroup && !tabbarRef?.contains(e.target as Node) && !navEl?.contains(e.target as Node)) {
       expandedGroup = null;
@@ -437,6 +436,35 @@
   });
   let playerColumn = $derived(tabRail && !mobileLayout.current && !sidebarCollapsed);
   const activeGroupLabel = $derived(mobileNavGroups.find(g => isGroupActive(g))?.label ?? null);
+
+  // cápsula de acciones de la columna del Duo, encima del rail: atrás (lo resuelve el nativo contra
+  // el historial del webview) y buscar siempre, así que sobran la cabecera móvil y el buscador del
+  // sidebar (app.css). la cuenta solo en la exterior (layout móvil), donde sin cabecera no queda
+  // avatar; en la interior apaisada la lleva el badge del sidebar
+  const NATIVE_BACK_TITLE = 'Back';
+  const SEARCH_ACTION = { id: 'search', title: 'Search', symbol: 'magnifyingglass' };
+  const ACCOUNT_ACTION = { id: 'account', title: 'Account', symbol: 'person.crop.circle' };
+  // hueco entre el botón nativo y el menú que sale a su lado
+  const RAIL_MENU_GAP_PX = 8;
+  const nativeActions = $derived(mobileLayout.current && user?.authenticated ? [SEARCH_ACTION, ACCOUNT_ACTION] : [SEARCH_ACTION]);
+  let railAccount = $derived(tabRail && mobileLayout.current);
+  // dónde sale el menú de cuenta de la columna: hacia dentro de la pantalla y con su pie al del botón
+  let railMenuAt = $state<{ left?: string; right?: string; bottom: string } | null>(null);
+
+  function onNativeAction(id: string, anchor: NativeTabAnchor) {
+    if (id === SEARCH_ACTION.id) {
+      showSearch = true;
+      return;
+    }
+    if (id !== ACCOUNT_ACTION.id) return;
+    const onRight = anchor.x + anchor.width / 2 > window.innerWidth / 2;
+    railMenuAt = {
+      left: onRight ? undefined : `${anchor.x + anchor.width + RAIL_MENU_GAP_PX}px`,
+      right: onRight ? `${window.innerWidth - anchor.x + RAIL_MENU_GAP_PX}px` : undefined,
+      bottom: `${window.innerHeight - anchor.y - anchor.height}px`,
+    };
+    showUserMenu = !showUserMenu;
+  }
 
   function onNativeTab(label: string) {
     const group = mobileNavGroups.find(g => g.label === label);
@@ -561,7 +589,15 @@
         class="mobile-tabbar"
         bind:this={tabbarRef}
         aria-label="Primary navigation"
-        use:nativeTabBar={{ tabs: nativeTabs, selected: activeGroupLabel, onSelect: onNativeTab, compactQuery: MOBILE_QUERY }}
+        use:nativeTabBar={{
+          tabs: nativeTabs,
+          selected: activeGroupLabel,
+          onSelect: onNativeTab,
+          backTitle: NATIVE_BACK_TITLE,
+          actions: nativeActions,
+          onAction: onNativeAction,
+          compactQuery: MOBILE_QUERY,
+        }}
       >
         {#each mobileNavGroups as group}
           <div class="mobile-tab-group">
@@ -663,13 +699,25 @@
                   <div class="mobile-user-avatar mobile-user-avatar--empty"><IconArtist size={15} /></div>
                 {/if}
               </button>
-              {#if showUserMenu}
+              {#if showUserMenu && !railAccount}
                 <UserMenu {user} placement="down" header onnavigate={() => showUserMenu = false} />
               {/if}
             </div>
           {/if}
         </div>
       </div>
+      <!-- exterior del Duo: sin cabecera, la cuenta es un botón de la columna y su menú sale a su lado -->
+      {#if showUserMenu && railAccount && railMenuAt && user?.authenticated}
+        <div
+          class="rail-user-menu"
+          bind:this={railUserMenuRef}
+          style:left={railMenuAt.left}
+          style:right={railMenuAt.right}
+          style:bottom={railMenuAt.bottom}
+        >
+          <UserMenu {user} placement="side" header onnavigate={() => showUserMenu = false} />
+        </div>
+      {/if}
       {@render children()}
     </main>
   </div>

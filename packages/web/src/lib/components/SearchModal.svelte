@@ -286,7 +286,9 @@
 {#if show}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="search-overlay" onmousedown={(e) => { if (e.button === 0 && e.target === e.currentTarget) close(); }} onkeydown={onKeydown}>
-    <div class="search-modal">
+    <!-- role dialog: además de la semántica, es lo que oculta la barra nativa de ios mientras está
+         abierto (una vista nativa queda siempre sobre el webview y taparía el buscador) -->
+    <div class="search-modal" role="dialog" aria-modal="true" aria-label="Search">
       <input
         bind:this={inputEl}
         bind:value={query}

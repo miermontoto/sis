@@ -2303,6 +2303,18 @@ html.native-tabrail .sidebar-nav--desktop {
   display: none;
 }
 
+/* encima del rail va la cápsula de acciones (atrás, buscar y, en la exterior, la cuenta): sobran el
+   buscador del sidebar y la cabecera móvil, y el menú de cuenta sale fijo junto a su botón nativo
+   (+layout calcula la caja con la que manda el nativo) */
+html.native-tabrail :is(.sidebar-search, .mobile-header) {
+  display: none;
+}
+
+.rail-user-menu {
+  position: fixed;
+  z-index: 200;
+}
+
 @media (max-width: 768px) {
   /* lo que tapa la barra nativa desde el pie: la regla de @platform/ui/safe-area.css que lo
      cuenta exige html.compact, y sis no la usa (le pasa compactQuery a nativeTabBar), así que
@@ -2324,5 +2336,11 @@ html.native-tabrail .sidebar-nav--desktop {
      nativa, que va por debajo de él, se suma aparte con --bottom-chrome */
   html.native-tabbar .main-content {
     padding-bottom: calc(var(--mobile-dock-h, 3.3rem) + var(--bottom-chrome) + 1rem);
+  }
+
+  /* sin la cabecera (su trabajo lo hace la columna del Duo), la safe area de arriba que llevaba
+     ella pasa al propio contenido */
+  html.native-tabrail .main-content {
+    padding-top: calc(1rem + var(--safe-top));
   }
 }

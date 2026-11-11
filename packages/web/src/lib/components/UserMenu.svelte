@@ -18,7 +18,8 @@
     });
   }
 
-  // menú de cuenta compartido por el badge del sidebar y el de la cabecera móvil.
+  // menú de cuenta compartido por el badge del sidebar, el de la cabecera móvil y
+  // el botón de cuenta de la columna del Duo (`side`: lo coloca el layout).
   // `header` sólo en móvil: en el sidebar el nombre ya está en el propio badge
   // justo debajo, y repetirlo sería la misma etiqueta dos veces seguidas.
   let {
@@ -28,7 +29,7 @@
     onnavigate,
   }: {
     user: MeResponse;
-    placement?: 'up' | 'down';
+    placement?: 'up' | 'down' | 'side';
     header?: boolean;
     onnavigate?: () => void;
   } = $props();
@@ -123,6 +124,12 @@
     to { opacity: 1; transform: translateY(0); }
   }
   .user-menu--up {
+    --user-menu-pop-from: 4px;
+  }
+  /* columna del Duo: el layout fija la caja junto al botón nativo (crece hacia arriba desde su pie) */
+  .user-menu--side {
+    position: static;
+    min-width: 200px;
     --user-menu-pop-from: 4px;
   }
 
