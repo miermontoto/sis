@@ -5,6 +5,7 @@
   import RankCell from './RankCell.svelte';
   import CollectionBadge from './CollectionBadge.svelte';
   import LiveEq from './LiveEq.svelte';
+  import { mobileLayout } from '$lib/stores/mobile-layout.svelte';
 
   interface Props {
     href?: string;
@@ -27,12 +28,14 @@
     menuOptions?: EntityMenuOptions;
     fillPercent?: number;
     subtitle?: Snippet;
-    extra?: Snippet;
+    // marcas secundarias de la fila (accolades, liked/playlists): en móvil no se pintan, que
+    // compiten por el ancho con el nombre y lo dejaban a 0px. lo esencial no va aquí
+    badges?: Snippet;
     meta?: Snippet;
     cover?: Snippet;
   }
 
-  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, menuOptions, subtitle, extra, meta, cover }: Props = $props();
+  let { href, rank, rankChange, globalRank, isNew = false, isReentry = false, imageUrl, imageHref, imageRound = false, name, nameHref, isLive = false, compact = false, focusId, highlighted = false, dimmed = false, fillPercent, entity, menuOptions, subtitle, badges, meta, cover }: Props = $props();
 
   let onContextMenu = $derived(entity ? openEntityContextMenu(entity, menuOptions) : undefined);
 </script>
@@ -74,10 +77,12 @@
       <div class="track-artist">{@render subtitle()}</div>
     {/if}
   </div>
-  {#if extra}
-    {@render extra()}
+  <!-- en móvil ni se montan: además del ancho, cada marca pide sus datos o cuelga
+       un listener por fila -->
+  {#if badges && !mobileLayout.current}
+    {@render badges()}
   {/if}
-  {#if globalRank != null}
+  {#if globalRank != null && !mobileLayout.current}
     <span class="global-rank" title="All-time rank" style:color={medalColor(globalRank)}>#{globalRank}</span>
   {/if}
   {#if meta}

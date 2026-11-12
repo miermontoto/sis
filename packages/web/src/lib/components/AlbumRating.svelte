@@ -276,15 +276,15 @@
     cursor: default;
   }
 
-  /* hero en columna centrada en móvil: centrar la fila y el popover con ella */
+  /* en móvil el hero va en fila (app.css) y las estrellas caen en la columna estrecha de
+     la derecha: anclada a ellas, la reseña salía de la pantalla. ahí se ancla a la fila del
+     hero (position: relative) y se abre debajo de ella, a lo ancho */
   @media (max-width: 768px) {
-    .rating-stars {
-      justify-content: center;
-      margin-left: 0;
+    .album-rating {
+      position: static;
     }
     .review-popover {
-      left: 50%;
-      transform: translateX(-50%);
+      width: min(320px, 100%);
     }
   }
 </style>

@@ -118,6 +118,18 @@
     z-index: 50;
   }
 
+  /* en el hero móvil las acciones van a la izquierda (app.css): alineado a la derecha del
+     botón, el menú salía de la pantalla. ahí se ancla a la fila de acciones */
+  @media (max-width: 768px) {
+    :global(.hero-actions) .actions-root {
+      position: static;
+    }
+    :global(.hero-actions) .actions-menu {
+      left: 0;
+      right: auto;
+    }
+  }
+
   .actions-item {
     display: flex;
     align-items: center;

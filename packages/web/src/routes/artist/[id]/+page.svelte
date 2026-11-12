@@ -562,7 +562,7 @@
                   entity={{ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId }}
                 >
                   {#snippet subtitle()}{item.album?.releaseDate ?? ''}{/snippet}
-                  {#snippet extra()}
+                  {#snippet badges()}
                     {#if showAccolades}
                       <Accolades entityType="album" entityId={item.albumId} />
                     {/if}

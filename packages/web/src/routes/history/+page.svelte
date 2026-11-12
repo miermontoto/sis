@@ -464,9 +464,11 @@
     margin-bottom: 1rem;
     flex-wrap: wrap;
   }
+  /* en un móvil fecha, fuente, edit y add no caben en una línea (desbordaban la página) */
   .controls-left {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
   .controls-right {
@@ -525,6 +527,7 @@
     padding: 0.3rem 0.75rem;
     border-radius: var(--radius);
     cursor: pointer;
+    white-space: nowrap;
     transition: color 0.05s, border-color 0.05s;
   }
   .source-select {

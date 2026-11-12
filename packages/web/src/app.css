@@ -76,6 +76,12 @@
   --detail-gap: 1.5rem;
   /* separación entre filas de .track-list: las filas live la cancelan para pegarse */
   --track-list-gap: 0.5rem;
+  /* densidad: relleno de .card y la fila de lista (.track-item: relleno, hueco entre
+     columnas y carátula). el layout móvil los redefine abajo, no cada componente */
+  --card-pad: 1.25rem;
+  --row-pad: 0.75rem;
+  --row-gap: 1rem;
+  --row-art: 48px;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* escala tipográfica: un tamaño nuevo sale de aquí, nunca un rem suelto.
@@ -92,6 +98,9 @@
   --fs-display: 1.75rem;
   --fs-2xl: 2rem;
   --fs-3xl: 2.8rem;
+  /* etiqueta de las pestañas móviles: 10px, la de la barra de ios. fuera de la escala porque
+     no sube con el suelo móvil de 2xs (con 11px "HIGHLIGHTS" no cabía en su pestaña) */
+  --fs-tab: 0.625rem;
   /* suelo de un campo en táctil, el mismo que el anti-zoom de @platform/ui/base.css (con
      menos de 16px ios hace zoom al enfocar). para las reglas que le ganan en especificidad:
      @media (hover: none) { .mi-select { font-size: var(--fs-input-touch); } }. el 1em se
@@ -704,7 +713,7 @@ a:hover {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.25rem;
+  padding: var(--card-pad);
 }
 
 .stats-grid {
@@ -794,8 +803,8 @@ a.stat-card--link:hover {
 .track-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
+  gap: var(--row-gap);
+  padding: var(--row-pad);
   border-radius: var(--radius);
   transition: background 0.05s;
   position: relative;
@@ -874,8 +883,8 @@ a.track-item {
 }
 
 .track-art {
-  width: 48px;
-  height: 48px;
+  width: var(--row-art);
+  height: var(--row-art);
   border-radius: var(--radius);
   object-fit: cover;
   flex-shrink: 0;
@@ -2045,7 +2054,7 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   .mobile-tabbar {
     display: flex;
     width: 100%;
-    gap: 0.2rem;
+    gap: 0.125rem;
     padding: 0.4rem 0.35rem calc(0.4rem + var(--safe-bottom));
     background: var(--bg-card);
   }
@@ -2064,15 +2073,15 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     gap: 0.25rem;
     width: 100%;
     min-height: 3.4rem;
-    padding: 0.35rem 0.25rem;
+    padding: 0.35rem 0.125rem;
     border: 1px solid transparent;
     border-radius: var(--radius);
     background: transparent;
     color: var(--text-muted);
     font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
+    font-size: var(--fs-tab);
     text-transform: uppercase;
-    letter-spacing: var(--track-tight);
+    letter-spacing: 0;
     line-height: 1;
     text-align: center;
     cursor: pointer;
@@ -2189,27 +2198,103 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     padding-bottom: calc(var(--mobile-dock-h, 7.5rem) + 1rem);
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .page-header {
+    display: none;
+  }
+}
+
+/* densidad del layout móvil (rediseño de 2026-11-12). Antes el móvil era el escritorio
+   apretado: filas de 12px de relleno + 16px entre columnas, tarjetas de 20px, etiquetas
+   de 9.6px y un hero apilado que llenaba la primera pantalla; en las listas del artista y
+   del álbum el nombre del tema se quedaba a 0px de ancho. Lo que cambia de tamaño va por
+   tokens; aquí sólo lo que cambia de forma */
+@media (max-width: 768px) {
+  :root {
+    /* suelo de lectura en un teléfono (~11px): 2xs y xs quedan casi iguales, a propósito */
+    --fs-2xs: 0.6875rem;
+    --detail-gap: 1rem;
+    --card-pad: 0.875rem;
+    --row-pad: 0.5rem 0.375rem;
+    --row-gap: 0.75rem;
+    --row-art: 44px;
+    --track-list-gap: 0.125rem;
   }
 
+  /* la cifra de la fila a tamaño de subtítulo: a 16px bold "23.213 min" eran ~100px */
+  .track-meta .track-plays {
+    font-size: var(--fs-md);
+  }
+
+  /* la columna de cifras nunca se come la fila: un contexto largo ("ongoing · since 2 sept
+     2018" en records) se parte en dos renglones antes que dejar el nombre en 80px */
+  .track-meta {
+    max-width: 45%;
+    text-wrap: balance;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.375rem;
+  }
+
+  .stats-grid > .stat-card {
+    padding: 0.625rem 0.5rem;
+  }
+
+  /* título y acciones no se reparten la línea a la fuerza: si no caben, las acciones bajan
+     (el título del report del dashboard se partía en tres renglones) */
+  .section-header {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+
+  /* pestañas en una tira que se desliza en vez de desbordar la página (settings, records) */
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* hero en fila: carátula a la izquierda, nombre y meta a la derecha y las acciones
+     debajo, alineadas a la izquierda. Media pantalla menos que el hero apilado */
   .detail-hero-row {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: var(--detail-gap);
   }
 
   .detail-hero {
-    flex-direction: column;
-    text-align: center;
+    gap: 1rem;
   }
 
   .detail-hero .detail-image {
-    width: 96px;
-    height: 96px;
+    width: 88px;
+    height: 88px;
   }
 
-  .page-header {
-    display: none;
+  .detail-header-info {
+    min-width: 0;
+  }
+
+  .detail-header-info h1 {
+    font-size: var(--fs-xl);
+    line-height: 1.2;
+  }
+
+  /* los menús del hero (accolades, ⋯) se anclan a esta fila y no a su botón: con las
+     acciones a la izquierda, un panel alineado a la derecha de su botón salía de la pantalla */
+  .hero-actions {
+    position: relative;
+    align-self: stretch;
+    flex-wrap: wrap;
   }
 }
 

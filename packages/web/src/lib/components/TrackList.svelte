@@ -4,6 +4,7 @@
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
+  import { mobileLayout } from '$lib/stores/mobile-layout.svelte';
   import { untrack } from 'svelte';
   import TrackItem from './TrackItem.svelte';
   import MetricMeta from './MetricMeta.svelte';
@@ -37,9 +38,9 @@
 
   // pertenencia (playlists + liked) de toda la lista en un solo lote. `untrack`
   // porque ensure() lee el mismo estado que escribe: sin él, cada respuesta
-  // reejecuta el efecto
+  // reejecuta el efecto. en móvil la fila no pinta las marcas (TrackItem)
   $effect(() => {
-    if (!showLibraryBadges) return;
+    if (!showLibraryBadges || mobileLayout.current) return;
     const ids = items.map(getTrackId).filter((id): id is string => !!id);
     if (ids.length > 0) untrack(() => playlistMembershipStore.ensure(ids));
   });
@@ -57,9 +58,10 @@
   // las marcas afirman pertenencia, así que sólo existen cuando hay alguna: montar el
   // popover en cada fila sería un listener de documento por fila para no pintar nada.
   // Sin ellas la puerta es "Add to playlist" del menú contextual, que la fila con
-  // marcas omite (abriría el mismo popover)
+  // marcas omite (abriría el mismo popover). en móvil no hay marcas, así que el menú
+  // vuelve a ser la puerta
   function hasLibraryBadge(trackId: string | null): trackId is string {
-    return showLibraryBadges && !!trackId
+    return showLibraryBadges && !mobileLayout.current && !!trackId
       && ((playlistMembershipStore.get(trackId)?.length ?? 0) > 0 || playlistMembershipStore.isLiked(trackId) === true);
   }
 
@@ -115,7 +117,7 @@
           <span class="track-share">{percentLabels[i].toFixed(1)}%</span>
         {/if}
       {/snippet}
-      {#snippet extra()}
+      {#snippet badges()}
         {#if showAccolades && trackId}
           <Accolades entityType="track" entityId={trackId} />
         {/if}

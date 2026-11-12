@@ -6,7 +6,7 @@
   import '@platform/ui/base.css';
   import '../app.css';
   import { nativeTabBar, NATIVE_TABRAIL_CLASS, type NativeTabAnchor } from '@platform/mobile/native-tab-bar';
-  import { MediaQuery } from 'svelte/reactivity';
+  import { mobileLayout, MOBILE_QUERY } from '$lib/stores/mobile-layout.svelte';
   // el store del tema vive desde el arranque: es quien sigue al sistema (y a otras
   // pestañas) cuando la preferencia es 'system'
   import '$lib/stores/theme.svelte';
@@ -439,10 +439,8 @@
   // iPhone Duo, también con el layout de escritorio), una por grupo con su sf symbol (solo símbolos
   // de ios <= 15, el deployment target). id = label del grupo: el toque hace lo mismo que el de la
   // pestaña web (navegar o abrir el desplegable del grupo). la barra web queda oculta (app.css).
-  // misma query que el @media del layout móvil de app.css
-  const MOBILE_QUERY = '(max-width: 768px)';
+  // compactQuery es MOBILE_QUERY (stores/mobile-layout), la del @media del layout móvil de app.css
   const nativeTabs = mobileNavGroups.map(g => ({ id: g.label, title: g.label, symbol: g.symbol }));
-  const mobileLayout = new MediaQuery(MOBILE_QUERY);
 
   // rail del Duo (html.native-tabrail, lo pone y lo quita la acción nativeTabBar al
   // girar, abrir o plegar): con la nav en el rail, el sidebar de escritorio se queda
