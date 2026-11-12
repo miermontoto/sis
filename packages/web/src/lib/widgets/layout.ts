@@ -1,11 +1,17 @@
-// modelo del dashboard de widgets: una lista ordenada de huecos (slots) que la
-// rejilla empaqueta sola, como la pantalla de inicio de iOS. un slot con un solo
-// widget es un widget suelto; con varios es una pila (stack) que se pasa con el
-// dedo. el tamaño es del slot, así que todos los widgets de una pila lo comparten.
-// módulo puro: las operaciones del editor (en el dashboard y en Settings)
+// modelo del dashboard de widgets: una lista ordenada de huecos (slots) que se
+// reparte en secciones por horizonte temporal (Today → Looking back) y que cada
+// sección empaqueta en su rejilla, como la pantalla de inicio de iOS. Un slot con
+// un solo widget es un widget suelto; con varios es una pila (stack) que se pasa
+// con el dedo. El tamaño es del slot, así que todos los widgets de una pila lo
+// comparten. La sección no se guarda: la dice el alcance del primer widget del slot
+// (`slotSection`), así que cambiar el rango de un top lo muda de sección.
+// Módulo puro: las operaciones del editor (en el dashboard y en Settings)
 // devuelven un layout nuevo y nunca mutan el recibido
 
-import { SIZE_SPAN, WIDGET_SIZES, resolveSettings, widgetDef, type WidgetSettings, type WidgetSize } from './registry';
+import {
+  SECTIONS, SIZE_SPAN, WIDGET_SIZES, resolveSettings, widgetDef, widgetSection,
+  type SectionKey, type WidgetSettings, type WidgetSize,
+} from './registry';
 
 export interface WidgetInstance {
   id: string;
@@ -23,6 +29,8 @@ export interface WidgetSlot {
 
 export interface DashboardLayout {
   slots: WidgetSlot[];
+  // secciones plegadas (se ve la cabecera, no los widgets)
+  collapsed: SectionKey[];
 }
 
 // intervalos que ofrece el editor para rotar una pila
@@ -35,6 +43,7 @@ export const WIDGET_COLS_MIN = 2;
 export const WIDGET_COLS_MAX = 12;
 
 const newId = (): string => Math.random().toString(36).slice(2, 10);
+const SECTION_KEYS = new Set<string>(SECTIONS.map(s => s.key));
 
 // siempre par, como la rejilla de iOS: casi todos los tamaños miden 2 o 4 de ancho,
 // y con un número impar la última columna se quedaba vacía en cada fila
@@ -45,16 +54,23 @@ export function gridColumns(widthPx: number, gapPx: number): number {
 }
 
 // tamaño con el que se pinta un slot en una rejilla de `cols` columnas: el xl
-// (4 de ancho) no cabe en un móvil y se pinta como large, que es lo que haría
-// una rejilla de iOS sin sitio
+// (4 de ancho) no cabe en un móvil y se pinta como large, que es lo que haría una
+// rejilla de iOS sin sitio. El tall también: existe para ir al lado de dos collages
+// apilados, y en dos columnas no hay nada al lado (era una lista de 700px)
+const NARROW_COLS = 4;
 export function effectiveSize(size: WidgetSize, cols: number): WidgetSize {
-  return SIZE_SPAN[size].cols > cols ? 'large' : size;
+  return SIZE_SPAN[size].cols > cols || (size === 'tall' && cols < NARROW_COLS) ? 'large' : size;
 }
 
 // tamaños que admiten todos los widgets de una pila, en el orden de WIDGET_SIZES
 export function commonSizes(items: readonly WidgetInstance[]): WidgetSize[] {
   return WIDGET_SIZES.filter(s => items.every(i => widgetDef(i.type)?.sizes.includes(s)));
 }
+
+// sección de un slot: la de su primer widget (una pila sólo se forma dentro de una
+// sección, así que todos sus widgets suelen compartirla)
+export const slotSection = (slot: WidgetSlot): SectionKey =>
+  slot.items[0] ? widgetSection(slot.items[0].type, slot.items[0].settings) : 'today';
 
 export function createWidget(type: string, settings?: Partial<WidgetSettings>): WidgetInstance | null {
   const def = widgetDef(type);
@@ -82,46 +98,65 @@ function fromSeeds(seeds: readonly (Seed | readonly Seed[])[], prefix: string): 
       .filter((w): w is WidgetInstance => w !== null);
     if (items.length > 0) slots.push({ id: `${prefix}${i}`, size: group[0][1], items, rotateSec: 0 });
   });
-  return { slots };
+  return { slots, collapsed: [] };
 }
 
-// el dashboard de serie: lo que había antes de los widgets, más una pila de
-// recuerdos y el reproductor. Pensado para cuadrar en una rejilla de 8
-// columnas (escritorio) y caer limpio en las de 6 y 2
+// cifras de la antigua barra de stats (y del widget de varias cifras que la sustituyó
+// unos días): una cifra por slot
+const STATS_FIGURES = ['playsToday', 'timeToday', 'streak', 'timeWeek', 'totalPlays'];
+const statTiles = (figures: readonly string[]): Seed[] => figures.map(figure => ['stat', 'tile', { figure }] as const);
+
+// el dashboard de serie, sección a sección. Cada bloque está pensado para cerrar
+// filas enteras en una rejilla de 6 columnas (un portátil) y caer limpio en la de 2
+// (móvil); en una de 8 sólo queda un borde irregular al final de cada sección.
+// El orden de la lista no importa entre secciones (cada una filtra lo suyo)
 export function defaultDashboard(): DashboardLayout {
   return fromSeeds([
-    ['stats', 'xl'],
-    ['weekStrip', 'medium'],
-    ['nowPlaying', 'medium'],
-    [['onThisDay', 'medium'], ['anniversaries', 'medium']],
-    ['milestone', 'small'],
-    ['goal', 'small'],
-    ['top', 'large', { entity: 'track', range: 'week' }],
-    ['top', 'large', { entity: 'album', range: 'week', style: 'collage' }],
-    ['top', 'large', { entity: 'artist', range: 'week', style: 'collage' }],
-    ['lastReport', 'large'],
-    ['recentPlays', 'large'],
-    [['genres', 'large'], ['clock', 'large']],
+    // today: cuatro cifras y la semana en una fila compacta
+    ['stat', 'tile', { figure: 'playsToday' }],
+    ['stat', 'tile', { figure: 'timeToday' }],
+    ['stat', 'tile', { figure: 'streak' }],
+    ['goal', 'tile', { period: 'day', target: 2 }],
+    ['weekStrip', 'band'],
+    // this week: la lista larga a la izquierda, los dos collages a su lado
+    ['top', 'tall', { entity: 'track', range: 'week' }],
+    ['top', 'xl', { entity: 'album', range: 'week', style: 'collage' }],
+    ['top', 'xl', { entity: 'artist', range: 'week', style: 'collage' }],
     ['rankChanges', 'large'],
-    ['lastYear', 'large'],
+    [['genres', 'large', { range: 'week' }], ['clock', 'large', { range: 'week' }]],
+    ['chart', 'large', { granularity: 'week' }],
+    // this year: chart y estrenos del año, y una columna de cifras
+    ['chart', 'large', { granularity: 'year', entity: 'artist' }],
+    ['discoveries', 'large', { range: 'thisYear' }],
+    ['stat', 'tile', { figure: 'playsYear' }],
+    ['stat', 'tile', { figure: 'timeYear' }],
+    ['goal', 'band', { period: 'year', target: 1000 }],
+    ['top', 'medium', { entity: 'artist', range: 'thisYear' }],
+    // all time
     ['calendar', 'xl'],
+    ['record', 'medium'],
+    ['milestone', 'medium'],
+    // looking back
+    ['lastReport', 'large'],
+    [['onThisDay', 'large'], ['anniversaries', 'large']],
+    ['lastYear', 'large'],
   ], 'd');
 }
 
 // las secciones del dashboard de antes (detail-layout, key `dashboardLayout`)
 // convertidas en widgets, para que el primer arranque conserve el orden y lo que
-// el usuario había ocultado. el statsBar era una fila de cinco cifras: un stats xl
-const LEGACY_SECTIONS: Record<string, Seed> = {
-  statsBar: ['stats', 'xl'],
-  weekStrip: ['weekStrip', 'medium'],
-  topTracks: ['top', 'large', { entity: 'track', range: 'week' }],
-  topAlbums: ['top', 'large', { entity: 'album', range: 'week', style: 'collage' }],
-  topArtists: ['top', 'large', { entity: 'artist', range: 'week', style: 'collage' }],
-  lastReport: ['lastReport', 'large'],
-  lastYear: ['lastYear', 'large'],
-  topGenres: ['genres', 'large'],
-  rankChanges: ['rankChanges', 'large'],
-  recentPlays: ['recentPlays', 'large'],
+// el usuario había ocultado. El statsBar eran cinco cifras: cinco tiles
+const LEGACY_SECTIONS: Record<string, Seed[]> = {
+  statsBar: statTiles(STATS_FIGURES),
+  weekStrip: [['weekStrip', 'band']],
+  topTracks: [['top', 'tall', { entity: 'track', range: 'week' }]],
+  topAlbums: [['top', 'xl', { entity: 'album', range: 'week', style: 'collage' }]],
+  topArtists: [['top', 'xl', { entity: 'artist', range: 'week', style: 'collage' }]],
+  lastReport: [['lastReport', 'large']],
+  lastYear: [['lastYear', 'large']],
+  topGenres: [['genres', 'large']],
+  rankChanges: [['rankChanges', 'large']],
+  recentPlays: [['recentPlays', 'large']],
 };
 
 export function migrateLegacyLayout(raw: string | null | undefined): DashboardLayout | null {
@@ -130,8 +165,17 @@ export function migrateLegacyLayout(raw: string | null | undefined): DashboardLa
   try { stored = JSON.parse(raw); } catch { return null; }
   if (!stored || typeof stored !== 'object') return null;
   const keys = [stored.main, stored.rail].flatMap(k => Array.isArray(k) ? k : []);
-  const seeds = [...new Set(keys)].map(k => LEGACY_SECTIONS[String(k)]).filter((s): s is Seed => !!s);
+  const seeds = [...new Set(keys)].flatMap(k => LEGACY_SECTIONS[String(k)] ?? []);
   return seeds.length > 0 ? fromSeeds(seeds, 'm') : null;
+}
+
+// tipos retirados que se convierten en otros al leer un layout guardado: el widget
+// de varias cifras (`stats`) pasa a una cifra por slot. Los que no tienen sustituto
+// (now playing, up next: el sidebar ya los enseña) desaparecen sin más
+function expandRetired(item: Partial<WidgetInstance>): Seed[] | null {
+  if (item.type !== 'stats') return null;
+  const figures = (item.settings as { figures?: unknown } | undefined)?.figures;
+  return statTiles(Array.isArray(figures) && figures.length > 0 ? figures.map(String) : STATS_FIGURES);
 }
 
 // reconcilia lo guardado contra el registro actual: descarta widgets de tipos
@@ -139,7 +183,7 @@ export function migrateLegacyLayout(raw: string | null | undefined): DashboardLa
 // guardado, el mayor que admita) y repara ids repetidos. null = no sirve
 export function parseDashboard(raw: string | null | undefined): DashboardLayout | null {
   if (!raw) return null;
-  let stored: { slots?: unknown };
+  let stored: { slots?: unknown; collapsed?: unknown };
   try { stored = JSON.parse(raw); } catch { return null; }
   if (!stored || typeof stored !== 'object' || !Array.isArray(stored.slots)) return null;
 
@@ -155,6 +199,11 @@ export function parseDashboard(raw: string | null | undefined): DashboardLayout 
     if (!slot || typeof slot !== 'object' || !Array.isArray(slot.items)) continue;
     const items: WidgetInstance[] = [];
     for (const it of slot.items as Partial<WidgetInstance>[]) {
+      const expanded = it ? expandRetired(it) : null;
+      if (expanded) {
+        for (const s of fromSeeds(expanded, 'x').slots) slots.push({ ...s, id: uniqueId(null), items: s.items.map(i => ({ ...i, id: uniqueId(null) })) });
+        continue;
+      }
       const def = it && typeof it.type === 'string' ? widgetDef(it.type) : undefined;
       if (!def) continue;
       items.push({ id: uniqueId(it.id), type: def.type, settings: resolveSettings(def, it.settings) });
@@ -171,28 +220,37 @@ export function parseDashboard(raw: string | null | undefined): DashboardLayout 
     const rotateSec = ROTATE_OPTIONS.includes(slot.rotateSec as number) ? slot.rotateSec as number : 0;
     slots.push({ id: uniqueId(slot.id), size, items, rotateSec });
   }
-  return { slots };
+  const collapsed = Array.isArray(stored.collapsed)
+    ? [...new Set(stored.collapsed.filter((k): k is SectionKey => SECTION_KEYS.has(String(k))))]
+    : [];
+  return { slots, collapsed };
 }
 
 export const serializeDashboard = (layout: DashboardLayout): string => JSON.stringify(layout);
 
+// slots de una sección, en el orden de la lista
+export const sectionSlots = (layout: DashboardLayout, section: SectionKey): WidgetSlot[] =>
+  layout.slots.filter(s => slotSection(s) === section);
+
 // --- operaciones del editor ---
 
 const mapSlot = (layout: DashboardLayout, slotId: string, fn: (s: WidgetSlot) => WidgetSlot): DashboardLayout =>
-  ({ slots: layout.slots.map(s => s.id === slotId ? fn(s) : s) });
+  ({ ...layout, slots: layout.slots.map(s => s.id === slotId ? fn(s) : s) });
+const findSlot = (layout: DashboardLayout, id: string) => layout.slots.find(s => s.id === id);
 
-// widget nuevo al principio, como iOS: es lo primero que se ve al cerrar la galería
+// widget nuevo al principio (de su sección, porque cada sección filtra la lista),
+// como iOS: es lo primero que se ve al cerrar la galería
 export function addWidget(layout: DashboardLayout, type: string, size?: WidgetSize): DashboardLayout {
   const slot = createSlot(type, size);
-  return slot ? { slots: [slot, ...layout.slots] } : layout;
+  return slot ? { ...layout, slots: [slot, ...layout.slots] } : layout;
 }
 
 export const removeSlot = (layout: DashboardLayout, slotId: string): DashboardLayout =>
-  ({ slots: layout.slots.filter(s => s.id !== slotId) });
+  ({ ...layout, slots: layout.slots.filter(s => s.id !== slotId) });
 
 // quita un widget de su pila; si era el último, el slot desaparece
 export function removeItem(layout: DashboardLayout, slotId: string, itemId: string): DashboardLayout {
-  const slot = layout.slots.find(s => s.id === slotId);
+  const slot = findSlot(layout, slotId);
   if (!slot) return layout;
   const items = slot.items.filter(i => i.id !== itemId);
   return items.length === 0 ? removeSlot(layout, slotId) : mapSlot(layout, slotId, s => ({ ...s, items, rotateSec: items.length > 1 ? s.rotateSec : 0 }));
@@ -200,36 +258,52 @@ export function removeItem(layout: DashboardLayout, slotId: string, itemId: stri
 
 // mueve un slot a `index` de la lista (índice relativo a la lista SIN el slot)
 export function moveSlot(layout: DashboardLayout, slotId: string, index: number): DashboardLayout {
-  const slot = layout.slots.find(s => s.id === slotId);
+  const slot = findSlot(layout, slotId);
   if (!slot) return layout;
   const rest = layout.slots.filter(s => s.id !== slotId);
   const at = Math.max(0, Math.min(index, rest.length));
-  return { slots: [...rest.slice(0, at), slot, ...rest.slice(at)] };
+  return { ...layout, slots: [...rest.slice(0, at), slot, ...rest.slice(at)] };
 }
 
-// soltar un slot junto a otro: delante o detrás de él
+export function sameSection(layout: DashboardLayout, a: string, b: string): boolean {
+  const sa = findSlot(layout, a);
+  const sb = findSlot(layout, b);
+  return !!sa && !!sb && slotSection(sa) === slotSection(sb);
+}
+
+// soltar un slot junto a otro: delante o detrás de él, sólo dentro de su sección
+// (la sección la dicen los ajustes; para mudarlo se cambia su rango)
 export function placeSlot(layout: DashboardLayout, slotId: string, targetId: string, where: 'before' | 'after'): DashboardLayout {
-  if (slotId === targetId) return layout;
+  if (slotId === targetId || !sameSection(layout, slotId, targetId)) return layout;
   const rest = layout.slots.filter(s => s.id !== slotId);
   const t = rest.findIndex(s => s.id === targetId);
   return t < 0 ? layout : moveSlot(layout, slotId, where === 'before' ? t : t + 1);
 }
 
-// ¿puede el slot `slotId` entrar en la pila `targetId`? sólo si todos sus
-// widgets admiten el tamaño de la pila destino (iOS tampoco redimensiona al apilar)
-export function canStack(layout: DashboardLayout, slotId: string, targetId: string): boolean {
-  if (slotId === targetId) return false;
-  const src = layout.slots.find(s => s.id === slotId);
-  const dst = layout.slots.find(s => s.id === targetId);
-  return !!src && !!dst && commonSizes([...dst.items, ...src.items]).includes(dst.size);
+// un puesto arriba o abajo dentro de su sección (teclado y editor de lista)
+export function stepSlot(layout: DashboardLayout, slotId: string, delta: -1 | 1): DashboardLayout {
+  const slot = findSlot(layout, slotId);
+  if (!slot) return layout;
+  const peers = sectionSlots(layout, slotSection(slot));
+  const neighbour = peers[peers.indexOf(slot) + delta];
+  return neighbour ? placeSlot(layout, slotId, neighbour.id, delta < 0 ? 'before' : 'after') : layout;
 }
 
-// soltar un slot encima de otro: sus widgets se suman a la pila destino, que
-// pasa a enseñar el primero de los recién llegados
+// ¿puede el slot `slotId` entrar en la pila `targetId`? sólo dentro de la misma
+// sección y si todos sus widgets admiten el tamaño de la pila destino (iOS tampoco
+// redimensiona al apilar)
+export function canStack(layout: DashboardLayout, slotId: string, targetId: string): boolean {
+  if (slotId === targetId || !sameSection(layout, slotId, targetId)) return false;
+  const src = findSlot(layout, slotId)!;
+  const dst = findSlot(layout, targetId)!;
+  return commonSizes([...dst.items, ...src.items]).includes(dst.size);
+}
+
+// soltar un slot encima de otro: sus widgets se suman a la pila destino
 export function stackSlot(layout: DashboardLayout, slotId: string, targetId: string): DashboardLayout {
   if (!canStack(layout, slotId, targetId)) return layout;
-  const src = layout.slots.find(s => s.id === slotId)!;
-  return { slots: removeSlot(layout, slotId).slots.map(s => s.id === targetId ? { ...s, items: [...s.items, ...src.items] } : s) };
+  const src = findSlot(layout, slotId)!;
+  return mapSlot(removeSlot(layout, slotId), targetId, s => ({ ...s, items: [...s.items, ...src.items] }));
 }
 
 // saca un widget de su pila a un slot propio justo detrás; conserva el tamaño
@@ -242,7 +316,7 @@ export function unstackItem(layout: DashboardLayout, slotId: string, itemId: str
   const def = widgetDef(item.type)!;
   const out: WidgetSlot = { id: newId(), size: def.sizes.includes(slot.size) ? slot.size : def.defaultSize, items: [item], rotateSec: 0 };
   const rest = removeItem(layout, slotId, itemId).slots;
-  return { slots: [...rest.slice(0, i + 1), out, ...rest.slice(i + 1)] };
+  return { ...layout, slots: [...rest.slice(0, i + 1), out, ...rest.slice(i + 1)] };
 }
 
 // reordena un widget dentro de su pila
@@ -270,9 +344,25 @@ export function setRotate(layout: DashboardLayout, slotId: string, rotateSec: nu
   return ROTATE_OPTIONS.includes(rotateSec) ? mapSlot(layout, slotId, s => ({ ...s, rotateSec })) : layout;
 }
 
+// ajustes de un widget. Si con ellos el slot cambia de sección (un top que pasa a all
+// time), se muda al final de la nueva: su puesto de la lista era el de la vieja, y
+// podía caer en cualquier sitio de la otra
 export function updateSettings(layout: DashboardLayout, slotId: string, itemId: string, patch: Partial<WidgetSettings>): DashboardLayout {
-  return mapSlot(layout, slotId, s => ({
+  const before = findSlot(layout, slotId);
+  if (!before) return layout;
+  const next = mapSlot(layout, slotId, s => ({
     ...s,
     items: s.items.map(it => it.id === itemId ? { ...it, settings: resolveSettings(widgetDef(it.type)!, { ...it.settings, ...patch }) } : it),
   }));
+  const moved = findSlot(next, slotId)!;
+  const section = slotSection(moved);
+  if (section === slotSection(before)) return next;
+  const peers = sectionSlots(next, section).filter(s => s.id !== slotId);
+  const last = peers.at(-1);
+  return last ? placeSlot(next, slotId, last.id, 'after') : next;
+}
+
+export function toggleCollapsed(layout: DashboardLayout, section: SectionKey): DashboardLayout {
+  const collapsed = layout.collapsed.includes(section) ? layout.collapsed.filter(k => k !== section) : [...layout.collapsed, section];
+  return { ...layout, collapsed };
 }

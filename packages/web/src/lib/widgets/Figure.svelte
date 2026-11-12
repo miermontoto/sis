@@ -1,8 +1,10 @@
 <script lang="ts">
   // una cifra de ritmo diario con su etiqueta y su línea de contexto (ayer, la
-  // semana anterior, el récord, el siguiente hito): la celda del widget de stats
-  // y el cuerpo del de cifra suelta. Las de tiempo son un botón que cambia de
-  // unidad (min → h → d…), como las tarjetas de stats de siempre
+  // semana anterior, el récord, el siguiente hito): el cuerpo del widget de cifra.
+  // `compact` es la de los tamaños de media fila (etiqueta, cifra y contexto
+  // alineados a la izquierda, el contexto fuera si no cabe); `hero`, la grande y
+  // centrada. Las de tiempo son un botón que cambia de unidad (min → h → d…), como
+  // las tarjetas de stats de siempre
   import { nextMilestone } from '@sis/shared';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { formatNumber } from '$lib/utils/format';
@@ -10,7 +12,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { dailyData, FLASH_KEY_TIME, FLASH_KEY_TOTALS } from './daily-data.svelte';
 
-  let { figure, hero = false }: { figure: string; hero?: boolean } = $props();
+  let { figure, variant = 'hero' }: { figure: string; variant?: 'compact' | 'hero' } = $props();
 
   const DAY_MS = 86_400_000;
   type Source = 'days' | 'year' | 'health' | 'streaks';
@@ -81,11 +83,11 @@
 {/snippet}
 
 {#if ms !== null && unit.canCycle(ms)}
-  <button type="button" class="fig fig--button" class:fig--hero={hero} onclick={() => unit.next(ms ?? 0)} title="Change unit">
+  <button type="button" class="fig fig--button fig--{variant}" onclick={() => unit.next(ms ?? 0)} title="Change unit">
     {@render body()}
   </button>
 {:else}
-  <div class="fig" class:fig--hero={hero}>{@render body()}</div>
+  <div class="fig fig--{variant}">{@render body()}</div>
 {/if}
 
 <style>
@@ -117,6 +119,19 @@
     white-space: nowrap;
   }
   .fig--hero .fig-value { font-size: clamp(1.4rem, 22cqi, 2.6rem); }
+  /* compacta: etiqueta arriba, cifra, contexto; todo a la izquierda */
+  .fig--compact {
+    align-items: flex-start;
+    text-align: left;
+    gap: 0.1rem;
+  }
+  .fig--compact .fig-label { order: -1; }
+  .fig--compact .fig-value { font-size: clamp(1.1rem, 13cqi, 1.6rem); }
+  .fig--compact .fig-sub { justify-content: flex-start; }
+  /* un tile de móvil (~77px) no da para tres líneas: el contexto se va */
+  @container widget (max-height: 3.3rem) {
+    .fig--compact .fig-sub { display: none; }
+  }
   .fig-label, .fig-sub {
     max-width: 100%;
     text-wrap: balance;

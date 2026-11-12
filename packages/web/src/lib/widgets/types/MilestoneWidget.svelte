@@ -1,7 +1,8 @@
 <script lang="ts">
   // el siguiente hito de plays all-time (la escalera de las pushes de milestones):
   // cuánto falta, una barra desde el hito anterior y, al ritmo de las dos últimas
-  // semanas, cuándo llegará. medium añade el total y la fecha estimada
+  // semanas, cuándo llegará. band y medium van en dos columnas y añaden la fecha
+  // estimada; tile es la cifra con su barra
   import { nextMilestone, previousMilestone } from '@sis/shared';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { formatNumber, formatCalendarDate } from '$lib/utils/format';
@@ -26,7 +27,7 @@
   let loading = $derived(dailyData.loading('health'));
 </script>
 
-<div class="ms" class:ms--wide={size === 'medium'}>
+<div class="ms" class:ms--wide={size === 'medium' || size === 'band'} class:ms--compact={size === 'tile' || size === 'band'}>
   <div class="ms-main">
     <span class="w-caption">Next milestone</span>
     {#if loading}
@@ -44,7 +45,9 @@
       {#if size === 'medium'}
         <span class="w-sub">{formatNumber(total)} plays all time</span>
         {#if eta}<span class="w-sub">around {formatCalendarDate(eta)} at your pace</span>{/if}
-      {:else if daysLeft !== null}
+      {:else if size === 'band' && eta}
+        <span class="w-sub">around {formatCalendarDate(eta)}</span>
+      {:else if size !== 'tile' && daysLeft !== null}
         <span class="w-sub">~{daysLeft} {daysLeft === 1 ? 'day' : 'days'}</span>
       {/if}
     {/if}
@@ -75,6 +78,15 @@
   }
   .ms--wide .ms-main, .ms--wide .ms-side { flex: 1; }
   .ms-value { font-size: clamp(1.2rem, 14cqi, 2.2rem); }
+  /* compactos: alineado a la izquierda y la cifra a la medida de la media fila */
+  .ms--compact { text-align: left; gap: 0.3rem; }
+  .ms--compact .ms-main { gap: 0.05rem; }
+  .ms--compact .ms-value { font-size: var(--fs-xl); }
+  .ms--compact .ms-ghost { align-self: flex-start; }
+  /* un tile de móvil (~77px) no da para todo: fuera la línea de "plays to" */
+  @container widget (max-height: 3.3rem) {
+    .ms--compact .ms-main .w-sub { display: none; }
+  }
   .ms-ghost { width: 4rem; height: 1.6rem; align-self: center; }
   .ms--wide .ms-ghost { align-self: flex-start; }
   .ms-bar {

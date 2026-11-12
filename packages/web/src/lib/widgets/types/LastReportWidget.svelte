@@ -143,8 +143,10 @@
     width: 100%;
     height: auto;
     aspect-ratio: 1;
-    max-height: 4.5rem;
+    max-height: 3rem;
   }
+  /* medium no da para la etiqueta de cada ficha: la carátula y el nombre bastan */
+  .lr-picks--tiles .data-label { display: none; }
   .lr-img {
     width: 3rem;
     height: 3rem;

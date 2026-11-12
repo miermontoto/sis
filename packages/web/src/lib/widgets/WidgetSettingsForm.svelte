@@ -14,15 +14,6 @@
 
   const set = (key: string, value: WidgetSettingValue) => onchange({ [key]: value });
 
-  // una cifra de un multi se quita o se pone conservando el orden del registro;
-  // nunca se queda vacío (un widget de cifras sin cifras no enseña nada)
-  function toggleMulti(f: Extract<SettingField, { kind: 'multi' }>, value: string) {
-    const current = (settings[f.key] as string[]) ?? [];
-    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
-    if (next.length === 0) return;
-    set(f.key, f.options.map(o => o.value).filter(v => next.includes(v)));
-  }
-
   function commitNumber(f: Extract<SettingField, { kind: 'number' }>, input: HTMLInputElement) {
     const n = Number(input.value);
     if (Number.isFinite(n) && n >= f.min && n <= f.max) set(f.key, n);
@@ -41,11 +32,6 @@
           {#if f.kind === 'select'}
             {#each f.options as o (o.value)}
               <button type="button" class="range-btn" class:active={settings[f.key] === o.value} onclick={() => set(f.key, o.value)}>{o.label}</button>
-            {/each}
-          {:else if f.kind === 'multi'}
-            {#each f.options as o (o.value)}
-              {@const on = (settings[f.key] as string[]).includes(o.value)}
-              <button type="button" class="range-btn" class:active={on} aria-pressed={on} onclick={() => toggleMulti(f, o.value)}>{o.label}</button>
             {/each}
           {:else if f.kind === 'toggle'}
             <button type="button" class="range-btn" class:active={settings[f.key] === true} aria-pressed={settings[f.key] === true} onclick={() => set(f.key, !settings[f.key])}>

@@ -1,7 +1,7 @@
 <script lang="ts">
   // objetivo de escucha (horas o plays) para el día, la semana, el mes o el año en
-  // curso: un anillo de progreso y, en medium, el ritmo (cuánto deberías llevar a
-  // estas alturas del periodo) y lo que falta por día. La semana es la de los charts
+  // curso: un anillo de progreso; tile añade la cifra al lado, band y medium además
+  // el ritmo (cuánto deberías llevar a estas alturas del periodo) y lo que falta por día. La semana es la de los charts
   // (inicio de semana y zona del usuario); las sumas van en días UTC, como el resto
   import { untrack } from 'svelte';
   import { periodBounds } from '@sis/shared';
@@ -73,6 +73,8 @@
   let perDay = $derived(Math.max(0, target - done) / daysLeft);
 
   const fmt = (v: number) => unit === 'plays' ? formatNumber(Math.round(v)) : formatHours(v * HOUR_MS);
+  // el objetivo es un entero: "1000h", no el "1000.0h" de formatHours
+  const fmtTarget = (v: number) => unit === 'plays' ? formatNumber(v) : `${formatNumber(v)}h`;
   let paceText = $derived(
     done >= target ? 'Goal reached'
     : done >= expected ? `Ahead by ${fmt(done - expected)}`
@@ -80,7 +82,7 @@
   );
 </script>
 
-<div class="goal" class:goal--wide={size === 'medium'}>
+<div class="goal" class:goal--wide={size !== 'small'} class:goal--compact={size === 'tile' || size === 'band'}>
   <svg class="goal-ring" viewBox="0 0 100 100" role="img" aria-label="{Math.round(pct)}% of your {PERIOD_NOUN[period]} goal">
     <circle class="goal-track" cx="50" cy="50" r={RING_R} />
     {#if !loading}
@@ -89,13 +91,13 @@
     <text class="goal-pct" x="50" y="50">{loading ? '' : `${Math.round(pct)}%`}</text>
     <text class="goal-of" x="50" y="66">{PERIOD_NOUN[period]}</text>
   </svg>
-  {#if size === 'medium'}
+  {#if size !== 'small'}
     <div class="goal-text">
       <span class="w-figure goal-value">{loading ? '…' : fmt(done)}</span>
-      <span class="w-caption">of {fmt(target)} {PERIOD_NOUN[period]}</span>
-      {#if !loading}
+      <span class="w-caption">of {fmtTarget(target)} {PERIOD_NOUN[period]}</span>
+      {#if !loading && size !== 'tile'}
         <span class="w-sub" class:goal-behind={done < expected && done < target}>{paceText}</span>
-        {#if done < target && period !== 'day'}<span class="w-sub">{fmt(perDay)} a day to finish</span>{/if}
+        {#if done < target && period !== 'day' && size === 'medium'}<span class="w-sub">{fmt(perDay)} a day to finish</span>{/if}
       {/if}
     </div>
   {/if}
@@ -156,6 +158,10 @@
     min-width: 0;
   }
   .goal-value { font-size: var(--fs-2xl); }
+  /* compactos: el anillo del alto de la media fila y la cifra más pequeña */
+  .goal--compact { gap: 0.6rem; }
+  .goal--compact .goal-value { font-size: var(--fs-xl); }
+  .goal--compact .goal-of { display: none; }
   .goal-behind { color: var(--negative); }
   @media (prefers-reduced-motion: reduce) {
     .goal-fill { transition: none; }

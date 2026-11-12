@@ -123,7 +123,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     else if (e.key === 'ArrowLeft') { e.preventDefault(); nowPlayingStore.seek(progressMs - SEEK_STEP_MS); }
   }
 
-  // los controles de reproducción viven en el store (los comparte el widget del dashboard)
+  // los controles de reproducción viven en el store, con su estado `acting`
   const { togglePlay, next, previous } = nowPlayingStore;
 </script>
 

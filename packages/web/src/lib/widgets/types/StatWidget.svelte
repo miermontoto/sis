@@ -1,7 +1,7 @@
 <script lang="ts">
-  // una sola cifra, grande. medium añade al lado lo que le da contexto: las barras
-  // de la semana para las cifras de días, la racha como puntos de los últimos
-  // catorce días, el total como barra hacia el siguiente hito
+  // una cifra. tile: compacta; small: grande. band y medium añaden al lado lo que
+  // le da contexto: las barras de la semana para las cifras de días, la racha como
+  // puntos de los últimos catorce días, el total como barra hacia el siguiente hito
   import { nextMilestone, previousMilestone } from '@sis/shared';
   import Figure from '../Figure.svelte';
   import { dailyData } from '../daily-data.svelte';
@@ -14,8 +14,10 @@
   let kind = $derived(figure === 'streak' ? 'streak' : figure === 'totalPlays' ? 'total' : figure.endsWith('Year') ? 'none' : 'bars');
   let byPlays = $derived(figure.startsWith('plays'));
 
+  // band y medium llevan la gráfica al lado
+  let wide = $derived(size === 'band' || size === 'medium');
   $effect(() => {
-    if (size !== 'medium') return;
+    if (!wide) return;
     if (kind === 'bars' || kind === 'streak') dailyData.ensure('days');
     if (kind === 'total') dailyData.ensure('health');
   });
@@ -31,21 +33,21 @@
   });
 </script>
 
-<div class="stat" class:stat--wide={size === 'medium' && kind !== 'none'}>
-  <Figure {figure} hero />
-  {#if size === 'medium' && kind === 'bars'}
+<div class="stat" class:stat--wide={wide && kind !== 'none'}>
+  <Figure {figure} variant={size === 'tile' || size === 'band' ? 'compact' : 'hero'} />
+  {#if wide && kind === 'bars'}
     <div class="stat-bars" aria-hidden="true">
       {#each week as d, i (d.key)}
         <span class="stat-bar" class:stat-bar--today={i === week.length - 1} style:height="{Math.max(4, ((byPlays ? d.plays : d.ms) / max) * PCT)}%"></span>
       {/each}
     </div>
-  {:else if size === 'medium' && kind === 'streak'}
+  {:else if wide && kind === 'streak'}
     <div class="stat-dots" aria-hidden="true">
       {#each dailyData.days as d (d.key)}
         <span class="stat-dot" class:stat-dot--on={d.plays > 0}></span>
       {/each}
     </div>
-  {:else if size === 'medium' && kind === 'total'}
+  {:else if wide && kind === 'total'}
     <div class="stat-progress" role="progressbar" aria-valuenow={Math.round(milestonePct)} aria-valuemin={0} aria-valuemax={PCT} aria-label="Progress to the next milestone">
       <span class="stat-progress-fill" style:width="{milestonePct}%"></span>
     </div>
@@ -86,6 +88,10 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
+  }
+  /* en una banda (media fila) dos filas de siete no caben: una de catorce */
+  @container widget (max-height: 4.5rem) {
+    .stat-dots { grid-template-columns: repeat(14, 1fr); gap: 2px; }
   }
   .stat-dot {
     aspect-ratio: 1;

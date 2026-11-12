@@ -3,7 +3,6 @@
 // declara en los dos sitios
 import type { Component } from 'svelte';
 import type { WidgetSettings, WidgetSize } from './registry';
-import StatsWidget from './types/StatsWidget.svelte';
 import StatWidget from './types/StatWidget.svelte';
 import WeekStripWidget from './types/WeekStripWidget.svelte';
 import TopWidget from './types/TopWidget.svelte';
@@ -18,9 +17,7 @@ import GoalWidget from './types/GoalWidget.svelte';
 import OnThisDayWidget from './types/OnThisDayWidget.svelte';
 import AnniversariesWidget from './types/AnniversariesWidget.svelte';
 import MilestoneWidget from './types/MilestoneWidget.svelte';
-import NowPlayingWidget from './types/NowPlayingWidget.svelte';
 import SessionWidget from './types/SessionWidget.svelte';
-import UpNextWidget from './types/UpNextWidget.svelte';
 import FriendsWidget from './types/FriendsWidget.svelte';
 import ChartWidget from './types/ChartWidget.svelte';
 import RecordWidget from './types/RecordWidget.svelte';
@@ -37,7 +34,6 @@ export interface WidgetProps {
 }
 
 export const WIDGET_COMPONENTS: Record<string, Component<WidgetProps>> = {
-  stats: StatsWidget,
   stat: StatWidget,
   weekStrip: WeekStripWidget,
   top: TopWidget,
@@ -52,9 +48,7 @@ export const WIDGET_COMPONENTS: Record<string, Component<WidgetProps>> = {
   onThisDay: OnThisDayWidget,
   anniversaries: AnniversariesWidget,
   milestone: MilestoneWidget,
-  nowPlaying: NowPlayingWidget,
   session: SessionWidget,
-  upNext: UpNextWidget,
   friends: FriendsWidget,
   chart: ChartWidget,
   record: RecordWidget,

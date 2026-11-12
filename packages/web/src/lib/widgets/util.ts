@@ -24,7 +24,7 @@ export const rangePhrase = (range: unknown) => RANGE_PHRASES[String(range)] ?? '
 
 // filas que pide una lista según el tamaño: un tope, que fitRows recorta a las
 // que caben de verdad en el alto de ese slot y esa pantalla
-export const LIST_MAX: Record<WidgetSize, number> = { small: 1, medium: 5, large: 10, xl: 16 };
+export const LIST_MAX: Record<WidgetSize, number> = { tile: 1, band: 1, small: 1, medium: 5, large: 10, tall: 20, xl: 16 };
 
 // los controles rápidos de la cabecera (selector de tipo) sólo caben a partir de large
-export const roomForActions = (size: WidgetSize) => size === 'large' || size === 'xl';
+export const roomForActions = (size: WidgetSize) => size === 'large' || size === 'tall' || size === 'xl';

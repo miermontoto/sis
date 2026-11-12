@@ -2438,7 +2438,19 @@ html.native-tabrail :is(.sidebar-search, .mobile-header) {
 }
 
 /* --- widgets del dashboard (lib/widgets) ---
-   la card la pone el slot (WidgetSlotView) con padding 0; el cuerpo de cada widget
+   el marco de un widget: la card sin relleno, columna y recorte. Global porque lo
+   comparten el slot de la rejilla y la vista previa de la galería (scoped en el
+   slot, la vista previa se quedaba con el relleno de .card y el contenido suelto).
+   Va después de .card y le gana por orden */
+.widget {
+  position: relative;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* el cuerpo de cada widget
    lleva el relleno y es una columna: cabecera arriba y el resto (.w-fill) se reparte
    el alto fijo del slot. Es contenedor de consultas, para que un widget pueda
    decidir por su ancho real además de por su tamaño */
@@ -2455,6 +2467,12 @@ html.native-tabrail :is(.sidebar-search, .mobile-header) {
 }
 .widget-body[data-size='small'] {
   --widget-pad: 0.75rem;
+}
+/* los compactos miden media celda (~88px en escritorio, ~77 en un móvil): con el
+   relleno normal la línea de contexto no cabía nunca */
+.widget-body[data-size='tile'],
+.widget-body[data-size='band'] {
+  --widget-pad: 0.65rem;
 }
 /* fitRows (utils/fit-rows.ts) oculta filas con `hidden`, y una clase con display
    propio (.track-item es flex) gana a la regla [hidden] del navegador */

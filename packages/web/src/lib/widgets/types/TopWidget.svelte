@@ -1,8 +1,8 @@
 <script lang="ts">
   // top de temas, álbumes o artistas para cualquier rango. small: el nº 1 a sangre
-  // con su carátula; medium/large: lista (o collage, para álbumes y artistas: un
-  // large pone el collage arriba y sigue la lista desde el 6); xl: lista a dos
-  // columnas o el collage entero, que es un 2:1 como el propio slot. Suma el play
+  // con su carátula; medium/large/tall: lista (o collage, para álbumes y artistas:
+  // large y tall ponen el collage arriba y siguen la lista desde el 6); xl: lista a
+  // dos columnas o el collage entero, que es un 2:1 como el propio slot. Suma el play
   // optimista a sus filas como hacía el dashboard
   import { untrack } from 'svelte';
   import { api, type TopTrackItem, type TopAlbumItem, type TopArtistItem } from '$lib/api';
@@ -144,7 +144,7 @@
     <div class="top-collage" class:top-collage--fill={size === 'xl'}>
       <TopCollage items={all.slice(0, COLLAGE_COUNT).map((c, i) => ({ href: c.href, rank: i + 1, imageUrl: c.imageUrl, name: c.name, stat: c.stat, isLive: c.live, oncontextmenu: c.menu }))} />
     </div>
-    {#if size === 'large' && rest && rest.items.length > 0}
+    {#if (size === 'large' || size === 'tall') && rest && rest.items.length > 0}
       <EntityRows list={rest} {metric} rankOffset={COLLAGE_COUNT} />
     {/if}
   {:else if collage}

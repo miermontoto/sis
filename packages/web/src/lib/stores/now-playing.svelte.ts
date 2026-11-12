@@ -372,9 +372,9 @@ function seek(positionMs: number) {
   }, SEEK_DEBOUNCE_MS);
 }
 
-// controles de reproducción: los comparten la tarjeta de now playing y el widget
-// del dashboard. `_acting` desactiva los botones de los dos mientras una orden está
-// en vuelo (dos clics seguidos mandaban dos pausas y la segunda la deshacía)
+// controles de reproducción de la tarjeta de now playing (todas sus variantes: sidebar,
+// mini, hoja). `_acting` desactiva los botones mientras una orden está en vuelo (dos
+// clics seguidos mandaban dos pausas y la segunda la deshacía)
 let _acting = $state(false);
 // spotify tarda en reflejar un salto: la relectura en vivo va un poco después
 const SKIP_REFRESH_MS = 500;

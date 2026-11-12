@@ -1,6 +1,8 @@
 <script lang="ts">
   // una barra por día de la última semana (la tira de siempre, ahora del alto del
-  // slot); large y xl añaden el total de la semana frente a la anterior
+  // slot); large y xl añaden el total de la semana frente a la anterior. En band
+  // (media fila, junto a las cifras de Today) no hay cabecera: las etiquetas de los
+  // días y el "today" de la tira ya dicen qué es
   import WeekStrip from '$lib/components/WeekStrip.svelte';
   import ReportDelta from '$lib/components/reports/ReportDelta.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
@@ -21,14 +23,16 @@
   let total = $derived(metric === 'plays' ? `${formatNumber(week)} plays` : formatDuration(week));
 </script>
 
-<WidgetHeader title="Last 7 days" href="/insights">
-  {#snippet actions()}
-    {#if size !== 'medium' && !dailyData.loading('days')}
-      <span class="data-label ws-total">{total} <ReportDelta value={week} previous={prev} /></span>
-    {/if}
-  {/snippet}
-</WidgetHeader>
-<div class="ws-fill">
+{#if size !== 'band'}
+  <WidgetHeader title="Last 7 days" href="/insights">
+    {#snippet actions()}
+      {#if size !== 'medium' && !dailyData.loading('days')}
+        <span class="data-label ws-total">{total} <ReportDelta value={week} previous={prev} /></span>
+      {/if}
+    {/snippet}
+  </WidgetHeader>
+{/if}
+<div class="ws-fill" class:ws-fill--band={size === 'band'} role="group" aria-label="Last 7 days">
   {#if dailyData.loading('days')}
     <div class="w-ghost w-ghost--fill"></div>
   {:else}
@@ -48,6 +52,9 @@
     min-height: 0;
     height: auto;
   }
+  /* en media fila la línea de cifras (invisible salvo la de hoy) se comía el alto de
+     las barras: fuera, las cifras ya están en los tiles de al lado */
+  .ws-fill--band :global(.week-value) { display: none; }
   .ws-total {
     display: inline-flex;
     align-items: center;

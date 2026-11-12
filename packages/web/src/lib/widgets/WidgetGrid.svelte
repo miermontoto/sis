@@ -1,19 +1,23 @@
 <script lang="ts">
-  // rejilla de widgets del dashboard, empaquetada como la pantalla de inicio de iOS:
-  // columnas cuadradas que se miden en vivo (gridColumns), cada slot ocupa las
-  // celdas de su tamaño y `grid-auto-flow: dense` rellena los huecos. En modo
-  // edición se arrastra (ratón: al moverse; táctil: pulsación larga, como iOS, para
-  // que deslizar siga haciendo scroll), y soltar sobre el centro de otro widget
-  // los apila. La barra de edición y los modales viven aquí también
+  // dashboard de widgets por secciones de horizonte temporal (Today → Looking back),
+  // cada una con su cabecera (que la pliega) y su rejilla, empaquetada como la
+  // pantalla de inicio de iOS: columnas cuadradas medidas en vivo (gridColumns),
+  // partidas en medias filas para los tamaños compactos, y `grid-auto-flow: dense`
+  // rellenando huecos. Todas las secciones comparten la medida. En modo edición se
+  // arrastra (ratón: al moverse; táctil: pulsación larga, como iOS, para que deslizar
+  // siga haciendo scroll) dentro de la sección, y soltar sobre el centro de otro
+  // widget los apila. La barra de edición y los modales viven aquí también
   import { flip } from 'svelte/animate';
   import { onDestroy } from 'svelte';
   import WidgetSlotView from './WidgetSlotView.svelte';
   import WidgetGallery from './WidgetGallery.svelte';
   import WidgetSlotEditor from './WidgetSlotEditor.svelte';
   import { dashboardStore } from './dashboard-store.svelte';
-  import { SIZE_SPAN } from './registry';
+  import { getLocale } from '$lib/api';
+  import { SECTIONS, SIZE_SPAN, type SectionKey } from './registry';
   import {
-    gridColumns, effectiveSize, removeSlot, resizeSlot, moveSlot, placeSlot, stackSlot, canStack, updateSettings,
+    gridColumns, effectiveSize, removeSlot, resizeSlot, stepSlot, placeSlot, stackSlot, canStack, updateSettings,
+    sectionSlots, toggleCollapsed,
   } from './layout';
 
   const LONG_PRESS_MS = 280;
@@ -27,28 +31,35 @@
   const AUTOSCROLL_MAX_PX = 18;
   const FLIP_MS = 220;
 
-  let gridEl = $state<HTMLElement | null>(null);
+  let rootEl = $state<HTMLElement | null>(null);
   let cols = $state(2);
   let cellPx = $state(0);
+  let gapPx = $state(0);
 
-  // columnas y alto de fila (= ancho de columna: celdas cuadradas) del ancho real
+  // columnas y ancho de celda del ancho real, medidos en el contenedor (las rejillas
+  // de las secciones miden lo mismo). Las filas son medias celdas: dos y un hueco
+  // dan una celda cuadrada, así un small es 1×1 y un tile, la mitad de alto
   $effect(() => {
-    if (!gridEl) return;
-    const el = gridEl;
+    if (!rootEl) return;
+    const el = rootEl;
     const measure = () => {
-      const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+      gapPx = parseFloat(getComputedStyle(el).getPropertyValue('--detail-gap')) * parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       const w = el.clientWidth;
-      cols = gridColumns(w, gap);
-      cellPx = Math.max(0, (w - gap * (cols - 1)) / cols);
+      cols = gridColumns(w, gapPx);
+      cellPx = Math.max(0, (w - gapPx * (cols - 1)) / cols);
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     measure();
     return () => ro.disconnect();
   });
+  let rowPx = $derived(Math.max(0, (cellPx - gapPx) / 2));
 
   let layout = $derived(dashboardStore.layout);
   let editing = $derived(dashboardStore.editing);
+  // secciones con algún widget, en su orden fijo
+  let sections = $derived(SECTIONS.map(sec => ({ ...sec, slots: sectionSlots(layout, sec.key) })).filter(sec => sec.slots.length > 0));
+  const todayLabel = new Date().toLocaleDateString(getLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
 
   // --- arrastre ---
   type Drag = { id: string; pointerId: number; touch: boolean; x0: number; y0: number; dx: number; dy: number; active: boolean };
@@ -88,8 +99,8 @@
   // arrastre táctil pasa con los dos enfoques); así no depende de él. Deslizar sin
   // pulsación larga sigue haciendo scroll: sólo se cancela con un arrastre activo
   $effect(() => {
-    if (!editing || !gridEl) return;
-    const el = gridEl;
+    if (!editing || !rootEl) return;
+    const el = rootEl;
     const block = (e: TouchEvent) => { if (drag?.active && e.cancelable) e.preventDefault(); };
     el.addEventListener('touchmove', block, { passive: false });
     return () => el.removeEventListener('touchmove', block);
@@ -117,8 +128,11 @@
   // destino bajo el puntero, por rects (el slot arrastrado va pegado al dedo y
   // elementFromPoint lo devolvería a él)
   function locateDrop(x: number, y: number): typeof drop {
-    if (!gridEl || !drag) return null;
-    for (const el of gridEl.querySelectorAll<HTMLElement>('[data-slot]')) {
+    if (!rootEl || !drag) return null;
+    const own = rootEl.querySelector<HTMLElement>(`[data-slot="${drag.id}"]`)?.closest<HTMLElement>('[data-section]');
+    if (!own) return null;
+    // sólo dentro de su sección: la sección la dicen los ajustes del widget
+    for (const el of own.querySelectorAll<HTMLElement>('[data-slot]')) {
       const id = el.dataset.slot!;
       if (id === drag.id) continue;
       const r = el.getBoundingClientRect();
@@ -176,12 +190,13 @@
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  function keyMove(id: string, delta: number) {
-    const i = layout.slots.findIndex(s => s.id === id);
-    dashboardStore.apply(l => moveSlot(l, id, i + delta));
+  function keyMove(id: string, delta: -1 | 1) {
+    dashboardStore.apply(l => stepSlot(l, id, delta));
     // el foco sigue al slot que se ha movido (el DOM lo recoloca en su sitio)
-    requestAnimationFrame(() => gridEl?.querySelector<HTMLElement>(`[data-slot="${id}"]`)?.focus());
+    requestAnimationFrame(() => rootEl?.querySelector<HTMLElement>(`[data-slot="${id}"]`)?.focus());
   }
+
+  const toggleSection = (key: SectionKey) => dashboardStore.apply(l => toggleCollapsed(l, key));
 
   // --- modales ---
   let galleryOpen = $state(false);
@@ -193,80 +208,137 @@
   }
 </script>
 
-<div class="wgrid-wrap">
-{#if editing}
-  <div class="wgrid-toolbar" role="toolbar" aria-label="Edit dashboard">
-    <span class="wgrid-toolbar-hint">Drag to move · drop onto a widget to stack</span>
-    <button type="button" class="range-btn" onclick={() => { galleryOpen = true; }}>+ Add widget</button>
-    <button type="button" class="range-btn" onclick={resetLayout}>Reset</button>
-    <button type="button" class="range-btn active" onclick={() => { dashboardStore.editing = false; }}>Done</button>
-  </div>
-{/if}
-
 <div
-  class="wgrid"
-  class:wgrid--editing={editing}
-  bind:this={gridEl}
+  class="wgrid-wrap"
+  bind:this={rootEl}
   style:--wgrid-cols={cols}
-  style:--wgrid-cell="{cellPx}px"
+  style:--wgrid-row="{rowPx}px"
 >
-  {#each layout.slots as slot, i (slot.id)}
-    {@const size = effectiveSize(slot.size, cols)}
-    {@const span = SIZE_SPAN[size]}
-    <div class="wgrid-item" style:grid-column="span {span.cols}" style:grid-row="span {span.rows}" animate:flip={{ duration: drag ? 0 : FLIP_MS }}>
-      <WidgetSlotView
-        {slot}
-        {size}
-        index={i}
-        total={layout.slots.length}
-        {editing}
-        dragging={drag?.active === true && drag.id === slot.id}
-        dragOffset={drag?.active && drag.id === slot.id ? { x: drag.dx, y: drag.dy } : null}
-        drop={drop?.targetId === slot.id ? drop.mode : null}
-        onpointerdown={(e) => onSlotPointerDown(e, slot.id)}
-        onremove={() => dashboardStore.apply(l => removeSlot(l, slot.id))}
-        onresize={(s) => dashboardStore.apply(l => resizeSlot(l, slot.id, s))}
-        onedit={() => { editingSlotId = slot.id; }}
-        onitemsettings={(itemId, patch) => dashboardStore.apply(l => updateSettings(l, slot.id, itemId, patch))}
-        onkeymove={(delta) => keyMove(slot.id, delta)}
-      />
+  {#if editing}
+    <div class="wgrid-toolbar" role="toolbar" aria-label="Edit dashboard">
+      <span class="wgrid-toolbar-hint">Drag to move within a section · drop onto a widget to stack · a widget's range picks its section</span>
+      <button type="button" class="range-btn" onclick={() => { galleryOpen = true; }}>+ Add widget</button>
+      <button type="button" class="range-btn" onclick={resetLayout}>Reset</button>
+      <button type="button" class="range-btn active" onclick={() => { dashboardStore.editing = false; }}>Done</button>
     </div>
+  {/if}
+
+  {#each sections as sec (sec.key)}
+    {@const collapsed = layout.collapsed.includes(sec.key)}
+    <section class="wsec" data-section={sec.key} aria-label={sec.label}>
+      <h2 class="wsec-header">
+        <button type="button" class="wsec-toggle" aria-expanded={!collapsed} onclick={() => toggleSection(sec.key)}>
+          <span class="wsec-title">{sec.label}</span>
+          {#if sec.key === 'today'}<span class="wsec-sub">{todayLabel}</span>{/if}
+          {#if collapsed}<span class="wsec-sub">{sec.slots.length} {sec.slots.length === 1 ? 'widget' : 'widgets'}</span>{/if}
+          <svg class="wsec-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>
+        </button>
+      </h2>
+      {#if !collapsed}
+        <div class="wgrid" class:wgrid--editing={editing}>
+          {#each sec.slots as slot, i (slot.id)}
+            {@const size = effectiveSize(slot.size, cols)}
+            {@const span = SIZE_SPAN[size]}
+            <div class="wgrid-item" style:grid-column="span {span.cols}" style:grid-row="span {span.rows}" animate:flip={{ duration: drag ? 0 : FLIP_MS }}>
+              <WidgetSlotView
+                {slot}
+                {size}
+                metrics={{ cell: cellPx, row: rowPx, gap: gapPx, cols }}
+                index={i}
+                total={sec.slots.length}
+                {editing}
+                dragging={drag?.active === true && drag.id === slot.id}
+                dragOffset={drag?.active && drag.id === slot.id ? { x: drag.dx, y: drag.dy } : null}
+                drop={drop?.targetId === slot.id ? drop.mode : null}
+                onpointerdown={(e) => onSlotPointerDown(e, slot.id)}
+                onremove={() => dashboardStore.apply(l => removeSlot(l, slot.id))}
+                onresize={(s) => dashboardStore.apply(l => resizeSlot(l, slot.id, s))}
+                onedit={() => { editingSlotId = slot.id; }}
+                onitemsettings={(itemId, patch) => dashboardStore.apply(l => updateSettings(l, slot.id, itemId, patch))}
+                onkeymove={(delta) => keyMove(slot.id, delta)}
+              />
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
   {/each}
-</div>
 
-{#if layout.slots.length === 0}
-  <div class="card wgrid-empty">
-    <p>No widgets on your dashboard.</p>
-    <button type="button" class="range-btn" onclick={() => { dashboardStore.editing = true; galleryOpen = true; }}>+ Add widget</button>
-  </div>
-{/if}
+  {#if layout.slots.length === 0}
+    <div class="card wgrid-empty">
+      <p>No widgets on your dashboard.</p>
+      <button type="button" class="range-btn" onclick={() => { dashboardStore.editing = true; galleryOpen = true; }}>+ Add widget</button>
+    </div>
+  {/if}
 
-{#if !editing}
-  <div class="wgrid-footer">
-    <button type="button" class="range-btn" onclick={() => { dashboardStore.editing = true; }}>Edit widgets</button>
-  </div>
-{/if}
-
+  {#if !editing}
+    <div class="wgrid-footer">
+      <button type="button" class="range-btn" onclick={() => { dashboardStore.editing = true; }}>Edit widgets</button>
+    </div>
+  {/if}
 </div>
 
 {#if galleryOpen}
-  <WidgetGallery cellPx={cellPx} onclose={() => { galleryOpen = false; }} />
+  <WidgetGallery {cellPx} onclose={() => { galleryOpen = false; }} />
 {/if}
 {#if editingSlot}
   <WidgetSlotEditor slot={editingSlot} onclose={() => { editingSlotId = null; }} />
 {/if}
 
 <style>
-  /* el hueco entre barra, rejilla y pie lo pone el contenedor */
+  /* el hueco entre barra, secciones y pie lo pone el contenedor */
   .wgrid-wrap {
     display: flex;
     flex-direction: column;
-    gap: var(--detail-gap);
+    gap: calc(var(--detail-gap) * 1.5);
   }
+  .wsec {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  /* cabecera de sección: un nivel por encima de los títulos de los widgets */
+  .wsec-header {
+    margin: 0;
+    font: inherit;
+  }
+  .wsec-toggle {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .wsec-title {
+    font-family: var(--font-mono);
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--track-wide);
+  }
+  .wsec-sub {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    text-transform: lowercase;
+  }
+  .wsec-chevron {
+    align-self: center;
+    color: var(--text-muted);
+    transition: transform 0.15s;
+  }
+  .wsec-toggle[aria-expanded='false'] .wsec-chevron { transform: rotate(-90deg); }
+  .wsec-toggle:hover .wsec-title,
+  .wsec-toggle:hover .wsec-chevron { color: var(--accent); }
+
   .wgrid {
     display: grid;
     grid-template-columns: repeat(var(--wgrid-cols), minmax(0, 1fr));
-    grid-auto-rows: var(--wgrid-cell);
+    grid-auto-rows: var(--wgrid-row);
     grid-auto-flow: row dense;
     gap: var(--detail-gap);
   }
@@ -303,10 +375,6 @@
     font-size: var(--fs-xs);
     color: var(--text-muted);
   }
-  /* en modo edición hay sitio para los controles que sobresalen de cada slot */
-  .wgrid--editing {
-    padding: 0.4rem 0.4rem 0;
-  }
 
   .wgrid-footer {
     display: flex;
@@ -324,5 +392,9 @@
 
   @media (max-width: 768px) {
     .wgrid-toolbar-hint { flex-basis: 100%; }
+    .wsec-title { font-size: var(--fs-md); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wsec-chevron { transition: none; }
   }
 </style>

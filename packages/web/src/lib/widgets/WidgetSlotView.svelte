@@ -2,20 +2,24 @@
   // un hueco de la rejilla (el span lo pone el item de la rejilla, que es quien
   // lleva el animate:flip): la card del widget o, si el slot tiene varios, la pila
   // que se pasa con el dedo (scroll-snap horizontal, puntos y flechas al pasar el
-  // ratón). En modo edición tiembla como en iOS y enseña sus controles: quitar,
-  // ajustes y tamaño. El arrastre lo gobierna la rejilla (necesita todos los rects)
+  // ratón). En modo edición enseña sus controles: quitar, ajustes y, en la esquina,
+  // el asa de tamaño: se arrastra y el contorno salta al tamaño admitido más cercano,
+  // que se aplica al soltar. Sin temblor (Juan lo quitó: distraía). El arrastre para
+  // mover lo gobierna la rejilla (necesita todos los rects)
   import { untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import WidgetBody from './WidgetBody.svelte';
-  import { SIZE_SHORT, SIZE_LABELS, widgetDef, type WidgetSettings, type WidgetSize } from './registry';
+  import { SIZE_SPAN, SIZE_LABELS, widgetDef, type WidgetSettings, type WidgetSize } from './registry';
   import { commonSizes, nextSize, type WidgetSlot } from './layout';
 
   let {
-    slot, size, index, total, editing, dragging = false, dragOffset = null, drop = null,
+    slot, size, metrics, index, total, editing, dragging = false, dragOffset = null, drop = null,
     onpointerdown, onremove, onresize, onedit, onitemsettings, onkeymove,
   }: {
     slot: WidgetSlot;
     size: WidgetSize;
+    // medidas de la rejilla: ancho de columna, alto de media fila, hueco y columnas
+    metrics: { cell: number; row: number; gap: number; cols: number };
     index: number;
     total: number;
     editing: boolean;
@@ -27,7 +31,7 @@
     onresize: (size: WidgetSize) => void;
     onedit: () => void;
     onitemsettings: (itemId: string, patch: Partial<WidgetSettings>) => void;
-    onkeymove: (delta: number) => void;
+    onkeymove: (delta: -1 | 1) => void;
   } = $props();
 
   const PAGE_KEY = (id: string) => `sis:widgetPage:${id}`;
@@ -110,6 +114,49 @@
     else if (e.key === 's' && sizes.length > 1) { e.preventDefault(); onresize(nextSize(slot)); }
     else if (e.key === 'Enter') { e.preventDefault(); onedit(); }
   }
+
+  // --- tamaño arrastrando la esquina ---
+  // px de un tamaño en esta rejilla
+  const sizePx = (s: WidgetSize) => {
+    const { cols, rows } = SIZE_SPAN[s];
+    return { w: cols * metrics.cell + (cols - 1) * metrics.gap, h: rows * metrics.row + (rows - 1) * metrics.gap };
+  };
+  // el tamaño admitido (y que quepa en las columnas) más cercano a una caja
+  function snap(w: number, h: number): WidgetSize {
+    const fits = sizes.filter(s => SIZE_SPAN[s].cols <= metrics.cols);
+    return fits.reduce((best, s) => {
+      const a = sizePx(s);
+      const b = sizePx(best);
+      return Math.abs(a.w - w) + Math.abs(a.h - h) < Math.abs(b.w - w) + Math.abs(b.h - h) ? s : best;
+    }, fits[0] ?? slot.size);
+  }
+
+  let slotEl = $state<HTMLElement | null>(null);
+  let resize = $state<{ pointerId: number; left: number; top: number; target: WidgetSize } | null>(null);
+  let ghost = $derived(resize ? sizePx(resize.target) : null);
+
+  function onResizeDown(e: PointerEvent) {
+    if (!slotEl || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = slotEl.getBoundingClientRect();
+    resize = { pointerId: e.pointerId, left: r.left, top: r.top, target: slot.size };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onResizeMove(e: PointerEvent) {
+    if (!resize || e.pointerId !== resize.pointerId) return;
+    resize.target = snap(e.clientX - resize.left, e.clientY - resize.top);
+  }
+  function onResizeUp(e: PointerEvent) {
+    if (!resize || e.pointerId !== resize.pointerId) return;
+    const target = resize.target;
+    resize = null;
+    if (target !== slot.size) onresize(target);
+  }
+  // teclado (intro/espacio sobre el asa): el siguiente tamaño, como la tecla S
+  function onResizeClick(e: MouseEvent) {
+    if (e.detail === 0 && sizes.length > 1) onresize(nextSize(slot));
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
@@ -117,14 +164,15 @@
      s, supr, intro); fuera de él no es interactivo y no entra en el orden de tab -->
 <div
   class="wslot"
+  bind:this={slotEl}
   class:wslot--editing={editing}
   class:wslot--dragging={dragging}
+  class:wslot--resizing={resize !== null}
   class:wslot--drop-before={drop === 'before'}
   class:wslot--drop-after={drop === 'after'}
   class:wslot--drop-stack={drop === 'stack'}
   data-slot={slot.id}
   style:transform={dragOffset ? `translate(${dragOffset.x}px, ${dragOffset.y}px)` : null}
-  style:--wiggle-delay="{(index % 5) * -0.07}s"
   tabindex={editing ? 0 : undefined}
   role={editing ? 'group' : undefined}
   aria-label={editing ? `${label}, ${SIZE_LABELS[slot.size].toLowerCase()}, ${index + 1} of ${total}. Arrows move, S resizes, Delete removes, Enter opens settings` : undefined}
@@ -136,7 +184,7 @@
   onfocusin={() => { focused = true; }}
   onfocusout={() => { focused = false; }}
 >
-  <div class="wslot-wiggle">
+  <div class="wslot-frame">
     <div class="card widget" class:widget--stack={isStack}>
       {#if !isStack}
         <div class="widget-page" inert={editing}>
@@ -172,12 +220,28 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
       </button>
       {#if sizes.length > 1}
-        <button type="button" class="wslot-ctl wslot-ctl--size" aria-label="Size: {SIZE_LABELS[slot.size]}. Change size" title="Change size" onclick={() => onresize(nextSize(slot))}>
-          {SIZE_SHORT[slot.size]}
+        <button
+          type="button"
+          class="wslot-resize"
+          aria-label="Resize {label}: {SIZE_LABELS[slot.size]}. Drag the corner, or press Enter for the next size"
+          title="Drag to resize"
+          onpointerdown={onResizeDown}
+          onpointermove={onResizeMove}
+          onpointerup={onResizeUp}
+          onpointercancel={() => { resize = null; }}
+          onclick={onResizeClick}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M11 4v7H4M11 8.5L8.5 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
       {/if}
     {/if}
   </div>
+  {#if resize && ghost}
+    <!-- contorno del tamaño al que saltará al soltar -->
+    <div class="wslot-ghost" style:width="{ghost.w}px" style:height="{ghost.h}px">
+      <span class="wslot-ghost-label">{SIZE_LABELS[resize.target]}</span>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -186,17 +250,9 @@
     min-width: 0;
     min-height: 0;
   }
-  .wslot-wiggle {
+  .wslot-frame {
     position: relative;
     height: 100%;
-  }
-  .widget {
-    position: relative;
-    height: 100%;
-    padding: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
   }
 
   /* --- pila --- */
@@ -269,7 +325,7 @@
     .wslot:hover .wslot-arrow { opacity: 0.9; }
   }
 
-  /* --- modo edición --- */
+  /* --- modo edición: sin temblor; el borde discontinuo dice que se puede mover --- */
   .wslot--editing {
     cursor: grab;
     touch-action: pan-y;
@@ -277,26 +333,25 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
+  .wslot--editing .widget {
+    border-style: dashed;
+    border-color: var(--accent-a40);
+  }
+  .wslot--editing:hover .widget { border-color: var(--accent); }
   .wslot--editing:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
     border-radius: var(--radius);
   }
-  .wslot--editing .wslot-wiggle {
-    animation: wslot-wiggle 0.28s ease-in-out infinite alternate;
-    animation-delay: var(--wiggle-delay);
-  }
-  @keyframes wslot-wiggle {
-    from { transform: rotate(-0.5deg); }
-    to { transform: rotate(0.5deg); }
+  .wslot--dragging,
+  .wslot--resizing {
+    z-index: 20;
   }
   .wslot--dragging {
-    z-index: 20;
     cursor: grabbing;
     transition: none;
   }
-  .wslot--dragging .wslot-wiggle {
-    animation: none;
+  .wslot--dragging .wslot-frame {
     transform: scale(1.03);
     box-shadow: 0 1rem 2.5rem color-mix(in srgb, var(--shadow-color) 45%, transparent);
     border-radius: var(--radius);
@@ -317,6 +372,7 @@
   .wslot--drop-before::before { left: calc(var(--detail-gap) / -2 - 1.5px); }
   .wslot--drop-after::after { right: calc(var(--detail-gap) / -2 - 1.5px); }
   .wslot--drop-stack .widget {
+    border-style: solid;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-a25);
   }
@@ -341,19 +397,51 @@
   .wslot-ctl--remove { top: -0.5rem; left: -0.5rem; }
   .wslot-ctl--remove:hover { border-color: var(--danger); color: var(--danger); }
   .wslot-ctl--edit { top: -0.5rem; right: -0.5rem; }
-  .wslot-ctl--size {
-    bottom: -0.5rem;
-    right: -0.5rem;
-    width: auto;
-    min-width: 1.6rem;
-    padding: 0 0.35rem;
-    border-radius: 0.8rem;
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    font-weight: 700;
-  }
 
-  @media (prefers-reduced-motion: reduce) {
-    .wslot--editing .wslot-wiggle { animation: none; }
+  /* asa de tamaño: la esquina inferior derecha, con un área táctil holgada que no
+     hace scroll al arrastrarla */
+  .wslot-resize {
+    position: absolute;
+    right: -0.4rem;
+    bottom: -0.4rem;
+    z-index: 4;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--accent-a40);
+    background: var(--bg-card);
+    color: var(--accent);
+    cursor: nwse-resize;
+    touch-action: none;
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--shadow-color) 30%, transparent);
+  }
+  .wslot-resize:hover { border-color: var(--accent); }
+  .wslot-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 5;
+    pointer-events: none;
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    background: var(--accent-a10);
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 0.4rem;
+  }
+  .wslot-ghost-label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--track);
+    color: var(--accent);
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 0.1rem 0.35rem;
   }
 </style>
