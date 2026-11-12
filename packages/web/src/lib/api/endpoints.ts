@@ -16,7 +16,7 @@ import type {
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates, CollectionIndexItem,
-  CreditSubjectType, EntityCredits,
+  CreditSubjectType, EntityCredits, MemoriesResponse,
 } from '@sis/shared';
 import { UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
@@ -86,6 +86,13 @@ export const api = {
 
   heatmap: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<HeatmapItem[]>('/stats/heatmap', { ...rangeParams(range, dates) }, signal),
+
+  // widgets del dashboard: recuerdos de una fecha local (la fecha va en la clave de
+  // la cache: mañana es otra petición) y estrenos de un rango en la forma de top-*
+  memories: (date: string, signal?: AbortSignal) =>
+    apiFetch<MemoriesResponse>('/stats/memories', { date, timeZone: getTimeZone() }, signal),
+  discoveries: <T extends TopTrackItem | TopAlbumItem | TopArtistItem>(type: EntityType, range = 'week', limit = 20, sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<T[]>('/stats/discoveries', { ...rangeParams(range), type, limit: String(limit), sort }, signal),
 
   monthlyDistribution: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<MonthlyDistributionItem[]>('/stats/monthly-distribution', { ...rangeParams(range, dates) }, signal),

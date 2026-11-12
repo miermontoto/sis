@@ -2436,3 +2436,70 @@ html.native-tabrail :is(.sidebar-search, .mobile-header) {
     padding-top: calc(1rem + var(--safe-top));
   }
 }
+
+/* --- widgets del dashboard (lib/widgets) ---
+   la card la pone el slot (WidgetSlotView) con padding 0; el cuerpo de cada widget
+   lleva el relleno y es una columna: cabecera arriba y el resto (.w-fill) se reparte
+   el alto fijo del slot. Es contenedor de consultas, para que un widget pueda
+   decidir por su ancho real además de por su tamaño */
+.widget-body {
+  --widget-pad: 0.9rem;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--widget-pad);
+  container-type: size;
+  container-name: widget;
+}
+.widget-body[data-size='small'] {
+  --widget-pad: 0.75rem;
+}
+/* fitRows (utils/fit-rows.ts) oculta filas con `hidden`, y una clase con display
+   propio (.track-item es flex) gana a la regla [hidden] del navegador */
+.widget-body [hidden] {
+  display: none !important;
+}
+/* lo que llena el alto que deja la cabecera; recorta, nunca hace crecer el slot */
+.w-fill {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.w-empty {
+  margin: auto 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.w-ghost {
+  display: block;
+  border-radius: var(--radius);
+  background: var(--shimmer);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.w-ghost--line { height: 0.8rem; width: 60%; margin-bottom: 0.4rem; }
+.w-ghost--fill { flex: 1; min-height: 0; }
+/* cifra grande de los widgets de una sola cifra (stat, goal, milestone) */
+.w-figure {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: var(--track);
+  color: var(--accent);
+  line-height: 1.1;
+}
+.w-caption {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--track);
+  color: var(--text-muted);
+}
+.w-sub {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

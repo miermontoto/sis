@@ -45,7 +45,11 @@ interface SettingsData {
   detailLayoutArtist: string;
   detailLayoutAlbum: string;
   detailLayoutTrack: string;
+  // dashboard de secciones de antes: ya sólo lo pintan los apks publicados; la
+  // web lo lee una vez para migrarlo a widgets
   dashboardLayout: string;
+  // widgets del dashboard (JSON de DashboardLayout, ver lib/widgets/layout.ts; '' = default)
+  dashboardWidgets: string;
 }
 
 const SETTINGS_DEFAULTS: SettingsData = {
@@ -93,6 +97,7 @@ const SETTINGS_DEFAULTS: SettingsData = {
   detailLayoutAlbum: '',
   detailLayoutTrack: '',
   dashboardLayout: '',
+  dashboardWidgets: '',
 };
 
 let settingsCache: SettingsData = { ...SETTINGS_DEFAULTS };
@@ -275,7 +280,6 @@ const DETAIL_LAYOUT_RAW: Record<LayoutKind, readonly [() => string, (v: string) 
   artist: stringSetting<string>('detailLayoutArtist', ''),
   album: stringSetting<string>('detailLayoutAlbum', ''),
   track: stringSetting<string>('detailLayoutTrack', ''),
-  dashboard: stringSetting<string>('dashboardLayout', ''),
 };
 
 export function getDetailLayout(kind: LayoutKind): DetailLayout {
@@ -285,6 +289,12 @@ export function getDetailLayout(kind: LayoutKind): DetailLayout {
 export function setDetailLayout(kind: LayoutKind, layout: DetailLayout): void {
   DETAIL_LAYOUT_RAW[kind][1](JSON.stringify(layout));
 }
+
+// widgets del dashboard: JSON crudo, lo interpreta lib/widgets/layout.ts (aquí no,
+// para no meter el registro de widgets en el módulo de settings). el de secciones
+// sólo se lee, para migrarlo la primera vez
+export const [getDashboardWidgets, setDashboardWidgets] = stringSetting<string>('dashboardWidgets', '');
+export const [getLegacyDashboardLayout] = stringSetting<string>('dashboardLayout', '');
 
 // rail colapsado: bool con notificación para que el layout reaccione al toggle
 const [_getSidebarCollapsed, _setSidebarCollapsed] = boolSetting('sidebarCollapsed', false);

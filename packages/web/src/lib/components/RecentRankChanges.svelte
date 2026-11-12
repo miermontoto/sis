@@ -4,7 +4,7 @@
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
   import DisplacedTooltip from '$lib/components/DisplacedTooltip.svelte';
-  import EntityTypePicker, { ENTITY_LABELS, isEntityType } from '$lib/components/EntityTypePicker.svelte';
+  import EntityTypePicker, { ENTITY_LABELS } from '$lib/components/EntityTypePicker.svelte';
   import type { EntityType } from '$lib/utils/entity-context';
 
   // "reciente" es una ventana fija de 7 días (coincide con el default del server)
@@ -20,27 +20,20 @@
     'all+ytd': new Set(['all', 'thisYear']),
   };
 
-  // filtro por tipo de entidad (sólo iconos: en el rail no hay sitio para
-  // palabras), recordado en el navegador como las vistas de las listas del
-  // artista (una preferencia de vista, no un ajuste sincronizado). artistas
-  // por defecto: es el ranking que más se mueve en una semana
-  const ENTITY_FILTER_KEY = 'sis:rankChangesEntity';
-  const ENTITY_FILTER_DEFAULT: EntityType = 'artist';
+  // filtro por tipo de entidad (sólo iconos: en un widget no hay sitio para
+  // palabras). Lo guarda quien lo pinta: el widget del dashboard, en sus ajustes
+  // (antes era localStorage suelto, `sis:rankChangesEntity`). `bare` = sin card
+  // propia, porque la card es la del widget
+  let { entity, onentity, bare = false }: {
+    entity: EntityType;
+    onentity?: (value: EntityType) => void;
+    bare?: boolean;
+  } = $props();
 
   let items = $state<RecentRankChangeItem[]>([]);
   let loading = $state(true);
   let displayMode = $state<SessionRankDisplay>(getSessionRankDisplay());
-  let entityFilter = $state<EntityType>(ENTITY_FILTER_DEFAULT);
-
-  $effect(() => {
-    const stored = localStorage.getItem(ENTITY_FILTER_KEY);
-    if (isEntityType(stored)) entityFilter = stored;
-  });
-
-  function setEntityFilter(value: EntityType) {
-    entityFilter = value;
-    localStorage.setItem(ENTITY_FILTER_KEY, value);
-  }
+  let entityFilter = $derived(entity);
 
   $effect(() => {
     return onSessionRankDisplayChange(() => { displayMode = getSessionRankDisplay(); });
@@ -105,10 +98,10 @@
 </script>
 
 {#if displayMode !== 'none'}
-  <div class="card changes-card">
+  <div class="changes-card" class:card={!bare} class:changes-card--bare={bare}>
     <div class="section-header changes-header">
-      <h3 class="section-title"><a href="/top?range=all" class="section-link">Recent ranking changes</a></h3>
-      <EntityTypePicker value={entityFilter} onchange={setEntityFilter} variant="pills" iconsOnly />
+      <h3 class="section-title"><a href="/top?range=all" class="section-link">Ranking changes</a></h3>
+      {#if onentity}<EntityTypePicker value={entityFilter} onchange={onentity} variant="pills" iconsOnly />{/if}
     </div>
 
     {#if loading}
@@ -174,6 +167,25 @@
 {/if}
 
 <style>
+  /* sin card (widget): columna del alto del slot, la lista se queda el resto */
+  .changes-card--bare {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .changes-card--bare .changes-header {
+    margin: 0 0 0.6rem;
+  }
+  .changes-card--bare .changes-header .section-title {
+    font-size: var(--fs-sm);
+  }
+  .changes-card--bare .changes-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
   /* título + filtros: en el rail (400px) los botones bajan de línea */
   .changes-header {
     flex-wrap: wrap;

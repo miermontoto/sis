@@ -13,7 +13,7 @@ import type { AppVariables } from '../app.js';
 const log = createLogger('settings');
 const settings = new Hono<{ Variables: AppVariables }>();
 
-const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'timeZone', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'showAccolades', 'showGlobalRanks', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout'] as const;
+const VALID_KEYS = ['rankingMetric', 'rankChangeLookback', 'weekStart', 'timeZone', 'recordsUnique', 'locale', 'albumTrackDisplay', 'albumShowDuration', 'showAccolades', 'showGlobalRanks', 'albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades', 'artistShowGlobalRanks', 'albumShowGlobalRanks', 'showPlaylistBadges', 'artistBackdrop', 'sessionRankDisplay', 'sessionRankLimitYear', 'sessionRankLimitAll', 'sessionTrackingDisplay', 'nowPlayingDisplay', 'nowPlayingUpNext', 'lastPeriodWeek', 'lastPeriodMonth', 'lastPeriodYear', 'socialVisibility', 'sidebarCollapsed', 'notificationsEnabled', 'notifyRecords', 'notifyNumberOne', 'notifyChartClosings', 'notifyAnniversaries', 'notifyMilestones', 'autoMergeSingles', 'detailLayoutArtist', 'detailLayoutAlbum', 'detailLayoutTrack', 'dashboardLayout', 'dashboardWidgets'] as const;
 // toggle unificado -> claves legacy de las que hereda su valor en la primera lectura
 const LEGACY_TOGGLE_SOURCES: [string, string[]][] = [
   ['showAccolades', ['albumShowAccolades', 'artistShowAlbumAccolades', 'artistShowTrackAccolades']],
@@ -71,6 +71,9 @@ const DEFAULTS: Record<string, string> = {
   detailLayoutAlbum: '',
   detailLayoutTrack: '',
   dashboardLayout: '',
+  // widgets del dashboard (JSON de DashboardLayout, web/lib/widgets/layout.ts; '' = default).
+  // dashboardLayout queda para los apks publicados, que pintan el dashboard de secciones
+  dashboardWidgets: '',
 };
 
 settings.get('/', (c) => {

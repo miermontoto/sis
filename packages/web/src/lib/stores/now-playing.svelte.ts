@@ -372,6 +372,41 @@ function seek(positionMs: number) {
   }, SEEK_DEBOUNCE_MS);
 }
 
+// controles de reproducción: los comparten la tarjeta de now playing y el widget
+// del dashboard. `_acting` desactiva los botones de los dos mientras una orden está
+// en vuelo (dos clics seguidos mandaban dos pausas y la segunda la deshacía)
+let _acting = $state(false);
+// spotify tarda en reflejar un salto: la relectura en vivo va un poco después
+const SKIP_REFRESH_MS = 500;
+
+async function togglePlay() {
+  const data = _data;
+  if (!data || _acting) return;
+  _acting = true;
+  try {
+    if (data.isPlaying) {
+      await api.playbackPause();
+      applyNowPlaying({ ...data, isPlaying: false }, 'local');
+    } else {
+      await api.playbackPlay();
+      applyNowPlaying({ ...data, isPlaying: true }, 'local');
+    }
+  } catch {} finally {
+    _acting = false;
+  }
+}
+
+async function skip(direction: 'next' | 'previous') {
+  if (_acting) return;
+  _acting = true;
+  try {
+    await (direction === 'next' ? api.playbackNext() : api.playbackPrevious());
+    setTimeout(() => pollLive(), SKIP_REFRESH_MS);
+  } catch {} finally {
+    _acting = false;
+  }
+}
+
 let _volumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 async function setVolume(percent: number) {
@@ -421,6 +456,10 @@ export const nowPlayingStore = {
   refreshAfterCreditChange,
   refreshAfterPlayback,
   playContext,
+  togglePlay,
+  next: () => skip('next'),
+  previous: () => skip('previous'),
+  get acting() { return _acting; },
   toggleLike,
   setVolume,
   checkLiked: (trackId: string) => { _lastCheckedTrackId = null; checkLiked(trackId); },

@@ -1,9 +1,11 @@
 <script lang="ts">
-  // editor de disposición del dashboard y las vistas de detalle: tablero
-  // drag-and-drop con zonas (main / rail / oculto) por tipo de vista. reordena
+  // editor de disposición del dashboard y las vistas de detalle. Las vistas de
+  // detalle son un tablero drag-and-drop con zonas (main / rail / oculto): reordena
   // y mueve secciones arrastrando; el ojo oculta/muestra. persiste en settings
-  // (sync server + localStorage) tras cada cambio.
+  // (sync server + localStorage) tras cada cambio. El dashboard es de widgets desde
+  // 2026-11-12: su pestaña es el editor de lista de lib/widgets
   import { getDetailLayout, setDetailLayout } from '$lib/api/settings';
+  import DashboardWidgetEditor from '$lib/widgets/DashboardWidgetEditor.svelte';
   import {
     defaultLayout, sectionLabel, moveSection, toggleSectionHidden,
     type LayoutKind, type DetailLayout,
@@ -11,11 +13,14 @@
 
   type Zone = keyof DetailLayout; // 'main' | 'rail' | 'hidden'
   const ZONES: Zone[] = ['main', 'rail', 'hidden'];
-  const KINDS: LayoutKind[] = ['dashboard', 'artist', 'album', 'track'];
-  const KIND_LABELS: Record<LayoutKind, string> = { dashboard: 'Dashboard', artist: 'Artists', album: 'Albums', track: 'Tracks' };
+  type EditorKind = LayoutKind | 'dashboard';
+  const KINDS: EditorKind[] = ['dashboard', 'artist', 'album', 'track'];
+  const KIND_LABELS: Record<EditorKind, string> = { dashboard: 'Dashboard', artist: 'Artists', album: 'Albums', track: 'Tracks' };
 
-  let kind = $state<LayoutKind>('dashboard');
-  let board = $state<DetailLayout>(getDetailLayout('dashboard'));
+  let tab = $state<EditorKind>('dashboard');
+  // el tablero de secciones es el de la última vista de detalle elegida
+  let kind = $state<LayoutKind>('artist');
+  let board = $state<DetailLayout>(getDetailLayout('artist'));
   let dragKey = $state<string | null>(null);
 
   // las dos columnas: el dashboard se parte en main + rail igual que los detalles
@@ -26,8 +31,10 @@
   let rootEl = $state<HTMLElement | null>(null);
   const zoneEl = (z: Zone): HTMLElement | null => rootEl?.querySelector(`[data-zone="${z}"]`) ?? null;
 
-  function selectKind(k: LayoutKind) {
-    if (k === kind) return;
+  function selectKind(k: EditorKind) {
+    if (k === tab) return;
+    tab = k;
+    if (k === 'dashboard') return;
     kind = k;
     board = getDetailLayout(k);
     dragKey = null;
@@ -103,12 +110,16 @@
 <div class="dl" bind:this={rootEl}>
   <div class="dl-tabs" role="tablist">
     {#each KINDS as k}
-      <button class="dl-tab" class:dl-tab--active={kind === k} role="tab" aria-selected={kind === k} onclick={() => selectKind(k)}>
+      <button class="dl-tab" class:dl-tab--active={tab === k} role="tab" aria-selected={tab === k} onclick={() => selectKind(k)}>
         {KIND_LABELS[k]}
       </button>
     {/each}
-    <button class="dl-reset" onclick={reset} title="Reset to default order">Reset</button>
+    {#if tab !== 'dashboard'}<button class="dl-reset" onclick={reset} title="Reset to default order">Reset</button>{/if}
   </div>
+
+  {#if tab === 'dashboard'}
+    <DashboardWidgetEditor />
+  {:else}
 
   <div class="dl-columns" class:dl-columns--dragging={dragKey !== null}>
     {#each columnZones as z}
@@ -167,6 +178,7 @@
       {/if}
     </div>
   </div>
+  {/if}
 </div>
 
 <style>

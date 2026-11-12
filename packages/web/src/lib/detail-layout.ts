@@ -1,5 +1,6 @@
 // registro de secciones configurables de las vistas de detalle (artist/album/
-// track) y del dashboard + resolución de la disposición guardada por el usuario.
+// track) + resolución de la disposición guardada por el usuario. el dashboard
+// tuvo aquí su registro hasta que pasó a widgets (lib/widgets).
 // módulo puro (sin dependencias de settings) para poder testearlo y evitar
 // ciclos de import.
 
@@ -8,10 +9,7 @@
 export const ARTIST_TOP_TRACKS_LIMIT = 10;
 export const ARTIST_TOP_ALBUMS_LIMIT = 5;
 
-export type EntityKind = 'artist' | 'album' | 'track';
-// el dashboard reutiliza toda la maquinaria de layouts, rail incluido: en
-// pantallas anchas se parte en dos columnas igual que las vistas de detalle
-export type LayoutKind = EntityKind | 'dashboard';
+export type LayoutKind = 'artist' | 'album' | 'track';
 export type LayoutColumn = 'main' | 'rail';
 
 export interface SectionDef {
@@ -29,8 +27,7 @@ export interface DetailLayout {
 }
 
 // orden y columna por defecto de cada sección, por tipo de vista. el hero es
-// estructural (no configurable) y no aparece aquí; en el dashboard, tampoco el
-// aviso de charts cerrados (es descartable). Los merges ya no son un banner
+// estructural (no configurable) y no aparece aquí. Los merges ya no son un banner
 // aparte: viven en la sección 'relations', que por eso existe en los tres detalles.
 // La vista por años del rail ('historyByYear') es ahora el modo "year" de la gráfica de
 // actividad ('activity'), así que esa key ya no existe (resolveLayout descarta las keys
@@ -68,18 +65,6 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     { key: 'activity', label: 'Listening history', column: 'main' },
     { key: 'versions', label: 'Versions', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },
-    { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
-  ],
-  dashboard: [
-    { key: 'statsBar', label: 'Stats', column: 'main' },
-    { key: 'weekStrip', label: 'Week strip', column: 'main' },
-    { key: 'topTracks', label: 'Top tracks this week', column: 'main' },
-    { key: 'topAlbums', label: 'Top albums this week', column: 'main' },
-    { key: 'topArtists', label: 'Top artists this week', column: 'main' },
-    { key: 'lastReport', label: 'Latest report', column: 'main' },
-    { key: 'lastYear', label: 'This week last year', column: 'main' },
-    { key: 'topGenres', label: 'Top genres this week', column: 'rail' },
-    { key: 'rankChanges', label: 'Recent ranking changes', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },
   ],
 };

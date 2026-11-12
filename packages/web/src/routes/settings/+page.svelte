@@ -830,7 +830,7 @@
         <div class="pref-row pref-row--stack">
           <div class="pref-info">
             <div class="pref-label">Sections layout</div>
-            <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to the dashboard and every artist, album or track page.</div>
+            <div class="pref-desc">Dashboard: your widgets, their size and settings (also editable in place with Edit widgets, or W, on the dashboard). Artist, album and track pages: drag to reorder or move sections between columns; the eye hides a section.</div>
           </div>
           <DetailLayoutEditor />
         </div>

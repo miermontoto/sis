@@ -33,6 +33,7 @@ export type {
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertSong, ConcertRef, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse,
   ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth,
+  MemoriesResponse, MemoryYear, MemoryAnniversary,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionRef, CollectionInput, CollectionConflict, CollectionCandidate, CollectionCandidates, CollectionIndexItem,
   CreditSubjectType, CreditArtist, EntityCredits,
 } from '@sis/shared';
@@ -69,5 +70,6 @@ export {
   getNowPlayingDisplay, setNowPlayingDisplay, onNowPlayingDisplayChange,
   getNowPlayingUpNext, setNowPlayingUpNext, onNowPlayingUpNextChange,
   getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange,
+  getDashboardWidgets, setDashboardWidgets, getLegacyDashboardLayout,
 } from './settings.js';
 export { api, listLoginSessions, logoutOtherSessions, type SessionInfo } from './endpoints.js';
