@@ -2,6 +2,7 @@
   import { onDestroy, onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import type { Snapshot } from '@sveltejs/kit';
   import { api, createFetchController, getRankingMetric, type Accolade, type ArtistDetail, type ArtistOverlap, type RankingMetric } from '$lib/api';
   import { ARTIST_TOP_ALBUMS_LIMIT, ARTIST_TOP_TRACKS_LIMIT } from '$lib/detail-layout';
   import { artistCompare } from '$lib/stores/artist-compare.svelte';
@@ -258,6 +259,18 @@
         .catch(() => {});
     });
   });
+
+  // lo que el usuario desplegó o eligió en esta entrada del historial: SvelteKit
+  // lo devuelve al volver atrás/adelante (las listas se recortan en cliente, así
+  // que restaurar las flags basta)
+  export const snapshot: Snapshot<{ records: boolean; together: boolean; timeline: TimelineView }> = {
+    capture: () => ({ records: showAllRecords, together: showAllTogether, timeline: timelineView }),
+    restore: value => {
+      showAllRecords = !!value?.records;
+      showAllTogether = !!value?.together;
+      if (value?.timeline) timelineView = value.timeline;
+    },
+  };
 </script>
 
 <svelte:head>

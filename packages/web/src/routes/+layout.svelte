@@ -13,6 +13,7 @@
   import { page } from '$app/state';
   import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
   import { trackNavigations } from '@platform/observability/browser';
+  import { restoreScrollOnPopstate } from '$lib/utils/scroll-restore';
   import type { Snippet } from 'svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
@@ -104,6 +105,8 @@
 
   // spans de carga y de cada navegación: los fetch de sus load cuelgan de ellos en la traza
   trackNavigations({ beforeNavigate, afterNavigate });
+  // atrás/adelante: la posición guardada se aplica cuando la vista ya ha cargado
+  restoreScrollOnPopstate({ beforeNavigate, afterNavigate });
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);

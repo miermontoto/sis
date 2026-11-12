@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { Snapshot } from '@sveltejs/kit';
   import { api, createFetchController, getWeekStart, getTimeZone, REPORT_INDEX_HISTORY, type Granularity, type WeekStartOption } from '$lib/api';
   import { isClosedPeriod } from '@sis/shared';
   import { isAbortError } from '$lib/utils/errors';
@@ -17,6 +18,16 @@
 
   let latest = $derived(GRANULARITIES.map(g => ({ granularity: g, period: latestClosedPeriod(g, weekStart) })));
   let visibleHistory = $derived(showAll ? history[historyGran] : history[historyGran].slice(0, REPORT_INDEX_HISTORY));
+
+  // granularidad y "show all" del historial por entrada del historial del navegador:
+  // volver atrás desde un report devuelve la lista como se dejó
+  export const snapshot: Snapshot<{ granularity: Granularity; showAll: boolean }> = {
+    capture: () => ({ granularity: historyGran, showAll }),
+    restore: value => {
+      if (value?.granularity) historyGran = value.granularity;
+      showAll = !!value?.showAll;
+    },
+  };
 
   onMount(async () => {
     weekStart = getWeekStart();
