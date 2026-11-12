@@ -162,6 +162,11 @@
   .goal--compact { gap: 0.6rem; }
   .goal--compact .goal-value { font-size: var(--fs-xl); }
   .goal--compact .goal-of { display: none; }
+  .goal--compact .goal-text { gap: 0; line-height: 1.25; }
+  /* media fila de un portátil (~40px de contenido): cifra y "de cuánto", sin el ritmo */
+  @container widget (max-height: 3.3rem) {
+    .goal--compact .w-sub { display: none; }
+  }
   .goal-behind { color: var(--negative); }
   @media (prefers-reduced-motion: reduce) {
     .goal-fill { transition: none; }

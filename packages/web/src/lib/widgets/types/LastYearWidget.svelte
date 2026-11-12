@@ -7,13 +7,12 @@
   import WidgetHeader from '../WidgetHeader.svelte';
   import EntityRows, { type EntityList } from '../EntityRows.svelte';
   import { utcDayKey, STRIP_DAYS } from '../daily-data.svelte';
-  import { widgetMetric, reloadKey, entityOf, pluralOf, LIST_MAX, roomForActions } from '../util';
+  import { LIST_FETCH, widgetMetric, reloadKey, entityOf, pluralOf, LIST_MAX, roomForActions } from '../util';
   import type { WidgetProps } from '../components';
 
   let { size, settings, onsettings }: WidgetProps = $props();
 
   const DAY_MS = 86_400_000;
-  const FETCH_LIMIT = 20;
 
   let entity = $derived(entityOf(settings));
   let metric = $derived(widgetMetric(settings));
@@ -33,9 +32,9 @@
       const my = ++seq;
       loading = true;
       const request: Promise<EntityList> =
-        e === 'track' ? api.topTracks('custom', FETCH_LIMIT, m, range).then(items => ({ type: 'track' as const, items }))
-        : e === 'album' ? api.topAlbums('custom', FETCH_LIMIT, m, range).then(items => ({ type: 'album' as const, items }))
-        : api.topArtists('custom', FETCH_LIMIT, m, range).then(items => ({ type: 'artist' as const, items }));
+        e === 'track' ? api.topTracks('custom', LIST_FETCH, m, range).then(items => ({ type: 'track' as const, items }))
+        : e === 'album' ? api.topAlbums('custom', LIST_FETCH, m, range).then(items => ({ type: 'album' as const, items }))
+        : api.topArtists('custom', LIST_FETCH, m, range).then(items => ({ type: 'artist' as const, items }));
       request
         .then(l => { if (my === seq) list = l; })
         .catch(err => console.error('last year widget:', err))

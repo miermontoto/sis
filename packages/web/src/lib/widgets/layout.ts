@@ -36,11 +36,17 @@ export interface DashboardLayout {
 // intervalos que ofrece el editor para rotar una pila
 export const ROTATE_OPTIONS: readonly number[] = [0, 10, 30, 60, 300];
 
-// por debajo de este ancho de columna la rejilla no gana otra: en un móvil salen
-// dos (el small es medio ancho, como en iOS), y crece a lo ancho hasta MAX
-export const WIDGET_CELL_MIN_PX = 150;
+// columnas: 2 (móvil), 4 (tablet) o 6 (escritorio), y en escritorio nunca más: las
+// celdas crecen con la pantalla. Con columnas que aumentaban con el ancho (8 a 1920px,
+// 12 a 2560px) los tamaños tenían spans fijos, el default estaba compuesto para 6 y
+// cada sección dejaba a la derecha un 30% (8 col.) o más de la mitad (12) vacío.
+// Así un large es siempre un tercio de la fila y el default cierra filas a cualquier
+// ancho. 6 columnas necesitan celdas de al menos WIDGET_CELL_MIN_PX (~960px de rejilla,
+// un portátil de 1280 con el sidebar)
+export const WIDGET_CELL_MIN_PX = 140;
 export const WIDGET_COLS_MIN = 2;
-export const WIDGET_COLS_MAX = 12;
+export const WIDGET_COLS_MAX = 6;
+const WIDGET_COLS_TABLET = 4;
 
 const newId = (): string => Math.random().toString(36).slice(2, 10);
 const SECTION_KEYS = new Set<string>(SECTIONS.map(s => s.key));
@@ -49,8 +55,7 @@ const SECTION_KEYS = new Set<string>(SECTIONS.map(s => s.key));
 // y con un número impar la última columna se quedaba vacía en cada fila
 export function gridColumns(widthPx: number, gapPx: number): number {
   const fit = Math.floor((widthPx + gapPx) / (WIDGET_CELL_MIN_PX + gapPx));
-  const even = fit - (fit % 2);
-  return Math.max(WIDGET_COLS_MIN, Math.min(WIDGET_COLS_MAX, even));
+  return fit >= WIDGET_COLS_MAX ? WIDGET_COLS_MAX : fit >= WIDGET_COLS_TABLET ? WIDGET_COLS_TABLET : WIDGET_COLS_MIN;
 }
 
 // tamaño con el que se pinta un slot en una rejilla de `cols` columnas: el xl
@@ -65,6 +70,79 @@ export function effectiveSize(size: WidgetSize, cols: number): WidgetSize {
 // tamaños que admiten todos los widgets de una pila, en el orden de WIDGET_SIZES
 export function commonSizes(items: readonly WidgetInstance[]): WidgetSize[] {
   return WIDGET_SIZES.filter(s => items.every(i => widgetDef(i.type)?.sizes.includes(s)));
+}
+
+// --- colocación en la rejilla ---
+
+export interface Placed { id: string; x: number; y: number; w: number; h: number }
+
+// coloca los slots de una sección en `cols` columnas como lo haría `grid-auto-flow:
+// dense` (cada uno en el primer hueco donde quepa, de arriba abajo y de izquierda a
+// derecha) y después ensancha las tiras que no llegan al borde: un grupo de slots
+// con la misma fila y el mismo alto, solo en esas filas (cuatro cifras y la tira de
+// la semana; el último large de una sección). Con 4 columnas el default, compuesto
+// para 6, dejaba un 23-41% de algunas secciones vacío. Sólo a lo ancho y sólo en
+// tiras: crecer hacia abajo o dentro de un bloque deshacía el tamaño que el usuario
+// acababa de elegir (encoger un large lo volvía a estirar)
+export function packSection(items: readonly { id: string; w: number; h: number }[], cols: number): Placed[] {
+  const taken: boolean[][] = [];
+  const isFree = (x: number, y: number, w: number, h: number) => {
+    for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) if (taken[r]?.[c]) return false;
+    return true;
+  };
+  const mark = (p: Placed) => {
+    for (let r = p.y; r < p.y + p.h; r++) for (let c = p.x; c < p.x + p.w; c++) (taken[r] ??= [])[c] = true;
+  };
+  const placed: Placed[] = items.map(({ id, w: rawW, h }) => {
+    const w = Math.min(rawW, cols);
+    for (let y = 0; ; y++) {
+      for (let x = 0; x + w <= cols; x++) {
+        if (isFree(x, y, w, h)) {
+          const p = { id, x, y, w, h };
+          mark(p);
+          return p;
+        }
+      }
+    }
+  });
+
+  // tiras: slots con la misma (fila, alto) cuyas filas no comparte ningún otro
+  const strips = new Map<string, Placed[]>();
+  for (const p of placed) {
+    const key = `${p.y}:${p.h}`;
+    strips.set(key, [...(strips.get(key) ?? []), p]);
+  }
+  for (const strip of strips.values()) {
+    const { y, h } = strip[0];
+    const crossed = placed.some(o => !strip.includes(o) && o.y < y + h && o.y + o.h > y);
+    let extra = cols - strip.reduce((a, p) => a + p.w, 0);
+    if (crossed || extra <= 0) continue;
+    // reparto: los más estrechos crecen a la vez mientras alcance para todos ellos (cuatro
+    // cifras y una tira en 8 columnas: la tira se queda el sobrante; en 10, todos a 2);
+    // lo que no se puede repartir por igual se lo queda el último
+    const row = [...strip].sort((a, b) => a.x - b.x);
+    for (;;) {
+      const min = Math.min(...row.map(p => p.w));
+      const narrowest = row.filter(p => p.w === min);
+      if (narrowest.length > extra) break;
+      for (const p of narrowest) p.w++;
+      extra -= narrowest.length;
+      if (extra === 0) break;
+    }
+    row[row.length - 1].w += extra;
+    let x = 0;
+    for (const p of row) { p.x = x; x += p.w; }
+  }
+  return placed;
+}
+
+// el tamaño con el que se pinta el contenido de un slot que la colocación ha
+// ensanchado: el mayor que admitan sus widgets dentro de la caja (un large estirado
+// a 4 columnas se pinta como xl, con su lista a dos columnas)
+export function sizeInBox(items: readonly WidgetInstance[], nominal: WidgetSize, w: number, h: number): WidgetSize {
+  const fits = commonSizes(items).filter(s => SIZE_SPAN[s].cols <= w && SIZE_SPAN[s].rows <= h);
+  const best = fits.at(-1);
+  return best && SIZE_SPAN[best].cols * SIZE_SPAN[best].rows >= SIZE_SPAN[nominal].cols * SIZE_SPAN[nominal].rows ? best : nominal;
 }
 
 // sección de un slot: la de su primer widget (una pila sólo se forma dentro de una
@@ -106,9 +184,8 @@ function fromSeeds(seeds: readonly (Seed | readonly Seed[])[], prefix: string): 
 const STATS_FIGURES = ['playsToday', 'timeToday', 'streak', 'timeWeek', 'totalPlays'];
 const statTiles = (figures: readonly string[]): Seed[] => figures.map(figure => ['stat', 'tile', { figure }] as const);
 
-// el dashboard de serie, sección a sección. Cada bloque está pensado para cerrar
-// filas enteras en una rejilla de 6 columnas (un portátil) y caer limpio en la de 2
-// (móvil); en una de 8 sólo queda un borde irregular al final de cada sección.
+// el dashboard de serie, sección a sección. Cada bloque cierra filas enteras en la
+// rejilla de escritorio (6 columnas a cualquier ancho) y cae limpio en la de 2 (móvil).
 // El orden de la lista no importa entre secciones (cada una filtra lo suyo)
 export function defaultDashboard(): DashboardLayout {
   return fromSeeds([

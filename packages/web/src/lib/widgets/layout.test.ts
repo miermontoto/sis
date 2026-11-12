@@ -3,7 +3,7 @@ import {
   defaultDashboard, parseDashboard, serializeDashboard, migrateLegacyLayout, gridColumns, effectiveSize,
   commonSizes, addWidget, removeItem, moveSlot, placeSlot, stepSlot, canStack, stackSlot, unstackItem, moveItem,
   resizeSlot, nextSize, setRotate, updateSettings, createWidget, slotSection, sectionSlots, toggleCollapsed,
-  WIDGET_COLS_MAX, type DashboardLayout, type WidgetSlot,
+  packSection, sizeInBox, WIDGET_COLS_MAX, type DashboardLayout, type WidgetSlot,
 } from './layout';
 import { SECTIONS, SIZE_SPAN, WIDGETS, resolveSettings, widgetDef, type WidgetSettings } from './registry';
 
@@ -44,12 +44,14 @@ describe('registro', () => {
 });
 
 describe('rejilla', () => {
-  it('dos columnas en un móvil, más a lo ancho, siempre pares y nunca más del tope', () => {
+  it('2 columnas en un móvil, 4 en una tablet y 6 en escritorio a cualquier ancho', () => {
     expect(gridColumns(328, 12)).toBe(2);
     expect(gridColumns(700, 16)).toBe(4);
-    // caben 7 (1340px): se queda en 6, que con widgets de 2 de ancho no deja hueco
-    expect(gridColumns(1340, 24)).toBe(6);
-    expect(gridColumns(1640, 24)).toBe(8);
+    // un portátil de 1280 con el sidebar ya tiene 6
+    expect(gridColumns(996, 24)).toBe(6);
+    // a 1920 y 2560 caben 9 y 14 celdas mínimas: siguen siendo 6, más grandes
+    expect(gridColumns(1640, 24)).toBe(6);
+    expect(gridColumns(2300, 24)).toBe(6);
     expect(gridColumns(10_000, 24)).toBe(WIDGET_COLS_MAX);
   });
 
@@ -68,6 +70,47 @@ describe('rejilla', () => {
       const area = sectionSlots(layout, key).reduce((a, s) => a + SIZE_SPAN[s.size].cols * SIZE_SPAN[s.size].rows, 0);
       expect(area % 6, key).toBe(0);
     }
+  });
+});
+
+describe('packSection', () => {
+  const box = (p: { x: number; y: number; w: number; h: number }) => [p.x, p.y, p.w, p.h];
+  // la fila de Today: cuatro cifras (1×1) y la tira de la semana (2×1)
+  const today = [1, 2, 3, 4].map(i => ({ id: `t${i}`, w: 1, h: 1 })).concat({ id: 'band', w: 2, h: 1 });
+
+  it('coloca como grid dense: cada uno en el primer hueco donde cabe', () => {
+    const placed = packSection([{ id: 'a', w: 2, h: 4 }, { id: 'b', w: 4, h: 4 }, { id: 'c', w: 2, h: 2 }, { id: 'd', w: 2, h: 2 }], 8);
+    expect(placed.map(box)).toEqual([[0, 0, 2, 4], [2, 0, 4, 4], [6, 0, 2, 2], [6, 2, 2, 2]]);
+  });
+
+  it('una tira que cierra la fila no se toca', () => {
+    expect(packSection(today, 6).map(p => p.w)).toEqual([1, 1, 1, 1, 2]);
+  });
+
+  it('una tira corta se ensancha: por igual si llega para todos, el resto al último', () => {
+    expect(packSection(today, 8).map(p => p.w)).toEqual([1, 1, 1, 1, 4]);
+    expect(packSection(today, 10).map(p => p.w)).toEqual([2, 2, 2, 2, 2]);
+    expect(packSection(today, 12).map(p => p.w)).toEqual([2, 2, 2, 2, 4]);
+    // y las x se recolocan seguidas
+    expect(packSection(today, 12).map(p => p.x)).toEqual([0, 2, 4, 6, 8]);
+  });
+
+  it('en 4 columnas la tira de la semana baja sola a otra fila y la llena', () => {
+    const placed = packSection(today, 4);
+    expect(box(placed[4])).toEqual([0, 1, 4, 1]);
+  });
+
+  it('no estira dentro de un bloque ni hacia abajo: lo que comparte filas con otro se queda', () => {
+    // un large y un medium al lado: el hueco bajo el medium sigue siendo hueco
+    const placed = packSection([{ id: 'l', w: 2, h: 4 }, { id: 'm', w: 2, h: 2 }], 6);
+    expect(placed.map(box)).toEqual([[0, 0, 2, 4], [2, 0, 2, 2]]);
+  });
+
+  it('sizeInBox: un large ensanchado a 4 columnas se pinta como xl; nunca menor que el suyo', () => {
+    const top = [createWidget('top')!];
+    expect(sizeInBox(top, 'large', 4, 4)).toBe('xl');
+    expect(sizeInBox(top, 'large', 2, 4)).toBe('large');
+    expect(sizeInBox([createWidget('stat')!], 'tile', 4, 1)).toBe('band');
   });
 });
 

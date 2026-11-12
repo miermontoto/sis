@@ -16,13 +16,11 @@
   import { formatDuration, formatNumber } from '$lib/utils/format';
   import WidgetHeader from '../WidgetHeader.svelte';
   import EntityRows, { type EntityList } from '../EntityRows.svelte';
-  import { widgetMetric, reloadKey, entityOf, pluralOf, rangePhrase, LIST_MAX, roomForActions } from '../util';
+  import { LIST_FETCH, widgetMetric, reloadKey, entityOf, pluralOf, rangePhrase, LIST_MAX, roomForActions } from '../util';
   import type { WidgetProps } from '../components';
 
   let { size, settings, onsettings }: WidgetProps = $props();
 
-  // un tope fijo (y no el de cada tamaño) para que cambiar de tamaño no repita la petición
-  const FETCH_LIMIT = 20;
   const COLLAGE_COUNT = 5;
 
   let entity = $derived(entityOf(settings));
@@ -46,9 +44,9 @@
     const my = ++seq;
     loading = true;
     const request: Promise<EntityList> =
-      e === 'track' ? api.topTracks(r, FETCH_LIMIT, m).then(items => ({ type: 'track' as const, items }))
-      : e === 'album' ? api.topAlbums(r, FETCH_LIMIT, m).then(items => ({ type: 'album' as const, items }))
-      : api.topArtists(r, FETCH_LIMIT, m).then(items => ({ type: 'artist' as const, items }));
+      e === 'track' ? api.topTracks(r, LIST_FETCH, m).then(items => ({ type: 'track' as const, items }))
+      : e === 'album' ? api.topAlbums(r, LIST_FETCH, m).then(items => ({ type: 'album' as const, items }))
+      : api.topArtists(r, LIST_FETCH, m).then(items => ({ type: 'artist' as const, items }));
     request
       .then(l => { if (my === seq) list = l; })
       .catch(err => console.error('top widget:', err))

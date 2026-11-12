@@ -1,12 +1,13 @@
 <script lang="ts">
   // dashboard de widgets por secciones de horizonte temporal (Today → Looking back),
   // cada una con su cabecera (que la pliega) y su rejilla, empaquetada como la
-  // pantalla de inicio de iOS: columnas cuadradas medidas en vivo (gridColumns),
-  // partidas en medias filas para los tamaños compactos, y `grid-auto-flow: dense`
-  // rellenando huecos. Todas las secciones comparten la medida. En modo edición se
-  // arrastra (ratón: al moverse; táctil: pulsación larga, como iOS, para que deslizar
-  // siga haciendo scroll) dentro de la sección, y soltar sobre el centro de otro
-  // widget los apila. La barra de edición y los modales viven aquí también
+  // pantalla de inicio de iOS: 2, 4 o 6 columnas cuadradas según el ancho (gridColumns),
+  // partidas en medias filas para los tamaños compactos, con cada slot colocado a mano
+  // por packSection (el `dense` de css más el ensanchado de las tiras cortas). Todas
+  // las secciones comparten la medida. En modo edición se arrastra (ratón: al moverse;
+  // táctil: pulsación larga, como iOS, para que deslizar siga haciendo scroll) dentro
+  // de la sección, y soltar sobre el centro de otro widget los apila. La barra de
+  // edición y los modales viven aquí también
   import { flip } from 'svelte/animate';
   import { onDestroy } from 'svelte';
   import WidgetSlotView from './WidgetSlotView.svelte';
@@ -17,7 +18,7 @@
   import { SECTIONS, SIZE_SPAN, type SectionKey } from './registry';
   import {
     gridColumns, effectiveSize, removeSlot, resizeSlot, stepSlot, placeSlot, stackSlot, canStack, updateSettings,
-    sectionSlots, toggleCollapsed,
+    sectionSlots, toggleCollapsed, packSection, sizeInBox, type Placed,
   } from './layout';
 
   const LONG_PRESS_MS = 280;
@@ -57,8 +58,18 @@
 
   let layout = $derived(dashboardStore.layout);
   let editing = $derived(dashboardStore.editing);
-  // secciones con algún widget, en su orden fijo
-  let sections = $derived(SECTIONS.map(sec => ({ ...sec, slots: sectionSlots(layout, sec.key) })).filter(sec => sec.slots.length > 0));
+  // secciones con algún widget, en su orden fijo, con la posición de cada slot en su
+  // rejilla (packSection: dense + tiras ensanchadas hasta el borde)
+  let sections = $derived(SECTIONS
+    .map(sec => {
+      const slots = sectionSlots(layout, sec.key);
+      const placed = packSection(slots.map(slot => {
+        const span = SIZE_SPAN[effectiveSize(slot.size, cols)];
+        return { id: slot.id, w: span.cols, h: span.rows };
+      }), cols);
+      return { ...sec, slots, at: new Map<string, Placed>(placed.map(p => [p.id, p])) };
+    })
+    .filter(sec => sec.slots.length > 0));
   const todayLabel = new Date().toLocaleDateString(getLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
 
   // --- arrastre ---
@@ -237,9 +248,11 @@
       {#if !collapsed}
         <div class="wgrid" class:wgrid--editing={editing}>
           {#each sec.slots as slot, i (slot.id)}
-            {@const size = effectiveSize(slot.size, cols)}
-            {@const span = SIZE_SPAN[size]}
-            <div class="wgrid-item" style:grid-column="span {span.cols}" style:grid-row="span {span.rows}" animate:flip={{ duration: drag ? 0 : FLIP_MS }}>
+            {@const p = sec.at.get(slot.id)!}
+            <!-- el contenido se pinta con el mayor tamaño que quepa en su caja: una tira
+                 ensanchada (un large a 4 columnas) se ve como xl -->
+            {@const size = sizeInBox(slot.items, effectiveSize(slot.size, cols), p.w, p.h)}
+            <div class="wgrid-item" style:grid-column="{p.x + 1} / span {p.w}" style:grid-row="{p.y + 1} / span {p.h}" animate:flip={{ duration: drag ? 0 : FLIP_MS }}>
               <WidgetSlotView
                 {slot}
                 {size}
@@ -339,7 +352,6 @@
     display: grid;
     grid-template-columns: repeat(var(--wgrid-cols), minmax(0, 1fr));
     grid-auto-rows: var(--wgrid-row);
-    grid-auto-flow: row dense;
     gap: var(--detail-gap);
   }
   /* el item de la rejilla lleva el span; el slot de dentro la llena */

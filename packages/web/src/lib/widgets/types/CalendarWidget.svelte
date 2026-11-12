@@ -17,12 +17,14 @@
 
   const DAY_MS = 86_400_000;
   const DAYS = 7;
-  // dos años: un xl con dos bandas llega a ~74 semanas; con 53 la segunda banda
-  // se quedaba en 27 columnas y un tercio de la card vacío
-  const MAX_WEEKS = 104;
+  // tres años como mucho: con las celdas de escritorio creciendo con la pantalla, un
+  // xl de 1920px llena tres bandas de ~50 semanas; con un tope menor las bandas se
+  // quedaban cortas y la card vacía a los lados
+  const MAX_WEEKS = 156;
   const MONDAY = 1;
   const CELL_MIN_PX = 9;
-  const CELL_MAX_PX = 16;
+  // el tope crece con la card: a 16px un xl de pantalla ancha flotaba en blanco
+  const CELL_MAX_PX = 24;
   const GAP_PX = 3;
   const BAND_GAP_PX = 10;
   const MAX_BANDS = 3;

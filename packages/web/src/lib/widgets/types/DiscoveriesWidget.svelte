@@ -7,12 +7,10 @@
   import EntityTypePicker from '$lib/components/EntityTypePicker.svelte';
   import WidgetHeader from '../WidgetHeader.svelte';
   import EntityRows, { type EntityList } from '../EntityRows.svelte';
-  import { widgetMetric, reloadKey, entityOf, pluralOf, rangePhrase, LIST_MAX, roomForActions } from '../util';
+  import { LIST_FETCH, widgetMetric, reloadKey, entityOf, pluralOf, rangePhrase, LIST_MAX, roomForActions } from '../util';
   import type { WidgetProps } from '../components';
 
   let { size, settings, onsettings }: WidgetProps = $props();
-
-  const FETCH_LIMIT = 20;
 
   let entity = $derived(entityOf(settings, 'artist'));
   let range = $derived(String(settings.range));
@@ -29,9 +27,9 @@
       const my = ++seq;
       loading = true;
       const request: Promise<EntityList> =
-        e === 'track' ? api.discoveries<TopTrackItem>('track', r, FETCH_LIMIT, m).then(items => ({ type: 'track' as const, items }))
-        : e === 'album' ? api.discoveries<TopAlbumItem>('album', r, FETCH_LIMIT, m).then(items => ({ type: 'album' as const, items }))
-        : api.discoveries<TopArtistItem>('artist', r, FETCH_LIMIT, m).then(items => ({ type: 'artist' as const, items }));
+        e === 'track' ? api.discoveries<TopTrackItem>('track', r, LIST_FETCH, m).then(items => ({ type: 'track' as const, items }))
+        : e === 'album' ? api.discoveries<TopAlbumItem>('album', r, LIST_FETCH, m).then(items => ({ type: 'album' as const, items }))
+        : api.discoveries<TopArtistItem>('artist', r, LIST_FETCH, m).then(items => ({ type: 'artist' as const, items }));
       request
         .then(l => { if (my === seq) list = l; })
         .catch(err => console.error('discoveries widget:', err))

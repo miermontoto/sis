@@ -126,7 +126,8 @@
     gap: 0.1rem;
   }
   .fig--compact .fig-label { order: -1; }
-  .fig--compact .fig-value { font-size: clamp(1.1rem, 13cqi, 1.6rem); }
+  /* la celda crece con la pantalla (6 columnas en escritorio): la cifra con ella */
+  .fig--compact .fig-value { font-size: clamp(1.1rem, 13cqi, 2.4rem); }
   .fig--compact .fig-sub { justify-content: flex-start; }
   /* un tile de móvil (~77px) no da para tres líneas: el contexto se va */
   @container widget (max-height: 3.3rem) {
