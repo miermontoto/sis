@@ -5,6 +5,7 @@
 // - charts.ts:    charts/periods, charts, charts/peaks, chart-history/:type/:id
 // - records.ts:   records, accolades/:type/:id, rankings/:type/:id, ranking-history/:type/:id, projected-rankings
 // - reports.ts:   report (periodo cerrado: semana / mes / año)
+// - widgets.ts:   memories, discoveries (sólo para widgets del dashboard)
 
 import { Hono } from 'hono';
 import type { AppVariables } from '../app.js';
@@ -14,6 +15,7 @@ import detail from './stats/detail.js';
 import charts from './stats/charts.js';
 import records from './stats/records.js';
 import reports from './stats/reports.js';
+import widgets from './stats/widgets.js';
 
 const stats = new Hono<{ Variables: AppVariables }>();
 
@@ -23,5 +25,6 @@ stats.route('/', detail);
 stats.route('/', charts);
 stats.route('/', records);
 stats.route('/', reports);
+stats.route('/', widgets);
 
 export default stats;

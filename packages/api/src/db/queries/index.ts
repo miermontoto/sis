@@ -55,7 +55,11 @@ export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRo
 export { getExportBody } from './export.js';
 
 // reports periódicos (semana / mes / año cerrados)
-export { getReport } from './reports.js';
+export { getReport, getNewEntities } from './reports.js';
+
+// recuerdos de una fecha (widgets del dashboard y push diaria de aniversarios)
+export { getOnThisDay, getReleaseAnniversaries, getFirstListenAnniversaries, getMemories } from './memories.js';
+export type { OnThisDayYear, AnniversaryRow } from './memories.js';
 
 // inline queries extraídas de stats.ts
 export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, getArtistImages, rebuildPlaylistSearchIndex } from './inline.js';

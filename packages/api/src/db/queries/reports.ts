@@ -17,7 +17,7 @@ import {
   periodBounds, adjacentPeriod, isClosedPeriod, COLLECTION_ID_PREFIX,
   REPORT_TOP_LIMIT, REPORT_GENRES_LIMIT, REPORT_GENRES_PREV_LIMIT,
 } from '@sis/shared';
-import type { Db, SqlChunk, AggregateRow } from './helpers.js';
+import type { Db, SqlChunk, AggregateRow, EntityType } from './helpers.js';
 import { playDuration, resolvedEntityId, entityMergeJoin, trackJoinResolvingMerges, trackArtistsFor, trackArtistsWhere, localPlayedAt } from './helpers.js';
 import { getTopEntities, getPrevPeriodEntities, getGlobalSeries } from './entity.js';
 import { getChartPeaks } from './charts.js';
@@ -313,7 +313,12 @@ function discoveryTotals(db: Db, period: SqlChunk, isNew: SqlChunk, sort: Sort):
   `) as (DiscoveryTotals & DiscoveryTop) | undefined;
 }
 
-function trackDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+// entidades del periodo (`p`: id, plays, total_ms) y el probe que dice si cada una
+// se estrena en él. Lo comparten los totales del report y la lista de estrenos del
+// widget del dashboard (getNewEntities)
+interface DiscoveryParts { period: SqlChunk; isNew: SqlChunk }
+
+function trackDiscoveryParts(userId: number, start: string, end: string): DiscoveryParts {
   const period = sql`
     SELECT ${resolvedEntityId('track')} AS id, count(*) AS plays, sum(${playDuration()}) AS total_ms
     FROM listening_history lh
@@ -321,10 +326,15 @@ function trackDiscovery(db: Db, userId: number, start: string, end: string, sort
     ${entityMergeJoin('track', userId)}
     WHERE ${periodWhere(userId, start, end)}
     GROUP BY 1`;
-  return discoveryTotals(db, period, noPlayBefore(userId, start, mergeGroup('track', userId, sql`p.id`)), sort);
+  return { period, isNew: noPlayBefore(userId, start, mergeGroup('track', userId, sql`p.id`)) };
 }
 
-function albumDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+function trackDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+  const { period, isNew } = trackDiscoveryParts(userId, start, end);
+  return discoveryTotals(db, period, isNew, sort);
+}
+
+function albumDiscoveryParts(userId: number, start: string, end: string): DiscoveryParts {
   // tracks del grupo de álbumes (idx_tracks_album_id). los sources de merges de track
   // quedan fuera a propósito: incluirlos obliga a un join merge_rules × tracks por
   // álbum del periodo (5s en un año) para cubrir el caso de un álbum cuyos únicos
@@ -344,15 +354,22 @@ function albumDiscovery(db: Db, userId: number, start: string, end: string, sort
     FROM listening_history lh ${trackJoinResolvingMerges(userId)} ${entityMergeJoin('album', userId)}
     WHERE ${periodWhere(userId, start, end)} AND t.album_id IS NOT NULL
     GROUP BY 1`;
-  return discoveryTotals(db, period, noPlayBefore(userId, start, albumTracks), sort);
+  return { period, isNew: noPlayBefore(userId, start, albumTracks) };
+}
+
+function albumDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+  const { period, isNew } = albumDiscoveryParts(userId, start, end);
+  return discoveryTotals(db, period, isNew, sort);
 }
 
 // los artistas vuelven fila a fila (agregado por track + expansión a artista resuelto,
 // como topArtistsAggregate); totales y estreno se sacan en memoria
-function artistDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+type ArtistDiscoveryRow = { id: string; plays: number; total_ms: number; is_new: number };
+
+function artistDiscoveryRows(db: Db, userId: number, start: string, end: string, sort: Sort): ArtistDiscoveryRow[] {
   const artistTracks = sql`
     SELECT ta2.track_id FROM ${trackArtistsWhere(userId, col => sql`${col('artist_id')} IN (${mergeGroup('artist', userId, sql`p.id`)})`)} ta2`;
-  const rows = db.all(sql`
+  return db.all(sql`
     WITH p AS (
       SELECT am.artist_id AS id, sum(pt.cnt) AS plays, sum(pt.ms) AS total_ms
       FROM (
@@ -371,8 +388,11 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string, sor
     SELECT p.id, p.plays, p.total_ms, ${noPlayBefore(userId, start, artistTracks)} AS is_new
     FROM p
     ORDER BY ${sort === 'plays' ? sql`p.plays` : sql`p.total_ms`} DESC, p.id
-  `) as { id: string; plays: number; total_ms: number; is_new: number }[];
+  `) as ArtistDiscoveryRow[];
+}
 
+function artistDiscovery(db: Db, userId: number, start: string, end: string, sort: Sort) {
+  const rows = artistDiscoveryRows(db, userId, start, end, sort);
   const totals = rows.reduce<DiscoveryTotals>((acc, r) => ({
     total: acc.total + 1,
     new_count: acc.new_count + r.is_new,
@@ -381,6 +401,27 @@ function artistDiscovery(db: Db, userId: number, start: string, end: string, sor
   }), { total: 0, new_count: 0, total_plays: 0, new_plays: 0 });
 
   return { totals, top: rows.find(r => r.is_new) ?? null };
+}
+
+/** Estrenos de [start, end): entidades del rango sin ningún play anterior a `start`,
+ *  ordenadas por la métrica, en la forma de los top-* para reutilizar sus formateadores.
+ *  Es la misma definición de "nuevo" que la sección discovery del report. */
+export function getNewEntities(db: Db, entityType: EntityType, userId: number, start: string, end: string, sort: Sort, limit: number): AggregateRow[] {
+  if (entityType === 'artist') {
+    return artistDiscoveryRows(db, userId, start, end, sort)
+      .filter(r => r.is_new)
+      .slice(0, limit)
+      .map(r => ({ entity_id: r.id, play_count: r.plays, total_ms: r.total_ms }));
+  }
+  const { period, isNew } = entityType === 'track' ? trackDiscoveryParts(userId, start, end) : albumDiscoveryParts(userId, start, end);
+  return db.all(sql`
+    WITH p AS (${period}),
+    q AS MATERIALIZED (SELECT p.id, p.plays, p.total_ms, ${isNew} AS is_new FROM p)
+    SELECT id AS entity_id, plays AS play_count, total_ms
+    FROM q WHERE is_new
+    ORDER BY ${metricCol(sort)} DESC, id
+    LIMIT ${limit}
+  `) as AggregateRow[];
 }
 
 const newPick = (ref: ReportEntityRef | null, plays: number, totalMs: number, artists?: { id: string; name: string }[]): ReportNewPick | null =>
