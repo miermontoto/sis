@@ -37,8 +37,10 @@ export function getOnThisDay(db: Db, userId: number, date: string, timeZone: str
   if (!first?.first) return [];
   const firstYear = Number(first.first.slice(0, 4));
 
+  // segunda guarda (la ruta ya acota la fecha): nunca más allá del año en curso
+  const lastYear = Math.min(year, new Date().getUTCFullYear() + 1) - 1;
   const out: OnThisDayYear[] = [];
-  for (let y = year - 1; y >= firstYear; y--) {
+  for (let y = lastYear; y >= firstYear; y--) {
     const wallStart = Date.UTC(y, month - 1, day);
     // Date.UTC desborda un 29-F de año no bisiesto al 1 de marzo: ese día no existe
     if (new Date(wallStart).getUTCDate() !== day) continue;

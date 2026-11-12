@@ -9,15 +9,19 @@ const widgets = statsRouter();
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DISCOVERIES = 50;
+const DAY_MS = 86_400_000;
 
-// la fecha la manda el cliente (su "hoy" local) para que la cache del cliente lleve el
-// día en la clave; sin ella, el hoy de la zona guardada del usuario
+// la fecha la manda el cliente (su "hoy" local) sólo para que la cache del cliente
+// lleve el día en la clave: se acepta a un día como mucho del hoy de su zona (un
+// reloj o una zona algo distintos) y si no, vale ese hoy. Sin acotarla, "9999-01-01"
+// recorría un año por iteración hasta el primer play
 widgets.get('/memories', async (c) => {
   const userId = c.get('userId');
   const { timeZone } = parseCalendar(c);
+  const today = new Date(toWallTime(timeZone, Date.now())).toISOString().slice(0, 10);
   const raw = c.req.query('date');
-  const date = raw && DATE_PATTERN.test(raw) ? raw : new Date(toWallTime(timeZone, Date.now())).toISOString().slice(0, 10);
-  return c.json(await dbRead('getMemories', userId, date, timeZone));
+  const near = raw && DATE_PATTERN.test(raw) && Math.abs(Date.parse(raw) - Date.parse(today)) <= DAY_MS;
+  return c.json(await dbRead('getMemories', userId, near && raw ? raw : today, timeZone));
 });
 
 widgets.get('/discoveries', async (c) => {
