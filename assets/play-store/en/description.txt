@@ -1,16 +1,28 @@
 SHORT DESCRIPTION (80 chars max)
-Self-hosted Spotify tracker — your listening history, stats and trends.
+Self-hosted Spotify tracker: needs your own sis server or an invite to one.
+
+WEBSITE
+https://sis.fm/guide
 
 FULL DESCRIPTION (4000 chars max)
-SIS records every song you play on Spotify and turns it into a private dashboard of your own listening — running on your own server, with your data staying yours.
+sis is a self-hosted listening tracker. A sis server, running on your own machine, records every song you play on Spotify and keeps your whole history in a database you control. This app is its client: it connects to your server and shows you everything it has logged.
 
-Connect your Spotify account and SIS logs every play to its own database:
-• Now playing — your current track, live, polled every 30 seconds
-• History — every play you've ever made, grouped by session, with infinite scroll
-• Top tracks, artists and albums — ranked by play count or total listening time
-• Trends — daily, weekly and monthly listening over any time range
-• Insights — hourly and daily heatmaps, genre breakdowns, listening streaks and discovery metrics
-• Export — download everything as JSON or CSV, or import your Spotify data dump
+What you need
+• A sis server. It's free, its source code is public and it runs with Docker; the step-by-step guide is at sis.fm/guide.
+• Or an invite to someone else's server. sis.fm, the developer's own instance, is invite-only.
+• A Spotify account. Servers that enable it also let you sign in with Last.fm.
+
+On first launch the app asks for your server's address, and you can switch servers at any time from Settings.
+
+What it shows
+• Now playing — your current track, live
+• History — every play, grouped by listening session
+• Rankings — top tracks, albums and artists by play count or listening time, over any range
+• Weekly charts — new entries, re-entries, peaks and weeks on chart
+• Reports — weekly, monthly and yearly recaps of your top artists, albums and tracks
+• Insights — hour-by-day heatmaps, genres, streaks and discovery
+• Concerts — log the shows you've seen, with their setlists
+• Import and export — bring in your Spotify data download, export everything as JSON or CSV
 
 Built for the way you listen
 Switch any ranking between plays and time. Filter by all-time, year, 6 months, 3 months, month, week, day or a custom range. Jump to any track, artist or album for its own detail page and history.
@@ -18,7 +30,7 @@ Switch any ranking between plays and time. Filter by all-time, year, 6 months, 3
 Fast and focused
 A dense, monospace dashboard with charts that load instantly, keyboard shortcuts for power users, and a global search to find anything in seconds.
 
-Yours, privately
-SIS is self-hosted: it talks to Spotify with your credentials and keeps your entire listening history in a database you control. No third-party analytics, no selling your taste back to you.
+Your data, on your server
+Your whole listening history stays in a database you control: no third-party analytics, no selling your taste back to you. You can delete your account and all its data from Settings at any time.
 
-Note: SIS requires a Spotify account and your own server to run. It is an independent project and is not affiliated with or endorsed by Spotify.
+sis is an independent project and is not affiliated with or endorsed by Spotify.

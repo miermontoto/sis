@@ -1,27 +1,42 @@
 METADATOS APP STORE (ES)
 
 SUBTÍTULO (30 caracteres máx)
-Tu Spotify, registrado
+Tu Spotify, en tu servidor
 
 TEXTO PROMOCIONAL (170 caracteres máx)
-Cada reproducción en tu propio servidor: now playing en vivo, historial por sesión, rankings por plays o tiempo, listas semanales e insights. Tus datos son tuyos.
+Autoalojado: sis guarda cada escucha de Spotify en un servidor tuyo y esta app te la enseña. Rankings, listas, informes. Necesitas un servidor sis o una invitación.
 
 PALABRAS CLAVE (100 caracteres máx, separadas por comas)
-spotify,estadísticas,escuchas,historial,scrobble,lastfm,listas,música,tracker,autoalojado,rankings
+autoalojado,servidor,homelab,spotify,estadísticas,escuchas,historial,scrobble,lastfm,listas,música
 
 DESCRIPCIÓN CORTA (80 caracteres máx)
-Tracker de Spotify autoalojado: tu historial, estadísticas y tendencias.
+Tracker de Spotify autoalojado: necesitas tu servidor sis o una invitación.
+
+URL DE MARKETING
+https://sis.fm/guide
+
+URL DE SOPORTE
+https://sis.fm/support
 
 DESCRIPCIÓN COMPLETA (4000 caracteres máx)
-SIS registra cada canción que reproduces en Spotify y la convierte en un panel privado de tu propia escucha — en tu propio servidor, con tus datos siempre tuyos.
+sis es un registro de escuchas autoalojado. Un servidor sis, en tu propia máquina, guarda cada canción que reproduces en Spotify y mantiene todo tu historial en una base de datos que controlas tú. Esta app es su cliente: se conecta a tu servidor y te enseña todo lo que ha registrado.
 
-Conecta tu cuenta de Spotify y SIS guarda cada reproducción en su propia base de datos:
-• Sonando ahora — tu canción actual, en vivo, consultada cada 30 segundos
-• Historial — todas tus reproducciones, agrupadas por sesión, con scroll infinito
-• Top de canciones, artistas y álbumes — ordenados por número de reproducciones o tiempo total
-• Tendencias — escucha diaria, semanal y mensual en cualquier rango
-• Insights — mapas de calor por hora y día, desglose por géneros, rachas y métricas de descubrimiento
-• Exportación — descarga todo en JSON o CSV, o importa tu volcado de datos de Spotify
+Qué necesitas
+• Un servidor sis. Es gratuito, su código es público y funciona con Docker; la guía paso a paso está en sis.fm/guide (en inglés).
+• O una invitación al servidor de otra persona. sis.fm, la instancia del desarrollador, es solo con invitación.
+• Una cuenta de Spotify. En los servidores que lo activan también puedes entrar con Last.fm.
+
+Al abrirla por primera vez, la app te pide la dirección de tu servidor, y puedes cambiarlo cuando quieras desde los ajustes.
+
+Qué enseña
+• Sonando ahora — tu canción actual, en vivo
+• Historial — cada reproducción, agrupada por sesión de escucha
+• Rankings — top de canciones, álbumes y artistas por reproducciones o tiempo de escucha, en cualquier rango
+• Listas semanales — entradas nuevas, reentradas, picos y semanas en lista
+• Informes — resúmenes semanales, mensuales y anuales de tus artistas, álbumes y canciones top
+• Insights — mapas de calor por hora y día, géneros, rachas y descubrimientos
+• Conciertos — apunta los conciertos que has visto, con su setlist
+• Importación y exportación — trae tu descarga de datos de Spotify y exporta todo en JSON o CSV
 
 Pensado para cómo escuchas
 Cambia cualquier ranking entre reproducciones y tiempo. Filtra por histórico, año, 6 meses, 3 meses, mes, semana, día o un rango personalizado. Entra en cualquier canción, artista o álbum para ver su página de detalle e historial.
@@ -29,13 +44,13 @@ Cambia cualquier ranking entre reproducciones y tiempo. Filtra por histórico, a
 Rápido y directo
 Un panel denso en monoespaciada con gráficos que cargan al instante, atajos de teclado y una búsqueda global para encontrar lo que sea en segundos.
 
-Tuyo, en privado
-SIS es autoalojado: habla con Spotify con tus credenciales y mantiene todo tu historial en una base de datos que controlas tú. Sin analíticas de terceros.
-
-Nota: SIS requiere una cuenta de Spotify y tu propio servidor. Es un proyecto independiente sin afiliación ni respaldo de Spotify.
+Tus datos, en tu servidor
+Todo tu historial de escucha se queda en una base de datos que controlas tú: sin analíticas de terceros y sin revenderte tus gustos. Puedes borrar tu cuenta y todos sus datos desde los ajustes cuando quieras.
 
 Hecho para iPhone y iPad
-La app se conecta a cualquier instancia de SIS: escribe la dirección de tu servidor al arrancar (o usa sis.fm) e inicia sesión con la misma cuenta que en la web. Barras del sistema que siguen el tema, barra de pestañas inferior en iPhone y el layout completo con sidebar en iPad.
+Barras del sistema que siguen el tema, barra de pestañas inferior en iPhone y el layout completo con sidebar en iPad.
+
+sis es un proyecto independiente sin afiliación ni respaldo de Spotify.
 
 === INFORMACIÓN PARA LA REVISIÓN (App Store Connect → App Review Information) ===
 
@@ -44,7 +59,7 @@ Usuario de la cuenta demo: review@sis.fm
 Contraseña de la cuenta demo: (se entrega aparte; no se guarda en este repo)
 
 NOTAS PARA LA REVISIÓN
-SIS es un cliente de los datos de escucha del propio usuario. Al arrancar la app pide la dirección de un servidor SIS: escribe "sis.fm" (o pulsa "Use sis.fm"). Después pulsa "Sign in with mier.info": se abre el navegador del sistema con la página de acceso de nuestro proveedor de identidad (id.mier.info) — entra con las credenciales demo de arriba y el navegador vuelve a la app solo. La cuenta demo no necesita cuenta de Spotify, código ni segundo factor.
+sis es una herramienta autoalojada, como Jellyfin o Nextcloud: cada usuario monta su propio servidor sis (o recibe una invitación a uno) y la app es su cliente. Para la revisión, usa sis.fm, nuestra propia instancia, con la cuenta demo de arriba. Al arrancar la app pide la dirección de un servidor SIS: escribe "sis.fm" (o pulsa "Use sis.fm"). Después pulsa "Sign in with mier.info": se abre el navegador del sistema con la página de acceso de nuestro proveedor de identidad (id.mier.info) — entra con las credenciales demo de arriba y el navegador vuelve a la app solo. La cuenta demo no necesita cuenta de Spotify, código ni segundo factor.
 Spotify aparece como primera opción de acceso porque es la fuente de datos de los usuarios normales: la app existe para enseñar el historial de la cuenta de Spotify del usuario, por eso no hay Sign in with Apple (guideline 4.8, cliente de un servicio de terceros concreto). La opción mier.info es nuestro propio sistema de cuentas.
 Con la cuenta demo el revisor puede ver:
 • Dashboard: now playing, totales de hoy y de la semana, top tracks, reproducciones recientes
