@@ -14,6 +14,8 @@ import { clearAll } from './cache/store';
 import { instanceHost } from './utils/instance-url';
 
 export const OFFICIAL_INSTANCE = 'https://sis.fm';
+// dirección de ejemplo de una instancia propia (placeholder del picker y de la guía)
+export const EXAMPLE_INSTANCE = 'https://sis.example.org';
 // hosts cuyos links https abren la app (los del intent-filter del manifest):
 // el oficial y el alias antiguo, para que lo compartido antes del cambio de
 // dominio siga abriendo la app

@@ -102,6 +102,9 @@
   });
 
   const CONNECT_ROUTE = '/connect';
+  // vistas de contenido estático: no hablan con la api, así que en el apk tampoco
+  // necesitan instancia (el picker enlaza a la guía antes de que haya servidor)
+  const STATIC_ROUTES = new Set(['/guide', '/privacy', '/support']);
 
   // spans de carga y de cada navegación: los fetch de sus load cuelgan de ellos en la traza
   trackNavigations({ beforeNavigate, afterNavigate });
@@ -366,16 +369,17 @@
   });
 
   // rutas sin chrome ni auth gate: login + picker de instancia (apk) + vistas
-  // públicas de share links + privacidad y soporte (deben ser accesibles sin
-  // sesión: las stores exigen ambas urls)
+  // públicas de share links + guía, privacidad y soporte (deben ser accesibles sin
+  // sesión: las stores exigen las urls de soporte y privacidad, y la guía es su
+  // marketing url)
   function isBareRoute(pathname: string): boolean {
-    return pathname === '/login' || pathname === CONNECT_ROUTE || pathname === '/privacy' || pathname === '/support' || pathname.startsWith('/s/');
+    return pathname === '/login' || pathname === CONNECT_ROUTE || STATIC_ROUTES.has(pathname) || pathname.startsWith('/s/');
   }
 
   $effect(() => {
     // apk sin instancia elegida: nada tiene a quién preguntar, ni el login.
     // va antes que el gate de auth porque /login también es bare
-    if (!hasInstance() && page.url.pathname !== CONNECT_ROUTE) {
+    if (!hasInstance() && page.url.pathname !== CONNECT_ROUTE && !STATIC_ROUTES.has(page.url.pathname)) {
       goto(CONNECT_ROUTE);
       return;
     }

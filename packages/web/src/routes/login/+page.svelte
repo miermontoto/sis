@@ -12,6 +12,8 @@
   // un returnTo que apunta al propio login (urls que dejó el bucle de 401) vuelve al
   // dashboard: tras autenticarse aterrizaría otra vez aquí
   const LOGIN_PATH = '/login';
+  // sis es autoalojado: quien llega a una instancia ajena sin invitación tiene la guía a mano
+  const GUIDE_ROUTE = '/guide';
   let returnTo = $derived.by(() => {
     const target = page.url.searchParams.get('returnTo') || '/';
     return target.startsWith(LOGIN_PATH) ? '/' : target;
@@ -79,6 +81,7 @@
     <div class="login-card">
       <div class="logo-area">
         <div class="logo-mark"><Wordmark /></div>
+        <div class="tagline">self-hosted listening stats</div>
       </div>
 
       {#if errorMessage}
@@ -106,7 +109,7 @@
 
       <div class="access-notice">
         <IconLock />
-        Invite-only access
+        Invite-only access · <a href={GUIDE_ROUTE}>Run your own</a>
       </div>
 
       {#if native}
@@ -159,6 +162,15 @@
     justify-content: center;
     font-size: var(--fs-3xl);
     color: var(--text);
+  }
+
+  .tagline {
+    margin-top: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--track-wide);
+    color: var(--text-muted);
   }
 
   .login-error {
@@ -223,6 +235,15 @@
     margin-top: 1.25rem;
     font-size: var(--fs-sm);
     color: var(--text-muted);
+  }
+
+  .access-notice a {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .access-notice a:hover {
+    color: var(--accent);
   }
 
   .instance-line {
