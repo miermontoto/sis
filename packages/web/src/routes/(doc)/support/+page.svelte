@@ -2,7 +2,7 @@
   // /support: página pública de soporte (ruta bare, sin chrome ni gate de sesión —
   // ver isBareRoute en el layout). las stores exigen un support url accesible sin
   // login. copy compartido desde @platform/ui (hermana de /privacy); sis solo aporta
-  // su FAQ y el contacto.
+  // su FAQ y la sección de autoalojamiento.
   import Support from '@platform/ui/Support.svelte';
   import { OFFICIAL_INSTANCE } from '$lib/instance';
   import { instanceHost } from '$lib/utils/instance-url';
@@ -28,36 +28,11 @@
   ];
 </script>
 
-<svelte:head><title>Support — sis</title></svelte:head>
+{#snippet selfHosting()}
+  <p>
+    Without an invite, you need your own sis server: a machine with Docker, a Spotify developer app and an
+    https address. The <a href={GUIDE_ROUTE}>self-hosting guide</a> walks through it step by step.
+  </p>
+{/snippet}
 
-<div class="support-page">
-  <Support lang="en" appName="sis" contactEmail="support@mier.info" faq={FAQ}>
-    <section class="support-extra">
-      <h2>Running your own server</h2>
-      <p>
-        Without an invite, you need your own sis server: a machine with Docker, a Spotify developer app and an
-        https address. The <a href={GUIDE_ROUTE}>self-hosting guide</a> walks through it step by step.
-      </p>
-    </section>
-  </Support>
-</div>
-
-<style>
-  .support-page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 2.5rem 1rem 4rem;
-  }
-  /* mismo aspecto que una pregunta del FAQ del componente (sus estilos son scoped) */
-  .support-extra {
-    margin-bottom: var(--ui-section-gap, 1.5rem);
-  }
-  .support-extra h2 {
-    margin: 0 0 0.25rem;
-    font-size: 0.9rem;
-  }
-  .support-extra p {
-    margin: 0 0 0.6rem;
-    font-size: 0.9rem;
-  }
-</style>
+<Support faq={FAQ} extra={[{ id: 'self-hosting', title: 'Running your own server', body: selfHosting }]} />
