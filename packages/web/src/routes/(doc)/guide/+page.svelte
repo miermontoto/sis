@@ -3,12 +3,12 @@
   // sesión y, en el apk, sin instancia, porque el picker enlaza aquí antes de que haya
   // servidor). sis es autoalojado y las apps son clientes de un servidor, así que ésta
   // es la página que explica cómo montar uno; también es la marketing url de las stores.
-  import { afterNavigate } from '$app/navigation';
-  import Wordmark from '$lib/components/Wordmark.svelte';
-  import { EXAMPLE_INSTANCE, OFFICIAL_INSTANCE } from '$lib/instance';
+  // el armazón (barra, índice, pie y el atrás) es el DocPage de @platform/ui, fijado en (doc)/+layout.
+  import DocPage from '@platform/ui/DocPage.svelte';
+  import DocSection from '@platform/ui/DocSection.svelte';
+  import { EXAMPLE_INSTANCE, OFFICIAL_INSTANCE, REPO_URL } from '$lib/instance';
   import { instanceHost } from '$lib/utils/instance-url';
 
-  const REPO_URL = 'https://github.com/miermontoto/sis';
   const LINKS = {
     spotifyDashboard: 'https://developer.spotify.com/dashboard',
     spotifyData: 'https://www.spotify.com/account/privacy/',
@@ -36,40 +36,21 @@
     first: 'First steps',
     upkeep: 'Updates and backups',
   } as const;
-  const toc = Object.entries(SECTIONS);
+  const toc = Object.entries(SECTIONS).map(([id, title]) => ({ id, title }));
 
   const START = 'docker compose up --build -d';
   const CLONE = [`git clone --recurse-submodules ${REPO_URL}.git`, 'cd sis', 'cp .env.example .env'].join('\n');
   const ENV = ['SPOTIFY_CLIENT_ID=<client id>', 'SPOTIFY_CLIENT_SECRET=<client secret>', `SPOTIFY_REDIRECT_URI=${callbackUrl}`].join('\n');
   const UPDATE = ['cd sis', 'git pull --recurse-submodules', START].join('\n');
-
-  // atrás vuelve a la vista de la que se vino (picker, login, settings); entrando
-  // directo (enlace de la store) no hay a dónde volver y va a la raíz, que ya decide
-  // entre login, picker y dashboard
-  let cameFromApp = $state(false);
-  afterNavigate(({ from }) => {
-    cameFromApp = from !== null;
-  });
-  function back(e: MouseEvent) {
-    if (!cameFromApp) return;
-    e.preventDefault();
-    history.back();
-  }
 </script>
 
 {#snippet code(text: string)}
-  <pre class="guide-code"><code>{text}</code></pre>
+  <pre><code>{text}</code></pre>
 {/snippet}
 
-<svelte:head><title>Self-hosting guide — sis</title></svelte:head>
-
-<div class="guide-page">
-  <a href="/" class="guide-back" onclick={back}>← Back</a>
-
-  <header class="guide-header">
-    <div class="guide-mark"><Wordmark /></div>
-    <h1>Self-hosting guide</h1>
-    <p class="guide-lede">
+<DocPage title="Self-hosting guide" kicker="Guide" {toc}>
+  {#snippet intro()}
+    <p>
       sis is self-hosted. A sis server signs in to Spotify for you, records every play in a database on
       your own machine and serves the dashboard. The web app and the iOS and Android apps are clients:
       they show the server you point them at.
@@ -78,15 +59,9 @@
       {officialHost} is the developer's own instance and it is invite-only, so using sis means running a
       server or being invited to one. This guide covers the first.
     </p>
-    <nav class="guide-toc" aria-label="Contents">
-      {#each toc as [id, title] (id)}
-        <a href="#{id}" class="range-btn">{title}</a>
-      {/each}
-    </nav>
-  </header>
+  {/snippet}
 
-  <section id="why">
-    <h2 class="section-title">{SECTIONS.why}</h2>
+  <DocSection id="why" title={SECTIONS.why}>
     <p>
       Spotify caps an app in development mode at {SPOTIFY_DEV_MODE_USERS} users, and the account that owns
       it needs Premium. Access beyond that is reserved for large registered companies, so no single sis can
@@ -97,11 +72,10 @@
       the only outside calls are the ones that fetch your plays and their metadata (Spotify, MusicBrainz) and
       the integrations you turn on.
     </p>
-  </section>
+  </DocSection>
 
-  <section id="needs">
-    <h2 class="section-title">{SECTIONS.needs}</h2>
-    <ul class="guide-list">
+  <DocSection id="needs" title={SECTIONS.needs}>
+    <ul>
       <li>
         <strong>A machine that stays on</strong>, with Docker and git: a home server, a NAS or a small VPS.
         sis polls Spotify around the clock, and after an outage it can only recover the last
@@ -114,10 +88,9 @@
       </li>
       <li><strong>Spotify Premium</strong> on the account that owns the Spotify app.</li>
     </ul>
-  </section>
+  </DocSection>
 
-  <section id="setup">
-    <h2 class="section-title">{SECTIONS.setup}</h2>
+  <DocSection id="setup" title={SECTIONS.setup}>
     <ol class="guide-steps">
       <li>
         <h3>Create a Spotify app</h3>
@@ -165,11 +138,10 @@
         </p>
       </li>
     </ol>
-  </section>
+  </DocSection>
 
-  <section id="apps">
-    <h2 class="section-title">{SECTIONS.apps}</h2>
-    <ul class="guide-list">
+  <DocSection id="apps" title={SECTIONS.apps}>
+    <ul>
       <li>
         <strong>iOS and Android</strong>: on first launch the app asks for a server; enter your address. To
         switch later, go to Settings → Connections → Instance.
@@ -181,15 +153,14 @@
       (the apps' push tokens belong to its Firebase project; web push works on any instance) and Sign in with
       mier.info. Links to your instance open in the browser rather than in the app.
     </p>
-  </section>
+  </DocSection>
 
-  <section id="extras">
-    <h2 class="section-title">{SECTIONS.extras}</h2>
+  <DocSection id="extras" title={SECTIONS.extras}>
     <p>
       Each one stays off until its keys are in <code>.env</code>; apply them with
       <code>docker compose up -d</code>.
     </p>
-    <ul class="guide-list">
+    <ul>
       <li>
         <strong>Last.fm</strong> — <code>LASTFM_API_KEY</code>, <code>LASTFM_API_SECRET</code>
         (<a href={LINKS.lastfmApi} target="_blank" rel="noopener">get a key</a>): sign in with Last.fm and
@@ -206,11 +177,10 @@
         <a href={LINKS.pushDoc} target="_blank" rel="noopener">push setup notes</a>.
       </li>
     </ul>
-  </section>
+  </DocSection>
 
-  <section id="first">
-    <h2 class="section-title">{SECTIONS.first}</h2>
-    <ul class="guide-list">
+  <DocSection id="first" title={SECTIONS.first}>
+    <ul>
       <li>
         <strong>Bring your history.</strong> Spotify only hands out your last {SPOTIFY_RECENT_PLAYS} plays, so
         sis starts counting the day you sign in. Request your data on
@@ -228,10 +198,9 @@
         the URL each one needs.
       </li>
     </ul>
-  </section>
+  </DocSection>
 
-  <section id="upkeep">
-    <h2 class="section-title">{SECTIONS.upkeep}</h2>
+  <DocSection id="upkeep" title={SECTIONS.upkeep}>
     {@render code(UPDATE)}
     <p>
       The database updates itself on boot; there is nothing to migrate by hand. Your whole history is one
@@ -239,140 +208,52 @@
       (<code>docker compose stop</code>) so the copy is consistent. Settings → Data also exports your plays as
       JSON or CSV.
     </p>
-  </section>
+  </DocSection>
 
-  <footer class="guide-footer">
-    <a href={REPO_URL} target="_blank" rel="noopener">Source on GitHub</a> · CC BY-NC-SA 4.0 ·
-    <a href="/support">Support</a>
-  </footer>
-</div>
+</DocPage>
 
 <style>
-  .guide-page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: calc(1.5rem + var(--safe-top, 0px)) 1rem 4rem;
-    font-size: var(--fs-md);
-    line-height: 1.6;
+  /* pasos numerados: el número en una celda mono con el acento, como el resto de cifras de sis */
+  .guide-steps {
+    padding: 0;
+    list-style: none;
+    counter-reset: guide-step;
   }
-
-  .guide-page a {
+  .guide-steps > li {
+    position: relative;
+    margin-bottom: 1.75rem;
+    padding-left: 2.6rem;
+    counter-increment: guide-step;
+  }
+  .guide-steps > li:last-child {
+    margin-bottom: 0;
+  }
+  .guide-steps > li::before {
+    content: counter(guide-step);
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    border: 1px solid var(--accent-a40);
+    border-radius: var(--radius);
+    background: var(--accent-a05);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
     color: var(--accent);
   }
-
-  .guide-back {
-    font-family: var(--font-mono);
-    font-size: var(--fs-sm);
-    text-decoration: none;
-  }
-
-  .guide-header {
-    margin: 1.5rem 0 0.5rem;
-  }
-
-  .guide-mark {
-    display: flex;
-    font-size: var(--fs-2xl);
-    color: var(--text);
-    margin-bottom: 1rem;
-  }
-
-  .guide-header h1 {
-    margin: 0 0 0.75rem;
-    font-size: var(--fs-xl);
-    letter-spacing: var(--track-tight);
-  }
-
-  .guide-lede {
-    font-size: var(--fs-base);
-  }
-
-  .guide-page p {
-    margin: 0 0 0.75rem;
-  }
-
-  .guide-toc {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 1.25rem;
-  }
-
-  .guide-toc .range-btn {
-    color: var(--text-muted);
-    text-decoration: none;
-  }
-
-  .guide-toc .range-btn:hover {
-    color: var(--text);
-  }
-
-  section {
-    scroll-margin-top: 1rem;
-  }
-
-  .guide-list {
-    margin: 0 0 0.75rem;
-    padding-left: 1.2rem;
-  }
-
-  .guide-list li {
-    margin-bottom: 0.5rem;
-  }
-
-  .guide-steps {
-    margin: 0;
-    padding-left: 1.4rem;
-  }
-
-  .guide-steps li {
-    margin-bottom: 1.25rem;
-  }
-
-  .guide-steps li::marker {
-    font-family: var(--font-mono);
-    color: var(--text-muted);
-  }
-
   .guide-steps h3 {
     margin: 0 0 0.4rem;
-    font-size: var(--fs-md);
+    line-height: 1.65rem;
   }
 
-  .guide-page code {
-    font-family: var(--font-mono);
-    font-size: 0.92em;
-    background: var(--bg-sunken);
-    padding: 0.05rem 0.3rem;
-    border-radius: var(--radius);
-    overflow-wrap: anywhere;
-  }
-
-  .guide-code {
-    margin: 0 0 0.75rem;
-    padding: 0.75rem 0.9rem;
-    background: var(--bg-sunken);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow-x: auto;
-  }
-
-  .guide-code code {
-    padding: 0;
-    background: none;
-    font-size: var(--fs-sm);
-    overflow-wrap: normal;
-  }
-
+  /* aviso: lo que en las apps de la store depende de la instancia oficial */
   .guide-note {
-    color: var(--text-muted);
-  }
-
-  .guide-footer {
-    margin-top: 2.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-    font-size: var(--fs-sm);
+    padding: 0.8rem 1rem;
+    border-left: 2px solid var(--accent);
+    background: var(--accent-a05);
     color: var(--text-muted);
   }
 </style>

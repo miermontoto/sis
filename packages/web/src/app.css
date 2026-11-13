@@ -2306,7 +2306,11 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
   --ui-border: var(--border);
   --ui-bg-card: var(--bg-card);
   --ui-bg-hover: var(--bg-hover);
-  --ui-radius: 8px;
+  --ui-bg-sunken: var(--bg-sunken);
+  --ui-text-strong: var(--text);
+  --ui-font-mono: var(--font-mono);
+  /* esquinas duras, como las tarjetas */
+  --ui-radius: var(--radius);
 }
 
 /* desplegable de un grupo de pestañas: fuera del @media móvil porque con la barra nativa también
