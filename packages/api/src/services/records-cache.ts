@@ -212,6 +212,7 @@ export function getCachedRecords(userId: number, calendar: PeriodCalendar, sort:
     ...sliceBase(e),
     mostNo1Tracks: e.mostNo1Tracks.slice(0, limit),
     mostNo1Albums: e.mostNo1Albums.slice(0, limit),
+    averageAlbumRank: e.averageAlbumRank.slice(0, limit),
     mostDistinctTracks: e.mostDistinctTracks.slice(0, limit),
     oneHitWonders: e.oneHitWonders.slice(0, limit),
     mostConcerts: e.mostConcerts.slice(0, limit),

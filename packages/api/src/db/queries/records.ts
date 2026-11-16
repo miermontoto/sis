@@ -14,7 +14,7 @@ import { CHART_SIZE, DOMINANCE_MIN_WEEK_PLAYS } from '../../constants.js';
 import {
   computeLongestGap, computeGoldenOldies, computeLatestDiscoveries,
   computeMostUniquePerMonth, computeMostDistinctTracks, computeOneHitWonders,
-  computeYearFinishes, computeMostAccolades, computeMostConcerts, computeMostHeardLive,
+  computeYearFinishes, computeAverageAlbumRank, computeMostAccolades, computeMostConcerts, computeMostHeardLive,
 } from './records-extended.js';
 import { createLogger } from '../../services/logger.js';
 
@@ -290,6 +290,7 @@ function getArtistRecords(db: Db, calendar: PeriodCalendar, sort: Sort, limit: n
     ...base,
     mostNo1Tracks,
     mostNo1Albums,
+    averageAlbumRank: timed('artist.averageAlbumRank', () => computeAverageAlbumRank(db, userId, sort, limit)),
     longestGap: timed('artist.longestGap', () => computeLongestGap('artist', db, userId, limit)),
     goldenOldies: timed('artist.goldenOldies', () => computeGoldenOldies('artist', db, userId, limit)),
     latestDiscoveries: timed('artist.latestDiscoveries', () => computeLatestDiscoveries('artist', db, userId, limit)),

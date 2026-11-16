@@ -8,6 +8,8 @@ export const MOBILE_SCHEME = 'info.mier.sis';
 // origen público de la instancia (utils/public-origin.ts)
 export const DEFAULT_SPOTIFY_REDIRECT_URI = 'http://localhost:3000/auth/callback';
 
+import { TOP_PAGE_LIMIT } from '@sis/shared';
+
 // re-exportar desde shared (single source of truth)
 export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS, DEFAULT_TIME_RANGE, isTimeRange, MILESTONE_THRESHOLDS } from '@sis/shared';
 export type { TimeRange } from '@sis/shared';
@@ -244,6 +246,13 @@ export const DOMINANCE_MIN_WEEK_PLAYS = 50;
 // años en el chart anual que hacen falta para entrar en la media de puesto year-end:
 // con uno solo la "media" sería ese puesto y cualquier #1 aislado encabezaría la lista
 export const AVG_YEAR_FINISH_MIN_YEARS = 2;
+
+// media de puesto de los álbumes de un artista: el top all-time de referencia es el de
+// /top, y fuera de él todo álbum cuenta como el primero de fuera (TOP + 1)
+export const AVG_ALBUM_RANK_TOP = TOP_PAGE_LIMIT;
+// álbumes dentro de ese top que hacen falta para entrar en la lista (con uno, la media
+// sería ese disco), igual que los años de la media year-end
+export const AVG_ALBUM_RANK_MIN_ALBUMS = 2;
 
 // intervalo de resolución de entidades import: (30 min)
 export const RESOLVE_INTERVAL_MS = 30 * 60_000;
