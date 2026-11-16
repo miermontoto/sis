@@ -11,10 +11,16 @@
   // Con una entidad delante se listan sólo las colecciones en las que PUEDE entrar:
   // las de cualquier artista acreditado en ella (un tema a dos nombres cabe en las
   // dos). Sin entidad, el modal gestiona las del artista de la página.
+  //
+  // Sin entidad también se vigila un álbum que aún no ha salido: el enlace de spotify
+  // crea (o amplía) una colección con los singles que van dentro, y el servidor la
+  // disuelve en el álbum real cuando sale. Spotify no lista esos álbumes en ningún
+  // sitio, así que el enlace es la vía exacta; las preventas de iTunes las encuentra
+  // el barrido solo.
   import { errorMessage } from '$lib/utils/errors';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import { api, collectionKey, COLLECTION_NAME_MAX_CHARS, type AlbumCollectionSummary, type CollectionMemberType } from '$lib/api';
-  import { formatNumber } from '$lib/utils/format';
+  import { formatCalendarDate, formatNumber } from '$lib/utils/format';
   import IconTrash from '$lib/icons/IconTrash.svelte';
 
   let {
@@ -43,6 +49,8 @@
   // colección que ya contiene la entidad (la respuesta 409 o la que la tiene ahora)
   let memberOf = $state<number | null>(null);
   let newName = $state('');
+  let upcomingUrl = $state('');
+  let upcomingNote = $state('');
 
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
   let loadedFor = '';
@@ -143,6 +151,31 @@
     }
   }
 
+  async function linkUpcoming() {
+    const url = upcomingUrl.trim();
+    if (!url) return;
+    busy = true;
+    error = '';
+    upcomingNote = '';
+    try {
+      const res = await api.linkUpcomingAlbum(url);
+      upcomingUrl = '';
+      const out = `"${res.name}" comes out ${formatCalendarDate(res.releaseDate)}`;
+      upcomingNote = res.collectionId === null
+        ? `${out}. None of your singles are on it yet: they'll join as you play them.`
+        : `${out}. ${plural(res.singles, 'single')} now rank as it until then.`;
+      if (res.collectionId !== null) {
+        collectionsStore.invalidate();
+        await load(artistId);
+        onChanged();
+      }
+    } catch (e) {
+      error = errorMessage(e, 'Error linking the upcoming album');
+    } finally {
+      busy = false;
+    }
+  }
+
   function close() { show = false; }
 
   $effect(() => {
@@ -195,7 +228,7 @@
               <a class="col-item-info" href="/album/{collectionKey(c.id)}">
                 <div class="col-item-name">{c.name}</div>
                 <div class="col-item-meta">
-                  {plural(c.albumCount, 'album')} · {plural(c.trackCount, 'loose track')} · {formatNumber(c.playCount)} plays
+                  {#if c.upcoming}Out {formatCalendarDate(c.upcoming.releaseDate)} · {plural(c.albumCount, 'single')}{:else}{plural(c.albumCount, 'album')} · {plural(c.trackCount, 'loose track')}{/if} · {formatNumber(c.playCount)} plays
                 </div>
               </a>
               {#if entity}
@@ -233,6 +266,20 @@
           />
           <button class="col-btn" type="submit" disabled={busy || !newName.trim()}>Create</button>
         </form>
+
+        {#if !entity}
+          <form class="col-new" onsubmit={(e) => { e.preventDefault(); linkUpcoming(); }}>
+            <input
+              type="text"
+              inputmode="url"
+              placeholder="Spotify link of an upcoming album…"
+              bind:value={upcomingUrl}
+              disabled={busy}
+            />
+            <button class="col-btn" type="submit" disabled={busy || !upcomingUrl.trim()}>Track</button>
+          </form>
+          <p class="col-hint">{upcomingNote || 'Its singles rank as the album until it comes out, then fold into the real one.'}</p>
+        {/if}
       {/if}
     </div>
   </div>

@@ -1,5 +1,6 @@
 import type { TopTrackItem } from './top.js';
 import type { HistoryItem } from './history.js';
+import type { UpcomingRef } from './upcoming.js';
 
 // Colecciones ("álbumes lógicos"): contenedor creado por el usuario que agrupa
 // álbumes enteros y temas sueltos de un artista — una trilogía, una era, los
@@ -70,6 +71,8 @@ export interface AlbumCollectionSummary {
   totalMs: number;
   createdAt: string;
   updatedAt: string;
+  // la crea el barrido de álbumes que vienen (ver upcoming.ts): se disuelve cuando sale
+  upcoming: UpcomingRef | null;
 }
 
 // detalle de /collection/:id — mismo reparto que AlbumDetail para poder reusar

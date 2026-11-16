@@ -9,7 +9,7 @@
   import { api, createFetchController, type AlbumDetail, type AlbumCover, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
-  import { formatDuration, formatNumber, formatDate, localDateKey } from '$lib/utils/format';
+  import { formatDuration, formatNumber, formatDate, formatCalendarDate, localDateKey } from '$lib/utils/format';
   import type { ChartEvent } from '$lib/utils/chart';
   import { extractColor, hexToRgb, rgbToHex, type Rgb } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -519,15 +519,17 @@
         onPreviewColor={(c) => { colorPreview = c; }}
       />
       <div class="detail-header-info">
-        {#if collectionId !== null}<div class="data-label">Collection</div>{/if}
+        <!-- una colección del barrido de álbumes que vienen ES ese álbum hasta que sale -->
+        {#if collectionId !== null}<div class="data-label">{data.upcoming ? 'Upcoming album' : 'Collection'}</div>{/if}
         <h1>{data.album.name}{#if nowPlayingStore.isLive('album', albumId)} <span class="live-badge"><span class="live-dot"></span> Live</span>{/if}{#if mergedInto}<AliasBadge entityType="album" target={mergedInto} />{/if}</h1>
         <p class="detail-subtitle">
           {#each data.artists as artist, i}
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
           {/each}
         </p>
-        {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0}
+        {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0 || data.upcoming}
           <p class="detail-meta-line">
+            {#if data.upcoming}<span class="meta-stat">Out {formatCalendarDate(data.upcoming.releaseDate)}</span>{/if}
             {#if data.album.releaseDate}<span class="meta-stat">{data.album.releaseDate}</span>{/if}
             {#if data.album.totalTracks}<span class="meta-stat">{data.album.totalTracks} tracks</span>{/if}
             {#if albumLengthMs > 0}<span class="meta-stat">{formatDuration(albumLengthMs)}</span>{/if}

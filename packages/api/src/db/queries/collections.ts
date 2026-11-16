@@ -15,7 +15,7 @@ import { sql } from 'drizzle-orm';
 import type { Db, Sort, SqlChunk, StatsRow, SeriesRow, RecentPlayRow } from './helpers.js';
 import { rangeWhere, userFilter, getDateTrunc, getDateTruncForDays, playDuration, resolvedPlayJoins, artistCreditedAlbums, trackArtistsFor } from './helpers.js';
 import { collectionKey, COLLECTION_ID_PREFIX } from '@sis/shared';
-import type { AlbumCollectionSummary, CollectionCandidate, CollectionIndexItem, CollectionMember, CollectionMemberType, CollectionRef } from '@sis/shared';
+import type { AlbumCollectionSummary, CollectionCandidate, CollectionIndexItem, CollectionMember, CollectionMemberType, CollectionRef, UpcomingRef } from '@sis/shared';
 import type { TimeRange } from '../../constants.js';
 
 // tipo de álbum que se le atribuye a una colección allí donde la UI espera uno
@@ -166,7 +166,18 @@ function hydrateSummary(db: Db, row: CollectionRow, userId: number): AlbumCollec
     totalMs: stats.total_ms,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    upcoming: getCollectionUpcoming(db, row.id, userId),
   };
+}
+
+/** El álbum que viene detrás de una colección, si la creó el barrido y aún no ha salido. */
+export function getCollectionUpcoming(db: Db, collectionId: number, userId: number): UpcomingRef | null {
+  const row = db.all(sql`
+    SELECT u.release_date AS releaseDate, u.spotify_album_id AS spotifyAlbumId
+    FROM upcoming_folds uf JOIN upcoming_albums u ON u.id = uf.upcoming_id
+    WHERE uf.user_id = ${userId} AND uf.collection_id = ${collectionId} AND u.state = 'upcoming'
+  `)[0] as UpcomingRef | undefined;
+  return row ?? null;
 }
 
 /** Índice ligero de las colecciones del usuario: lo que necesita el cliente para

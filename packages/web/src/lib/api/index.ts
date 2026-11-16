@@ -34,6 +34,7 @@ export type {
   Concert, ConcertSong, ConcertRef, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse,
   ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionRef, CollectionInput, CollectionConflict, CollectionCandidate, CollectionCandidates, CollectionIndexItem,
+  UpcomingRef, UpcomingLinkResult,
   CreditSubjectType, CreditArtist, EntityCredits,
 } from '@sis/shared';
 export { LOCALE_OPTIONS, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS, CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS, CONCERT_YEAR_OPTIONS, SETLISTFM_AUTO_PAGES, ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES, REPORT_TOP_LIMIT, REPORT_INDEX_HISTORY, COLLECTION_ID_PREFIX, collectionKey, isCollectionKey, parseCollectionKey, COLLECTION_NAME_MAX_CHARS, COLLECTION_NOTES_MAX_CHARS, COLLECTION_CANDIDATES_LIMIT, CREDITS_MAX_ARTISTS } from '@sis/shared';

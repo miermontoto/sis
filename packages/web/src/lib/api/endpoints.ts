@@ -16,6 +16,7 @@ import type {
   Concert, ConcertInput, ConcertListResponse, SetlistfmSearchResponse,
   Granularity, WeekStartOption, ReportResponse,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates, CollectionIndexItem,
+  UpcomingLinkResult,
   CreditSubjectType, EntityCredits,
 } from '@sis/shared';
 import { UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR } from '@sis/shared';
@@ -140,6 +141,12 @@ export const api = {
 
   createCollection: (input: CollectionInput) =>
     apiMutate<AlbumCollectionSummary>('POST', '/collections', input),
+
+  // álbum anunciado que aún no ha salido: sus singles pasan a rankear como él (una
+  // colección que se disuelve en el álbum real cuando sale). Spotify no lo lista en
+  // ningún sitio, así que llega por su enlace
+  linkUpcomingAlbum: (url: string) =>
+    apiMutate<UpcomingLinkResult>('POST', '/upcoming', { url }),
 
   updateCollection: (id: number, fields: { name?: string; notes?: string | null; imageUrl?: string | null; color?: string | null }) =>
     apiMutate<AlbumCollectionSummary>('PUT', `/collections/${id}`, fields),

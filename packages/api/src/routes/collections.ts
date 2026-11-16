@@ -28,7 +28,7 @@ const collections = new Hono<{ Variables: AppVariables }>();
  *  mueve TODO ranking derivado. Las caches horneadas se calculan sobre la marca de agua
  *  del historial (`MAX(played_at)`), que una mutación de colección no toca: sin esto,
  *  crear una colección no se vería en records ni en reports hasta el próximo play. */
-function invalidateDerived(userId: number): void {
+export function invalidateDerived(userId: number): void {
   invalidateRecordsCacheForUser(userId);
   invalidateReportCacheForUser(userId);
   invalidateProjectionBase(userId);

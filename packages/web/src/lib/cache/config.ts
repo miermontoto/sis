@@ -165,7 +165,10 @@ export function getConfig(path: string): EndpointConfig {
 // de `/stats/records` no traen. Fresca, la entrada no se pide en una hora; pasada, se
 // revalida en background, pero `/records` ya pintó la vieja y la sección no salía
 // hasta la visita siguiente.
-export const SCHEMA_VERSION = 3;
+// v4: las colecciones y el detalle de álbum traen `upcoming` (álbum que aún no ha
+// salido); sin subirla, la página de una colección recién creada por el barrido se
+// pintaba como colección normal hasta revalidar.
+export const SCHEMA_VERSION = 4;
 
 // cap blando del cache persistente (bytes aproximados).
 export const STORAGE_SOFT_CAP = 50 * 1024 * 1024;

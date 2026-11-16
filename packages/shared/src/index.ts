@@ -60,6 +60,10 @@ export type { PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistL
 export { inFoldWindow, pickSingleFold } from './single-fold.js';
 export type { FoldTrack, FoldRelease, FoldTrackPair, SingleFold, SingleFoldOptions } from './single-fold.js';
 
+// álbumes anunciados: sus singles rankean como el álbum que viene hasta que sale
+export { parseSpotifyAlbumId, upcomingContains, itunesPreorders, itunesTracks } from './upcoming.js';
+export type { UpcomingTrack, UpcomingRef, UpcomingLinkResult, ItunesPreorder } from './upcoming.js';
+
 // merge
 export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 

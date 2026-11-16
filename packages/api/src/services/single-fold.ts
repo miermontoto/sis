@@ -37,7 +37,7 @@ const inFlight = new Map<number, Promise<void>>();
 
 // opt-out: está activado todo el que no lo haya apagado. sin fila en user_settings vale
 // el default de routes/settings.ts ('true'), así que se mira la ausencia de un 'false'
-const enabledUserIds = (): number[] => (getDb().all(sql`
+export const enabledUserIds = (): number[] => (getDb().all(sql`
   SELECT u.id FROM users u
   WHERE u.is_active = 1
     AND NOT EXISTS (SELECT 1 FROM user_settings s

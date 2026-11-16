@@ -5,6 +5,7 @@ import type { TrackVersion } from './versions.js';
 import type { EntityRelation } from './relations.js';
 import type { Concert, ConcertRef } from './concerts.js';
 import type { CollectionMember, CollectionRef } from './collections.js';
+import type { UpcomingRef } from './upcoming.js';
 
 export interface Rankings {
   week: number | null;
@@ -101,6 +102,8 @@ export interface AlbumDetail {
   // color, valoración y secciones — y sólo añade la sección de miembros
   members?: CollectionMember[];
   notes?: string | null;
+  // la colección es un álbum que aún no ha salido: su fecha y, si se conoce, su id real
+  upcoming?: UpcomingRef | null;
 }
 
 export interface TrackDetail {
