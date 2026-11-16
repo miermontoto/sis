@@ -3,6 +3,7 @@ import { mergeModal } from '$lib/stores/merge-modal.svelte';
 import { collectionModal } from '$lib/stores/collection-modal.svelte';
 import { collectionsStore } from '$lib/stores/collections.svelte';
 import { creditsModal } from '$lib/stores/credits-modal.svelte';
+import { artistCompare } from '$lib/stores/artist-compare.svelte';
 import { playlistPicker } from '$lib/stores/playlist-picker.svelte';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
@@ -10,6 +11,7 @@ import IconPlus from '$lib/icons/IconPlus.svelte';
 import IconLink from '$lib/icons/IconLink.svelte';
 import IconAlbum from '$lib/icons/IconAlbum.svelte';
 import IconArtist from '$lib/icons/IconArtist.svelte';
+import IconSwap from '$lib/icons/IconSwap.svelte';
 
 // `collection:` entra en la misma familia que local:/import:: un álbum lógico tiene
 // fila en `albums` pero no existe en spotify, así que no hay nada que abrir, encolar
@@ -129,6 +131,13 @@ export function entityContextActions(entity: EntityContext, { relations = true, 
       }),
     });
   }
+  if (entity.type === 'artist') {
+    actions.push({
+      label: 'Compare with…',
+      icon: IconSwap,
+      onClick: () => artistCompare.open({ id: entity.id, name: entity.name }),
+    });
+  }
   // UNA sola entrada para merges y relaciones: son la misma sección del detalle, y dos
   // entradas seguidas eran dos nombres para el mismo concepto. Abre el modal de merges,
   // que en artistas trae pestaña hacia el de relaciones (ver ModalTabs); un álbum o un
@@ -139,7 +148,6 @@ export function entityContextActions(entity: EntityContext, { relations = true, 
     actions.push({
       label: 'Relations',
       icon: IconLink,
-      disabled: entity.type !== 'artist' && !entity.parentArtistId,
       onClick: () => mergeModal.open({
         entityType: entity.type,
         target: { id: entity.id, name: entity.name, imageUrl: entity.imageUrl },

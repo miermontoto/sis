@@ -19,7 +19,7 @@ export type {
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylist, LibraryPlaylistListResponse, LibraryPlaylistTrack, LibraryPlaylistDetail,
   SearchResults,
-  ArtistDetail, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, Rankings, ArtistScopedRank, EntityCard, EntityCardPoint,
+  ArtistDetail, ArtistOverlap, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, Rankings, ArtistScopedRank, EntityCard, EntityCardPoint,
   ChartEntry, DropoutEntry, ChartResponse, ChartPeak, ChartPeakStats, ChartHistoryResponse, RankingHistoryPoint, RankingHistoryPointWithCrossovers, CrossoverEntity,
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   RecordsResponse, PlaylistPresenceItem, MonthCountEntry,
@@ -33,6 +33,7 @@ export type {
   ShareLink, ShareLinkListResponse, CreateShareLinkRequest, TimeRange,
   Concert, ConcertSong, ConcertRef, ConcertStats, ConcertListResponse, ConcertInput, SetlistfmShow, SetlistfmSearchResponse,
   ReportResponse, ReportPeriod, ReportSummary, ReportFacts, ReportDayFact, ReportPlayRef, ReportEntityRef, ReportGenre, ReportDecade, ReportDiscovery, ReportDiscoveryStat, ReportNewPick, ReportMonth,
+  MemoriesResponse, MemoryYear, MemoryAnniversary,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionRef, CollectionInput, CollectionConflict, CollectionCandidate, CollectionCandidates, CollectionIndexItem,
   UpcomingRef, UpcomingLinkResult,
   CreditSubjectType, CreditArtist, EntityCredits,
@@ -70,5 +71,6 @@ export {
   getNowPlayingDisplay, setNowPlayingDisplay, onNowPlayingDisplayChange,
   getNowPlayingUpNext, setNowPlayingUpNext, onNowPlayingUpNextChange,
   getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange,
+  getDashboardWidgets, setDashboardWidgets, getLegacyDashboardLayout,
 } from './settings.js';
 export { api, listLoginSessions, logoutOtherSessions, type SessionInfo } from './endpoints.js';

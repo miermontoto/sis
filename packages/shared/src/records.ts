@@ -14,6 +14,14 @@ export interface RecordEntry {
   secondaryLabel?: string | null;   // etiqueta secundaria (ej. nombre del track dominante)
   peakRank?: number | null;         // mejor posición semanal alcanzada
   finishes?: YearRank[] | null;     // puestos en los charts anuales (media de year-end)
+  albumRanks?: AlbumRank[] | null;  // álbumes del artista en el top all-time (media de álbumes)
+}
+
+// puesto all-time de un álbum del artista (ranking de /top)
+export interface AlbumRank {
+  albumId: string;
+  name: string;
+  rank: number;
 }
 
 // puesto final de una entidad en el chart de un año cerrado
@@ -83,6 +91,10 @@ export type AlbumRecords = EntityRecords;
 export interface ArtistRecordsData extends EntityRecords {
   mostNo1Tracks: ArtistRecordEntry[];
   mostNo1Albums: ArtistRecordEntry[];
+  // media del puesto all-time de sus álbumes, ponderada por la métrica de cada uno y con
+  // los de fuera del top de /top contados como el primero de fuera. value = puesto medio,
+  // menor es mejor; `albumRanks` lleva los que están dentro del top
+  averageAlbumRank: RecordEntry[];
   mostDistinctTracks: RecordEntry[];
   oneHitWonders: RecordEntry[];
   // --- directo: artistas que más veces has visto. value = nº de bolos

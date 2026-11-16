@@ -261,6 +261,8 @@
                     <a href="/charts?type={tab.value}&granularity=week&period={item.week}" class="record-week">{item.week}</a>
                   {:else if item.finishes?.length}
                     <span class="record-week" title={item.finishes.map(f => `${f.year} #${f.rank}`).join(' · ')}>{item.finishes.length} years</span>
+                  {:else if item.albumRanks?.length}
+                    <span class="record-week" title={item.albumRanks.map(a => `${a.name} #${a.rank}`).join(' · ')}>{item.albumRanks.length} albums</span>
                   {/if}
                 </div>
               {/snippet}
@@ -551,7 +553,8 @@
     currentData.mostWeeksAtNo1.length > 0 ||
     (currentData.inMostPlaylists?.length ?? 0) > 0 ||
     currentData.mostAccolades.length > 0 ||
-    (artistData ? (artistData.mostNo1Tracks.length + artistData.mostNo1Albums.length) > 0 : false)}
+    (artistData ? (artistData.mostNo1Tracks.length + artistData.mostNo1Albums.length) > 0 : false) ||
+    (artistData?.averageAlbumRank?.length ?? 0) > 0}
   {@const hasLongevity =
     currentData.mostWeeksInTop5.length > 0 ||
     currentData.longestChartRun.length > 0 ||
@@ -580,6 +583,8 @@
     {#if artistData}
       {@render artistRecordList('Most #1 tracks', artistData.mostNo1Tracks, 'mostNo1Tracks')}
       {@render artistRecordList('Most #1 albums', artistData.mostNo1Albums, 'mostNo1Albums')}
+      <!-- `??`: una respuesta cacheada por la versión anterior no trae la clave -->
+      {@render recordList('Highest average album rank', artistData.averageAlbumRank ?? [], 'avgRank', 'averageAlbumRank')}
     {/if}
   {/if}
 

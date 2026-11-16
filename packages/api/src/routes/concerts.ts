@@ -296,7 +296,7 @@ concerts.post('/setlistfm/:artistId', async (c) => {
   }
   if (!show) return c.json({ error: 'setlist not found' }, 404);
 
-  const resolved = await resolveSetlistSongs(group, show.songs);
+  const resolved = await resolveSetlistSongs(group, show.songs, userId);
   const db = getDb();
   let concertId: number;
   try {

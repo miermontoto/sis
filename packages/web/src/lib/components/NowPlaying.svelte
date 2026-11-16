@@ -45,7 +45,6 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     onopen?.(section === 'session' ? 'session' : 'player');
   }
 
-  let acting = $state(false);
   let showDevices = $state(false);
   let showVolume = $state(false);
 
@@ -124,43 +123,8 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     else if (e.key === 'ArrowLeft') { e.preventDefault(); nowPlayingStore.seek(progressMs - SEEK_STEP_MS); }
   }
 
-  async function togglePlay() {
-    if (!data || acting) return;
-    acting = true;
-    try {
-      if (data.isPlaying) {
-        await api.playbackPause();
-        nowPlayingStore.data = { ...data, isPlaying: false };
-      } else {
-        await api.playbackPlay();
-        nowPlayingStore.data = { ...data, isPlaying: true };
-      }
-    } catch {} finally {
-      acting = false;
-    }
-  }
-
-  async function next() {
-    if (acting) return;
-    acting = true;
-    try {
-      await api.playbackNext();
-      setTimeout(() => nowPlayingStore.pollLive(), 500);
-    } catch {} finally {
-      acting = false;
-    }
-  }
-
-  async function previous() {
-    if (acting) return;
-    acting = true;
-    try {
-      await api.playbackPrevious();
-      setTimeout(() => nowPlayingStore.pollLive(), 500);
-    } catch {} finally {
-      acting = false;
-    }
-  }
+  // los controles de reproducción viven en el store, con su estado `acting`
+  const { togglePlay, next, previous } = nowPlayingStore;
 </script>
 
 {#snippet progressRow()}
@@ -276,10 +240,10 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
       </button>
       {#if controllable}
         {@render likeBtn('np-mini-btn ctrl-btn--like')}
-        <button class="np-mini-btn np-mini-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
+        <button class="np-mini-btn np-mini-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={nowPlayingStore.acting} onclick={togglePlay}>
           {#if data.isPlaying}<IconPause size={18} />{:else}<IconPlay size={18} />{/if}
         </button>
-        <button class="np-mini-btn" title="Next" disabled={acting} onclick={next}><IconNext size={14} /></button>
+        <button class="np-mini-btn" title="Next" disabled={nowPlayingStore.acting} onclick={next}><IconNext size={14} /></button>
       {/if}
     </div>
   {:else if sheet}
@@ -336,11 +300,11 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
           {:else}
             <span class="np-sheet-spacer"></span>
           {/if}
-          <button class="ctrl-btn np-sheet-skip" title="Previous" disabled={acting} onclick={previous}><IconPrev size={22} /></button>
-          <button class="np-sheet-play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
+          <button class="ctrl-btn np-sheet-skip" title="Previous" disabled={nowPlayingStore.acting} onclick={previous}><IconPrev size={22} /></button>
+          <button class="np-sheet-play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={nowPlayingStore.acting} onclick={togglePlay}>
             {#if data.isPlaying}<IconPause size={24} />{:else}<IconPlay size={24} />{/if}
           </button>
-          <button class="ctrl-btn np-sheet-skip" title="Next" disabled={acting} onclick={next}><IconNext size={22} /></button>
+          <button class="ctrl-btn np-sheet-skip" title="Next" disabled={nowPlayingStore.acting} onclick={next}><IconNext size={22} /></button>
           <span class="np-sheet-spacer"></span>
         </div>
         {#if showVolume && vol !== null}
@@ -383,11 +347,11 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
       {/if}
       {#if controllable}
         <div class="np-controls np-controls--vertical">
-          <button class="ctrl-btn" title="Previous" disabled={acting} onclick={previous}><IconPrev /></button>
-          <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
+          <button class="ctrl-btn" title="Previous" disabled={nowPlayingStore.acting} onclick={previous}><IconPrev /></button>
+          <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={nowPlayingStore.acting} onclick={togglePlay}>
             {#if data.isPlaying}<IconPause />{:else}<IconPlay />{/if}
           </button>
-          <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}><IconNext /></button>
+          <button class="ctrl-btn" title="Next" disabled={nowPlayingStore.acting} onclick={next}><IconNext /></button>
         </div>
       {/if}
       {@render progressStrip()}
@@ -426,17 +390,17 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     <div class="np-actions">
       <DevicePicker bind:show={showDevices} />
       <div class="np-controls">
-        <button class="ctrl-btn" title="Previous" disabled={acting} onclick={previous}>
+        <button class="ctrl-btn" title="Previous" disabled={nowPlayingStore.acting} onclick={previous}>
           <IconPrev />
         </button>
-        <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={acting} onclick={togglePlay}>
+        <button class="ctrl-btn ctrl-btn--play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={nowPlayingStore.acting} onclick={togglePlay}>
           {#if data.isPlaying}
             <IconPause />
           {:else}
             <IconPlay />
           {/if}
         </button>
-        <button class="ctrl-btn" title="Next" disabled={acting} onclick={next}>
+        <button class="ctrl-btn" title="Next" disabled={nowPlayingStore.acting} onclick={next}>
           <IconNext />
         </button>
       </div>

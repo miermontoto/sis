@@ -216,6 +216,19 @@
       max-width: min(320px, calc(100vw - 2rem));
       animation-name: hover-pop-mobile;
     }
+    /* en el hero las acciones van a la izquierda (app.css): centrado en un trigger pegado
+       al borde, el panel salía por la izquierda. ahí se ancla a la fila de acciones */
+    :global(.hero-actions) .hover-root {
+      position: static;
+    }
+    :global(.hero-actions) .hover-popover {
+      left: 0;
+      right: auto;
+      transform: none;
+      width: min(320px, 100%);
+      min-width: 0;
+      animation-name: hover-pop;
+    }
   }
   @keyframes hover-pop-mobile {
     from { opacity: 0; transform: translate(50%, -4px); }

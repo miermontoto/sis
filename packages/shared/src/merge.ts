@@ -1,3 +1,11 @@
+/** Una regla que apunta a una entidad: lo único que necesita su modal de merges. */
+export interface MergeSource {
+  rule_id: number;
+  source_id: string;
+  name: string;
+  image_url: string | null;
+}
+
 export interface MergeRule {
   id: number;
   entity_type: string;

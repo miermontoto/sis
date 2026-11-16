@@ -10,7 +10,7 @@ export { computeRankings, computeRankingsBatch, computeProjectedRankings, comput
 export { getProjectionSession } from './projections.js';
 
 // queries específicas
-export { getArtistTopTracks, getArtistTopAlbums, getArtistScopedRank, getArtistReleases } from './artist.js';
+export { getArtistTopTracks, getArtistTopAlbums, getArtistOverlap, getArtistScopedRank, getArtistReleases } from './artist.js';
 export { getAlbumArtists, getAlbumTracks, getAlbumRelatedSingles, getAlbumRating } from './album.js';
 export { enrichTrack, enrichTracksBatch, getTrackAlbumBreakdown, getTrackVersions } from './track.js';
 export { getRecords } from './records.js';
@@ -27,7 +27,7 @@ export { getCollectionSummary, getArtistCollections, getCollectionMembers, getCo
 export type { CollectionScope } from './collections.js';
 
 // merge (genérico para albums / artists / tracks)
-export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup, getMergeSuggestions } from './merge.js';
+export { resolveEntityIds, getEntityMergeInfo, getEntityMergeGroup, getMergeSuggestions, listMergeRules } from './merge.js';
 export type { MergeInfo, MergeSuggestionRow } from './merge.js';
 
 // plegado automático de singles de adelanto en su álbum (ajuste autoMergeSingles)
@@ -52,8 +52,15 @@ export { getLibraryPlaylists, getPlaylistTrackStats, getPlaylistGenres, getPlayl
 export { getProfileSummary, composeComparison, getFeedActivity, getUserStreaks, getRecentPlaysForUsers, getUserPlayCount } from './social.js';
 export type { ProfileSummaryRow, ComparisonResult, FeedActivityRow, SharedItemRow, StreaksRow, FeedPlayRow } from './social.js';
 
+// export del historial del usuario
+export { getExportBody } from './export.js';
+
 // reports periódicos (semana / mes / año cerrados)
-export { getReport } from './reports.js';
+export { getReport, getNewEntities } from './reports.js';
+
+// recuerdos de una fecha (widgets del dashboard y push diaria de aniversarios)
+export { getOnThisDay, getReleaseAnniversaries, getFirstListenAnniversaries, getMemories } from './memories.js';
+export type { OnThisDayYear, AnniversaryRow } from './memories.js';
 
 // inline queries extraídas de stats.ts
 export { getTopGenres, getHeatmap, getMonthlyDistribution, getStreakDays, getDiscoverySeries, searchEntities, lookupArtistById, lookupAlbumById, lookupTrackById, getTrackArtists, getAlbumCovers, setAlbumCover, insertAlbumCover, getArtistImages, rebuildPlaylistSearchIndex } from './inline.js';

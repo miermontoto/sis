@@ -1,7 +1,8 @@
 // Queries que antes estaban inline en stats.ts, extraídas para el worker pool
 import { sql } from 'drizzle-orm';
-import type { Db } from './helpers.js';
-import { rangeWhere, userFilter, trackArtistsFor, trackArtistsWhere, trackArtistPairs, albumArtistId, albumArtistName } from './helpers.js';
+import type { Db, EntityType, SqlChunk } from './helpers.js';
+import { rangeWhere, userFilter, trackArtistsFor, trackArtistsWhere, trackArtistPairs, albumArtistId, albumArtistName, artistNameOf, hasCreditOverrides, primaryArtistOf } from './helpers.js';
+import type { CreditSubjectType } from '@sis/shared';
 
 export function getTopGenres(db: Db, rangeStart: string | null, rangeEnd: string | null, limit: number, userId: number) {
   const rw = rangeWhere(rangeStart, rangeEnd);
@@ -77,105 +78,74 @@ function toFtsQuery(term: string): string {
 export function searchEntities(db: Db, term: string, limit: number, userId: number) {
   const ftsQuery = toFtsQuery(term);
   const likeTerm = `%${term}%`;
+  // el término llega en minúsculas y sin acentos, así que en un nombre todo ascii unaccent()
+  // no cambia nada que el LIKE nativo no ignore ya: sólo los demás (un 6%) cruzan a js, y
+  // en temas el recorrido baja de 22ms a 9ms. Más bytes que caracteres = no es ascii; un
+  // GLOB con clase de caracteres dice lo mismo, pero cuesta casi el doble
+  const nameLike = (col: SqlChunk) => sql`(${col} LIKE ${likeTerm} OR (length(${col}) <> length(CAST(${col} AS BLOB)) AND unaccent(${col}) LIKE ${likeTerm}))`;
+  // el índice FTS es global y del catálogo: lo que el usuario añadió a una lista no está
+  // en él, y buscar por ese artista tiene que encontrar el tema o el álbum
+  const correctedMatch = (type: CreditSubjectType, col: SqlChunk) => hasCreditOverrides(userId, type)
+    ? sql`OR ${col} IN (SELECT co.subject_id FROM credit_overrides co JOIN artists a_co ON a_co.spotify_id = co.artist_id
+        WHERE co.user_id = ${userId} AND co.subject_type = ${type} AND unaccent(a_co.name) LIKE ${likeTerm})`
+    : sql``;
+
+  // primero qué casa y sólo después sus cifras, por entidad y por índice. Antes cada tipo
+  // agregaba dos veces el historial entero y filtraba al final: ~1.6s por búsqueda en una
+  // cuenta de 350k plays, para quedarse con cinco filas de cada tipo. Los aciertos del FTS
+  // se miran con IN y no con un LEFT JOIN: el join los recorría por cada fila de la tabla
+  // y sacaba repetido un tema con dos artistas en posición 0 (tiene dos entradas en el índice)
+  const ftsHits = (type: EntityType) => sql`hits AS MATERIALIZED (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = ${type})`;
+  const mergeSources = (type: EntityType) => sql`SELECT source_id FROM merge_rules WHERE entity_type = ${type} AND user_id = ${userId}`;
+  // de quién son las escuchas que enseña la fila: ella y las fuentes de sus merges
+  const mergeGroup = (type: EntityType, id: SqlChunk) => sql`SELECT ${id} UNION ALL SELECT mr.source_id FROM merge_rules mr WHERE mr.user_id = ${userId} AND mr.entity_type = ${type} AND mr.target_id = ${id}`;
 
   const artistRows = db.all(sql`
+    WITH ${ftsHits('artist')}
     SELECT a.spotify_id as id, a.name, a.image_url as imageUrl,
-           COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
+           (SELECT COUNT(*)
+            FROM ${trackArtistsWhere(userId, col => sql`${col('artist_id')} IN (${mergeGroup('artist', sql`a.spotify_id`)})`)} ta
+            CROSS JOIN listening_history lh ON lh.user_id = ${userId} AND lh.track_id = ta.track_id) as playCount
     FROM artists a
-    LEFT JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'artist') si
-      ON si.entity_id = a.spotify_id
-    LEFT JOIN (
-      SELECT ta.artist_id, COUNT(*) as play_count
-      FROM listening_history lh
-      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-      WHERE lh.user_id = ${userId}
-      GROUP BY ta.artist_id
-    ) s ON s.artist_id = a.spotify_id
-    LEFT JOIN (
-      SELECT mr.target_id, SUM(sc.play_count) as merged_count
-      FROM merge_rules mr
-      JOIN (
-        SELECT ta.artist_id, COUNT(*) as play_count
-        FROM listening_history lh
-        JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-        WHERE lh.user_id = ${userId}
-        GROUP BY ta.artist_id
-      ) sc ON sc.artist_id = mr.source_id
-      WHERE mr.entity_type = 'artist' AND mr.user_id = ${userId}
-      GROUP BY mr.target_id
-    ) ms ON ms.target_id = a.spotify_id
-    WHERE a.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'artist' AND user_id = ${userId})
-      AND (si.entity_id IS NOT NULL OR unaccent(a.name) LIKE ${likeTerm})
-    ORDER BY (si.entity_id IS NOT NULL) DESC, playCount DESC
+    WHERE a.spotify_id NOT IN (${mergeSources('artist')})
+      AND (a.spotify_id IN hits OR ${nameLike(sql`a.name`)})
+    ORDER BY (a.spotify_id IN hits) DESC, playCount DESC
     LIMIT ${limit}
   `) as any[];
 
   const albumRows = db.all(sql`
+    WITH ${ftsHits('album')}
     SELECT al.spotify_id as id, al.name, al.image_url as imageUrl,
            ${albumArtistId(sql`al.spotify_id`, userId)} as artistId,
            ${albumArtistName(sql`al.spotify_id`, userId)} as artistName,
-           COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
+           (SELECT COUNT(*)
+            FROM tracks t
+            CROSS JOIN listening_history lh ON lh.user_id = ${userId} AND lh.track_id = t.spotify_id
+            WHERE t.album_id IN (${mergeGroup('album', sql`al.spotify_id`)})) as playCount
     FROM albums al
-    LEFT JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'album') si
-      ON si.entity_id = al.spotify_id
-    LEFT JOIN (
-      SELECT t.album_id, COUNT(*) as play_count
-      FROM listening_history lh
-      JOIN tracks t ON t.spotify_id = lh.track_id
-      WHERE t.album_id IS NOT NULL AND lh.user_id = ${userId}
-      GROUP BY t.album_id
-    ) s ON s.album_id = al.spotify_id
-    LEFT JOIN (
-      SELECT mr.target_id, SUM(sc.play_count) as merged_count
-      FROM merge_rules mr
-      JOIN (
-        SELECT t.album_id, COUNT(*) as play_count
-        FROM listening_history lh
-        JOIN tracks t ON t.spotify_id = lh.track_id
-        WHERE t.album_id IS NOT NULL AND lh.user_id = ${userId}
-        GROUP BY t.album_id
-      ) sc ON sc.album_id = mr.source_id
-      WHERE mr.entity_type = 'album' AND mr.user_id = ${userId}
-      GROUP BY mr.target_id
-    ) ms ON ms.target_id = al.spotify_id
-    WHERE al.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'album' AND user_id = ${userId})
-      AND (si.entity_id IS NOT NULL OR unaccent(al.name) LIKE ${likeTerm})
-    ORDER BY (si.entity_id IS NOT NULL) DESC, playCount DESC
+    WHERE al.spotify_id NOT IN (${mergeSources('album')})
+      AND (al.spotify_id IN hits OR ${nameLike(sql`al.name`)} ${correctedMatch('album', sql`al.spotify_id`)})
+    ORDER BY (al.spotify_id IN hits) DESC, playCount DESC
     LIMIT ${limit}
   `) as any[];
 
+  // los temas que lidera un artista que casa, anclados en él: el principal de cada tema
+  // del catálogo entero costaba 80ms por búsqueda sólo para poder mirar su nombre
+  const ledByMatch = sql`SELECT ta.track_id FROM ${trackArtistsWhere(userId, col => sql`${col('position')} = 0 AND ${col('artist_id')} IN (SELECT spotify_id FROM artists WHERE ${nameLike(sql`name`)})`)} ta`;
+  const primaryArtist = primaryArtistOf(sql`t.spotify_id`, userId);
   const trackRows = db.all(sql`
+    WITH ${ftsHits('track')}
     SELECT t.spotify_id as id, t.name,
            al.image_url as albumImageUrl,
-           pa.artist_id as artistId,
-           ar.name as artistName,
-           COALESCE(s.play_count, 0) + COALESCE(ms.merged_count, 0) as playCount
+           ${primaryArtist} as artistId,
+           ${artistNameOf(primaryArtist)} as artistName,
+           (SELECT COUNT(*) FROM listening_history lh
+            WHERE lh.user_id = ${userId} AND lh.track_id IN (${mergeGroup('track', sql`t.spotify_id`)})) as playCount
     FROM tracks t
-    LEFT JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'track') si
-      ON si.entity_id = t.spotify_id
     LEFT JOIN albums al ON al.spotify_id = t.album_id
-    LEFT JOIN (
-      SELECT track_id, MIN(artist_id) as artist_id
-      FROM ${trackArtistsFor(userId)} WHERE position = 0 GROUP BY track_id
-    ) pa ON pa.track_id = t.spotify_id
-    LEFT JOIN artists ar ON ar.spotify_id = pa.artist_id
-    LEFT JOIN (
-      SELECT track_id, COUNT(*) as play_count
-      FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
-    ) s ON s.track_id = t.spotify_id
-    LEFT JOIN (
-      SELECT mr.target_id, SUM(sc.play_count) as merged_count
-      FROM merge_rules mr
-      JOIN (
-        SELECT track_id, COUNT(*) as play_count
-        FROM listening_history WHERE user_id = ${userId} GROUP BY track_id
-      ) sc ON sc.track_id = mr.source_id
-      WHERE mr.entity_type = 'track' AND mr.user_id = ${userId}
-      GROUP BY mr.target_id
-    ) ms ON ms.target_id = t.spotify_id
-    WHERE t.spotify_id NOT IN (SELECT source_id FROM merge_rules WHERE entity_type = 'track' AND user_id = ${userId})
-      AND (si.entity_id IS NOT NULL OR unaccent(t.name) LIKE ${likeTerm} OR unaccent(ar.name) LIKE ${likeTerm})
-    ORDER BY (si.entity_id IS NOT NULL) DESC, playCount DESC
+    WHERE t.spotify_id NOT IN (${mergeSources('track')})
+      AND (t.spotify_id IN hits OR t.spotify_id IN (${ledByMatch}) ${correctedMatch('track', sql`t.spotify_id`)} OR ${nameLike(sql`t.name`)})
+    ORDER BY (t.spotify_id IN hits) DESC, playCount DESC
     LIMIT ${limit}
   `) as any[];
 
@@ -189,7 +159,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
     LEFT JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'playlist_library') si
       ON CAST(sp.id AS TEXT) = si.entity_id
     WHERE sp.user_id = ${userId}
-      AND (si.entity_id IS NOT NULL OR unaccent(sp.name) LIKE ${likeTerm})
+      AND (si.entity_id IS NOT NULL OR ${nameLike(sql`sp.name`)})
     ORDER BY sp.track_count DESC
     LIMIT ${limit}
   `) as any[];
@@ -204,7 +174,7 @@ export function searchEntities(db: Db, term: string, limit: number, userId: numb
     LEFT JOIN (SELECT entity_id FROM search_index WHERE search_index MATCH ${ftsQuery} AND entity_type = 'playlist_generated') si
       ON CAST(gp.id AS TEXT) = si.entity_id
     WHERE gp.user_id = ${userId}
-      AND (si.entity_id IS NOT NULL OR unaccent(gp.name) LIKE ${likeTerm})
+      AND (si.entity_id IS NOT NULL OR ${nameLike(sql`gp.name`)})
     ORDER BY gp.track_count DESC
     LIMIT ${limit}
   `) as any[];

@@ -46,10 +46,11 @@ function buildIndex(rows: { spotify_id: string; name: string }[]): { exact: Map<
 export async function resolveSetlistSongs(
   artistIds: string[],
   songs: SetlistfmShow['songs'],
+  userId: number,
 ): Promise<{ trackId: string | null }[]> {
   if (songs.length === 0) return [];
 
-  const own = buildIndex(await dbRead('getArtistTrackCatalog', artistIds));
+  const own = buildIndex(await dbRead('getArtistTrackCatalog', artistIds, userId));
   const resolved: (string | null)[] = songs.map(song => {
     const n = normalize(song.name);
     return own.exact.get(n) ?? own.base.get(baseName(song.name)) ?? null;
@@ -60,7 +61,7 @@ export async function resolveSetlistSongs(
     songs.filter((s, i) => resolved[i] === null && s.coverArtist).map(s => s.coverArtist!),
   )];
   if (coverArtists.length > 0) {
-    const covers = buildIndex(await dbRead('getTracksByArtistNames', coverArtists));
+    const covers = buildIndex(await dbRead('getTracksByArtistNames', coverArtists, userId));
     songs.forEach((song, i) => {
       if (resolved[i] !== null || !song.coverArtist) return;
       resolved[i] = covers.exact.get(normalize(song.name)) ?? covers.base.get(baseName(song.name)) ?? null;

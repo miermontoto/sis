@@ -266,15 +266,27 @@ async function pollLive() {
   }
 }
 
+// lo más fresco que se puede leer: sin token de spotify (solo-last.fm) no hay lectura en vivo
+const readFreshest = () => (_data?.controllable === false ? poll() : pollLive());
+
 // al volver a la app (pestaña visible, ventana enfocada, resume del apk) la tarjeta
 // puede llevar un rato sin ver spotify: un cambio desde otro dispositivo no adelanta
 // al poller del servidor y el tick del cliente se frena en segundo plano. Sólo con
 // el polling en marcha (tras el gate de login) y una lectura a la vez: visibilitychange
-// y focus llegan juntos. Sin token de spotify (solo-last.fm) no hay lectura en vivo
+// y focus llegan juntos
 function refreshIfStale() {
   if (!_intervalId || _focusRefreshing || Date.now() - _spotifyReadAtMs < FOCUS_REFRESH_STALE_MS) return;
   _focusRefreshing = true;
-  (_data?.controllable === false ? poll() : pollLive()).finally(() => { _focusRefreshing = false; });
+  readFreshest().finally(() => { _focusRefreshing = false; });
+}
+
+// la tarjeta y la cola pintan los créditos del usuario, pero la cola no se relee hasta
+// el siguiente tema (guard por trackId) y tras una lectura en vivo el tick de 10s se
+// descarta hasta 35s: lo recién guardado no se vería. Se lee en vivo y no en cacheado
+// por ese mismo guard
+function refreshAfterCreditChange() {
+  _lastQueueTrackId = null;
+  return readFreshest();
 }
 
 function startPolling() {
@@ -360,6 +372,41 @@ function seek(positionMs: number) {
   }, SEEK_DEBOUNCE_MS);
 }
 
+// controles de reproducción de la tarjeta de now playing (todas sus variantes: sidebar,
+// mini, hoja). `_acting` desactiva los botones mientras una orden está en vuelo (dos
+// clics seguidos mandaban dos pausas y la segunda la deshacía)
+let _acting = $state(false);
+// spotify tarda en reflejar un salto: la relectura en vivo va un poco después
+const SKIP_REFRESH_MS = 500;
+
+async function togglePlay() {
+  const data = _data;
+  if (!data || _acting) return;
+  _acting = true;
+  try {
+    if (data.isPlaying) {
+      await api.playbackPause();
+      applyNowPlaying({ ...data, isPlaying: false }, 'local');
+    } else {
+      await api.playbackPlay();
+      applyNowPlaying({ ...data, isPlaying: true }, 'local');
+    }
+  } catch {} finally {
+    _acting = false;
+  }
+}
+
+async function skip(direction: 'next' | 'previous') {
+  if (_acting) return;
+  _acting = true;
+  try {
+    await (direction === 'next' ? api.playbackNext() : api.playbackPrevious());
+    setTimeout(() => pollLive(), SKIP_REFRESH_MS);
+  } catch {} finally {
+    _acting = false;
+  }
+}
+
 let _volumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 async function setVolume(percent: number) {
@@ -377,9 +424,9 @@ export const nowPlayingStore = {
   get trackId() { return _data?.playing && _data.isPlaying ? _data.track?.id ?? null : null; },
   get albumId() { return _data?.playing && _data.isPlaying ? _data.track?.album?.id ?? null : null; },
   get artistIds() { return _data?.playing && _data.isPlaying ? _data.track?.artists?.map(a => a.id) ?? [] : []; },
-  // ¿suena esta fila? trackId/albumId/artistIds son los ids crudos de spotify y no
-  // casan con lo que enseñan las listas (canónicos de merge, colecciones, créditos
-  // corregidos), que el servidor resuelve en liveIds. Tema y álbum suman los crudos
+  // ¿suena esta fila? trackId/albumId/artistIds son los ids sin resolver y no casan
+  // con lo que enseñan las listas (canónicos de merge, colecciones), que el servidor
+  // resuelve en liveIds. Tema y álbum suman los crudos
   // porque la página del crudo también cuenta el play; los artistas los REEMPLAZAN,
   // porque una corrección de créditos también quita
   isLive: (type: EntityType, id: string | null | undefined): boolean => {
@@ -406,8 +453,13 @@ export const nowPlayingStore = {
   stopPolling,
   pollLive,
   refreshIfStale,
+  refreshAfterCreditChange,
   refreshAfterPlayback,
   playContext,
+  togglePlay,
+  next: () => skip('next'),
+  previous: () => skip('previous'),
+  get acting() { return _acting; },
   toggleLike,
   setVolume,
   checkLiked: (trackId: string) => { _lastCheckedTrackId = null; checkLiked(trackId); },

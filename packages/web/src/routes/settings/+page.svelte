@@ -830,7 +830,7 @@
         <div class="pref-row pref-row--stack">
           <div class="pref-info">
             <div class="pref-label">Sections layout</div>
-            <div class="pref-desc">Drag to reorder or move sections between columns; the eye hides a section. Applies to the dashboard and every artist, album or track page.</div>
+            <div class="pref-desc">Dashboard: your widgets, their size and settings (also editable in place with Edit widgets, or W, on the dashboard). Artist, album and track pages: drag to reorder or move sections between columns; the eye hides a section.</div>
           </div>
           <DetailLayoutEditor />
         </div>
@@ -923,18 +923,18 @@
     <div class="card prefs-card">
       <div class="prefs-subtitle">Connections</div>
       <div class="section-list">
-        {#if native}
-          <div class="pref-row">
-            <div class="pref-info">
-              <div class="pref-label lastfm-label"><IconWifi size={16} /> Instance</div>
-              <div class="pref-desc">Connected to <strong>{instanceLabel()}</strong> — the server this app reads and writes</div>
-            </div>
-            <div class="pref-control lastfm-control">
-              <a href="/connect" class="action-btn">Change</a>
-            </div>
+        <!-- sis es autoalojado: la fila dice a qué servidor hablas también en web, donde no se cambia -->
+        <div class="pref-row">
+          <div class="pref-info">
+            <div class="pref-label lastfm-label"><IconWifi size={16} /> Instance</div>
+            <div class="pref-desc">Connected to <strong>{instanceLabel()}</strong> — the self-hosted sis server that stores your data</div>
           </div>
-        {/if}
-        <div class="pref-row" class:row-border={native}>
+          <div class="pref-control lastfm-control">
+            <a href="/guide" class="action-btn action-btn--secondary">Guide</a>
+            {#if native}<a href="/connect" class="action-btn">Change</a>{/if}
+          </div>
+        </div>
+        <div class="pref-row row-border">
           <div class="pref-info">
             <div class="pref-label lastfm-label"><IconSpotify size={16} /> Spotify</div>
             <div class="pref-desc">

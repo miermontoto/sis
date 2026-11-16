@@ -8,6 +8,8 @@ import type {
 // clases Group distintas con miembros privados), así que no son intercambiables
 import type { ECElementEvent } from 'echarts/core';
 import { canvasColors } from '$lib/stores/theme.svelte';
+import type { RankingMetric } from '$lib/api';
+import { formatNumber } from './format';
 
 // El formatter de tooltip recibe un punto suelto o un array de puntos según el
 // trigger ('item' vs 'axis'), y esa unión es la razón por la que los call sites
@@ -213,6 +215,38 @@ export function secondaryValueAxis({ axisLabel, ...overrides }: Record<string, a
 // insights usan la segunda forma para atenuar el punto "en curso"; declarar los
 // helpers como number[] obligaba a castear en cada llamada.
 // null es un hueco: echarts no pinta ese punto (una línea de ranking antes del primer play)
+// los ejes de tiempo se pintan en la unidad de su etiqueta: en ms, echarts elegía ticks
+// redondos en ms y salían "16.667 min". Desde 10h el eje pasa a horas
+const MINUTE_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const HOUR_AXIS_FROM_MS = 10 * HOUR_MS;
+
+/** unidad de un eje: divisor del valor crudo y su etiqueta */
+export interface AxisScale { div: number; label: (v: number) => string }
+
+export function metricAxisScale(max: number, metric: RankingMetric): AxisScale {
+  if (metric === 'plays') return { div: 1, label: v => formatNumber(v) };
+  return max >= HOUR_AXIS_FROM_MS
+    ? { div: HOUR_MS, label: v => `${formatNumber(v)}h` }
+    : { div: MINUTE_MS, label: v => `${formatNumber(v)} min` };
+}
+
+// un eje log con el techo en #1 (siempre primero) degenera en una sola línea
+const RANK_AXIS_MIN_MAX = 10;
+
+/** eje de posiciones: log e invertido, con el #1 arriba. Es una función porque lee colores
+ *  del tema: se llama dentro del $derived de la opción, no como constante de módulo */
+export function rankAxis(): SingleYAxis {
+  return {
+    type: 'log',
+    inverse: true,
+    min: 1,
+    max: ({ max }: { max: number }) => Math.max(RANK_AXIS_MIN_MAX, 10 ** Math.ceil(Math.log10(max))),
+    splitLine: { ...SPLIT_LINE },
+    axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `#${Math.round(v)}` },
+  };
+}
+
 export type SeriesDataPoint = number | null | { value: number; itemStyle?: Record<string, unknown> };
 
 // --- Adaptación de densidad temporal ---

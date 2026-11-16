@@ -4,9 +4,9 @@ import { createPwaOptions, createWebConfig } from '@platform/config/vite';
 // createPwaOptions devuelve una union (generateSW | injectManifest); en la rama
 // generateSW (la nuestra) existe `workbox`. se tipa laxo para poder aumentarlo.
 const pwa: Record<string, any> = createPwaOptions({
-  name: 'sis — Spotify Stats',
+  name: 'sis — self-hosted listening stats',
   shortName: 'sis',
-  description: 'Personal Spotify listening statistics',
+  description: 'Self-hosted Spotify listening stats: every play logged on your own server',
   themeColor: '#080a0c',
   // el maskable va a sangre (el launcher recorta su propia forma); los 'any' llevan esquinas
   icons: [

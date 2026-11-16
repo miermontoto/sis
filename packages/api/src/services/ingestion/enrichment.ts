@@ -6,10 +6,12 @@ import { artists, albums, tracks } from '../../db/schema.js';
 import { reconcileTrackArtists, pickAlbumCover, SPOTIFY_VIDEO_IMAGE_TYPE } from './upsert.js';
 import { spotifyFetch } from '../spotify-client.js';
 import type { SpotifyArtistsBatchResponse, SpotifyAlbumsBatchResponse, SpotifyAlbumTracksResponse, SpotifyArtistAlbumsResponse } from '../../types/spotify.js';
-import { MB_API_BASE, MB_DELAY_MS, MB_MIN_SCORE, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE, ALBUM_TRACKLIST_RECHECK_MS } from '../../constants.js';
+import { MB_DELAY_MS, MB_MIN_SCORE, TRACK_DURATION_PENDING, TRACK_DURATION_NOT_FOUND, ARTIST_IMAGE_MAX_PER_CYCLE, ARTIST_BATCH_SIZE, ALBUM_TRACKLIST_RECHECK_MS } from '../../constants.js';
+import { withoutRemasterSuffix } from '@sis/shared';
 import { createLogger } from '../logger.js';
-import { serviceUserAgent } from '../public-origin.js';
-import { searchVerifiedRecording } from './identity.js';
+import { isTransientStatus } from '../http-retry.js';
+import { syntheticIdPredicate } from '../ids.js';
+import { mbFetch, searchVerifiedRecording } from './identity.js';
 
 const log = createLogger('metadata');
 const now = () => new Date().toISOString();
@@ -365,25 +367,21 @@ export async function recoverSingleCovers(userId: number) {
 
 const CAA_BASE = 'https://coverartarchive.org';
 
+// devuelve el valor de albums.image_url: la portada, '' = buscada sin resultado, o null =
+// sin respuesta. un fallo transitorio no puede ser '': es definitivo y el álbum no volvía a buscarse
 async function fetchMusicBrainzCover(artistName: string, albumName: string, albumId: string): Promise<string | null> {
   // buscar release en MusicBrainz
   const query = `release:${albumName} AND artist:${artistName}`;
-  const url = `${MB_API_BASE}/release?query=${encodeURIComponent(query)}&fmt=json&limit=1`;
+  const data = await mbFetch<{ releases?: { id: string; score: number }[] }>(`/release?query=${encodeURIComponent(query)}&fmt=json&limit=1`);
+  if (!data) return null;
 
-  const res = await fetch(url, {
-    headers: { 'User-Agent': serviceUserAgent(), 'Accept': 'application/json' },
-  });
-
-  if (!res.ok) return null;
-
-  const data = await res.json() as { releases?: { id: string; score: number }[] };
   const release = data.releases?.[0];
-  if (!release || release.score < MB_MIN_SCORE) return null;
+  if (!release || release.score < MB_MIN_SCORE) return '';
 
   // descargar portada desde Cover Art Archive
   const caaUrl = `${CAA_BASE}/release/${release.id}/front`;
   const caaRes = await fetch(caaUrl, { redirect: 'follow' });
-  if (!caaRes.ok) return null;
+  if (!caaRes.ok) return isTransientStatus(caaRes.status) ? null : '';
 
   const contentType = caaRes.headers.get('content-type') ?? 'image/jpeg';
   const ext = contentType.includes('png') ? 'png' : 'jpg';
@@ -398,10 +396,17 @@ async function fetchMusicBrainzCover(artistName: string, albumName: string, albu
 
 export async function enrichLocalAlbumCovers() {
   const db = getDb();
-  // image_url NULL = no buscado aún, '' = buscado sin resultado
-  const missing = db.all(
-    sql`SELECT spotify_id, name FROM albums WHERE image_url IS NULL AND (spotify_id LIKE 'local:%' OR spotify_id LIKE 'import:%')`
-  ) as { spotify_id: string; name: string }[];
+  // image_url NULL = no buscado aún, '' = buscado sin resultado. sólo álbumes con algún tema
+  // acreditado: sin artista no hay búsqueda posible, y contarlos repetía el aviso cada pasada
+  const missing = db.all(sql`
+    SELECT al.spotify_id, al.name, a.name AS artist_name
+    FROM albums al
+    JOIN tracks t ON t.album_id = al.spotify_id
+    JOIN track_artists ta ON ta.track_id = t.spotify_id
+    JOIN artists a ON a.spotify_id = ta.artist_id
+    WHERE al.image_url IS NULL AND ${syntheticIdPredicate('al.spotify_id')}
+    GROUP BY al.spotify_id
+  `) as { spotify_id: string; name: string; artist_name: string }[];
 
   if (missing.length === 0) return;
   log.info(`${missing.length} álbumes locales sin portada, buscando en MusicBrainz...`);
@@ -409,28 +414,20 @@ export async function enrichLocalAlbumCovers() {
   let updated = 0;
 
   for (const album of missing) {
-    // obtener el artista principal del álbum
-    const artist = db.get(sql`
-      SELECT a.name FROM artists a
-      JOIN track_artists ta ON ta.artist_id = a.spotify_id
-      JOIN tracks t ON t.spotify_id = ta.track_id
-      WHERE t.album_id = ${album.spotify_id}
-      LIMIT 1
-    `) as { name: string } | undefined;
-
-    if (!artist) continue;
-
     try {
-      const coverUrl = await fetchMusicBrainzCover(artist.name, album.name, album.spotify_id);
-      // guardar resultado (URL o '' para marcar como buscado sin resultado)
-      db.update(albums)
-        .set({ imageUrl: coverUrl ?? '', updatedAt: now() })
-        .where(sql`spotify_id = ${album.spotify_id}`)
-        .run();
+      const coverUrl = await fetchMusicBrainzCover(album.artist_name, album.name, album.spotify_id);
+      // guardar resultado (URL o '' para marcar como buscado sin resultado). sin respuesta
+      // sigue en NULL y vuelve en la siguiente pasada
+      if (coverUrl !== null) {
+        db.update(albums)
+          .set({ imageUrl: coverUrl, updatedAt: now() })
+          .where(sql`spotify_id = ${album.spotify_id}`)
+          .run();
+      }
       if (coverUrl) {
         db.run(sql`INSERT OR IGNORE INTO album_covers (album_id, image_url, source) VALUES (${album.spotify_id}, ${coverUrl}, 'musicbrainz')`);
         updated++;
-        log.info(`portada encontrada: ${artist.name} - ${album.name}`);
+        log.info(`portada encontrada: ${album.artist_name} - ${album.name}`);
       }
     } catch (err) {
       log.error(`error buscando portada de "${album.name}":`, err);
@@ -442,40 +439,65 @@ export async function enrichLocalAlbumCovers() {
   log.info(`${updated} álbumes locales actualizados con portada`);
 }
 
-export async function enrichImportTrackDurations() {
-  const db = getDb();
-  const missing = db.all(sql`
+// la cola de duraciones, una sola para last.fm y musicbrainz. estaba escrita dos veces y sólo
+// la de last.fm (2026-07) excluía el -1: la de musicbrainz, de mayo, volvía a preguntar en
+// cada pasada por todo lo que ya había dado por perdido
+export function tracksPendingDuration() {
+  return getDb().all(sql`
     SELECT t.spotify_id, t.name, a.name as artist_name
     FROM tracks t
     JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
     JOIN artists a ON a.spotify_id = ta.artist_id
-    WHERE t.duration_ms <= 0 AND (t.spotify_id LIKE 'import:%' OR t.spotify_id LIKE 'local:%')
+    WHERE t.duration_ms = ${TRACK_DURATION_PENDING} AND ${syntheticIdPredicate('t.spotify_id')}
   `) as { spotify_id: string; name: string; artist_name: string }[];
+}
+
+// null = sin respuesta. la segunda búsqueda, por el título sin remasterizar, no aporta mbid:
+// en musicbrainz la remasterización suele ser otra grabación y un mbid de más acaba en un
+// merge físico, pero su duración sí vale para la misma toma
+async function searchTrackDuration(name: string, artistName: string): Promise<{ mbid?: string; lengthMs?: number } | null> {
+  const exact = await searchVerifiedRecording(name, artistName);
+  if (!exact) return null;
+  if (exact.recording) return { mbid: exact.recording.id, lengthMs: exact.recording.length };
+
+  const base = withoutRemasterSuffix(name);
+  if (base === name) return {};
+  await sleep(MB_DELAY_MS);
+  const remaster = await searchVerifiedRecording(base, artistName);
+  return remaster && { lengthMs: remaster.recording?.length };
+}
+
+export async function enrichImportTrackDurations() {
+  const db = getDb();
+  const missing = tracksPendingDuration();
 
   if (missing.length === 0) return;
   log.info(`${missing.length} tracks importados sin duración, buscando en MusicBrainz...`);
 
   let updated = 0;
+  let unanswered = 0;
   for (const track of missing) {
     try {
       // la misma búsqueda verificada que la identidad (título Y crédito, frases citadas):
       // el top hit por score era a menudo otro tema, y su mbid acababa en un merge físico
-      const result = await searchVerifiedRecording(track.name, track.artist_name);
+      const found = await searchTrackDuration(track.name, track.artist_name);
 
-      if (result) {
-        const matched = result.recording;
+      if (found) {
         // identidad gratis: la búsqueda ya está pagada, capturar el mbid del match
         // aunque no traiga length (la acreción nunca pisa un mbid previo)
-        if (matched) {
-          db.run(sql`UPDATE tracks SET mbid = COALESCE(mbid, ${matched.id}) WHERE spotify_id = ${track.spotify_id}`);
+        if (found.mbid) {
+          db.run(sql`UPDATE tracks SET mbid = COALESCE(mbid, ${found.mbid}) WHERE spotify_id = ${track.spotify_id}`);
         }
-        if (matched?.length) {
-          db.run(sql`UPDATE tracks SET duration_ms = ${matched.length}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
+        if (found.lengthMs) {
+          db.run(sql`UPDATE tracks SET duration_ms = ${found.lengthMs}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
           updated++;
-          log.info(`duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(matched.length / 1000)}s)`);
+          log.info(`duración encontrada: ${track.artist_name} - ${track.name} (${Math.round(found.lengthMs / 1000)}s)`);
         } else {
-          db.run(sql`UPDATE tracks SET duration_ms = -1, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
+          db.run(sql`UPDATE tracks SET duration_ms = ${TRACK_DURATION_NOT_FOUND}, updated_at = ${now()} WHERE spotify_id = ${track.spotify_id}`);
         }
+      } else {
+        // sin respuesta: sigue pendiente, sin marcar, para la siguiente pasada
+        unanswered++;
       }
     } catch (err) {
       log.error(`error buscando duración de "${track.name}":`, err);
@@ -484,5 +506,5 @@ export async function enrichImportTrackDurations() {
     await sleep(MB_DELAY_MS);
   }
 
-  log.info(`${updated} tracks importados actualizados con duración`);
+  log.info(`${updated} tracks importados actualizados con duración${unanswered ? `, ${unanswered} sin respuesta de musicbrainz` : ''}`);
 }

@@ -453,7 +453,7 @@
           <div class="chart-art" class:chart-art--round={activeType === 'artists'}></div>
         {/if}
         <div class="chart-info">
-          <div class="chart-name">{entry.name}<CollectionBadge id={entry.entityId} /></div>
+          <div class="chart-name"><span class="chart-name-text">{entry.name}</span><CollectionBadge id={entry.entityId} /></div>
           {#if entry.artists?.length}
             <!-- svelte-ignore node_invalid_placement_ssr -->
             <div class="chart-artists">
@@ -519,7 +519,7 @@
             <div class="chart-art" class:chart-art--round={activeType === 'artists'}></div>
           {/if}
           <div class="chart-info">
-            <div class="chart-name">{d.name}</div>
+            <div class="chart-name"><span class="chart-name-text">{d.name}</span></div>
             {#if d.artists?.length}
               <!-- svelte-ignore node_invalid_placement_ssr -->
               <div class="chart-artists">
@@ -727,6 +727,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* el nombre va en su propio span: dentro del flex (por el badge de colección) el texto
+     suelto se cortaba en seco, sin puntos suspensivos */
+  .chart-name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   /* la línea entera trunca; cada artista es un link inline dentro */
   .chart-artists {
     font-size: var(--fs-sm);
@@ -843,6 +849,57 @@
   @media (max-width: 640px) {
     .period-date-label {
       display: none;
+    }
+  }
+  /* móvil: con seis columnas en una línea el nombre se quedaba en ~70px. el pico y las
+     semanas bajan a un segundo renglón bajo nombre y artistas, en línea ("#1 PEAK  25
+     WKS"); nombre y cifras siguen emparejados arriba. no se pierde ninguna */
+  @media (max-width: 768px) {
+    .chart-item {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        'rank art info  meta'
+        'rank art stats stats';
+      column-gap: 0.6rem;
+      row-gap: 0.2rem;
+      padding: 0.5rem;
+    }
+    .chart-rank-col {
+      grid-area: rank;
+      width: 2rem;
+    }
+    .chart-art-wrap,
+    .chart-item > .chart-art {
+      grid-area: art;
+    }
+    .chart-info {
+      grid-area: info;
+    }
+    .chart-meta {
+      grid-area: meta;
+    }
+    .chart-stats {
+      grid-area: stats;
+      gap: 0.75rem;
+    }
+    .chart-stat,
+    .chart-stat :global(.peak-trigger) {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 0.25rem;
+      height: auto;
+      min-width: 0;
+    }
+    .chart-stat-val,
+    .chart-stat :global(.peak-val) {
+      font-size: var(--fs-sm);
+    }
+    .chart-peak-badge {
+      width: auto;
+      min-width: 0;
+      height: auto;
+      padding: 0 0.35rem;
     }
   }
 </style>

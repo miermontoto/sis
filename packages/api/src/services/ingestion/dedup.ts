@@ -724,6 +724,16 @@ export function cleanStaleShortDurations() {
   logCleanup.info(`${ids.length} duraciones fantasma (<${MIN_PLAY_MS / 1000}s en plays completos) puestas a NULL`);
 }
 
+// qué tabla respalda cada tipo del índice. las playlists van por su id numérico, y nadie más
+// limpia las borradas: su sync sólo reescribe las que siguen existiendo
+const SEARCH_INDEX_ENTITIES = [
+  { type: 'track', table: 'tracks', id: 'spotify_id' },
+  { type: 'album', table: 'albums', id: 'spotify_id' },
+  { type: 'artist', table: 'artists', id: 'spotify_id' },
+  { type: 'playlist_library', table: 'spotify_playlists', id: 'CAST(id AS TEXT)' },
+  { type: 'playlist_generated', table: 'generated_playlists', id: 'CAST(id AS TEXT)' },
+] as const;
+
 // limpiar del índice FTS las entradas de entidades ya borradas. no se hace dentro de
 // reassignTrackRefs/reassignAlbumRefs porque entity_id es UNINDEXED en la tabla fts5:
 // un DELETE sin MATCH la recorre entera (24ms sobre 89k filas), y por merge eso convertía
@@ -732,9 +742,9 @@ export function cleanStaleShortDurations() {
 // huérfana nunca se vio: esto es higiene, no un bug de cara al usuario.
 export function pruneOrphanSearchIndex() {
   const db = getDb();
-  const removed = ['track', 'album', 'artist'].reduce((n, type) => n + db.run(sql`
+  const removed = SEARCH_INDEX_ENTITIES.reduce((n, { type, table, id }) => n + db.run(sql`
     DELETE FROM search_index WHERE entity_type = ${type}
-      AND entity_id NOT IN (SELECT spotify_id FROM ${sql.raw(type === 'artist' ? 'artists' : type + 's')})
+      AND entity_id NOT IN (SELECT ${sql.raw(id)} FROM ${sql.raw(table)})
   `).changes, 0);
 
   if (removed > 0) logDedup.info(`${removed} entradas huérfanas purgadas del índice FTS`);

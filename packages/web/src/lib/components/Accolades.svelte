@@ -8,7 +8,8 @@
   import { api, createFetchController, getWeekStart, ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES, type Accolade, type ConcertRef, type EntityType, type RankingMetric, type WeekStartOption } from '$lib/api';
   import HoverPopover from '$lib/components/HoverPopover.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
-  import { formatCalendarDate, formatDuration, formatNumber } from '$lib/utils/format';
+  import { formatCalendarDate } from '$lib/utils/format';
+  import { accoladeLabel, accoladeMedal, formatAccoladeValue } from '$lib/utils/accolades';
   import { toIsoDate, weekDateRange } from '$lib/utils/periods';
 
   let {
@@ -59,58 +60,7 @@
   let open = $state(false);
   const fetchCtrl = createFetchController();
 
-  const labels: Record<string, string> = {
-    peakWeek: 'Peak week',
-    dominance: 'Dominance',
-    biggestDebut: 'Biggest debut',
-    weeksAtNo1: 'Weeks at #1',
-    bubblingUnder: 'Bubbling under',
-    weeksInChart: 'Weeks in charts',
-    longestRun: 'Longest chart run',
-    avgYearFinish: 'Avg year-end finish',
-    mostNo1Tracks: '#1 tracks',
-    mostNo1Albums: '#1 albums',
-    inMostPlaylists: 'In most playlists',
-    longestGap: 'Longest gap',
-    goldenOldies: 'Golden oldie',
-    latestDiscoveries: 'Latest discovery',
-    mostDistinctTracks: 'Distinct tracks',
-    oneHitWonders: 'One-hit wonder',
-    mostAccolades: 'Most records',
-    mostConcerts: 'Seen live',
-    mostHeardLive: 'Heard live',
-  };
-
-  function labelFor(a: Accolade): string {
-    if (a.type === 'yearEnd' && a.year != null) return `${a.year} year-end`;
-    return labels[a.type] ?? a.type;
-  }
-
-
-  function medal(rank: number): string {
-    if (rank === 1) return '\u{1F947}';
-    if (rank === 2) return '\u{1F948}';
-    if (rank === 3) return '\u{1F949}';
-    return `#${rank}`;
-  }
-
-  function formatValue(a: Accolade): string {
-    if (a.type === 'inMostPlaylists') return `${a.value} playlist${a.value !== 1 ? 's' : ''}`;
-    if (a.type === 'weeksAtNo1' || a.type === 'weeksInChart' || a.type === 'longestRun') return `${a.value} wk${a.value !== 1 ? 's' : ''}`;
-    if (a.type === 'mostNo1Tracks' || a.type === 'mostNo1Albums' || a.type === 'mostAccolades') return String(a.value);
-    if (a.type === 'longestGap') return `${formatNumber(a.value)} day${a.value !== 1 ? 's' : ''}`;
-    if (a.type === 'dominance') return `${a.value.toFixed(1)}%`;
-    if (a.type === 'avgYearFinish') return `avg #${a.value.toFixed(1)}`;
-    if (a.type === 'mostDistinctTracks') return `${a.value} track${a.value !== 1 ? 's' : ''}`;
-    if (a.type === 'mostConcerts' || a.type === 'mostHeardLive') return `${a.value} show${a.value !== 1 ? 's' : ''}`;
-    if (a.type === 'goldenOldies' ||
-        a.type === 'latestDiscoveries' ||
-        a.type === 'oneHitWonders') {
-      return `${formatNumber(a.value)} plays`;
-    }
-    if (metric === 'plays') return `${formatNumber(a.value)} plays`;
-    return formatDuration(a.value);
-  }
+  const formatValue = (a: Accolade) => formatAccoladeValue(a, metric);
 
   // el record de directo (nº de bolos) se pinta en la cabecera de la sección de
   // conciertos, no como una fila más: ahí abajo están esos mismos bolos listados y
@@ -180,8 +130,8 @@
 </script>
 
 {#snippet medalLabel(a: Accolade)}
-  <span class="popover-medal" class:popover-medal--text={a.rank > 3}>{medal(a.rank)}</span>
-  <span class="popover-label">{labelFor(a)}</span>
+  <span class="popover-medal" class:popover-medal--text={a.rank > 3}>{accoladeMedal(a.rank)}</span>
+  <span class="popover-label">{accoladeLabel(a)}</span>
 {/snippet}
 
 <!-- los bolos no se esperan: vienen con el detalle, así que el badge ya puede
@@ -191,7 +141,7 @@
     {#snippet trigger()}
       {#each triggerPreview as g}
         <span class="trigger-medal" class:trigger-medal--text={g.rank > 3}>
-          {medal(g.rank)}{#if g.count > 1}<span class="trigger-times">×{g.count}</span>{/if}
+          {accoladeMedal(g.rank)}{#if g.count > 1}<span class="trigger-times">×{g.count}</span>{/if}
         </span>
       {/each}
       {#if triggerOverflow > 0}<span class="trigger-more">+{triggerOverflow}</span>{/if}
@@ -233,7 +183,7 @@
       <div class="popover-pills">
         {#each yearEndGroups as g}
           <span class="popover-pill" class:popover-pill--text={g.rank > 3}>
-            <span class="pill-medal">{medal(g.rank)}</span>
+            <span class="pill-medal">{accoladeMedal(g.rank)}</span>
             {#if g.years.length > 1}<span class="pill-count">×{g.years.length}</span>{/if}
             <span class="pill-years">{#each g.years as year, yi}{#if yi > 0},{' '}{/if}<a href={topRangeHref(`${year}-01-01`, `${year}-12-31`)} class="pill-year-link">{year}</a>{/each}</span>
           </span>
@@ -245,7 +195,7 @@
       <div class="popover-title live-title" class:popover-title--gap={regularAccolades.length > 0 || yearEndGroups.length > 0}>
         <span>{liveVerb}</span>
         {#if liveAccolade}
-          <a class="live-title-rank" href={recordsHref(liveAccolade)}>{medal(liveAccolade.rank)} {formatValue(liveAccolade)}</a>
+          <a class="live-title-rank" href={recordsHref(liveAccolade)}>{accoladeMedal(liveAccolade.rank)} {formatValue(liveAccolade)}</a>
         {/if}
       </div>
       <ul class="popover-list">

@@ -6,13 +6,14 @@
   import '@platform/ui/base.css';
   import '../app.css';
   import { nativeTabBar, NATIVE_TABRAIL_CLASS, type NativeTabAnchor } from '@platform/mobile/native-tab-bar';
-  import { MediaQuery } from 'svelte/reactivity';
+  import { mobileLayout, MOBILE_QUERY } from '$lib/stores/mobile-layout.svelte';
   // el store del tema vive desde el arranque: es quien sigue al sistema (y a otras
   // pestañas) cuando la preferencia es 'system'
   import '$lib/stores/theme.svelte';
   import { page } from '$app/state';
   import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
   import { trackNavigations } from '@platform/observability/browser';
+  import { restoreScrollOnPopstate } from '$lib/utils/scroll-restore';
   import type { Snippet } from 'svelte';
   import SearchModal from '$lib/components/SearchModal.svelte';
   import NowPlaying from '$lib/components/NowPlaying.svelte';
@@ -29,6 +30,7 @@
   import { NAV_GROUPS } from '$lib/nav';
   import { apiBase, api, invalidateHistoryBoundCache, loadSettings, getNowPlayingDisplay, onNowPlayingDisplayChange, getSessionTrackingDisplay, onSessionTrackingDisplayChange, getSidebarCollapsed, setSidebarCollapsed, onSidebarCollapsedChange, type MeResponse, type NowPlayingDisplay, type SessionTrackingDisplay } from '$lib/api';
   import { nowPlayingStore } from '$lib/stores/now-playing.svelte';
+  import { creditsModal } from '$lib/stores/credits-modal.svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
   import { playUpdatesStore } from '$lib/stores/play-updates.svelte';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
@@ -41,6 +43,8 @@
   import IconMenuDots from '$lib/icons/IconMenuDots.svelte';
   import { mergeModal } from '$lib/stores/merge-modal.svelte';
   import { collectionModal } from '$lib/stores/collection-modal.svelte';
+  import { artistCompare } from '$lib/stores/artist-compare.svelte';
+  import { pickedVersusHref } from '$lib/utils/artist-versus';
   import { collectionsStore } from '$lib/stores/collections.svelte';
   import { relateModal } from '$lib/stores/relate-modal.svelte';
   import { shortcutStore } from '$lib/stores/keyboard-shortcuts.svelte';
@@ -76,6 +80,18 @@
     if (!collectionModalShow && collectionModal.target) collectionModal.close();
   });
 
+  // buscador de "comparar con…". `kept` se fija aquí y no con un {@const} en el template: el
+  // {@const} es un derived que relee el store, y el buscador se cierra (target a null) antes
+  // de llamar a onPick
+  let comparePick = $derived.by(() => {
+    const kept = artistCompare.target;
+    return kept && {
+      types: ['artist' as const],
+      placeholder: `Compare ${kept.name} with…`,
+      onPick: (entity: { id: string }) => goto(pickedVersusHref(kept, entity.id)),
+    };
+  });
+
   // ídem para el modal de relaciones soft entre artistas
   let relateModalShow = $state(false);
   $effect(() => {
@@ -86,9 +102,14 @@
   });
 
   const CONNECT_ROUTE = '/connect';
+  // vistas de contenido estático: no hablan con la api, así que en el apk tampoco
+  // necesitan instancia (el picker enlaza a la guía antes de que haya servidor)
+  const STATIC_ROUTES = new Set(['/guide', '/privacy', '/support']);
 
   // spans de carga y de cada navegación: los fetch de sus load cuelgan de ellos en la traza
   trackNavigations({ beforeNavigate, afterNavigate });
+  // atrás/adelante: la posición guardada se aplica cuando la vista ya ha cargado
+  restoreScrollOnPopstate({ beforeNavigate, afterNavigate });
 
   let { children }: { children: Snippet } = $props();
   let authChecked = $state(false);
@@ -213,6 +234,11 @@
   function refreshNowPlayingOnFocus() {
     if (document.visibilityState === 'visible') nowPlayingStore.refreshIfStale();
   }
+
+  // la tarjeta vive en el layout y no remonta: corregir unos créditos tiene que releerla
+  $effect(() => {
+    if (creditsModal.changeVersion) untrack(() => nowPlayingStore.refreshAfterCreditChange());
+  });
 
   $effect(() => {
     if (sessionTrackingDisplay === 'off') return;
@@ -343,16 +369,17 @@
   });
 
   // rutas sin chrome ni auth gate: login + picker de instancia (apk) + vistas
-  // públicas de share links + privacidad y soporte (deben ser accesibles sin
-  // sesión: las stores exigen ambas urls)
+  // públicas de share links + guía, privacidad y soporte (deben ser accesibles sin
+  // sesión: las stores exigen las urls de soporte y privacidad, y la guía es su
+  // marketing url)
   function isBareRoute(pathname: string): boolean {
-    return pathname === '/login' || pathname === CONNECT_ROUTE || pathname === '/privacy' || pathname === '/support' || pathname.startsWith('/s/');
+    return pathname === '/login' || pathname === CONNECT_ROUTE || STATIC_ROUTES.has(pathname) || pathname.startsWith('/s/');
   }
 
   $effect(() => {
     // apk sin instancia elegida: nada tiene a quién preguntar, ni el login.
     // va antes que el gate de auth porque /login también es bare
-    if (!hasInstance() && page.url.pathname !== CONNECT_ROUTE) {
+    if (!hasInstance() && page.url.pathname !== CONNECT_ROUTE && !STATIC_ROUTES.has(page.url.pathname)) {
       goto(CONNECT_ROUTE);
       return;
     }
@@ -416,10 +443,8 @@
   // iPhone Duo, también con el layout de escritorio), una por grupo con su sf symbol (solo símbolos
   // de ios <= 15, el deployment target). id = label del grupo: el toque hace lo mismo que el de la
   // pestaña web (navegar o abrir el desplegable del grupo). la barra web queda oculta (app.css).
-  // misma query que el @media del layout móvil de app.css
-  const MOBILE_QUERY = '(max-width: 768px)';
+  // compactQuery es MOBILE_QUERY (stores/mobile-layout), la del @media del layout móvil de app.css
   const nativeTabs = mobileNavGroups.map(g => ({ id: g.label, title: g.label, symbol: g.symbol }));
-  const mobileLayout = new MediaQuery(MOBILE_QUERY);
 
   // rail del Duo (html.native-tabrail, lo pone y lo quita la acción nativeTabBar al
   // girar, abrir o plegar): con la nav en el rail, el sidebar de escritorio se queda
@@ -722,6 +747,10 @@
     </main>
   </div>
   <SearchModal bind:show={showSearch} />
+  <!-- el buscador en modo pick elige con quién comparar; se monta sólo mientras está abierto -->
+  {#if comparePick}
+    <SearchModal bind:show={() => true, open => { if (!open) artistCompare.close(); }} pick={comparePick} />
+  {/if}
   <KeyboardShortcutsHelp />
   <ContextMenu />
   <PlaylistPicker />

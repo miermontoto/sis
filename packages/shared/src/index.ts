@@ -6,6 +6,7 @@ export type { TopTrackItem, TopArtistItem, TopAlbumItem } from './top.js';
 
 // estadísticas
 export type { ListeningTimeItem, HeatmapItem, StreaksData, GenreItem, DiscoveryItem, MonthlyDistributionItem } from './stats.js';
+export type { MemoryYear, MemoryAnniversary, MemoriesResponse } from './memories.js';
 
 // historial
 export type { HistoryItem, HistoryResponse, HistorySource } from './history.js';
@@ -19,11 +20,11 @@ export type { RankingMetric, WeekStartOption, Granularity, EntityType, DateRange
 export { LOCALE_OPTIONS } from './settings.js';
 
 // constantes compartidas
-export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, TOP_PAGE_LIMIT, INSIGHTS_GENRES_LIMIT, DEFAULT_TIME_RANGE, isTimeRange, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS, UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR, CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS, CONCERT_YEAR_OPTIONS, SETLISTFM_AUTO_PAGES, MILESTONE_THRESHOLDS, nextMilestone, PLAYLIST_MEMBERSHIP_MAX_IDS } from './constants.js';
+export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, TOP_PAGE_LIMIT, INSIGHTS_GENRES_LIMIT, DEFAULT_TIME_RANGE, isTimeRange, ALBUM_RATING_MIN, ALBUM_RATING_MAX, ALBUM_REVIEW_MAX_CHARS, UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR, CONCERT_TEXT_MAX_CHARS, CONCERT_NOTES_MAX_CHARS, CONCERT_YEAR_OPTIONS, SETLISTFM_AUTO_PAGES, MILESTONE_THRESHOLDS, nextMilestone, previousMilestone, PLAYLIST_MEMBERSHIP_MAX_IDS } from './constants.js';
 export type { TimeRange } from './constants.js';
 
 // detalle de entidades
-export type { Rankings, ArtistScopedRank, ArtistDetail, ArtistImage, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, ReleaseEvent, AlbumSingle } from './detail.js';
+export type { Rankings, ArtistScopedRank, ArtistDetail, ArtistOverlap, ArtistImage, AlbumDetail, AlbumCover, AlbumRating, TrackDetail, ReleaseEvent, AlbumSingle } from './detail.js';
 
 // clasificación de entidades de artista de setlist.fm (cartel propio vs invitado)
 export { classifySetlistfmBilling, acceptedSetlistfmArtists } from './setlistfm-artists.js';
@@ -44,11 +45,11 @@ export type { NotificationType, DevicePlatform, PushPayload, DeviceTokenRecord, 
 export type { ChartEntry, DropoutEntry, ChartResponse, ChartPeak, ChartPeakStats, RankingHistoryPoint, RankingHistoryPointWithCrossovers, RankingsWithHistory, CrossoverEntity, RankingCrossovers, ChartHistoryResponse } from './charts.js';
 
 // records
-export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish, YearRank } from './records.js';
+export type { RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData, RecordsResponse, PlaylistPresenceItem, MonthCountEntry, YearEndFinish, YearRank, AlbumRank } from './records.js';
 
 // accolades
 export type { Accolade, AccoladesResponse } from './accolades.js';
-export { ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES } from './accolades.js';
+export { ACCOLADE_RECORD_KEYS, WEEK_SCOPED_ACCOLADES, topDistinctEntries } from './accolades.js';
 
 // búsqueda
 export type { SearchResults } from './search.js';
@@ -65,7 +66,7 @@ export { parseSpotifyAlbumId, upcomingContains, itunesPreorders, itunesTracks } 
 export type { UpcomingTrack, UpcomingRef, UpcomingLinkResult, ItunesPreorder } from './upcoming.js';
 
 // merge
-export type { MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
+export type { MergeRule, MergeSource, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, AlbumMergeTrack, AlbumMergeMatch, RemergeConfidence, RemergePreview, RemergePreviewPair, BulkRemergeAlbum, BulkRemergePreview, MergeImpact, MergeImpactItem, MakeCanonicalResult, BatchMergeResult } from './merge.js';
 
 // colecciones ("álbumes lógicos"): agregan álbumes y temas de un artista y
 // sustituyen a sus miembros en los rankings
@@ -90,7 +91,7 @@ export type { ProfileSummary, SocialNowPlaying, ProfileResponse, SharedRankedIte
 export { SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS } from './constants.js';
 
 // consultas a musicbrainz (query lucene citada + comparación de títulos)
-export { mbRecordingQuery, normalizeTitle, sameTitle } from './musicbrainz.js';
+export { mbRecordingQuery, normalizeTitle, sameTitle, withoutRemasterSuffix } from './musicbrainz.js';
 
 // modelo de periodo (etiquetas y límites compartidos con los charts)
 export { periodForDate, periodBounds, adjacentPeriod, isClosedPeriod, isGranularity, isPeriodKey, WEEK_START_SHIFT_DAYS, weekShiftModifier } from './periods.js';

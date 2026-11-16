@@ -5,7 +5,7 @@
   import type { RankingCrossovers } from '@sis/shared';
   import type { EntityRanks } from '$lib/stores/entity-ranks.svelte';
   import { periodLabel } from '$lib/utils/periods';
-  import { GRID, TOOLTIP_BASE, AXIS_LABEL, SPLIT_LINE, GREEN, categoryAxis, lineSeries, areaGradient, escapeHtml, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
+  import { GRID, TOOLTIP_BASE, GREEN, categoryAxis, lineSeries, areaGradient, rankAxis, escapeHtml, tooltipPoint, type TooltipParams } from '$lib/utils/chart';
   import { timelineMonths, type TimelineBucket } from '$lib/utils/entity-timeline';
   import { linkMonthPointer, showMonthTip } from '$lib/utils/month-pointer';
   import BaseChart from './BaseChart.svelte';
@@ -27,8 +27,6 @@
   } = $props();
 
   const HEIGHT = '180px';
-  // un eje log con el techo en #1 (siempre primero) degenera en una sola línea
-  const RANK_AXIS_MIN_MAX = 10;
   // echarts escribe white-space:nowrap como estilo inline en el tooltip, y una regla
   // de clase no puede con un inline: el ancho máximo sí se aplicaba, pero el texto no
   // partía y los nombres largos se salían de la caja. extraCssText va al final de ese
@@ -72,14 +70,7 @@
       grid: { ...GRID },
       tooltip: { ...TOOLTIP_BASE, extraCssText: XO_TOOLTIP_CSS, formatter: (params: TooltipParams) => tooltipHtml(months[tooltipPoint(params)?.dataIndex ?? -1]) },
       xAxis: categoryAxis(months.map(m => m.key)),
-      yAxis: {
-        type: 'log',
-        inverse: true,
-        min: 1,
-        max: ({ max }: { max: number }) => Math.max(RANK_AXIS_MIN_MAX, 10 ** Math.ceil(Math.log10(max))),
-        splitLine: { ...SPLIT_LINE },
-        axisLabel: { ...AXIS_LABEL, formatter: (v: number) => `#${Math.round(v)}` },
-      },
+      yAxis: rankAxis(),
       series: [
         lineSeries(months.map(m => m.rank), {
           symbol: 'circle',

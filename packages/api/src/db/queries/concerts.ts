@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './helpers.js';
+import { trackArtistsFor, trackArtistsWhere } from './helpers.js';
 
 // Conciertos asistidos: lectura sobre el grupo de merge del artista (igual que
 // las valoraciones de álbum) y resolución read-only del setlist contra la
@@ -133,13 +134,14 @@ export function getConcertStats(db: Db, userId: number) {
  *  artistas. Lo consume el matching del setlist en memoria: una query por
  *  import en vez de una por canción. El orden deja los ids reales por delante
  *  de los sintéticos (import:/local:), misma preferencia que el ladder de
- *  identidad de history-import. */
-export function getArtistTrackCatalog(db: Db, artistIds: string[]): { spotify_id: string; name: string }[] {
+ *  identidad de history-import. Con los créditos del usuario: el resultado es suyo y
+ *  tiene que casar con lo que enseña la página del artista. */
+export function getArtistTrackCatalog(db: Db, artistIds: string[], userId: number): { spotify_id: string; name: string }[] {
   if (artistIds.length === 0) return [];
   return db.all(sql`
     SELECT t.spotify_id, t.name
     FROM tracks t
-    JOIN track_artists ta ON ta.track_id = t.spotify_id
+    JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id
     WHERE ta.artist_id IN (${idList(artistIds)})
     ORDER BY CASE
       WHEN t.spotify_id LIKE 'local:%' THEN 2
@@ -152,15 +154,14 @@ export function getArtistTrackCatalog(db: Db, artistIds: string[]): { spotify_id
 /** Tracks de la librería cuyo artista principal es alguno de los nombres dados.
  *  Sirve para resolver las versiones (covers) del setlist, que por definición no
  *  están acreditadas al artista del bolo. */
-export function getTracksByArtistNames(db: Db, artistNames: string[]): { spotify_id: string; name: string; artist_name: string }[] {
+export function getTracksByArtistNames(db: Db, artistNames: string[], userId: number): { spotify_id: string; name: string; artist_name: string }[] {
   if (artistNames.length === 0) return [];
   const names = sql.join(artistNames.map(n => sql`${n.toLowerCase()}`), sql`, `);
   return db.all(sql`
     SELECT t.spotify_id, t.name, a.name as artist_name
     FROM tracks t
-    JOIN track_artists ta ON ta.track_id = t.spotify_id AND ta.position = 0
+    JOIN ${trackArtistsWhere(userId, col => sql`${col('position')} = 0 AND ${col('artist_id')} IN (SELECT spotify_id FROM artists WHERE LOWER(name) IN (${names}))`)} ta ON ta.track_id = t.spotify_id
     JOIN artists a ON a.spotify_id = ta.artist_id
-    WHERE LOWER(a.name) IN (${names})
     ORDER BY CASE
       WHEN t.spotify_id LIKE 'local:%' THEN 2
       WHEN t.spotify_id LIKE 'import:%' THEN 1

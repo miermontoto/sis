@@ -5,7 +5,7 @@
 // que se reporta son los TARGETS: al desaparecer un duplicado, todo lo que queda por debajo
 // sube un puesto, así que contar "posiciones que cambian" daría un número enorme y sin
 // información. El movimiento con significado es el de la entidad que acumula las escuchas.
-import { dbRead } from '../../db/read-pool.js';
+import { dbReadBackground, promoteBackground } from '../../db/read-pool.js';
 import { invalidateProjectionBase } from '../../services/projection-cache.js';
 import { getRangeStart } from '../../db/queries/index.js';
 import { IMPACT_TOP_THRESHOLD, IMPACT_BIGGEST_MOVERS } from '../../constants.js';
@@ -15,12 +15,15 @@ import type { EntityType, RankingMetric, MergeImpact, MergeImpactItem } from '@s
 // de miles de filas, muy por debajo de esto
 const RANKING_LIMIT = 200_000;
 
-// El ranking base cuesta 0,6-1,3 s (y mucho más en frío) y el preview se recalcula en cada
-// clic del usuario sobre la MISMA base. Dos medidas:
-//   1. va por dbRead, o sea por el pool de workers: en prod no bloquea el event loop, que
-//      es lo que hacía que toda la UI se quedara esperando mientras se recalculaba.
+// El ranking base cuesta 0,8-1,7 s (y mucho más en frío) y el preview se recalcula en cada
+// clic del usuario sobre la MISMA base. Tres medidas:
+//   1. va por el pool de workers: en prod no bloquea el event loop, que es lo que hacía
+//      que toda la UI se quedara esperando mientras se recalculaba.
 //   2. se memoiza por (usuario, tipo, métrica). Sólo cambia al tocar historial o reglas, y
 //      los endpoints de merge llaman a invalidateRankingCache.
+//   3. se hornea al abrir el modal (warmMergeImpact), en la clase background, y un clic que
+//      llegue antes de que arranque lo sube a heavy. Sin esto, cada merge dejaba el primer
+//      clic del siguiente esperando al escaneo entero.
 // Se guarda la PROMESA, no las filas: si llegan varios clics seguidos en frío, todos
 // esperan al mismo cálculo en vez de lanzar uno cada uno.
 const RANKING_CACHE_TTL_MS = 5 * 60_000;
@@ -40,12 +43,14 @@ export function invalidateRankingCache(userId?: number): void {
   }
 }
 
-function baseRanking(userId: number, entityType: EntityType, sort: 'time' | 'plays'): Promise<AggregateRow[]> {
-  const key = `${userId}:${entityType}:${sort}`;
+const rankingKey = (userId: number, entityType: EntityType, sort: RankingMetric) => `${userId}:${entityType}:${sort}`;
+
+function baseRanking(userId: number, entityType: EntityType, sort: RankingMetric): Promise<AggregateRow[]> {
+  const key = rankingKey(userId, entityType, sort);
   const hit = rankingCache.get(key);
   if (hit && Date.now() - hit.at < RANKING_CACHE_TTL_MS) return hit.rows;
 
-  const rows = dbRead('getTopEntities', entityType, getRangeStart('all'), sort, RANKING_LIMIT, null, userId)
+  const rows = dbReadBackground(key, 'getTopEntities', entityType, getRangeStart('all'), sort, RANKING_LIMIT, null, userId)
     .catch(err => { rankingCache.delete(key); throw err; }); // un fallo no se cachea
 
   rankingCache.set(key, { rows, at: Date.now() });
@@ -56,15 +61,21 @@ function baseRanking(userId: number, entityType: EntityType, sort: 'time' | 'pla
   return rows;
 }
 
+export function warmMergeImpact(userId: number, entityType: EntityType, metric: RankingMetric): void {
+  // un fallo aquí no le importa a nadie: no se cachea y el primer clic reintenta
+  baseRanking(userId, entityType, metric).catch(() => {});
+}
+
 export async function computeMergeImpact(
   userId: number,
   entityType: EntityType,
   pairs: { sourceId: string; targetId: string }[],
   metric: RankingMetric,
 ): Promise<MergeImpact> {
-  const sort = metric === 'plays' ? 'plays' : 'time';
   // NO mutar: `rows` es el array memoizado y se comparte entre llamadas
-  const rows = await baseRanking(userId, entityType, sort);
+  const pending = baseRanking(userId, entityType, metric);
+  promoteBackground(rankingKey(userId, entityType, metric));
+  const rows = await pending;
 
   const valueOf = (r: { play_count: number; total_ms: number }) => metric === 'plays' ? r.play_count : r.total_ms;
 

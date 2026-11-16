@@ -3,10 +3,10 @@ import type {
   TopTrackItem, TopArtistItem, TopAlbumItem,
   GenreItem, DiscoveryItem, HistoryResponse, ListeningTimeItem, HeatmapItem, StreaksData, MonthlyDistributionItem,
   NowPlayingResponse, DevicesResponse, PlayContextRequest, PlayContextResponse, QueueResponse, PlaybackQueueResponse, FriendsActivityResponse,
-  ArtistDetail, AlbumDetail, AlbumRating, TrackDetail,
+  ArtistDetail, ArtistOverlap, AlbumDetail, AlbumRating, TrackDetail,
   SearchResults, ChartHistoryResponse, ChartResponse, ChartPeak, ChartPeakStats, RecordsResponse,
   AccoladesResponse, Rankings, ArtistScopedRank, EntityCard, RankingsWithHistory, HealthData, EntityType,
-  MergeRule, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
+  MergeRule, MergeSource, MergeSuggestion, AlbumMergePreview, AlbumMergeResult, RemergePreview, BulkRemergePreview, MergeImpact, MakeCanonicalResult, BatchMergeResult, MeResponse, UserRecord, ImportResult, LastfmStatus, MieridStatus, ListenTokenStatus,
   ArtistRelationRule,
   PlaylistStrategy, RegenerateInterval, GeneratedPlaylist, PlaylistListResponse, PlaylistPreviewResponse,
   LibraryPlaylistListResponse, LibraryPlaylistDetail, PlaylistPresenceItem,
@@ -17,7 +17,7 @@ import type {
   Granularity, WeekStartOption, ReportResponse,
   AlbumCollectionSummary, CollectionDetail, CollectionMember, CollectionMemberType, CollectionInput, CollectionCandidates, CollectionIndexItem,
   UpcomingLinkResult,
-  CreditSubjectType, EntityCredits,
+  CreditSubjectType, EntityCredits, MemoriesResponse,
 } from '@sis/shared';
 import { UPLOAD_MAX_BYTES, UPLOAD_TOO_LARGE_ERROR } from '@sis/shared';
 import { apiFetch, apiFetchStream, apiMutate, publicFetch, rangeParams, applyMutationInvalidation, apiBase } from './client.js';
@@ -88,6 +88,13 @@ export const api = {
   heatmap: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<HeatmapItem[]>('/stats/heatmap', { ...rangeParams(range, dates) }, signal),
 
+  // widgets del dashboard: recuerdos de una fecha local (la fecha va en la clave de
+  // la cache: mañana es otra petición) y estrenos de un rango en la forma de top-*
+  memories: (date: string, signal?: AbortSignal) =>
+    apiFetch<MemoriesResponse>('/stats/memories', { date, timeZone: getTimeZone() }, signal),
+  discoveries: <T extends TopTrackItem | TopAlbumItem | TopArtistItem>(type: EntityType, range = 'week', limit = 20, sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<T[]>('/stats/discoveries', { ...rangeParams(range), type, limit: String(limit), sort }, signal),
+
   monthlyDistribution: (range = 'month', dates?: DateRangeParams, signal?: AbortSignal) =>
     apiFetch<MonthlyDistributionItem[]>('/stats/monthly-distribution', { ...rangeParams(range, dates) }, signal),
 
@@ -110,6 +117,10 @@ export const api = {
 
   // listas top del detalle de artista por separado: el toggle "show all" refresca solo su
   // sección, sin rehacer el detalle entero (y sin repintar las gráficas al reasignarlo)
+  // lo que comparten dos artistas: la página de comparación saca el resto del detalle de cada uno
+  artistOverlap: (id: string, other: string, sort: RankingMetric = 'time', signal?: AbortSignal) =>
+    apiFetch<ArtistOverlap>(`/stats/artist/${encodeURIComponent(id)}/shared/${encodeURIComponent(other)}`, { sort }, signal),
+
   artistTopTracks: (id: string, opts?: { sort?: string; limit?: number; range?: string; dates?: DateRangeParams; signal?: AbortSignal }) =>
     apiFetch<TopTrackItem[]>(`/stats/artist/${encodeURIComponent(id)}/top/tracks`, artistTopParams(opts), opts?.signal),
 
@@ -288,6 +299,9 @@ export const api = {
 
   listMerges: () => apiFetch<MergeRule[]>('/admin/merges'),
 
+  mergeSources: (entityType: EntityType, id: string) =>
+    apiFetch<MergeSource[]>(`/admin/merges/${entityType}/${encodeURIComponent(id)}`),
+
   albumMergePreview: (sourceId: string, targetId: string) =>
     apiFetch<AlbumMergePreview>('/admin/album-merge-preview', { source: sourceId, target: targetId }),
 
@@ -297,8 +311,12 @@ export const api = {
   // opts.parent — artistId (requerido para album/track, ignorado para artist). Sin
   // `exclude`: el target se quita en cliente, y así el pool de artistas (~10k filas) es
   // UNA entrada de cache compartida por todas las fichas y por las dos pestañas del modal
-  mergeSuggestions: (entityType: 'album' | 'artist' | 'track', opts: { parent?: string } = {}) =>
-    apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', opts.parent ? { entityType, parent: opts.parent } : { entityType }),
+  mergeSuggestions: (entityType: 'album' | 'artist' | 'track', opts: { parent?: string; target?: string } = {}) =>
+    apiFetch<MergeSuggestion[]>('/admin/merge-suggestions', {
+      entityType,
+      ...(opts.parent ? { parent: opts.parent } : {}),
+      ...(opts.target ? { target: opts.target } : {}),
+    }),
 
   // `signal` fuerza red: apiFetch salta la lectura de cache cuando lo recibe. Los botones
   // de "scan"/"rescan" lo pasan porque piden explícitamente datos frescos; la carga inicial

@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w47b';
+export const VERSION = '26w47c';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -7,6 +7,8 @@ export const MOBILE_SCHEME = 'info.mier.sis';
 // redirect de spotify si el .env no lo fija (dev local); de él sale también el
 // origen público de la instancia (utils/public-origin.ts)
 export const DEFAULT_SPOTIFY_REDIRECT_URI = 'http://localhost:3000/auth/callback';
+
+import { TOP_PAGE_LIMIT } from '@sis/shared';
 
 // re-exportar desde shared (single source of truth)
 export { MIN_PLAY_MS, TIME_RANGES, CHART_SIZE, RECORDS_LIMIT, SHARE_TOKEN_BYTES, COMPARE_TOP_LIMIT, PROFILE_TOP_LIMIT, FEED_RECENT_DAYS, FEED_PLAYS_LIMIT, SOCIAL_OVERLAP_WEIGHT_DECAY, OVERLAP_TYPE_WEIGHTS, DEFAULT_TIME_RANGE, isTimeRange, MILESTONE_THRESHOLDS } from '@sis/shared';
@@ -145,6 +147,10 @@ export const ARTIST_SCOPED_RANK_MAX_ARTISTS = 10;
 // de ranking (velocity), no un tope de página: por encima, el chart ya no se lee
 export const SERIES_BATCH_LIMIT = 50;
 
+// temas compartidos que devuelve una comparación de artistas: las cifras totales cuentan
+// todos, y por encima de este tope la lista ya no aporta (tema nº 51 de un dúo)
+export const ARTIST_OVERLAP_LIMIT = 50;
+
 // color manual de álbum: hex de 6 dígitos, que es lo único que emite un <input type="color">
 export const ALBUM_COLOR_RE = /^#[0-9a-f]{6}$/i;
 
@@ -188,12 +194,27 @@ export const MB_DELAY_MS = 1100;
 // score mínimo de una búsqueda musicbrainz para dar el match por bueno
 export const MB_MIN_SCORE = 80;
 // resultados que se piden a la búsqueda: de los que coinciden en título y artista se
-// queda el de más lanzamientos de estudio, no el mejor puntuado a secas. 25 porque
-// los directos llenan las primeras posiciones y el orden entre empates no es estable
-// (el estudio de "Lisztomania" ha salido entre el 4º y el 6º)
-export const MB_SEARCH_LIMIT = 25;
+// queda el de más lanzamientos de estudio, no el mejor puntuado a secas. el máximo de la
+// api, porque los directos llenan las primeras posiciones y el orden entre empates no es
+// estable (el estudio de "Lisztomania" ha salido entre el 4º y el 6º). con 25, "Tomorrow"
+// de Silverchair (44 resultados) y "Karma Police" (281) no casaban, o sólo a veces, y un
+// fallo así acaba en un -1 definitivo; con 100 casan siempre (3 de 3, 2026-11-06), con el
+// mismo número de peticiones. "Paint It Black" (337) sigue sin caber
+export const MB_SEARCH_LIMIT = 100;
 // lanzamientos de estudio mínimos para aceptar un recording (ver searchVerifiedRecording)
 export const MB_MIN_STUDIO_RELEASES = 2;
+// reintento de una respuesta transitoria. musicbrainz responde 503 a sus límites de ritmo y
+// esos 503 traen Retry-After: 0 (medido 2026-11-06), así que la espera real es la de
+// respaldo; el tope acota un Retry-After largo para que no retenga el resto del job
+export const MB_RETRIES = 1;
+export const MB_RETRY_BACKOFF_MS = 3_000;
+export const MB_MAX_RETRY_WAIT_MS = 30_000;
+
+// duration_ms de un track sintético sin duración conocida. PENDING es la cola de last.fm y
+// musicbrainz; NOT_FOUND = musicbrainz respondió sin match fiable, se da por perdido y no
+// vuelve a la cola. una duración real que llegue después (upsert de un import) lo sobrescribe
+export const TRACK_DURATION_PENDING = 0;
+export const TRACK_DURATION_NOT_FOUND = -1;
 
 // harvest de isrcs vía /tracks de spotify: lotes de 50 (límite del endpoint),
 // capado por ciclo para no monopolizar la cuota de la API en el backfill inicial
@@ -225,6 +246,13 @@ export const DOMINANCE_MIN_WEEK_PLAYS = 50;
 // años en el chart anual que hacen falta para entrar en la media de puesto year-end:
 // con uno solo la "media" sería ese puesto y cualquier #1 aislado encabezaría la lista
 export const AVG_YEAR_FINISH_MIN_YEARS = 2;
+
+// media de puesto de los álbumes de un artista: el top all-time de referencia es el de
+// /top, y fuera de él todo álbum cuenta como el primero de fuera (TOP + 1)
+export const AVG_ALBUM_RANK_TOP = TOP_PAGE_LIMIT;
+// álbumes dentro de ese top que hacen falta para entrar en la lista (con uno, la media
+// sería ese disco), igual que los años de la media year-end
+export const AVG_ALBUM_RANK_MIN_ALBUMS = 2;
 
 // intervalo de resolución de entidades import: (30 min)
 export const RESOLVE_INTERVAL_MS = 30 * 60_000;

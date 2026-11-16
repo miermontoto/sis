@@ -153,7 +153,7 @@ library.get('/library/:id', (c) => {
 
   const sort = c.req.query('sort') === 'plays' ? 'plays' : 'time';
   const trackStats = getPlaylistTrackStats(db, id, userId, sort);
-  const genres = getPlaylistGenres(db, id);
+  const genres = getPlaylistGenres(db, id, userId);
   const series = getPlaylistSeries(db, id, userId);
 
   const tracksPlayed = trackStats.filter(t => t.play_count > 0).length;

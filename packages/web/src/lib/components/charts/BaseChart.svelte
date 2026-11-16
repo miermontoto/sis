@@ -33,6 +33,7 @@
   import type { ChartClickEvent } from '$lib/utils/chart';
   import { canvasColors, type CanvasPalette } from '$lib/stores/theme.svelte';
   import { CanvasRenderer } from 'echarts/renderers';
+  import { LabelLayout } from 'echarts/features';
   import { BarChart, LineChart, HeatmapChart, PieChart, RadarChart, GraphChart } from 'echarts/charts';
   import {
     GridComponent,
@@ -50,6 +51,7 @@
   // registrar módulos (tree-shaking)
   echarts.use([
     CanvasRenderer,
+    LabelLayout,
     BarChart,
     LineChart,
     HeatmapChart,

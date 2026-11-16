@@ -6,9 +6,9 @@
 // el envío real (sendPush) es credential-gated y fire-and-forget: nunca bloquea
 // ni lanza hacia el polling / recomputo de cache.
 import { eq, sql } from 'drizzle-orm';
-import { adjacentPeriod, periodForDate, resolveTimeZone } from '@sis/shared';
+import { adjacentPeriod, periodForDate, resolveTimeZone, topDistinctEntries } from '@sis/shared';
 import { getDb } from '../db/connection.js';
-import { getChart } from '../db/queries/index.js';
+import { getChart, getReleaseAnniversaries, getFirstListenAnniversaries } from '../db/queries/index.js';
 import { userFilter, entityGroupCol, resolvedPlayJoins, resolvedEntityId, entityMergeJoin, albumNullFilter, trackArtistsFor } from '../db/queries/helpers.js';
 import type { Db, EntityType } from '../db/queries/index.js';
 import { fetchEntityMetadata } from '../db/queries/charts.js';
@@ -21,7 +21,6 @@ import {
   RECORD_NOTIFY_CATEGORIES,
   NOTIFICATION_MAX_PER_DAY,
   PERIOD_CLOSE_GRACE_MS,
-  ANNIVERSARY_MIN_PLAYS,
   MILESTONE_THRESHOLDS,
 } from '../constants.js';
 import {
@@ -198,8 +197,11 @@ export function emitRecordEvents(userId: number, spotifyId: string, prev: Record
     if (!prevEnt || !nextEnt) continue;
 
     for (const category of RECORD_NOTIFY_CATEGORIES) {
-      const prevList = ((prevEnt[category] as RecordEntry[]) ?? []).slice(0, RECORDS_LIMIT);
-      const nextList = ((nextEnt[category] as RecordEntry[]) ?? []).slice(0, RECORDS_LIMIT);
+      // top por entidades, no por filas: en duplicados una entidad repetida avisaría
+      // una vez por fila y con el puesto de la fila (ver topDistinctEntries)
+      const topOf = (ent: EntityRecords) => topDistinctEntries((ent[category] as RecordEntry[]) ?? [], (e) => e.entityId, RECORDS_LIMIT);
+      const prevList = topOf(prevEnt);
+      const nextList = topOf(nextEnt);
       const prevIds = new Set(prevList.map(e => e.entityId));
 
       nextList.forEach((entry, idx) => {
@@ -355,33 +357,15 @@ function currentUtcDate(): string {
 // es hoy, con al menos un año de antigüedad y ANNIVERSARY_MIN_PLAYS plays del usuario
 function emitReleaseAnniversaries(db: Db, userId: number, locale: NotifyLocale, today: string): void {
   const year = parseInt(today.slice(0, 4), 10);
-  const mmdd = today.slice(5);
-  const uf = userFilter(userId);
-
-  const rows = db.all(sql`
-    WITH album_plays AS (
-      SELECT ${entityGroupCol('album')} as eid, count(*) as plays
-      FROM listening_history lh
-      ${resolvedPlayJoins('album', userId)}
-      WHERE 1=1 ${uf} ${albumNullFilter('album')}
-      GROUP BY eid
-    )
-    SELECT ap.eid as id, al.release_date as releaseDate, ap.plays as plays
-    FROM album_plays ap
-    JOIN albums al ON al.spotify_id = ap.eid
-    WHERE ap.plays >= ${ANNIVERSARY_MIN_PLAYS}
-      AND length(al.release_date) = 10
-      AND substr(al.release_date, 6) = ${mmdd}
-      AND CAST(substr(al.release_date, 1, 4) AS INTEGER) < ${year}
-    ORDER BY ap.plays DESC
-  `) as { id: string; releaseDate: string; plays: number }[];
+  // misma consulta que el widget de aniversarios del dashboard (queries/memories.ts)
+  const rows = getReleaseAnniversaries(db, userId, today);
   if (rows.length === 0) return;
 
   const metaMap = fetchEntityMetadata(db, 'album', rows.map(r => r.id), userId);
   for (const row of rows) {
     const meta = metaMap.get(row.id);
     if (!meta) continue;
-    const years = year - parseInt(row.releaseDate.slice(0, 4), 10);
+    const years = year - parseInt(row.date.slice(0, 4), 10);
     const msg = releaseAnniversaryMessage(locale, meta.name, meta.artistName, years);
     const payload: PushPayload = {
       title: msg.title,
@@ -403,31 +387,14 @@ function emitReleaseAnniversaries(db: Db, userId: number, locale: NotifyLocale, 
 // fue tal día como hoy hace >= 1 año, con un mínimo de plays acumuladas
 function emitFirstListenAnniversaries(db: Db, userId: number, locale: NotifyLocale, today: string): void {
   const year = parseInt(today.slice(0, 4), 10);
-  const mmdd = today.slice(5);
-
-  const rows = db.all(sql`
-    WITH plays_dedup AS (
-      SELECT DISTINCT ${resolvedEntityId('artist')} as eid, lh.id as play_id, lh.played_at as played_at
-      FROM listening_history lh
-      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = lh.track_id
-      ${entityMergeJoin('artist', userId)}
-      WHERE lh.user_id = ${userId}
-    )
-    SELECT eid as id, min(played_at) as firstPlayed, count(*) as plays
-    FROM plays_dedup
-    GROUP BY eid
-    HAVING plays >= ${ANNIVERSARY_MIN_PLAYS}
-      AND substr(min(played_at), 6, 5) = ${mmdd}
-      AND CAST(substr(min(played_at), 1, 4) AS INTEGER) < ${year}
-    ORDER BY plays DESC
-  `) as { id: string; firstPlayed: string; plays: number }[];
+  const rows = getFirstListenAnniversaries(db, userId, today);
   if (rows.length === 0) return;
 
   const metaMap = fetchEntityMetadata(db, 'artist', rows.map(r => r.id), userId);
   for (const row of rows) {
     const meta = metaMap.get(row.id);
     if (!meta) continue;
-    const years = year - parseInt(row.firstPlayed.slice(0, 4), 10);
+    const years = year - parseInt(row.date.slice(0, 4), 10);
     const msg = firstListenAnniversaryMessage(locale, meta.name, years);
     const payload: PushPayload = {
       title: msg.title,

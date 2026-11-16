@@ -67,6 +67,22 @@ export function getArtistTopTracks(db: Db, artistId: string, rangeStart: string 
   `) as { track_id: string; play_count: number; total_ms: number }[];
 }
 
+/** temas acreditados a los dos grupos de artista, con sus cifras totales. Sale del mismo
+ *  builder que los top tracks de cada uno y con el mismo predicado que getEntityStats, así
+ *  que `total - compartido` es exactamente lo que ese artista suma por su cuenta. Los temas
+ *  a medias son pocos: se traen todos para el total y se recorta aquí. */
+export function getArtistOverlap(db: Db, artistIds: string[], otherIds: string[], sort: Sort, limit: number, userId: number) {
+  const rows = db.all(sql`
+    ${artistTrackScores(artistIds, sql`AND ${tracksWithArtistIn(otherIds, userId)}`, userId)}
+    ORDER BY ${orderByCol(sort)} DESC
+  `) as { track_id: string; play_count: number; total_ms: number }[];
+  return {
+    playCount: rows.reduce((sum, r) => sum + r.play_count, 0),
+    totalMs: rows.reduce((sum, r) => sum + r.total_ms, 0),
+    rows: rows.slice(0, limit),
+  };
+}
+
 /** Top álbumes de un artista (ver artistAlbumScores). */
 export function getArtistTopAlbums(db: Db, artistId: string, rangeStart: string | null, sort: Sort, limit: number, rangeEnd: string | null | undefined, userId: number, artistIds?: string[]) {
   return db.all(sql`

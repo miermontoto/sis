@@ -68,8 +68,13 @@ export function periodMatchesGranularity(period: string, granularity: 'week' | '
   return /^\d{4}-W\d{2}$/.test(period);
 }
 
+// tope de filas por petición de lista. Acotado por los dos lados: un `limit=-1` llegaba
+// a sqlite como LIMIT -1 (sin límite) y formateaba la tabla entera; un NaN, igual de crudo
+const MAX_PAGE_LIMIT = 200;
+
 export function parseParams(c: any) {
-  const limit = Math.min(parseInt(c.req.query('limit') || String(DEFAULT_PAGE_LIMIT)), 200);
+  const requested = parseInt(c.req.query('limit') ?? '', 10);
+  const limit = Number.isFinite(requested) && requested > 0 ? Math.min(requested, MAX_PAGE_LIMIT) : DEFAULT_PAGE_LIMIT;
   const sortRaw = c.req.query('sort');
   const sort = (sortRaw === 'plays' ? 'plays' : sortRaw === 'natural' ? 'natural' : 'time') as Sort;
 

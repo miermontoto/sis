@@ -28,7 +28,7 @@ import { renderOgHtml } from './services/og-html.js';
 import { getDb } from './db/connection.js';
 import { getStoredTokens, getStoredScopes } from './services/token-manager.js';
 import { validateSession, type Session } from './services/session.js';
-import { hasAnyUsers, getUserById, getAllUsers, hardDeleteUser } from './services/user-manager.js';
+import { getUserById, getAllUsers, hardDeleteUser } from './services/user-manager.js';
 import { getLastfmAccount } from './services/lastfm-sync.js';
 import { triggerDeferredStartup } from './services/deferred-startup.js';
 import { sql } from 'drizzle-orm';
@@ -85,8 +85,10 @@ app.use(
     validate: validateSession,
     // health check y versión públicos (el frontend los usa para verificar auth)
     isPreAuth: (p) => p === '/api/health' || p === '/api/version',
-    // si no hay usuarios, permitir acceso sin auth (bootstrap)
-    bypass: () => !hasAnyUsers(),
+    // sin usuarios tampoco hay acceso sin sesión: el bootstrap es que el primer login sea admin
+    // (isAllowedUser). con un bypass, la primera visita a una instancia vacía no recibía el 401
+    // que manda a /login: enseñaba un dashboard sin usuario, sin enlace para entrar y con los
+    // handlers respondiendo 500 por falta de userId
     hydrate: (c, session, next) => {
       c.set('userId', session.userId);
       c.set('spotifyId', session.spotifyId);
@@ -239,28 +241,17 @@ app.post('/api/covers/artist/:artistId', async (c) => {
 // versión — público
 app.get('/api/version', (c) => c.json({ version: VERSION }));
 
-// health check — público pero retorna 401 si hay usuarios y no hay sesión válida
+// health check — público pero retorna 401 sin sesión válida: es lo que usa el cliente para
+// decidir si manda a /login, también en una instancia sin usuarios
 app.get('/api/health', (c) => {
-  if (hasAnyUsers()) {
-    const token = getCookie(c, SESSION_COOKIE);
-    if (!token || !validateSession(token)) {
-      return c.json({ error: 'no autorizado' }, 401);
-    }
-  }
+  const token = getCookie(c, SESSION_COOKIE);
+  const session = token ? validateSession(token) : null;
+  if (!session) return c.json({ error: 'no autorizado' }, 401);
 
   const db = getDb();
-  const userId = (() => {
-    const token = getCookie(c, SESSION_COOKIE);
-    if (token) {
-      const session = validateSession(token);
-      if (session) return session.userId;
-    }
-    return undefined;
-  })();
+  const userId = session.userId;
   const tokens = getStoredTokens(userId);
-  const historyCount = userId
-    ? db.all(sql`SELECT count(*) as count FROM listening_history WHERE user_id = ${userId}`)[0] as { count: number }
-    : db.all(sql`SELECT count(*) as count FROM listening_history`)[0] as { count: number };
+  const historyCount = db.all(sql`SELECT count(*) as count FROM listening_history WHERE user_id = ${userId}`)[0] as { count: number };
 
   return c.json({
     status: 'ok',

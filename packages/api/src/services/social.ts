@@ -1,7 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
 import { dbRead } from '../db/read-pool.js';
-import { getRangeStart } from '../db/queries/index.js';
+import { getRangeStart, getTrackArtists } from '../db/queries/index.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, PROFILE_TOP_LIMIT, PROFILE_CARD_CACHE_MS, TIME_RANGES, DEFAULT_SPOTIFY_REDIRECT_URI } from '../constants.js';
 import type { TimeRange } from '../constants.js';
 import type { ProfileSummaryRow, StreaksRow } from '../db/queries/index.js';
@@ -37,25 +37,21 @@ export function getSocialNowPlaying(userId: number): SocialNowPlaying | null {
 
   const row = db.get(sql`
     SELECT
+      t.spotify_id AS trackId,
       t.name AS trackName,
-      a.image_url AS albumImageUrl,
-      (SELECT GROUP_CONCAT(a2.name, ', ')
-       FROM track_artists ta2
-       JOIN artists a2 ON a2.spotify_id = ta2.artist_id
-       WHERE ta2.track_id = t.spotify_id
-       ORDER BY ta2.position) AS artistNames
+      a.image_url AS albumImageUrl
     FROM polling_state ps
     JOIN tracks t ON t.spotify_id = ps.last_currently_playing_track_id
     LEFT JOIN albums a ON a.spotify_id = t.album_id
     WHERE ps.user_id = ${userId}
       AND ps.is_playing = 1
       AND ps.last_currently_playing_at > ${staleThreshold}
-  `) as { trackName: string; albumImageUrl: string | null; artistNames: string | null } | undefined;
+  `) as { trackId: string; trackName: string; albumImageUrl: string | null } | undefined;
 
   if (!row?.trackName) return null;
   return {
     name: row.trackName,
-    artists: row.artistNames || '',
+    artists: getTrackArtists(db, row.trackId, userId).map(a => a.name).join(', '),
     albumImageUrl: row.albumImageUrl,
   };
 }

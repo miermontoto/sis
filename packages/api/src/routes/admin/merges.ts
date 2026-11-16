@@ -9,7 +9,7 @@ import { buildAlbumRemerge, loadRemergeContext } from './remerge.js';
 import { promoteToCanonical, promoteAlbumCanonical, PROMOTE_ERRORS } from './promote.js';
 import { dbRead } from '../../db/read-pool.js';
 import { getRangeStart } from '../../db/queries/index.js';
-import { computeMergeImpact, invalidateRankingCache } from './impact.js';
+import { computeMergeImpact, invalidateRankingCache, warmMergeImpact } from './impact.js';
 import { BULK_SCAN_LIMITS, DEFAULT_BULK_SCAN_SCOPE, IMPACT_TOP_THRESHOLD } from '../../constants.js';
 
 const merges = adminRouter();
@@ -109,14 +109,17 @@ merges.post('/merge-impact', async (c) => {
     return c.json({ error: `entityType must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
   }
   if (!Array.isArray(pairs)) return c.json({ error: 'pairs array is required' }, 400);
+  const metric = body.metric === 'plays' ? 'plays' : 'time';
+  // sin pares es el aviso de que se ha abierto el modal: se hornea la base para que el
+  // primer candidato que se marque no espere al escaneo, y se responde sin esperarlo
   if (pairs.length === 0) {
+    warmMergeImpact(userId, entityType, metric);
     return c.json({
-      entityType, metric: body.metric === 'plays' ? 'plays' : 'time',
+      entityType, metric,
       topThreshold: IMPACT_TOP_THRESHOLD, items: [], movedCount: 0, enteredTop: 0, biggest: [],
     });
   }
 
-  const metric = body.metric === 'plays' ? 'plays' : 'time';
   return c.json(await computeMergeImpact(userId, entityType, pairs, metric));
 });
 
@@ -135,65 +138,18 @@ merges.delete('/merge/:id', (c) => {
   return c.json({ success: true });
 });
 
-// listar todas las reglas de merge del usuario, con metadata para UI en settings.
-// El campo `artist_*` representa la agrupación padre:
-//   - album: el artist principal del álbum target
-//   - track: el artist principal del track target
-//   - artist: null (se agrupa por target en el cliente)
-merges.get('/merges', (c) => {
-  const userId = c.get('userId');
-  const db = getDb();
+// listar todas las reglas de merge del usuario, con metadata para UI en settings
+merges.get('/merges', async (c) => c.json(await dbRead('listMergeRules', c.get('userId'))));
 
-  const albumRows = db.all(sql`
-    SELECT mr.id, mr.entity_type, mr.source_id, mr.target_id, mr.created_at,
-           sa.name as source_name, sa.image_url as source_image,
-           ta.name as target_name, ta.image_url as target_image,
-           ar.spotify_id as artist_id, ar.name as artist_name, ar.image_url as artist_image
-    FROM merge_rules mr
-    JOIN albums sa ON sa.spotify_id = mr.source_id
-    JOIN albums ta ON ta.spotify_id = mr.target_id
-    LEFT JOIN (
-      SELECT DISTINCT t.album_id, ta2.artist_id
-      FROM tracks t
-      JOIN track_artists ta2 ON ta2.track_id = t.spotify_id AND ta2.position = 0
-    ) album_artist ON album_artist.album_id = mr.target_id
-    LEFT JOIN artists ar ON ar.spotify_id = album_artist.artist_id
-    WHERE mr.user_id = ${userId} AND mr.entity_type = 'album'
-    ORDER BY ar.name, ta.name, sa.name
-  `) as any[];
-
-  const artistRows = db.all(sql`
-    SELECT mr.id, mr.entity_type, mr.source_id, mr.target_id, mr.created_at,
-           sa.name as source_name, sa.image_url as source_image,
-           ta.name as target_name, ta.image_url as target_image,
-           NULL as artist_id, NULL as artist_name, NULL as artist_image
-    FROM merge_rules mr
-    JOIN artists sa ON sa.spotify_id = mr.source_id
-    JOIN artists ta ON ta.spotify_id = mr.target_id
-    WHERE mr.user_id = ${userId} AND mr.entity_type = 'artist'
-    ORDER BY ta.name, sa.name
-  `) as any[];
-
-  const trackRows = db.all(sql`
-    SELECT mr.id, mr.entity_type, mr.source_id, mr.target_id, mr.created_at,
-           st.name as source_name, sal.image_url as source_image,
-           tt.name as target_name, tal.image_url as target_image,
-           ar.spotify_id as artist_id, ar.name as artist_name, ar.image_url as artist_image
-    FROM merge_rules mr
-    JOIN tracks st ON st.spotify_id = mr.source_id
-    LEFT JOIN albums sal ON sal.spotify_id = st.album_id
-    JOIN tracks tt ON tt.spotify_id = mr.target_id
-    LEFT JOIN albums tal ON tal.spotify_id = tt.album_id
-    LEFT JOIN (
-      SELECT track_id, MIN(artist_id) as artist_id
-      FROM track_artists WHERE position = 0 GROUP BY track_id
-    ) ta_pri ON ta_pri.track_id = mr.target_id
-    LEFT JOIN artists ar ON ar.spotify_id = ta_pri.artist_id
-    WHERE mr.user_id = ${userId} AND mr.entity_type = 'track'
-    ORDER BY ar.name, tt.name, st.name
-  `) as any[];
-
-  return c.json([...albumRows, ...artistRows, ...trackRows]);
+// las reglas que apuntan a una entidad: lo que necesita su modal antes de abrirse. Va aparte
+// de la lista entera porque ésa son cientos de kB para acabar filtrando un puñado de filas
+merges.get('/merges/:entityType/:id', async (c) => {
+  const entityType = c.req.param('entityType');
+  if (!isValidEntityType(entityType)) {
+    return c.json({ error: `entityType must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
+  }
+  const info = await dbRead('getEntityMergeInfo', entityType, c.req.param('id'), c.get('userId'));
+  return c.json(info.mergedFrom);
 });
 
 // preview de merge de álbum: devuelve tracks de ambos álbumes con auto-match
@@ -398,7 +354,9 @@ merges.post('/batch-merge-tracks', async (c) => {
 // sugerencias de merge unificadas.
 // Query params:
 //   entityType (required): 'album' | 'artist' | 'track'
-//   parent (optional): artist spotifyId — para albums/tracks, restringe a entidades con ese artista principal
+//   parent (optional): artist spotifyId — para albums/tracks, restringe a entidades de ese artista
+//   target (optional): id de la entidad que se mergea — añade los artistas acreditados en ella
+//     tal como los ve el usuario (créditos corregidos incluidos). Los apks publicados no lo mandan
 //   exclude (optional): id a excluir. La web ya no lo manda (filtra en cliente, y así el pool
 //     de artistas es UNA entrada de cache para todas las fichas); sigue por los apks publicados
 // Devuelve [{id, name, image_url, plays}] ordenado por plays DESC.
@@ -406,16 +364,17 @@ merges.get('/merge-suggestions', async (c) => {
   const userId = c.get('userId');
   const entityType = c.req.query('entityType');
   const parent = c.req.query('parent');
+  const target = c.req.query('target');
   const exclude = c.req.query('exclude');
 
   if (!isValidEntityType(entityType)) {
     return c.json({ error: `entityType query param required — must be one of ${VALID_ENTITY_TYPES.join(', ')}` }, 400);
   }
-  if (entityType !== 'artist' && !parent) {
-    return c.json({ error: `parent (artistId) is required for ${entityType} suggestions` }, 400);
+  if (entityType !== 'artist' && !parent && !target) {
+    return c.json({ error: `parent (artistId) or target is required for ${entityType} suggestions` }, 400);
   }
 
-  const rows = await dbRead('getMergeSuggestions', entityType, userId, parent ?? null);
+  const rows = await dbRead('getMergeSuggestions', entityType, userId, parent ?? null, target ?? null);
   return c.json(exclude ? rows.filter(r => r.id !== exclude) : rows);
 });
 

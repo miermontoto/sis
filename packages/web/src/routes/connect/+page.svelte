@@ -4,11 +4,12 @@
   // cambiarla. en web no tiene sentido (la api sirve la spa) y se sale a /.
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { OFFICIAL_INSTANCE, hasInstance, instanceLabel, isNativeApp, probeInstance, switchInstance } from '$lib/instance';
+  import { EXAMPLE_INSTANCE, OFFICIAL_INSTANCE, hasInstance, instanceLabel, isNativeApp, probeInstance, switchInstance } from '$lib/instance';
   import { instanceHost, normalizeInstanceUrl } from '$lib/utils/instance-url';
   import Wordmark from '$lib/components/Wordmark.svelte';
 
   const LOGIN_ROUTE = '/login';
+  const GUIDE_ROUTE = '/guide';
   const officialHost = instanceHost(OFFICIAL_INSTANCE);
 
   let input = $state('');
@@ -55,7 +56,7 @@
     <div class="connect-card">
       <div class="logo-mark"><Wordmark /></div>
       <h1 class="connect-title">Connect to an instance</h1>
-      <p class="connect-desc">sis is self-hosted. Enter the address of the server you want this app to use.</p>
+      <p class="connect-desc">sis is self-hosted: this app shows the data of a sis server, one you run or one you were invited to. Enter its address.</p>
 
       <form onsubmit={submit}>
         <input
@@ -65,7 +66,7 @@
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
-          placeholder="https://sis.example.org"
+          placeholder={EXAMPLE_INSTANCE}
           bind:value={input}
           disabled={busy}
         />
@@ -78,6 +79,9 @@
       <button type="button" class="connect-btn connect-btn--secondary" onclick={() => connect(OFFICIAL_INSTANCE)} disabled={busy}>
         Use {officialHost}
       </button>
+      <div class="connect-hint">{officialHost} is the developer's instance and is invite-only.</div>
+
+      <a href={GUIDE_ROUTE} class="connect-guide">No server yet? Run your own →</a>
 
       {#if current}
         <div class="connect-current">
@@ -185,6 +189,20 @@
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
+  }
+
+  .connect-hint {
+    margin-top: 0.5rem;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+  }
+
+  .connect-guide {
+    display: inline-block;
+    margin-top: 1.25rem;
+    font-size: var(--fs-md);
+    color: var(--accent);
+    text-decoration: none;
   }
 
   .connect-current {

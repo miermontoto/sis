@@ -6,11 +6,12 @@
   import { invalidateEntityDetail } from '$lib/utils/optimistic-play';
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
+  import type { Snapshot } from '@sveltejs/kit';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { api, createFetchController, type ArtistDetail, type Concert, type RankingMetric, getRankingMetric, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks, getAlbumShowDuration, getArtistBackdrop } from '$lib/api';
   import type { ArtistBackdrop } from '@sis/shared';
   import { getDetailLayout } from '$lib/api/settings';
-  import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
+  import { ARTIST_TOP_ALBUMS_LIMIT as TOP_ALBUMS_LIMIT, ARTIST_TOP_TRACKS_LIMIT as TOP_TRACKS_LIMIT, defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import type { ChartEvent } from '$lib/utils/chart';
   import { extractColor } from '$lib/utils/color';
   import TrackList from '$lib/components/TrackList.svelte';
@@ -44,16 +45,17 @@
   import IconImage from '$lib/icons/IconImage.svelte';
   import IconTicket from '$lib/icons/IconTicket.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import IconSwap from '$lib/icons/IconSwap.svelte';
+  import { artistCompare } from '$lib/stores/artist-compare.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
 
-  // tamaños de las listas top: colapsadas por defecto, expandidas con "show all"
-  const TOP_TRACKS_LIMIT = 10;
-  const TOP_ALBUMS_LIMIT = 5;
+  // tamaño de las listas top expandidas con "show all" (colapsadas: detail-layout.ts)
   const SHOW_ALL_LIMIT = 200;
 
   // vista de cada lista top: la lista de siempre, o las mismas filas como gráfica
   // de barras / velocity (las del /top). Se recuerda por lista, no por artista
   type TopListKind = 'tracks' | 'albums';
+  const TOP_LISTS: TopListKind[] = ['tracks', 'albums'];
   type TopView = 'list' | RankingChartMode;
   const TOP_VIEW_OPTIONS: { value: TopView; label: string }[] = [
     { value: 'list', label: 'List' },
@@ -277,11 +279,15 @@
 
   // el toggle "show all" refresca solo su lista y la parchea sobre `data`: reasignar el
   // detalle entero devolvía una `series` nueva y las gráficas se repintaban desde cero
-  async function toggleList(kind: 'tracks' | 'albums') {
-    const isTracks = kind === 'tracks';
-    if (isTracks) showAllTracks = !showAllTracks;
+  function toggleList(kind: TopListKind) {
+    if (kind === 'tracks') showAllTracks = !showAllTracks;
     else showAllAlbums = !showAllAlbums;
+    return loadList(kind);
+  }
 
+  // relee una lista top con el tamaño que dice su "show all"
+  async function loadList(kind: TopListKind) {
+    const isTracks = kind === 'tracks';
     const showAll = isTracks ? showAllTracks : showAllAlbums;
     const collapsed = isTracks ? TOP_TRACKS_LIMIT : TOP_ALBUMS_LIMIT;
     const opts = { sort: metric, limit: showAll ? SHOW_ALL_LIMIT : collapsed, signal: listCtrl[kind].reset() };
@@ -361,6 +367,10 @@
       // abortar toggles en vuelo: su respuesta parchearía las listas del artista anterior
       listCtrl.tracks.abort();
       listCtrl.albums.abort();
+      // otro artista arranca con las listas plegadas; volver atrás al anterior
+      // las despliega otra vez desde su snapshot
+      showAllTracks = false;
+      showAllAlbums = false;
       data = null;
       trackGlobalRanks = null;
       albumGlobalRanks = null;
@@ -368,6 +378,24 @@
     }
     untrack(() => loadData(id));
   });
+
+  // "show all" de cada lista por entrada del historial: SvelteKit lo captura al salir
+  // y lo devuelve al volver atrás/adelante (el scroll lo recoloca scroll-restore
+  // cuando la lista ya ha crecido). restore llega con la carga inicial ya lanzada
+  // con las listas plegadas, así que hay que volver a pedir lo desplegado
+  export const snapshot: Snapshot<Record<TopListKind, boolean>> = {
+    capture: () => ({ tracks: showAllTracks, albums: showAllAlbums }),
+    restore: value => {
+      showAllTracks = !!value?.tracks;
+      showAllAlbums = !!value?.albums;
+      const expanded = TOP_LISTS.filter(kind => value?.[kind]);
+      if (!initialized || !artistId || expanded.length === 0) return;
+      // con la ficha aún en vuelo se relanza entera (aborta la plegada, que si no
+      // llegaría después y pisaría las listas); ya pintada basta con las listas
+      if (loading) void loadData(artistId);
+      else expanded.forEach(kind => void loadList(kind));
+    },
+  };
 
 </script>
 
@@ -430,6 +458,7 @@
             // de merges la pestaña de relaciones (ver ModalTabs)
             { label: 'Picture & background', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
             { label: 'Relations', icon: IconLink, onClick: () => { showArtistMergeModal = true; } },
+            { label: 'Compare with…', icon: IconSwap, onClick: () => artistCompare.open({ id: d.artist.id, name: d.artist.name }) },
             { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
             { label: 'Collections', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
           ]}
@@ -533,7 +562,7 @@
                   entity={{ type: 'album', id: item.albumId, name: item.album.name, imageUrl: item.album.imageUrl, parentArtistId: artistId }}
                 >
                   {#snippet subtitle()}{item.album?.releaseDate ?? ''}{/snippet}
-                  {#snippet extra()}
+                  {#snippet badges()}
                     {#if showAccolades}
                       <Accolades entityType="album" entityId={item.albumId} />
                     {/if}

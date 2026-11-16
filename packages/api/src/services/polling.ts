@@ -194,8 +194,8 @@ function startTokenlessEnrichment() {
   if (tokenlessEnrichTimer) return;
   const run = async (job: JobContext) => {
     // duraciones secuenciadas: last.fm (rápido) primero rellena lo que puede, el
-    // resto lo intenta musicbrainz. ambas filtran duration_ms<=0, así que en
-    // paralelo competirían por los mismos tracks.
+    // resto lo intenta musicbrainz. ambas leen la misma cola (tracksPendingDuration),
+    // así que en paralelo competirían por los mismos tracks.
     try {
       if (isLastfmConfigured()) await enrichLastfmDurations();
       await enrichImportTrackDurations();

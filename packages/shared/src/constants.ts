@@ -130,6 +130,14 @@ export function nextMilestone(total: number): number {
   return MILESTONE_THRESHOLDS.find(t => t > total) ?? (Math.floor(total / last) + 1) * last;
 }
 
+// hito alcanzado más alto (0 si ninguno): el arranque de la barra de progreso
+// hacia nextMilestone. Más allá del último peldaño, el múltiplo de abajo (349k → 300k)
+export function previousMilestone(total: number): number {
+  const last = MILESTONE_THRESHOLDS[MILESTONE_THRESHOLDS.length - 1];
+  if (total >= last) return Math.floor(total / last) * last;
+  return [...MILESTONE_THRESHOLDS].reverse().find(t => t <= total) ?? 0;
+}
+
 // tope de ids por consulta de pertenencia a playlists (un badge por fila de
 // lista): acota la URL, no el coste — la query es local y de una sola pasada
 export const PLAYLIST_MEMBERSHIP_MAX_IDS = 200;

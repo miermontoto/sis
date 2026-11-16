@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "check": "tsc --noEmit",
-    "build": "tsup && mkdir -p dist/db && cp -r src/db/migrations dist/db/migrations",
+    "test": "vitest run",
+    "build": "tsup",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -40,6 +41,7 @@
     "@types/web-push": "^3.6.4",
     "tsup": "^8.4.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   }
 }
