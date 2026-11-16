@@ -128,6 +128,10 @@ export class RequestAbortedError extends Error {
   }
 }
 
+// atributo del span `dbRead` de un job descartado así: lo distingue en las trazas sin
+// marcarlo como error, que el cliente se vaya no es un fallo del servidor
+export const REQUEST_ABORTED_ATTR = 'sis.request.aborted';
+
 // purga de la cabeza de una cola los jobs cuyo request ya se fue
 function dropAborted(queue: Job[]) {
   while (queue.length > 0 && queue[0].signal?.aborted) queue.shift()!.reject(new RequestAbortedError());
@@ -266,31 +270,45 @@ function submit<K extends QueryName>(fn: K, args: unknown[], backgroundTag: stri
   // span por lectura dentro de la traza activa: en prod mide cola + ejecución en el worker
   // (sus statements no se trazan, el worker no comparte el contexto); en dev las queries
   // cuelgan de él. fuera de una traza no abre nada.
-  return withSpan(`dbRead ${fn}`, () => {
-    // modo directo (dev)
-    if (directFns) {
-      try {
-        const handler = directFns[fn];
-        if (!handler) throw new Error(`unknown function: ${fn}`);
-        return Promise.resolve(handler(args));
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    }
+  // withSpan marca ERROR + evento `exception` ante cualquier rechazo, así que la
+  // cancelación del cliente sale del span como valor (queda UNSET con su atributo) y se
+  // relanza fuera: la misma instancia, para que requestRead siga respondiendo 499. el
+  // resto de rechazos (sqlite, worker caído, pool cerrado) siguen marcando el span.
+  return withSpan(`dbRead ${fn}`, (span) => runRead<K>(fn, args, backgroundTag, signal).catch((err: unknown) => {
+    if (!(err instanceof RequestAbortedError)) throw err;
+    span.setAttribute(REQUEST_ABORTED_ATTR, true);
+    return err;
+  })).then((out) => {
+    if (out instanceof RequestAbortedError) throw out;
+    return out;
+  });
+}
 
-    // modo pool (prod)
-    if (pool.length === 0) throw new Error('read pool not initialized');
-    if (signal?.aborted) return Promise.reject(new RequestAbortedError());
-    const cls: JobClass = backgroundTag === null ? classify(fn) : 'background';
-    if (cls === 'light') lastLightAt = performance.now();
-    // no usar `resolve`/`reject` a secas: `resolve` es el import de 'path' de arriba
-    return new Promise<QueryResult<K>>((onResult, onError) => {
-      queues[cls].push({
-        id: ++msgId, fn, args, cls, tag: backgroundTag ?? undefined, signal,
-        enqueuedAt: performance.now(), startedAt: 0, resolve: onResult, reject: onError,
-      });
-      dispatch();
+// ejecuta la lectura en el main thread (dev) o la encola para un worker (prod)
+function runRead<K extends QueryName>(fn: K, args: unknown[], backgroundTag: string | null, signal?: AbortSignal): Promise<QueryResult<K>> {
+  // modo directo (dev)
+  if (directFns) {
+    try {
+      const handler = directFns[fn];
+      if (!handler) throw new Error(`unknown function: ${fn}`);
+      return Promise.resolve(handler(args));
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+
+  // modo pool (prod)
+  if (pool.length === 0) throw new Error('read pool not initialized');
+  if (signal?.aborted) return Promise.reject(new RequestAbortedError());
+  const cls: JobClass = backgroundTag === null ? classify(fn) : 'background';
+  if (cls === 'light') lastLightAt = performance.now();
+  // no usar `resolve`/`reject` a secas: `resolve` es el import de 'path' de arriba
+  return new Promise<QueryResult<K>>((onResult, onError) => {
+    queues[cls].push({
+      id: ++msgId, fn, args, cls, tag: backgroundTag ?? undefined, signal,
+      enqueuedAt: performance.now(), startedAt: 0, resolve: onResult, reject: onError,
     });
+    dispatch();
   });
 }
 
