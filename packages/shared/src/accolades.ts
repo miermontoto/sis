@@ -30,6 +30,7 @@ export const ACCOLADE_RECORD_KEYS = {
   weeksInChart: 'mostWeeksInTop5',
   longestRun: 'longestChartRun',
   avgYearFinish: 'averageYearFinish',
+  avgAlbumRank: 'averageAlbumRank',
   inMostPlaylists: 'inMostPlaylists',
   longestGap: 'longestGap',
   goldenOldies: 'goldenOldies',

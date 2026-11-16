@@ -9,10 +9,10 @@ import type {
   RecordEntry, ArtistRecordEntry, EntityRecords, TrackRecords, AlbumRecords, ArtistRecordsData,
   MonthCountEntry, YearEndFinish, YearRank, RankingMetric, PeriodCalendar,
 } from '@sis/shared';
-import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, trackArtistsFor, primaryArtistOf, artistNameOf, localPlayedAt } from './helpers.js';
-import { periodBounds, periodForDate, topDistinctEntries } from '@sis/shared';
+import { resolvedEntityId, entityMergeJoin, resolvedPlayJoins, albumArtistId, albumArtistName, albumNullFilter, trackArtistsFor, primaryArtistOf, artistNameOf, localPlayedAt, playDuration } from './helpers.js';
+import { periodBounds, periodForDate, topDistinctEntries, COLLECTION_ID_PREFIX } from '@sis/shared';
 import { getTopEntities } from './entity.js';
-import { RECORDS_LIMIT, CHART_SIZE, AVG_YEAR_FINISH_MIN_YEARS } from '../../constants.js';
+import { RECORDS_LIMIT, CHART_SIZE, AVG_YEAR_FINISH_MIN_YEARS, AVG_ALBUM_RANK_TOP, AVG_ALBUM_RANK_MIN_ALBUMS } from '../../constants.js';
 
 type Sort = RankingMetric;
 export type Ent = 'track' | 'album' | 'artist';
@@ -561,6 +561,117 @@ function averageYearFinish(entity: Ent, db: Db, userId: number, charts: YearChar
     .map(r => ({ ...mapSimple({ ...meta.get(r.eid), value: r.avg }), finishes: r.finishes }));
 }
 
+// --- media de puesto de los álbumes de un artista ---
+
+// puesto all-time de cada álbum (el ranking de /top, singles incluidos) junto a cada
+// artista al que se le acredita, con el peso del álbum en la métrica del usuario.
+// el crédito es el de la página del artista (artistCreditedAlbums) mirado sobre la fila
+// resuelta: la lista corregida del usuario si existe; si no, `artist_ids` en cualquier
+// posición; sin crédito de álbum (sintéticos), quien lidera la mayoría de lo ingestado;
+// y una colección, de quien la creó.
+//
+// los singles se rankean pero no son álbumes de nadie: con ellos Angèle tenía cinco
+// "álbumes" y dos eran singles de un play en el #8000. Los de spotify traen su
+// album_type; un sintético no, así que uno de un solo tema que se llama como él
+// es el single de ese tema (101 de 450 en local; el resto son discos con un tema ingestado)
+type AlbumRankRow = { artist_id: string; eid: string; rnk: number; val: number };
+
+function artistAlbumRanks(db: Db, userId: number, sort: Sort): AlbumRankRow[] {
+  const metric = sort === 'plays' ? sql`count(*)` : sql`sum(${playDuration()})`;
+  const notOverridden = sql`NOT EXISTS (SELECT 1 FROM credit_overrides co_x WHERE co_x.user_id = ${userId}
+    AND co_x.subject_type = 'album' AND co_x.subject_id = r.eid)`;
+  const syntheticSingle = sql`al.album_type IS NULL AND COALESCE((SELECT COUNT(*) = 1 AND LOWER(MAX(t_s.name)) = LOWER(al.name)
+    FROM tracks t_s WHERE t_s.album_id = r.eid), 0)`;
+  return db.all(sql`
+    WITH ranked AS (
+      SELECT eid, val, ROW_NUMBER() OVER (ORDER BY val DESC) AS rnk
+      FROM (
+        SELECT ${resolvedEntityId('album')} AS eid, ${metric} AS val
+        FROM listening_history lh
+        ${resolvedPlayJoins('album', userId)}
+        WHERE lh.user_id = ${userId} ${albumNullFilter('album')}
+        GROUP BY 1
+      )
+    ),
+    uncredited AS (
+      SELECT r.eid FROM ranked r JOIN albums al ON al.spotify_id = r.eid
+      WHERE json_extract(al.artist_ids, '$[0]') IS NULL AND r.eid NOT LIKE ${COLLECTION_ID_PREFIX + '%'} AND ${notOverridden}
+    ),
+    led AS (
+      SELECT t.album_id AS eid, ta.artist_id, COUNT(*) AS n, SUM(COUNT(*)) OVER (PARTITION BY t.album_id) AS total
+      FROM tracks t
+      JOIN ${trackArtistsFor(userId)} ta ON ta.track_id = t.spotify_id AND ta.position = 0
+      WHERE t.album_id IN (SELECT eid FROM uncredited)
+      GROUP BY t.album_id, ta.artist_id
+    ),
+    credited(eid, artist_id) AS (
+      SELECT co.subject_id, co.artist_id FROM credit_overrides co
+      WHERE co.user_id = ${userId} AND co.subject_type = 'album' AND co.subject_id IN (SELECT eid FROM ranked)
+      UNION
+      SELECT r.eid, ac.artist_id FROM ranked r
+      JOIN album_collections ac ON ${COLLECTION_ID_PREFIX} || ac.id = r.eid
+      WHERE ${notOverridden}
+      UNION
+      SELECT r.eid, je.value FROM ranked r
+      JOIN albums al ON al.spotify_id = r.eid, json_each(al.artist_ids) je
+      WHERE ${notOverridden}
+      UNION
+      SELECT eid, artist_id FROM led WHERE n * 2 > total
+    )
+    -- DISTINCT: dos acreditados del mismo grupo de merge son un solo artista
+    SELECT DISTINCT COALESCE(mr.target_id, c.artist_id) AS artist_id, r.eid, r.rnk, r.val
+    FROM credited c
+    JOIN ranked r ON r.eid = c.eid
+    JOIN albums al ON al.spotify_id = r.eid
+    LEFT JOIN merge_rules mr ON mr.entity_type = 'artist' AND mr.source_id = c.artist_id AND mr.user_id = ${userId}
+    WHERE al.album_type IS NOT 'single' AND NOT (${syntheticSingle})
+  `) as AlbumRankRow[];
+}
+
+// media del puesto all-time de los álbumes de cada artista, ponderada por lo que pesa
+// cada uno en la métrica: dice dónde cae, de media, lo que escuchas de sus discos. Con
+// la media a secas, un artista con mucho catálogo se hundía por los discos que nunca
+// pasaron del #1000. Ponderar no basta: el puesto no tiene techo, así que 8 minutos en
+// el #9000 sumaban 11 puestos a Angèle; fuera del top de /top todo cuenta como el
+// primero de fuera, y un disco olvidado resta lo que pesa, nada más.
+// hacen falta AVG_ALBUM_RANK_MIN_ALBUMS dentro del top, por la misma razón que los años
+// de la media year-end: con uno, la "media" sería ese disco
+export function computeAverageAlbumRank(db: Db, userId: number, sort: Sort, limit: number): RecordEntry[] {
+  const ceiling = AVG_ALBUM_RANK_TOP + 1;
+  const byArtist = artistAlbumRanks(db, userId, sort)
+    .reduce((acc, row) => (acc.get(row.artist_id)?.push(row) ?? acc.set(row.artist_id, [row]), acc), new Map<string, AlbumRankRow[]>());
+
+  const ranked = [...byArtist]
+    .map(([artistId, albums]) => {
+      const weight = albums.reduce((s, a) => s + (Number(a.val) || 0), 0);
+      const avg = albums.reduce((s, a) => s + Math.min(a.rnk, ceiling) * (Number(a.val) || 0), 0) / weight;
+      return { artistId, avg, charted: albums.filter(a => a.rnk <= AVG_ALBUM_RANK_TOP).sort((a, b) => a.rnk - b.rnk) };
+    })
+    .filter(r => r.charted.length >= AVG_ALBUM_RANK_MIN_ALBUMS && Number.isFinite(r.avg))
+    // a igual media, más discos en el top es más mérito
+    .sort((a, b) => a.avg - b.avg || b.charted.length - a.charted.length)
+    .slice(0, limit);
+  if (ranked.length === 0) return [];
+
+  const values = (ids: string[]) => sql.join(ids.map(id => sql`(${id})`), sql`, `);
+  const names = (rows: any[]) => new Map(rows.map(r => [r.id as string, r]));
+  const artists = names(db.all(sql`
+    WITH picked(id) AS (VALUES ${values(ranked.map(r => r.artistId))})
+    SELECT picked.id AS id, a.name, a.image_url FROM picked JOIN artists a ON a.spotify_id = picked.id
+  `) as any[]);
+  const albums = names(db.all(sql`
+    WITH picked(id) AS (VALUES ${values([...new Set(ranked.flatMap(r => r.charted.map(a => a.eid)))])})
+    SELECT picked.id AS id, al.name FROM picked JOIN albums al ON al.spotify_id = picked.id
+  `) as any[]);
+
+  return ranked
+    .filter(r => artists.has(r.artistId))
+    .map(r => ({
+      ...mapSimple({ ...artists.get(r.artistId), eid: r.artistId, value: r.avg }),
+      albumRanks: r.charted.map(a => ({ albumId: a.eid, name: albums.get(a.eid)?.name ?? 'unknown', rank: a.rnk })),
+    }));
+}
+
 // --- most accolades: cuenta en cuántas listas de records aparece cada entidad ---
 
 export function computeMostAccolades(
@@ -586,6 +697,7 @@ export function computeMostAccolades(
   tally(data.mostWeeksInTop5);
   tally(data.longestChartRun);
   tally(data.averageYearFinish);
+  if (data.averageAlbumRank) tally(data.averageAlbumRank);
   tally(data.inMostPlaylists);
   tally(data.longestGap);
   tally(data.goldenOldies);

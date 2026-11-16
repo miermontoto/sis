@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   weeksInChart: 'Weeks in charts',
   longestRun: 'Longest chart run',
   avgYearFinish: 'Avg year-end finish',
+  avgAlbumRank: 'Avg album rank',
   mostNo1Tracks: '#1 tracks',
   mostNo1Albums: '#1 albums',
   inMostPlaylists: 'In most playlists',
@@ -51,7 +52,7 @@ export function formatAccoladeValue(a: Accolade, metric: RankingMetric): string 
   if (a.type === 'mostNo1Tracks' || a.type === 'mostNo1Albums' || a.type === 'mostAccolades') return String(a.value);
   if (a.type === 'longestGap') return `${formatNumber(a.value)} day${a.value !== 1 ? 's' : ''}`;
   if (a.type === 'dominance') return `${a.value.toFixed(1)}%`;
-  if (a.type === 'avgYearFinish') return `avg #${a.value.toFixed(1)}`;
+  if (a.type === 'avgYearFinish' || a.type === 'avgAlbumRank') return `avg #${a.value.toFixed(1)}`;
   if (a.type === 'mostDistinctTracks') return plural(a.value, 'track');
   if (a.type === 'mostConcerts' || a.type === 'mostHeardLive') return plural(a.value, 'show');
   if (a.type === 'goldenOldies' || a.type === 'latestDiscoveries' || a.type === 'oneHitWonders') {
