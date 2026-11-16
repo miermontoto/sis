@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w47b';
+export const VERSION = '26w47c';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -402,6 +402,36 @@ export const SINGLE_FOLD_MAX_LEAD_MS = 2 * 365 * 24 * 60 * 60_000;
 // se pliegan en el track del single, así que el álbum puede no tener fila para ese tema
 // hasta que se rellena su tracklist; ensureFullAlbumTracks sella cada uno 30 días
 export const SINGLE_FOLD_TRACKLIST_FETCH_MAX = 10;
+
+// álbumes que vienen (services/upcoming-albums.ts): cada cuánto se barren las fuentes
+// (contexto de plays, preventas de iTunes), se pliegan los singles nuevos en su colección
+// y se disuelven las de los álbumes que ya salieron
+export const UPCOMING_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
+
+// artistas preguntados a iTunes por pasada, y cada cuánto se vuelve a preguntar por uno.
+// iTunes documenta ~20 llamadas/min por IP: el hueco entre llamadas las deja por debajo
+export const UPCOMING_ITUNES_ARTISTS_PER_SWEEP = 25;
+export const UPCOMING_ARTIST_RECHECK_MS = 7 * 24 * 60 * 60_000;
+export const ITUNES_REQUEST_GAP_MS = 3_500;
+export const ITUNES_API_BASE = 'https://itunes.apple.com';
+// las preventas son globales en la práctica (Leoniden, alemanes, sale igual en US/DE/ES)
+export const ITUNES_COUNTRY = 'US';
+export const ITUNES_SEARCH_LIMIT = 200;
+
+// un artista entra en el barrido de iTunes si tiene un single escuchado de este último
+// año: es lo que se adelanta a un álbum que aún no ha salido
+export const UPCOMING_SINGLE_LOOKBACK_MS = 365 * 24 * 60 * 60_000;
+
+// plays desde la página de un álbum que no está en la biblioteca: cuánto se mira atrás y
+// cuántos se le preguntan a spotify por pasada (en prod: 27 en seis meses, uno futuro)
+export const UPCOMING_CONTEXT_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
+export const UPCOMING_CONTEXT_MAX_PER_SWEEP = 20;
+
+// tras la fecha de salida: margen para encontrar el álbum real en la discografía del
+// artista (por nombre, con su fecha a ± estos días). Pasado, la colección se queda como
+// una colección normal
+export const UPCOMING_RESOLVE_GRACE_MS = 30 * 24 * 60 * 60_000;
+export const UPCOMING_RELEASE_MATCH_DAYS = 14;
 
 // solape mínimo (s) entre la ventana implícita de un play SIN duración medida y la de
 // un play medido para dar el primero por imposible. Con 30s no lo dispara ni un borde

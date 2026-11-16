@@ -8,6 +8,7 @@ import { warmRecentRankChanges } from './recent-changes-cache.js';
 import { getProfileSummaryCached, getUserStreaksCached } from './social.js';
 import { warmLatestReports } from './report-cache.js';
 import { foldSinglesIfEnabled } from './single-fold.js';
+import { sweepUpcomingIfDue } from './upcoming-albums.js';
 import { getUserById } from './user-manager.js';
 import { createLogger } from './logger.js';
 
@@ -18,6 +19,7 @@ const logRecentChanges = createLogger('recent-changes');
 const logSocialCard = createLogger('social-card');
 const logReportCache = createLogger('report-cache');
 const logSingleFold = createLogger('single-fold');
+const logUpcoming = createLogger('upcoming');
 const deferredUsers = new Set<number>();
 
 /** Lanzar tareas diferidas para un usuario (playlist sync + records cache +
@@ -55,6 +57,10 @@ export function triggerDeferredStartup(userId: number) {
     // tras un deploy, que reinicia el timer horario del polling
     foldSinglesIfEnabled(userId).catch(err =>
       logSingleFold.error(`error usuario ${userId}:`, err));
+    // álbumes que vienen: la pasada es global, así que sólo la lanza el primer usuario
+    // que arranca tras un deploy (el timer de 6h se reinicia con él)
+    sweepUpcomingIfDue().catch(err =>
+      logUpcoming.error('error:', err));
   }
 }
 

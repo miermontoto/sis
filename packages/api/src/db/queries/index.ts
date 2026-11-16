@@ -32,6 +32,7 @@ export type { MergeInfo, MergeSuggestionRow } from './merge.js';
 
 // plegado automático de singles de adelanto en su álbum (ajuste autoMergeSingles)
 export { planSingleFolds } from './single-fold.js';
+export { planUpcomingFolds, upcomingCandidateArtists, upcomingContextCandidates } from './upcoming.js';
 export type { SingleFoldPlan } from './single-fold.js';
 
 // relaciones soft entre artistas (sin efecto en el tracking)

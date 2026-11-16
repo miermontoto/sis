@@ -35,11 +35,12 @@ import { runDueRegenerations } from './playlist-auto-regenerate.js';
 import { bakeRecordsForAllUsers } from './records-cache.js';
 import { warmAllLatestReports } from './report-cache.js';
 import { foldSinglesForAllUsers } from './single-fold.js';
+import { sweepUpcoming } from './upcoming-albums.js';
 import { resetDeferredState } from './deferred-startup.js';
 import { isLastfmConfigured } from './lastfm-client.js';
 import { syncAllLastfmAccounts } from './lastfm-sync.js';
 import { enrichLastfmDurations, enrichLastfmGenres } from './lastfm-enrich.js';
-import { LASTFM_POLL_INTERVAL_MS, SINGLE_FOLD_INTERVAL_MS } from '../constants.js';
+import { LASTFM_POLL_INTERVAL_MS, SINGLE_FOLD_INTERVAL_MS, UPCOMING_SWEEP_INTERVAL_MS } from '../constants.js';
 import type {
   SpotifyCurrentlyPlayingResponse,
   SpotifyRecentlyPlayedResponse,
@@ -68,6 +69,7 @@ const logPlaylistSync = createLogger('playlist-sync');
 const logLikedSync = createLogger('liked-sync');
 const logAutoRegen = createLogger('auto-regen');
 const logSingleFold = createLogger('single-fold');
+const logUpcoming = createLogger('upcoming');
 
 // timers por usuario
 interface UserTimers {
@@ -169,6 +171,7 @@ let playlistSyncTimer: ReturnType<typeof setInterval> | null = null;
 let likedSyncTimer: ReturnType<typeof setInterval> | null = null;
 let autoRegenerateTimer: ReturnType<typeof setInterval> | null = null;
 let singleFoldTimer: ReturnType<typeof setInterval> | null = null;
+let upcomingTimer: ReturnType<typeof setInterval> | null = null;
 let lastfmSyncTimer: ReturnType<typeof setInterval> | null = null;
 let tokenlessEnrichTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -620,6 +623,10 @@ export function startPolling() {
   // de cada usuario la lanza su arranque diferido, que un deploy reinicia este timer
   singleFoldTimer = setInterval(task('fold singles', foldSinglesForAllUsers, logSingleFold), SINGLE_FOLD_INTERVAL_MS);
 
+  // álbumes que vienen: sus singles rankean como el álbum hasta que sale. la primera
+  // pasada tras un deploy la lanza el arranque diferido
+  upcomingTimer = setInterval(task('upcoming albums', sweepUpcoming, logUpcoming), UPCOMING_SWEEP_INTERVAL_MS);
+
   log.info(`currently playing con scheduling dinámico (${CURRENTLY_PLAYING_MIN_MS / 1000}s–${CURRENTLY_PLAYING_MAX_MS / 1000}s)`);
   log.info(`recently played cada ${RECENTLY_PLAYED_INTERVAL_MS / 1000}s`);
 }
@@ -640,6 +647,7 @@ export function stopPolling() {
   if (likedSyncTimer) clearInterval(likedSyncTimer);
   if (autoRegenerateTimer) clearInterval(autoRegenerateTimer);
   if (singleFoldTimer) clearInterval(singleFoldTimer);
+  if (upcomingTimer) clearInterval(upcomingTimer);
   if (lastfmSyncTimer) clearInterval(lastfmSyncTimer);
   if (tokenlessEnrichTimer) clearInterval(tokenlessEnrichTimer);
   metadataRefreshTimer = null;
@@ -651,6 +659,7 @@ export function stopPolling() {
   likedSyncTimer = null;
   autoRegenerateTimer = null;
   singleFoldTimer = null;
+  upcomingTimer = null;
   lastfmSyncTimer = null;
   tokenlessEnrichTimer = null;
   log.info('polling detenido');

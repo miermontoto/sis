@@ -611,4 +611,47 @@ export function applyLegacyDdl(sqlite: Database.Database): void {
       PRIMARY KEY (user_id, single_id)
     )`);
   } catch {}
+
+  // álbumes anunciados que aún no han salido (services/upcoming-albums.ts). Catálogo, no
+  // del usuario: los encuentra un enlace, el contexto de un play o una preventa de iTunes,
+  // y la misma fila junta las dos fuentes por (artista, nombre). `tracks` es json de
+  // UpcomingTrack: con `trackId` lo que dio spotify, sólo nombre + duración lo de iTunes
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS upcoming_albums (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      artist_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      name_key TEXT NOT NULL,
+      release_date TEXT NOT NULL,
+      spotify_album_id TEXT,
+      itunes_collection_id TEXT,
+      image_url TEXT,
+      tracks TEXT NOT NULL DEFAULT '[]',
+      state TEXT NOT NULL DEFAULT 'upcoming',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (artist_id, name_key)
+    )`);
+  } catch {}
+
+  // la colección que el barrido creó para cada usuario y álbum que viene. La fila es la
+  // memoria: si el usuario borra la colección (collection_id apunta a nada) o el álbum ya
+  // salió y se disolvió (NULL), no se vuelve a crear
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS upcoming_folds (
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      upcoming_id INTEGER NOT NULL,
+      collection_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, upcoming_id)
+    )`);
+  } catch {}
+
+  // rotación del barrido de iTunes: cuándo se preguntó por última vez por cada artista
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS upcoming_artist_checks (
+      artist_id TEXT PRIMARY KEY,
+      checked_at TEXT NOT NULL
+    )`);
+  } catch {}
 }

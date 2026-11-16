@@ -194,6 +194,7 @@ async function albumDetailForCollection(
     collection: null,
     members,
     notes: summary.notes,
+    upcoming: summary.upcoming,
   });
 }
 
