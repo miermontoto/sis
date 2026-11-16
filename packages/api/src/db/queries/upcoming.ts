@@ -98,23 +98,29 @@ export function planUpcomingFolds(db: Db, userId: number): UpcomingFoldPlan[] {
 }
 
 /** Artistas a preguntar a iTunes en esta pasada: los de algún single escuchado desde
- *  `since` (fecha de salida), los nunca preguntados primero y después los más antiguos. */
+ *  `since` (fecha de salida). Primero los que traen señal nueva —nunca preguntados, o con
+ *  un single posterior a la última pregunta, que es justo lo que precede a un álbum— y,
+ *  dentro, el single más reciente delante: con 567 candidatos en prod y un orden sin
+ *  criterio, la primera vuelta tardaba ~6 días y Leoniden, con un single de hacía dos
+ *  semanas y el álbum anunciado, no salió en la primera pasada (habría ido el 24º).
+ *  Después, los que tocan por antigüedad (`recheckBefore`). */
 export function upcomingCandidateArtists(db: Db, userIds: number[], since: string, recheckBefore: string, limit: number) {
   if (userIds.length === 0) return [];
   return db.all(sql`
     SELECT ar.spotify_id AS id, ar.name
     FROM (
-      SELECT DISTINCT json_extract(s.artist_ids, '$[0]') AS artist_id
+      SELECT json_extract(s.artist_ids, '$[0]') AS artist_id, MAX(s.release_date) AS latest
       FROM albums s
       WHERE s.album_type = 'single' AND s.release_date >= ${since} AND instr(s.spotify_id, ':') = 0
         AND EXISTS (
           SELECT 1 FROM tracks t CROSS JOIN listening_history lh ON lh.track_id = t.spotify_id
           WHERE t.album_id = s.spotify_id AND lh.user_id IN (${idList(userIds)}))
+      GROUP BY 1
     ) c
     JOIN artists ar ON ar.spotify_id = c.artist_id
     LEFT JOIN upcoming_artist_checks uc ON uc.artist_id = c.artist_id
-    WHERE uc.checked_at IS NULL OR uc.checked_at < ${recheckBefore}
-    ORDER BY uc.checked_at IS NOT NULL, uc.checked_at
+    WHERE uc.checked_at IS NULL OR uc.checked_at < ${recheckBefore} OR c.latest > substr(uc.checked_at, 1, 10)
+    ORDER BY (uc.checked_at IS NULL OR c.latest > substr(uc.checked_at, 1, 10)) DESC, c.latest DESC
     LIMIT ${limit}
   `) as { id: string; name: string }[];
 }
