@@ -43,6 +43,22 @@ export function parseSpotifyAlbumId(input: string): string | null {
   return m ? (m[1] ?? m[2] ?? m[3]) : null;
 }
 
+const PRERELEASE_REF = new RegExp(`^(?:https?://open\\.spotify\\.com/(?:intl-[a-z-]+/)?(?:embed/)?prerelease/(${SPOTIFY_ID})(?:[/?#].*)?|spotify:prerelease:(${SPOTIFY_ID}))$`);
+const TRACK_URI = new RegExp(`spotify:track:(${SPOTIFY_ID})`, 'g');
+
+/** Id de una Countdown Page (`open.spotify.com/prerelease/{id}`). No es el id del álbum:
+ *  `/albums/{id}` le da 404, así que el servidor lo resuelve por los temas de su embed. */
+export function parseSpotifyPrereleaseId(input: string): string | null {
+  const m = PRERELEASE_REF.exec(input.trim());
+  return m ? (m[1] ?? m[2]) : null;
+}
+
+/** Temas que lista el embed de una Countdown Page (`spotify:track:<id>`, en orden y sin
+ *  repetir): son los del álbum real, publicados o no, y `/tracks/{id}` devuelve su álbum. */
+export function embedTrackIds(html: string): string[] {
+  return [...new Set([...html.matchAll(TRACK_URI)].map(m => m[1]))];
+}
+
 /** ¿El single va dentro del álbum que viene? Mismas reglas que el plegado de siempre
  *  (dentro de la ventana de adelanto y con TODOS sus temas en el álbum), con dos formas
  *  de casar un tema: por id, que es la prueba de spotify, o por clave + duración, que
