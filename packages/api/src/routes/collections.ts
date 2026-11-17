@@ -14,8 +14,9 @@ import {
   removeCollectionMember, reorderCollectionMembers, findMemberCollection,
   getCollectionRow, getCollectionSummary, getArtistCollections, getCollectionMembers,
   canonicalMemberId, isEligibleMember, artistMergeGroup, getEligibleCollections,
-  getCollectionCandidates, getCollectionsIndex,
+  getCollectionCandidates, getCollectionsIndex, getCollectionAlbumMembers, getCollectionPlayOrder,
 } from '../db/queries/collections.js';
+import { ensureFullAlbumTracks } from '../services/ingestion/enrichment.js';
 import { invalidateRecordsCacheForUser } from '../services/records-cache.js';
 import { invalidateReportCacheForUser } from '../services/report-cache.js';
 import { invalidateProjectionBase } from '../services/projection-cache.js';
@@ -85,6 +86,23 @@ collections.get('/:id{[0-9]+}/candidates', (c) => {
   if (!getCollectionRow(db, id, userId)) return c.json({ error: 'collection not found' }, 404);
   const limit = Math.min(parseInt(c.req.query('limit') || String(COLLECTION_CANDIDATES_LIMIT)), 200);
   return c.json(getCollectionCandidates(db, id, userId, c.req.query('q') ?? '', limit));
+});
+
+/** Cola del Play de una colección (ver getCollectionPlayOrder), con el tracklist de cada
+ *  álbum miembro completado antes, igual que su página: en una colección de EPs suele
+ *  faltar la mitad de los temas. null = no es del usuario. La usan el Play de la página,
+ *  el menú contextual de la fila y la cola de `/now-playing/queue/album/collection:N`. */
+export async function collectionPlayOrder(userId: number, collectionId: number): Promise<string[] | null> {
+  const db = getDb();
+  if (!getCollectionRow(db, collectionId, userId)) return null;
+  await Promise.all(getCollectionAlbumMembers(db, collectionId, userId)
+    .map(a => ensureFullAlbumTracks(a.spotify_id, a.total_tracks, userId, { force: true }).catch(() => {})));
+  return getCollectionPlayOrder(db, collectionId, userId);
+}
+
+collections.get('/:id{[0-9]+}/play-order', async (c) => {
+  const trackIds = await collectionPlayOrder(c.get('userId'), Number(c.req.param('id')));
+  return trackIds === null ? c.json({ error: 'collection not found' }, 404) : c.json({ trackIds });
 });
 
 collections.post('/', async (c) => {

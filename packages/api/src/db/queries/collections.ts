@@ -189,13 +189,15 @@ export function getCollectionUpcoming(db: Db, collectionId: number, userId: numb
  *  tenga a mano, que puede ser el de un alias. */
 export function getCollectionsIndex(db: Db, userId: number): CollectionIndexItem[] {
   const rows = db.all(sql`
-    SELECT ac.id, ac.artist_id, al.name, al.image_url, ar.name AS artist_name
+    SELECT ac.id, ac.artist_id, al.name, al.image_url, ar.name AS artist_name,
+      EXISTS (SELECT 1 FROM upcoming_folds uf JOIN upcoming_albums u ON u.id = uf.upcoming_id
+              WHERE uf.user_id = ac.user_id AND uf.collection_id = ac.id AND u.state = 'upcoming') AS upcoming
     FROM album_collections ac
     JOIN albums al ON al.spotify_id = ${COLLECTION_ID_PREFIX} || ac.id
     LEFT JOIN artists ar ON ar.spotify_id = ac.artist_id
     WHERE ac.user_id = ${userId}
     ORDER BY al.name ASC
-  `) as { id: number; artist_id: string; name: string; image_url: string | null; artist_name: string | null }[];
+  `) as { id: number; artist_id: string; name: string; image_url: string | null; artist_name: string | null; upcoming: number }[];
   if (rows.length === 0) return [];
 
   const aliases = db.all(sql`
@@ -209,6 +211,7 @@ export function getCollectionsIndex(db: Db, userId: number): CollectionIndexItem
     imageUrl: r.image_url,
     artistIds: [r.artist_id, ...aliases.filter(a => a.target_id === r.artist_id).map(a => a.source_id)],
     artistName: r.artist_name ?? '',
+    upcoming: r.upcoming === 1,
   }));
 }
 
@@ -396,6 +399,24 @@ export function getCollectionAlbumMembers(db: Db, collectionId: number, userId: 
     JOIN albums al ON al.spotify_id = acm.member_id
     WHERE acm.collection_id = ${collectionId} AND acm.user_id = ${userId} AND acm.member_type = 'album'
   `) as { spotify_id: string; total_tracks: number | null }[];
+}
+
+/** Cola del Play de una colección: los temas de sus miembros DIRECTOS (un álbum absorbido
+ *  por merge repetiría los de su canónico) en orden cronológico —fecha del disco y luego
+ *  disco/pista, no el orden de inserción de los miembros—, sin sintéticos, que no existen
+ *  en spotify. La comparten el botón de su página, el menú contextual de su fila y la
+ *  cola (`/now-playing/queue/album/collection:N`), para que suene igual desde todos. */
+export function getCollectionPlayOrder(db: Db, collectionId: number, userId: number): string[] {
+  const members = (type: 'album' | 'track') => sql`
+    SELECT member_id FROM album_collection_members
+    WHERE collection_id = ${collectionId} AND user_id = ${userId} AND member_type = ${type}`;
+  return (db.all(sql`
+    SELECT t.spotify_id AS id
+    FROM tracks t JOIN albums a ON a.spotify_id = t.album_id
+    WHERE instr(t.spotify_id, ':') = 0
+      AND (t.album_id IN (${members('album')}) OR t.spotify_id IN (${members('track')}))
+    ORDER BY a.release_date IS NULL, a.release_date, a.spotify_id, t.disc_number IS NULL, t.disc_number, t.track_number
+  `) as { id: string }[]).map(r => r.id);
 }
 
 /** Todos los temas que agrega la colección: los de sus álbumes miembro más los sueltos.

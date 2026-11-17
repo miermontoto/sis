@@ -16,7 +16,8 @@ import { getTrackArtists } from '../db/queries/inline.js';
 import { isLikedSynced, isTrackLiked, likedTrackIds, setTrackLikedLocal, syncUserLikedTracks } from '../services/liked-sync.js';
 import { SOCIAL_NOW_PLAYING_STALE_MS, NOW_PLAYING_STALE_MS, LASTFM_NOW_PLAYING_STALE_MS, NOW_PLAYING_QUEUE_LIMIT, HISTORY_TAIL_LIMIT, LIKED_CONTAINS_MAX_IDS } from '../constants.js';
 import type { AppVariables } from '../app.js';
-import { PLAYLIST_MEMBERSHIP_MAX_IDS } from '@sis/shared';
+import { collectionPlayOrder } from './collections.js';
+import { PLAYLIST_MEMBERSHIP_MAX_IDS, parseCollectionKey } from '@sis/shared';
 import type { SpotifyDevice, PlayContextRequest, PlayContextResponse, QueueResponse, LandedPlay } from '@sis/shared';
 import type { SpotifyCurrentlyPlayingResponse, SpotifyQueueResponse, SpotifyTrack } from '../types/spotify.js';
 
@@ -623,7 +624,16 @@ nowPlaying.post('/queue/album/:id', async (c) => {
   const userId = c.get('userId');
   const albumId = c.req.param('id');
 
-  // un álbum lógico (collection:) o sintético no tiene uri que encolar
+  // un álbum lógico (collection:) no tiene uri: se encola su tracklist natural, el mismo
+  // que suena con su Play
+  const collectionId = parseCollectionKey(albumId);
+  if (collectionId !== null) {
+    const ids = await collectionPlayOrder(userId, collectionId);
+    if (!ids) return c.json({ success: false, error: 'not_found', queued: 0 } satisfies QueueResponse, 404);
+    return c.json(await queueTracks(userId, ids));
+  }
+
+  // un sintético tampoco existe en spotify
   if (isNonSpotifyId(albumId)) {
     return c.json({ success: false, error: 'invalid_uri', queued: 0 } satisfies QueueResponse, 400);
   }
@@ -640,15 +650,19 @@ nowPlaying.post('/queue/album/:id', async (c) => {
     WHERE album_id = ${albumId} AND NOT ${syntheticIdPredicate('spotify_id')}
     ORDER BY disc_number IS NULL, disc_number, track_number
   `) as { id: string }[]).map(r => r.id);
-  if (trackIds.length === 0) return c.json({ success: false, error: 'not_found', queued: 0 } satisfies QueueResponse);
+  return c.json(await queueTracks(userId, trackIds));
+});
 
+/** Encola en serie y para al primer fallo (ver arriba); sin temas, `not_found`. */
+async function queueTracks(userId: number, trackIds: string[]): Promise<QueueResponse> {
+  if (trackIds.length === 0) return { success: false, error: 'not_found', queued: 0 };
   let queued = 0;
   for (const id of trackIds) {
     const result = await queueUri(userId, `spotify:track:${id}`);
-    if (!result.success) return c.json({ ...result, queued } satisfies QueueResponse);
+    if (!result.success) return { ...result, queued };
     queued++;
   }
-  return c.json({ success: true, queued } satisfies QueueResponse);
-});
+  return { success: true, queued };
+}
 
 export default nowPlaying;
