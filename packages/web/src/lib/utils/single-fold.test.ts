@@ -103,3 +103,32 @@ describe('pickSingleFold', () => {
     ]);
   });
 });
+
+describe('pickSingleFold sin ventana para la misma grabación', () => {
+  // La Casa Azul: el single de 2021 va tal cual en el disco de 2026 (mismo isrc y duración)
+  const fauna = release('fauna', '2026-11-27', [
+    track('fauna-entra', 'entra en mi vida', 218_117, 'ES6642100060'),
+    track('fauna-prometo', 'prometo no olvidar', 194_571, 'ES6642300008'),
+  ]);
+
+  it('pliega un single de hace años si el álbum lleva la misma grabación', () => {
+    const entra = release('entra', '2021-03-10', [track('entra-1', 'entra en mi vida', 218_117, 'ES6642100060')]);
+    expect(pickSingleFold(entra, [fauna], OPTS)?.albumId).toBe('fauna');
+  });
+
+  it('fuera de la ventana, un nombre igual con otra duración no se pliega', () => {
+    const otra = release('otra', '2019-05-01', [track('otra-1', 'entra en mi vida', 180_000)]);
+    expect(pickSingleFold(otra, [fauna], OPTS)).toBeNull();
+  });
+
+  it('fuera de la ventana, dos isrc distintos son dos grabaciones', () => {
+    const regrabada = release('regrabada', '2019-05-01', [track('reg-1', 'entra en mi vida', 218_000, 'XX0000000001')]);
+    expect(pickSingleFold(regrabada, [fauna], OPTS)).toBeNull();
+  });
+
+  it('entre varios álbumes posteriores gana el primero en salir', () => {
+    const recopilatorio = release('hits', '2030-01-01', fauna.tracks.map(t => ({ ...t, id: `hits-${t.id}` })));
+    const entra = release('entra', '2021-03-10', [track('entra-1', 'entra en mi vida', 218_117, 'ES6642100060')]);
+    expect(pickSingleFold(entra, [recopilatorio, fauna], OPTS)?.albumId).toBe('fauna');
+  });
+});

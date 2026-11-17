@@ -1,7 +1,11 @@
 // a qué álbum pertenece un single de adelanto, como decisión pura: el barrido automático
 // (api/services/single-fold.ts) carga el catálogo y esto decide, así que las reglas se
 // prueban sin base de datos. Un single se pliega en un álbum sólo si:
-//   - el álbum sale después del single (o el mismo día) y dentro de la ventana de adelanto;
+//   - el álbum sale después del single (o el mismo día) y dentro de la ventana de adelanto,
+//     salvo que el single sea la MISMA grabación que el álbum lleva (mismo nombre, duración
+//     dentro de la tolerancia y sin isrc distintos): entonces no hay límite. La ventana
+//     sólo protege lo que casa por nombre a secas; La Casa Azul mete en su disco de 2026
+//     un single de 2021, y Spotify lo lista en el álbum (decisión de Juan, 2026-11-17);
 //   - TODOS sus temas están en el álbum. Un B-side, un instrumental o un remix que el álbum
 //     no lleva deja el single como lanzamiento propio: sus plays no son del álbum.
 // Entre varios álbumes que cumplen gana el primero en salir: una deluxe posterior repite los
@@ -88,12 +92,22 @@ const recordingPairs = (single: FoldRelease, album: FoldRelease, toleranceMs: nu
     });
 };
 
+/** Todos los temas del single están en el álbum como la misma grabación. */
+const sameRecordingAll = (single: FoldRelease, album: FoldRelease, toleranceMs: number) =>
+  single.tracks.length > 0 && single.tracks.every(st => album.tracks.some(at => sameRecording(st, at, toleranceMs)));
+
+/** Ventana del plegado: la de adelanto, o ninguna si el single es la misma grabación que
+ *  lleva el álbum (siempre con el álbum después del single). */
+const foldWindowOk = (single: FoldRelease, album: FoldRelease, opts: SingleFoldOptions) =>
+  inFoldWindow(single, album, opts.maxLeadMs)
+  || (inFoldWindow(single, album, Number.POSITIVE_INFINITY) && sameRecordingAll(single, album, opts.durationToleranceMs));
+
 /** Álbum en el que plegar el single y los merges de track que lo acompañan (sólo los
  *  temas que son la misma grabación; una versión distinta sigue su camino como track
  *  aunque el single entero pase a contar para el álbum). null = no se pliega. */
 export function pickSingleFold(single: FoldRelease, albums: FoldRelease[], opts: SingleFoldOptions): SingleFold | null {
   const album = albums
-    .filter(a => a.id !== single.id && inFoldWindow(single, a, opts.maxLeadMs) && containsAll(single, a))
+    .filter(a => a.id !== single.id && containsAll(single, a) && foldWindowOk(single, a, opts))
     .sort((a, b) =>
       (releaseEdge(a.releaseDate, 'start') ?? 0) - (releaseEdge(b.releaseDate, 'start') ?? 0)
       || b.tracks.length - a.tracks.length

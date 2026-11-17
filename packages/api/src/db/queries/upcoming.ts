@@ -4,9 +4,11 @@
 //
 // Un single sólo entra si el usuario no lo ha tocado: ni merge de álbum, ni plegado ya en
 // su álbum (single_folds), ni en una colección. Es el mismo filtro que planSingleFolds, y
-// por la misma razón: una decisión del usuario manda sobre un barrido.
+// por la misma razón: una decisión del usuario manda sobre un barrido. De un EP con
+// canciones que el disco no lleva entran sólo los temas compartidos, como temas sueltos
+// de la colección (que no estén ya en otra ni mergeados en otro tema).
 import { sql } from 'drizzle-orm';
-import { upcomingContains, type FoldRelease, type FoldTrack, type UpcomingTrack } from '@sis/shared';
+import { upcomingMatch, type FoldRelease, type FoldTrack, type UpcomingTrack } from '@sis/shared';
 import { creditBaseKey } from '../../services/versions.js';
 import { artistMergeGroup, isEligibleMember } from './collections.js';
 import { SINGLE_FOLD_MAX_LEAD_MS, TRACK_DEDUP_DURATION_TOLERANCE_MS } from '../../constants.js';
@@ -19,11 +21,13 @@ export interface UpcomingFoldPlan {
   imageUrl: string | null;
   // la colección que ya tiene (se amplía con singles nuevos) o null (hay que crearla)
   collectionId: number | null;
+  // lanzamientos enteros y temas sueltos (los compartidos de un EP con canciones de fuera)
   singleIds: string[];
+  trackIds: string[];
 }
 
 interface UpcomingRow { id: number; artist_id: string; name: string; release_date: string; image_url: string | null; tracks: string }
-interface SingleRow { id: string; releaseDate: string; artistId: string }
+interface SingleRow { id: string; releaseDate: string; artistId: string; totalTracks: number | null }
 interface TrackRow { id: string; albumId: string; name: string; durationMs: number }
 
 const idList = (ids: readonly (string | number)[]) => sql.join(ids.map(id => sql`${id}`), sql`, `);
@@ -64,7 +68,8 @@ export function planUpcomingFolds(db: Db, userId: number): UpcomingFoldPlan[] {
     UNION SELECT single_id FROM single_folds WHERE user_id = ${userId}
     UNION SELECT member_id FROM album_collection_members WHERE user_id = ${userId} AND member_type = 'album'`;
   const singles = db.all(sql`
-    SELECT s.spotify_id AS id, s.release_date AS releaseDate, json_extract(s.artist_ids, '$[0]') AS artistId
+    SELECT s.spotify_id AS id, s.release_date AS releaseDate, json_extract(s.artist_ids, '$[0]') AS artistId,
+           s.total_tracks AS totalTracks
     FROM albums s
     WHERE s.album_type = 'single' AND s.release_date IS NOT NULL
       AND json_extract(s.artist_ids, '$[0]') IN (${idList(artistIds)})
@@ -85,15 +90,28 @@ export function planUpcomingFolds(db: Db, userId: number): UpcomingFoldPlan[] {
   });
   const opts = { maxLeadMs: SINGLE_FOLD_MAX_LEAD_MS, durationToleranceMs: TRACK_DEDUP_DURATION_TOLERANCE_MS };
 
+  // temas que no pueden entrar sueltos: ya en una colección, o parte de un merge de track
+  const takenTracks = new Set((db.all(sql`
+    SELECT member_id AS id FROM album_collection_members WHERE user_id = ${userId} AND member_type = 'track'
+    UNION SELECT source_id FROM merge_rules WHERE user_id = ${userId} AND entity_type = 'track'
+    UNION SELECT target_id FROM merge_rules WHERE user_id = ${userId} AND entity_type = 'track'
+  `) as { id: string }[]).map(r => r.id));
+
   return live.flatMap(u => {
     const group = groups.get(u.id)!;
     const album = { releaseDate: u.release_date, tracks: (JSON.parse(u.tracks) as UpcomingTrack[]).map(t => asFoldTrack({ ...t, id: t.trackId })) };
-    const singleIds = singles
-      .filter(s => group.includes(s.artistId) && upcomingContains(release(s), album, opts)
-        && isEligibleMember(db, 'album', s.id, group, userId))
-      .map(s => s.id);
+    const matches = singles
+      .filter(s => group.includes(s.artistId))
+      .map(s => ({ s, m: upcomingMatch(release(s), s.totalTracks, album, opts) }));
+    const singleIds = matches
+      .filter(({ s, m }) => m?.kind === 'release' && isEligibleMember(db, 'album', s.id, group, userId))
+      .map(({ s }) => s.id);
+    const trackIds = matches
+      .flatMap(({ m }) => m?.kind === 'tracks' ? m.trackIds : [])
+      .filter(id => !takenTracks.has(id) && isEligibleMember(db, 'track', id, group, userId));
     const collectionId = folds.get(u.id)?.collection_id ?? null;
-    return singleIds.length === 0 ? [] : [{ upcomingId: u.id, artistId: group[0], name: u.name, imageUrl: u.image_url, collectionId, singleIds }];
+    return singleIds.length + trackIds.length === 0 ? []
+      : [{ upcomingId: u.id, artistId: group[0], name: u.name, imageUrl: u.image_url, collectionId, singleIds, trackIds }];
   });
 }
 

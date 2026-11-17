@@ -341,8 +341,18 @@ export function reassignTrackRefs(db: ReturnType<typeof getDb>, sourceTrackId: s
   db.run(sql`UPDATE polling_state SET last_currently_playing_track_id = ${targetTrackId}
     WHERE last_currently_playing_track_id = ${sourceTrackId}`);
   reassignCreditOverrides(db, 'track', sourceTrackId, targetTrackId);
+  reassignCollectionMembers(db, 'track', sourceTrackId, targetTrackId);
   rewriteMergeRules(db, 'track', sourceTrackId, targetTrackId);
   db.run(sql`DELETE FROM tracks WHERE spotify_id = ${sourceTrackId}`);
+}
+
+/** Pertenencia a una colección (álbum entero o tema suelto): sin repuntarla, el miembro
+ *  se queda nombrando una fila borrada, sus plays —ya en el destino— dejan de contar para
+ *  la colección y nada lo avisa. Si el usuario ya tenía el destino en una colección gana
+ *  ésa (un miembro, una colección: el UNIQUE descarta el repunte y la fila vieja se va). */
+function reassignCollectionMembers(db: ReturnType<typeof getDb>, type: 'album' | 'track', sourceId: string, targetId: string) {
+  db.run(sql`UPDATE OR IGNORE album_collection_members SET member_id = ${targetId} WHERE member_type = ${type} AND member_id = ${sourceId}`);
+  db.run(sql`DELETE FROM album_collection_members WHERE member_type = ${type} AND member_id = ${sourceId}`);
 }
 
 // re-apunta al álbum destino todo lo que cuelga del origen y lo borra: tracks, historial
@@ -364,6 +374,7 @@ export function reassignAlbumRefs(db: ReturnType<typeof getDb>, sourceAlbumId: s
   db.run(sql`DELETE FROM single_folds WHERE single_id = ${sourceAlbumId}`);
   db.run(sql`UPDATE single_folds SET album_id = ${targetAlbumId} WHERE album_id = ${sourceAlbumId}`);
   reassignCreditOverrides(db, 'album', sourceAlbumId, targetAlbumId);
+  reassignCollectionMembers(db, 'album', sourceAlbumId, targetAlbumId);
   rewriteMergeRules(db, 'album', sourceAlbumId, targetAlbumId);
   db.run(sql`DELETE FROM albums WHERE spotify_id = ${sourceAlbumId}`);
 }
