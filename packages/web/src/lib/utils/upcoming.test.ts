@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { itunesPreorders, itunesTracks, parseSpotifyAlbumId, upcomingContains, type FoldRelease, type FoldTrack } from '@sis/shared';
+import { embedTrackIds, itunesPreorders, itunesTracks, parseSpotifyAlbumId, parseSpotifyPrereleaseId, upcomingContains, type FoldRelease, type FoldTrack } from '@sis/shared';
 
 const DAY_MS = 24 * 60 * 60_000;
 const OPTS = { maxLeadMs: 730 * DAY_MS, durationToleranceMs: 5_000 };
@@ -50,6 +50,33 @@ describe('parseSpotifyAlbumId', () => {
     expect(parseSpotifyAlbumId('https://open.spotify.com/prerelease/4ayL32frKH4LCr9QohSgW5')).toBeNull();
     expect(parseSpotifyAlbumId('https://evil.example/album/4QbCCXywFerRC0Gae7HnUD')).toBeNull();
     expect(parseSpotifyAlbumId('leoniden')).toBeNull();
+  });
+});
+
+// La Casa Azul, "Fauna Subacuática": la Countdown Page que se pegó el 2026-11-17
+const COUNTDOWN = 'https://open.spotify.com/prerelease/2ahJQ3ExK2xGJREA0fb7RQ?si=0f1a5d2e76574ac5';
+
+describe('parseSpotifyPrereleaseId', () => {
+  it('saca el id de una Countdown Page compartida, con prefijo de idioma o como embed', () => {
+    expect(parseSpotifyPrereleaseId(COUNTDOWN)).toBe('2ahJQ3ExK2xGJREA0fb7RQ');
+    expect(parseSpotifyPrereleaseId('https://open.spotify.com/intl-es/prerelease/2ahJQ3ExK2xGJREA0fb7RQ')).toBe('2ahJQ3ExK2xGJREA0fb7RQ');
+    expect(parseSpotifyPrereleaseId('https://open.spotify.com/embed/prerelease/2ahJQ3ExK2xGJREA0fb7RQ?utm_source=oembed')).toBe('2ahJQ3ExK2xGJREA0fb7RQ');
+  });
+
+  it('no confunde un álbum (ni el id pelado, que es de álbum) con una countdown', () => {
+    expect(parseSpotifyAlbumId(COUNTDOWN)).toBeNull();
+    expect(parseSpotifyPrereleaseId('https://open.spotify.com/album/4QbCCXywFerRC0Gae7HnUD')).toBeNull();
+    expect(parseSpotifyPrereleaseId('2ahJQ3ExK2xGJREA0fb7RQ')).toBeNull();
+    expect(parseSpotifyPrereleaseId('https://evil.example/prerelease/2ahJQ3ExK2xGJREA0fb7RQ')).toBeNull();
+  });
+});
+
+describe('embedTrackIds', () => {
+  it('lista los temas del embed en orden y sin repetir', () => {
+    const html = '<script>{"uri":"spotify:track:1C30TVLT268GzCtCgLYnwq"},{"uri":"spotify:track:3cYHfPJ7wBGqiet1ECXb6F"},'
+      + '{"uri":"spotify:track:1C30TVLT268GzCtCgLYnwq"},{"artist":"spotify:artist:2Ynst7DZrEJnlaMM41ZCxd"}</script>';
+    expect(embedTrackIds(html)).toEqual(['1C30TVLT268GzCtCgLYnwq', '3cYHfPJ7wBGqiet1ECXb6F']);
+    expect(embedTrackIds('<html>sin temas</html>')).toEqual([]);
   });
 });
 

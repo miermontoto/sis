@@ -18,7 +18,7 @@
 // real entra en la biblioteca, la colección se disuelve y el plegado de siempre mete los
 // singles en él, con todo su historial (los merges se resuelven al consultar).
 import { sql } from 'drizzle-orm';
-import { collectionKey, itunesPreorders, itunesTracks, normalizeTitle, parseSpotifyAlbumId, type UpcomingLinkResult, type UpcomingTrack } from '@sis/shared';
+import { collectionKey, embedTrackIds, itunesPreorders, itunesTracks, normalizeTitle, parseSpotifyAlbumId, parseSpotifyPrereleaseId, type UpcomingLinkResult, type UpcomingTrack } from '@sis/shared';
 import { getDb } from '../db/connection.js';
 import { dbReadBackground } from '../db/read-pool.js';
 import { addCollectionMember, canonicalMemberId, createCollection, deleteCollection, findMemberCollection, getCollectionRow } from '../db/queries/collections.js';
@@ -33,7 +33,7 @@ import { getAllActiveUsersWithTokens } from './user-manager.js';
 import { serviceUserAgent } from './public-origin.js';
 import { createLogger } from './logger.js';
 import {
-  ITUNES_API_BASE, ITUNES_COUNTRY, ITUNES_REQUEST_GAP_MS, ITUNES_SEARCH_LIMIT,
+  COUNTDOWN_TRACK_TRIES, ITUNES_API_BASE, ITUNES_COUNTRY, ITUNES_REQUEST_GAP_MS, ITUNES_SEARCH_LIMIT, SPOTIFY_EMBED_BASE,
   UPCOMING_ARTIST_RECHECK_MS, UPCOMING_CONTEXT_LOOKBACK_MS, UPCOMING_CONTEXT_MAX_PER_SWEEP,
   UPCOMING_ITUNES_ARTISTS_PER_SWEEP, UPCOMING_RELEASE_MATCH_DAYS, UPCOMING_RESOLVE_GRACE_MS,
   UPCOMING_SINGLE_LOOKBACK_MS, UPCOMING_SWEEP_INTERVAL_MS,
@@ -359,12 +359,37 @@ export function sweepUpcomingIfDue(): Promise<void> {
 
 type LinkOutcome = { result: UpcomingLinkResult } | { error: string; status: 400 | 404 | 409 };
 
+/** Álbum real detrás de una Countdown Page (`/prerelease/{id}`): su id es otra entidad y
+ *  `/albums` le da 404, pero el embed que reparte el oEmbed de spotify lista el tracklist
+ *  como `spotify:track:` y esos temas sí son del álbum (publicados o no): `/tracks/{id}`
+ *  trae su `album.id`. Una petición al embed por enlace pegado, como cualquier preview;
+ *  nada de esto corre en el barrido. */
+async function albumOfCountdown(prereleaseId: string, userId: number): Promise<string | null> {
+  const res = await fetch(`${SPOTIFY_EMBED_BASE}/prerelease/${prereleaseId}`, {
+    headers: { 'User-Agent': serviceUserAgent() },
+  }).catch(() => null);
+  if (!res?.ok) {
+    log.warn(`countdown ${prereleaseId}: ${res?.status ?? 'sin respuesta'}`);
+    return null;
+  }
+  // en serie: si el primero no resuelve (otro mercado, retirado) se prueba el siguiente
+  for (const trackId of embedTrackIds(await res.text()).slice(0, COUNTDOWN_TRACK_TRIES)) {
+    const track = await spotifyFetch<{ album?: { id?: string } }>(`/tracks/${trackId}`, { userId, params: { market: 'from_token' } });
+    if (track?.album?.id) return track.album.id;
+  }
+  return null;
+}
+
 /** `POST /api/upcoming`: el usuario pega el enlace de un álbum que aún no ha salido. */
 export async function linkUpcomingAlbum(userId: number, input: string): Promise<LinkOutcome> {
-  const albumId = parseSpotifyAlbumId(input);
-  if (!albumId) return { error: 'not a Spotify album link', status: 400 };
+  const directId = parseSpotifyAlbumId(input);
+  const prereleaseId = parseSpotifyPrereleaseId(input);
+  if (!directId && !prereleaseId) return { error: 'not a Spotify album or countdown link', status: 400 };
   const tokenUser = tokenUserFor(userId);
-  const album = tokenUser === null ? null : await fetchSpotifyAlbum(albumId, tokenUser);
+  if (tokenUser === null) return { error: "couldn't read that album from Spotify", status: 404 };
+  const albumId = directId ?? await albumOfCountdown(prereleaseId!, tokenUser);
+  if (!albumId) return { error: "couldn't read that countdown page", status: 404 };
+  const album = await fetchSpotifyAlbum(albumId, tokenUser);
   if (!album) return { error: "couldn't read that album from Spotify", status: 404 };
   const parsed = fromSpotify(album);
   if (!parsed) return { error: "couldn't read that album from Spotify", status: 404 };

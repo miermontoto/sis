@@ -1,5 +1,5 @@
 // versión snapshot (formato minecraft: YYwWWx)
-export const VERSION = '26w47d';
+export const VERSION = '26w47e';
 
 // scheme del deep link de la app android (oauth móvil): debe coincidir con el
 // intent-filter de AndroidManifest.xml y con el listener del cliente web
@@ -414,6 +414,11 @@ export const UPCOMING_ITUNES_ARTISTS_PER_SWEEP = 25;
 export const UPCOMING_ARTIST_RECHECK_MS = 7 * 24 * 60 * 60_000;
 export const ITUNES_REQUEST_GAP_MS = 3_500;
 export const ITUNES_API_BASE = 'https://itunes.apple.com';
+
+// embed de las Countdown Pages de spotify: el iframe que reparte su oEmbed lleva el
+// tracklist del álbum real, y con preguntar por unos pocos temas basta para dar con él
+export const SPOTIFY_EMBED_BASE = 'https://open.spotify.com/embed';
+export const COUNTDOWN_TRACK_TRIES = 3;
 // las preventas son globales en la práctica (Leoniden, alemanes, sale igual en US/DE/ES)
 export const ITUNES_COUNTRY = 'US';
 export const ITUNES_SEARCH_LIMIT = 200;
