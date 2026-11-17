@@ -30,7 +30,9 @@ export interface UpcomingLinkResult {
   name: string;
   releaseDate: string;
   collectionId: number | null;
+  // lanzamientos enteros y temas sueltos (de un EP con canciones de fuera) en la colección
   singles: number;
+  tracks: number;
 }
 
 const SPOTIFY_ID = '[0-9A-Za-z]{22}';
@@ -59,18 +61,27 @@ export function embedTrackIds(html: string): string[] {
   return [...new Set([...html.matchAll(TRACK_URI)].map(m => m[1]))];
 }
 
-/** ¿El single va dentro del álbum que viene? Mismas reglas que el plegado de siempre
- *  (dentro de la ventana de adelanto y con TODOS sus temas en el álbum), con dos formas
- *  de casar un tema: por id, que es la prueba de spotify, o por clave + duración, que
- *  es lo único que dan las preventas. Sin duración no casa: un nombre a secas en el
- *  catálogo de un artista es justo lo que se comió versiones distintas otras veces. */
-export function upcomingContains(single: FoldRelease, album: { releaseDate: string; tracks: FoldTrack[] }, opts: SingleFoldOptions): boolean {
-  if (single.tracks.length === 0) return false;
-  if (!inFoldWindow(single, { id: '', releaseDate: album.releaseDate, tracks: [] }, opts.maxLeadMs)) return false;
-  return single.tracks.every(st => album.tracks.some(at =>
+/** Qué entra de un single en el álbum que viene: el lanzamiento entero (`release`) o sólo
+ *  sus temas compartidos (`tracks`, un EP con canciones que el disco no lleva: decisión de
+ *  Juan, 2026-11-17, que el resto del EP siga siendo suyo). */
+export type UpcomingMatch = { kind: 'release' } | { kind: 'tracks'; trackIds: string[] };
+
+/** ¿Qué del single va dentro del álbum que viene? Un tema casa por id (la prueba de
+ *  spotify) o por clave + duración (lo único que dan las preventas): siempre la misma
+ *  grabación, nunca el nombre a secas, así que no hay ventana de adelanto (La Casa Azul
+ *  mete en su disco de 2026 un single de 2021); sólo se exige que el álbum no sea
+ *  anterior al single. Entra el lanzamiento entero si casan TODOS sus temas y su
+ *  tracklist está completo (`totalTracks`): con temas sin ingerir no se sabe si lleva
+ *  canciones de fuera, y entonces sólo entran los temas que casan. */
+export function upcomingMatch(single: FoldRelease, totalTracks: number | null, album: { releaseDate: string; tracks: FoldTrack[] }, opts: SingleFoldOptions): UpcomingMatch | null {
+  if (!inFoldWindow(single, { id: '', releaseDate: album.releaseDate, tracks: [] }, Number.POSITIVE_INFINITY)) return null;
+  const matched = single.tracks.filter(st => album.tracks.some(at =>
     (at.id !== '' && at.id === st.id)
     || (st.key !== '' && at.key === st.key && at.durationMs > 0 && st.durationMs > 0
       && Math.abs(at.durationMs - st.durationMs) <= opts.durationToleranceMs)));
+  if (matched.length === 0) return null;
+  const complete = matched.length === single.tracks.length && single.tracks.length >= (totalTracks ?? 0);
+  return complete ? { kind: 'release' } : { kind: 'tracks', trackIds: matched.map(t => t.id) };
 }
 
 /** Preventa de iTunes: un álbum de este artista que todavía no ha salido. */

@@ -163,7 +163,7 @@
       const out = `"${res.name}" comes out ${formatCalendarDate(res.releaseDate)}`;
       upcomingNote = res.collectionId === null
         ? `${out}. None of your singles are on it yet: they'll join as you play them.`
-        : `${out}. ${plural(res.singles, 'single')} now rank as it until then.`;
+        : `${out}. ${[plural(res.singles, 'single'), plural(res.tracks ?? 0, 'song')].filter(x => !x.startsWith('0 ')).join(' and ')} now rank as it until then.`;
       if (res.collectionId !== null) {
         collectionsStore.invalidate();
         await load(artistId);
@@ -228,7 +228,7 @@
               <a class="col-item-info" href="/album/{collectionKey(c.id)}">
                 <div class="col-item-name">{c.name}</div>
                 <div class="col-item-meta">
-                  {#if c.upcoming}Out {formatCalendarDate(c.upcoming.releaseDate)} · {plural(c.albumCount, 'single')}{:else}{plural(c.albumCount, 'album')} · {plural(c.trackCount, 'loose track')}{/if} · {formatNumber(c.playCount)} plays
+                  {#if c.upcoming}Out {formatCalendarDate(c.upcoming.releaseDate)} · {plural(c.albumCount, 'single')}{#if c.trackCount} · {plural(c.trackCount, 'song')}{/if}{:else}{plural(c.albumCount, 'album')} · {plural(c.trackCount, 'loose track')}{/if} · {formatNumber(c.playCount)} plays
                 </div>
               </a>
               {#if entity}

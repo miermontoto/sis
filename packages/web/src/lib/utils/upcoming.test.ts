@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { embedTrackIds, itunesPreorders, itunesTracks, parseSpotifyAlbumId, parseSpotifyPrereleaseId, upcomingContains, type FoldRelease, type FoldTrack } from '@sis/shared';
+import { embedTrackIds, itunesPreorders, itunesTracks, parseSpotifyAlbumId, parseSpotifyPrereleaseId, upcomingMatch, type FoldRelease, type FoldTrack } from '@sis/shared';
 
 const DAY_MS = 24 * 60 * 60_000;
 const OPTS = { maxLeadMs: 730 * DAY_MS, durationToleranceMs: 5_000 };
@@ -80,40 +80,56 @@ describe('embedTrackIds', () => {
   });
 });
 
-describe('upcomingContains', () => {
+const RELEASE = { kind: 'release' } as const;
+
+describe('upcomingMatch', () => {
   it('casa por id lo que dio spotify', () => {
-    expect(upcomingContains(fubar, fromSpotify, OPTS)).toBe(true);
+    expect(upcomingMatch(fubar, 1, fromSpotify, OPTS)).toEqual(RELEASE);
     // aunque el nombre del single difiera: el id es la prueba
-    expect(upcomingContains(single('x', '2026-10-30', [track('5iwm4NhW5EFIQiHUVueT9j', 'fubar (radio)', 1)]), fromSpotify, OPTS)).toBe(true);
+    expect(upcomingMatch(single('x', '2026-10-30', [track('5iwm4NhW5EFIQiHUVueT9j', 'fubar (radio)', 1)]), 1, fromSpotify, OPTS)).toEqual(RELEASE);
   });
 
   it('casa por nombre + duración lo que dio iTunes', () => {
-    expect(upcomingContains(fubar, fromItunes, OPTS)).toBe(true);
-    expect(upcomingContains(stillFeel, fromItunes, OPTS)).toBe(true);
+    expect(upcomingMatch(fubar, 1, fromItunes, OPTS)).toEqual(RELEASE);
+    expect(upcomingMatch(stillFeel, 1, fromItunes, OPTS)).toEqual(RELEASE);
   });
 
   it('no casa el mismo nombre con otra duración: otra grabación', () => {
     const radioEdit = single('r', '2026-10-30', [track('r1', 'f.u.b.a.r.', 140_000)]);
-    expect(upcomingContains(radioEdit, fromItunes, OPTS)).toBe(false);
+    expect(upcomingMatch(radioEdit, 1, fromItunes, OPTS)).toBeNull();
   });
 
   it('deja fuera un single que el disco no lleva', () => {
-    expect(upcomingContains(leereWorte, fromItunes, OPTS)).toBe(false);
+    expect(upcomingMatch(leereWorte, 1, fromItunes, OPTS)).toBeNull();
   });
 
-  it('exige TODOS los temas del single: un B-side lo deja fuera', () => {
-    const withBside = single('b', '2026-10-30', [...fubar.tracks, track('b2', 'f.u.b.a.r. (b-side)', 150_000)]);
-    expect(upcomingContains(withBside, fromItunes, OPTS)).toBe(false);
+  it('de un EP con canciones de fuera entran sólo los temas compartidos', () => {
+    // La Casa Azul, "Ahora O Nunca" (2024): dos de sus cuatro temas van en el disco de 2026
+    const fauna = { releaseDate: '2026-11-27', tracks: [track('', 'prometo no olvidar', 194_571), track('', 'entra en mi vida', 218_117), track('', 'lo profundo', 200_000)] };
+    const ep = single('ahora', '2024-09-24', [
+      track('ahora-1', 'ahora o nunca', 201_032), track('ahora-2', 'prometo no olvidar', 194_571),
+      track('ahora-3', 'no hay futuro', 209_132), track('ahora-4', 'entra en mi vida', 218_117),
+    ]);
+    expect(upcomingMatch(ep, 4, fauna, OPTS)).toEqual({ kind: 'tracks', trackIds: ['ahora-2', 'ahora-4'] });
   });
 
-  it('respeta la ventana de adelanto', () => {
-    const tooOld = single('o', '2024-06-05', stillFeel.tracks);
-    expect(upcomingContains(tooOld, fromSpotify, OPTS)).toBe(false);
+  it('con el tracklist del single a medias sólo entran sus temas, no el lanzamiento', () => {
+    expect(upcomingMatch(fubar, 3, fromItunes, OPTS)).toEqual({ kind: 'tracks', trackIds: ['5iwm4NhW5EFIQiHUVueT9j'] });
+  });
+
+  it('no tiene ventana de adelanto: es la misma grabación (single de 2021, disco de 2026)', () => {
+    const entra = single('entra', '2021-03-10', [track('entra-1', 'entra en mi vida', 218_117)]);
+    const fauna = { releaseDate: '2026-11-27', tracks: [track('', 'entra en mi vida', 218_117)] };
+    expect(upcomingMatch(entra, 1, fauna, OPTS)).toEqual(RELEASE);
+  });
+
+  it('un álbum anterior al single no es al que adelanta', () => {
+    expect(upcomingMatch(single('late', '2027-03-01', fubar.tracks), 1, fromItunes, OPTS)).toBeNull();
   });
 
   it('un tema sin duración no casa por nombre', () => {
     const unknown = single('u', '2026-09-11', [track('u1', 'umami', 0)]);
-    expect(upcomingContains(unknown, fromItunes, OPTS)).toBe(false);
+    expect(upcomingMatch(unknown, 1, fromItunes, OPTS)).toBeNull();
   });
 });
 

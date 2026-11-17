@@ -223,16 +223,20 @@ function applyPlan(db: Db, userId: number, p: UpcomingFoldPlan): number {
   `) as { collection_id: number | null } | undefined;
   if (fold && (fold.collection_id === null || !getCollectionRow(db, fold.collection_id, userId))) return 0;
 
-  const singles = p.singleIds.filter(id => canonicalMemberId(db, 'album', id, userId) === id && !findMemberCollection(db, 'album', id, userId));
-  if (singles.length === 0) return 0;
+  const free = (type: 'album' | 'track') => (id: string) =>
+    canonicalMemberId(db, type, id, userId) === id && !findMemberCollection(db, type, id, userId);
+  const singles = p.singleIds.filter(free('album'));
+  const tracks = p.trackIds.filter(free('track'));
+  if (singles.length + tracks.length === 0) return 0;
 
   const collectionId = fold?.collection_id ?? createCollection(db, userId, p.artistId, p.name, null);
   if (!fold) db.run(sql`INSERT INTO upcoming_folds (user_id, upcoming_id, collection_id) VALUES (${userId}, ${p.upcomingId}, ${collectionId})`);
   // sin portada de spotify, addCollectionMember hereda la del primer single
   singles.forEach(id => addCollectionMember(db, collectionId, userId, 'album', id));
+  tracks.forEach(id => addCollectionMember(db, collectionId, userId, 'track', id));
   if (p.imageUrl) adoptCover(db, collectionId, p.imageUrl);
-  log.child(userId).info(`${singles.length} singles plegados en "${p.name}" (aún sin salir)`);
-  return singles.length;
+  log.child(userId).info(`${singles.length} singles y ${tracks.length} temas sueltos plegados en "${p.name}" (aún sin salir)`);
+  return singles.length + tracks.length;
 }
 
 const inFlight = new Map<number, Promise<number>>();
@@ -278,18 +282,27 @@ async function ingestAlbum(album: SpotifyFullAlbum, userId: number): Promise<boo
   return true;
 }
 
-/** Disuelve las colecciones del álbum que salió y deja al plegado de siempre meter sus
- *  singles en el álbum real (ya en la biblioteca). */
+/** El álbum salió: cada colección se disuelve y el plegado de siempre mete sus singles en
+ *  el álbum real (ya en la biblioteca). La que lleva temas sueltos de un EP se QUEDA, con
+ *  el álbum real dentro: un merge de track del tema del EP al del disco no aguanta, porque
+ *  el barrido de gemelos isrc+duración funde el del disco en el más escuchado (el del EP) y
+ *  la regla se queda apuntándose a sí misma; la pertenencia de la colección va por el id
+ *  del tema que sobrevive. Devuelve los usuarios cuyas colecciones se disolvieron. */
 function dissolve(db: Db, u: UpcomingRow, albumId: string): number[] {
-  const folds = db.all(sql`
+  const folds = (db.all(sql`
     SELECT user_id, collection_id FROM upcoming_folds WHERE upcoming_id = ${u.id} AND collection_id IS NOT NULL
-  `) as { user_id: number; collection_id: number }[];
+  `) as { user_id: number; collection_id: number }[]).filter(f => getCollectionRow(db, f.collection_id, f.user_id));
+  const keeps = (f: { collection_id: number }) => !!db.get(sql`
+    SELECT 1 AS ok FROM album_collection_members WHERE collection_id = ${f.collection_id} AND member_type = 'track'`);
   db.transaction(() => {
-    folds.filter(f => getCollectionRow(db, f.collection_id, f.user_id)).forEach(f => deleteCollection(db, f.collection_id, f.user_id));
-    db.run(sql`UPDATE upcoming_folds SET collection_id = NULL WHERE upcoming_id = ${u.id}`);
+    folds.forEach(f => {
+      if (!keeps(f)) return deleteCollection(db, f.collection_id, f.user_id);
+      const album = canonicalMemberId(db, 'album', albumId, f.user_id);
+      if (!findMemberCollection(db, 'album', album, f.user_id)) addCollectionMember(db, f.collection_id, f.user_id, 'album', album);
+    });
     db.run(sql`UPDATE upcoming_albums SET state = 'released', spotify_album_id = ${albumId}, updated_at = datetime('now') WHERE id = ${u.id}`);
   });
-  return folds.map(f => f.user_id);
+  return folds.filter(f => !keeps(f)).map(f => f.user_id);
 }
 
 async function settleReleased(tokenUser: number): Promise<void> {
@@ -311,10 +324,11 @@ async function settleReleased(tokenUser: number): Promise<void> {
       continue;
     }
     if (album && albumId && await ingestAlbum(album, tokenUser)) {
+      const affected = (db.all(sql`SELECT DISTINCT user_id FROM upcoming_folds WHERE upcoming_id = ${u.id} AND collection_id IS NOT NULL`) as { user_id: number }[]).map(r => r.user_id);
       const users = dissolve(db, u, albumId);
-      log.info(`"${u.name}" ya salió: ${users.length} colecciones disueltas en el álbum real`);
+      log.info(`"${u.name}" ya salió: ${users.length} colecciones disueltas en el álbum real, ${affected.length - users.length} conservadas con sus temas sueltos`);
+      affected.forEach(invalidateDerived);
       for (const userId of users) {
-        invalidateDerived(userId);
         await foldSinglesIfEnabled(userId).catch(err => log.child(userId).error('plegado tras la salida:', err));
       }
     } else if (Date.now() - Date.parse(u.release_date) > UPCOMING_RESOLVE_GRACE_MS) {
@@ -400,15 +414,17 @@ export async function linkUpcomingAlbum(userId: number, input: string): Promise<
   await applyUpcomingFolds(userId);
 
   const fold = db.get(sql`
-    SELECT uf.collection_id AS collectionId, (SELECT COUNT(*) FROM album_collection_members m WHERE m.collection_id = uf.collection_id) AS singles
+    SELECT uf.collection_id AS collectionId,
+      (SELECT COUNT(*) FROM album_collection_members m WHERE m.collection_id = uf.collection_id AND m.member_type = 'album') AS singles,
+      (SELECT COUNT(*) FROM album_collection_members m WHERE m.collection_id = uf.collection_id AND m.member_type = 'track') AS tracks
     FROM upcoming_folds uf WHERE uf.user_id = ${userId} AND uf.upcoming_id = ${upcomingId}
-  `) as { collectionId: number | null; singles: number } | undefined;
+  `) as { collectionId: number | null; singles: number; tracks: number } | undefined;
   // la colección pudo nacer antes por la preventa de iTunes, con la portada de un single
   if (fold?.collectionId && parsed.imageUrl) adoptCover(db, fold.collectionId, parsed.imageUrl);
   return {
     result: {
       upcomingId, name: parsed.name, releaseDate: parsed.releaseDate,
-      collectionId: fold?.collectionId ?? null, singles: fold?.singles ?? 0,
+      collectionId: fold?.collectionId ?? null, singles: fold?.singles ?? 0, tracks: fold?.tracks ?? 0,
     },
   };
 }

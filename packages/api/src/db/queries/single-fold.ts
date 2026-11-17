@@ -94,17 +94,21 @@ export function planSingleFolds(db: Db, userId: number): SingleFoldPlan {
     .map(id => albumById.get(id)?.releaseDate)
     .filter((d): d is string => !!d)
     .sort()[0] ?? '';
-  const windowGroups = new Map(singles.map(s => {
+  // grupos posteriores al single: cualquiera puede llevar la misma grabación (sin límite
+  // de adelanto, ver pickSingleFold); los de la ventana son los únicos por los que se piden
+  // tracklists a spotify, que un catálogo entero de álbumes posteriores serían cientos
+  const groupsAfter = (s: ReleaseRow, maxLeadMs: number) => {
     const single = { id: s.id, releaseDate: s.releaseDate, tracks: [] };
-    const groups = [...(groupsByArtist.get(canonArtist(s.artistId)) ?? [])]
-      .filter(g => inFoldWindow(single, { id: g, releaseDate: groupDate(g), tracks: [] }, SINGLE_FOLD_MAX_LEAD_MS));
-    return [s.id, groups] as const;
-  }));
+    return [...(groupsByArtist.get(canonArtist(s.artistId)) ?? [])]
+      .filter(g => inFoldWindow(single, { id: g, releaseDate: groupDate(g), tracks: [] }, maxLeadMs));
+  };
+  const laterGroups = new Map(singles.map(s => [s.id, groupsAfter(s, Number.POSITIVE_INFINITY)] as const));
+  const windowGroups = new Map(singles.map(s => [s.id, groupsAfter(s, SINGLE_FOLD_MAX_LEAD_MS)] as const));
 
-  const candidates = singles.filter(s => windowGroups.get(s.id)!.length > 0);
+  const candidates = singles.filter(s => laterGroups.get(s.id)!.length > 0);
   const neededAlbums = [...new Set([
     ...candidates.map(s => s.id),
-    ...candidates.flatMap(s => windowGroups.get(s.id)!.flatMap(groupMembers)),
+    ...candidates.flatMap(s => laterGroups.get(s.id)!.flatMap(groupMembers)),
   ])];
   const tracksByAlbum = new Map<string, TrackRow[]>();
   for (const ids of chunks(neededAlbums, TRACK_LOOKUP_CHUNK)) {
@@ -129,7 +133,7 @@ export function planSingleFolds(db: Db, userId: number): SingleFoldPlan {
   });
 
   const opts = { maxLeadMs: SINGLE_FOLD_MAX_LEAD_MS, durationToleranceMs: TRACK_DEDUP_DURATION_TOLERANCE_MS };
-  const decisions = candidates.map(s => ({ s, fold: pickSingleFold(singleRelease(s), windowGroups.get(s.id)!.map(groupRelease), opts) }));
+  const decisions = candidates.map(s => ({ s, fold: pickSingleFold(singleRelease(s), laterGroups.get(s.id)!.map(groupRelease), opts) }));
 
   const folds = decisions.flatMap(({ s, fold }) => fold
     ? [{ singleId: s.id, singleName: s.name, albumId: fold.albumId, albumName: albumById.get(fold.albumId)!.name, trackPairs: fold.trackPairs }]
