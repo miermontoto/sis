@@ -47,6 +47,8 @@
   import { parseCollectionKey, collectionKey, type CollectionMember } from '$lib/api';
   import { contextMenu } from '$lib/stores/context-menu.svelte';
   import { collectionsStore } from '$lib/stores/collections.svelte';
+  import { collectionMembersModal } from '$lib/stores/collection-members-modal.svelte';
+  import { playCollection, renameCollection as renameCollectionAction, deleteCollection as deleteCollectionAction } from '$lib/utils/collection-actions';
   import { entityContextActions } from '$lib/utils/entity-context';
   import { toastStore } from '$lib/stores/toast.svelte';
   import { errorMessage } from '$lib/utils/errors';
@@ -150,32 +152,17 @@
     extractColor(imageUrl).then((rgb) => { if (!signal?.aborted) coverRgb = rgb; });
   }
 
+  // renombrar y borrar (o dejar de vigilar, si es un álbum que viene) son las mismas
+  // acciones que el menú contextual de su fila: ver utils/collection-actions.ts
   async function renameCollection() {
-    const id = collectionId;
-    if (id === null || !data) return;
-    const name = prompt('Collection name', data.album.name)?.trim();
-    if (!name || name === data.album.name) return;
-    try {
-      await api.updateCollection(id, { name });
-      collectionsStore.invalidate();
-      await loadData(albumId);
-    } catch (e) {
-      toastStore.show(errorMessage(e, 'Error renaming the collection'));
-    }
+    if (collectionId === null || !data) return;
+    if (await renameCollectionAction(collectionId, data.album.name)) await loadData(albumId);
   }
 
   async function deleteCollection() {
-    const id = collectionId;
-    if (id === null || !data) return;
-    if (!confirm(`Delete "${data.album.name}"? Its members go back to ranking on their own.`)) return;
-    try {
-      const artistId = data.artists[0]?.id;
-      await api.deleteCollection(id);
-      collectionsStore.invalidate();
-      goto(artistId ? `/artist/${artistId}` : '/');
-    } catch (e) {
-      toastStore.show(errorMessage(e, 'Error deleting the collection'));
-    }
+    if (collectionId === null || !data) return;
+    const artistId = data.artists[0]?.id;
+    if (await deleteCollectionAction(collectionId, data.album.name, !!data.upcoming)) goto(artistId ? `/artist/${artistId}` : '/');
   }
 
   async function removeMember(m: CollectionMember) {
@@ -244,16 +231,10 @@
   async function play() {
     playActing = true;
     try {
-      if (collectionId === null) {
-        await nowPlayingStore.playContext({ context_uri: `spotify:album:${albumId}` });
-      } else {
-        const own = new Set((data?.members ?? []).map(m => m.entityId));
-        const tracks = naturalTracks ?? (await api.albumDetail(albumId, 'all', 'natural')).tracks;
-        const uris = tracks
-          .filter(t => isSpotifyId(t.trackId) && (own.has(t.trackId) || own.has(t.track?.album?.id ?? '')))
-          .map(t => `spotify:track:${t.trackId}`);
-        if (uris.length > 0) await nowPlayingStore.playContext({ uris });
-      }
+      // una colección no tiene uri: su cola sale del servidor, la misma que la del menú
+      // contextual de su fila y la de "Add to queue"
+      if (collectionId === null) await nowPlayingStore.playContext({ context_uri: `spotify:album:${albumId}` });
+      else await playCollection(collectionId);
     } catch {}
     playActing = false;
   }
@@ -574,8 +555,10 @@
             { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
             { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'album', entity: { id: albumId, name: data.album.name, imageUrl: data.album.imageUrl } }) },
           ] : [
+            // sus "Relations" son lo que tiene dentro: una colección no se mergea
+            { label: 'Relations', icon: IconMerge, onClick: () => collectionId !== null && data && collectionMembersModal.open({ id: collectionId, name: data.album.name }) },
             { label: 'Rename', icon: IconEdit, onClick: renameCollection },
-            { label: 'Delete collection', icon: IconTrash, danger: true, onClick: deleteCollection },
+            { label: data?.upcoming ? 'Stop tracking' : 'Delete collection', icon: IconTrash, danger: true, onClick: deleteCollection },
           ]),
         ]}
       />

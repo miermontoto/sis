@@ -126,6 +126,9 @@ export interface CollectionIndexItem {
   // nombre del artista dueño: el menú contextual no lo tiene a mano y el modal lo
   // usa en su copy ("sólo cabe la obra de X")
   artistName: string;
+  // la creó el barrido de álbumes que vienen y aún no ha salido: su menú dice
+  // "Stop tracking" en vez de "Delete collection"
+  upcoming: boolean;
 }
 
 export interface CollectionInput {

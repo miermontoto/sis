@@ -5,6 +5,8 @@ import { collectionsStore } from '$lib/stores/collections.svelte';
 import { creditsModal } from '$lib/stores/credits-modal.svelte';
 import { artistCompare } from '$lib/stores/artist-compare.svelte';
 import { playlistPicker } from '$lib/stores/playlist-picker.svelte';
+import { collectionMembersModal } from '$lib/stores/collection-members-modal.svelte';
+import { parseCollectionKey } from '@sis/shared';
 import IconPlay from '$lib/icons/IconPlay.svelte';
 import IconQueue from '$lib/icons/IconQueue.svelte';
 import IconPlus from '$lib/icons/IconPlus.svelte';
@@ -12,6 +14,8 @@ import IconLink from '$lib/icons/IconLink.svelte';
 import IconAlbum from '$lib/icons/IconAlbum.svelte';
 import IconArtist from '$lib/icons/IconArtist.svelte';
 import IconSwap from '$lib/icons/IconSwap.svelte';
+import IconEdit from '$lib/icons/IconEdit.svelte';
+import IconTrash from '$lib/icons/IconTrash.svelte';
 
 // `collection:` entra en la misma familia que local:/import:: un álbum lógico tiene
 // fila en `albums` pero no existe en spotify, así que no hay nada que abrir, encolar
@@ -65,8 +69,31 @@ export async function queueEntity(type: 'album' | 'track', id: string): Promise<
   }
 }
 
+/** Menú de una colección (también de un álbum que viene, que lo es por debajo): no tiene
+ *  uri, así que Play y la cola van por su tracklist natural; no se mergea, así que sus
+ *  "Relations" son lo que tiene dentro (decisión de Juan, 2026-11-17: todas las
+ *  colecciones, no sólo las que vienen). */
+function collectionContextActions(collectionId: number, entity: EntityContext, relations: boolean): ContextMenuAction[] {
+  const upcoming = collectionsStore.isUpcoming(collectionId);
+  const actions = () => import('$lib/utils/collection-actions');
+  return [
+    { label: 'Play', icon: IconPlay, onClick: async () => (await actions()).playCollection(collectionId) },
+    { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('album', entity.id) },
+    ...(relations ? [{ label: 'Relations', icon: IconLink, onClick: () => collectionMembersModal.open({ id: collectionId, name: entity.name }) }] : []),
+    { label: 'Rename', icon: IconEdit, onClick: async () => { await (await actions()).renameCollection(collectionId, entity.name); } },
+    {
+      label: upcoming ? 'Stop tracking' : 'Delete collection',
+      icon: IconTrash,
+      danger: true,
+      onClick: async () => { await (await actions()).deleteCollection(collectionId, entity.name, upcoming); },
+    },
+  ];
+}
+
 /** Acciones del menú contextual de una entidad (ver EntityMenuOptions). */
 export function entityContextActions(entity: EntityContext, { relations = true, playlists = true }: EntityMenuOptions = {}): ContextMenuAction[] {
+  const collectionId = entity.type === 'album' ? parseCollectionKey(entity.id) : null;
+  if (collectionId !== null) return collectionContextActions(collectionId, entity, relations);
   const actions: ContextMenuAction[] = [];
   if (isSpotifyId(entity.id)) {
     actions.push({
@@ -166,8 +193,7 @@ export function entityContextActions(entity: EntityContext, { relations = true, 
 export function openEntityContextMenu(entity: EntityContext, { onAction, ...options }: EntityMenuOptions & { onAction?: () => void } = {}) {
   return (e: MouseEvent) => {
     const actions = entityContextActions(entity, options);
-    // sin acciones no se abre nada: una fila de álbum lógico no se reproduce, no se
-    // mergea y no cabe en otra colección, y un panel vacío es peor que ninguno
+    // sin acciones no se abre nada: un panel vacío es peor que ninguno
     if (actions.length === 0) return;
     contextMenu.open(e, onAction
       ? actions.map(a => ({ ...a, onClick: (at: MenuPoint) => { onAction(); return a.onClick(at); } }))

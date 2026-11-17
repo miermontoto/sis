@@ -51,6 +51,12 @@ export const collectionsStore = {
     return items.some(c => c.artistIds.includes(artistId));
   },
 
+  /** ¿Es un álbum que viene (lo creó el barrido y aún no ha salido)? Su menú dice "Stop
+   *  tracking" en vez de "Delete collection". */
+  isUpcoming(collectionId: number): boolean {
+    return items.some(c => c.id === collectionId && c.upcoming);
+  },
+
   /** Nombre del artista tal y como lo conoce el índice; '' si no hay colección suya. */
   artistName(artistId: string | undefined | null): string {
     if (!artistId) return '';

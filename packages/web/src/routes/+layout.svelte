@@ -22,6 +22,7 @@
   import EntityHoverCard from '$lib/components/EntityHoverCard.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
+  import CollectionMembersModal from '$lib/components/CollectionMembersModal.svelte';
   import RelateArtistModal from '$lib/components/RelateArtistModal.svelte';
   import CreditsModal from '$lib/components/CreditsModal.svelte';
   import KeyboardShortcutsHelp from '$lib/components/KeyboardShortcutsHelp.svelte';
@@ -780,6 +781,8 @@
   {/if}
   <!-- se pinta solo con el target del store: sin bind:show que sincronizar -->
   <CreditsModal />
+  <!-- "Relations" de una colección: lo que tiene dentro (también solo con su store) -->
+  <CollectionMembersModal />
   {#if relateModal.target}
     <RelateArtistModal
       bind:show={relateModalShow}

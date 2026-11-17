@@ -184,6 +184,10 @@ export const api = {
   addCollectionMember: (id: number, entityType: CollectionMemberType, entityId: string) =>
     apiMutate<CollectionMember[]>('POST', `/collections/${id}/members`, { entityType, entityId }),
 
+  // cola del Play de una colección (temas de sus miembros directos, en orden cronológico):
+  // la comparten el botón de su página y el menú contextual de su fila
+  collectionPlayOrder: (id: number) => apiFetch<{ trackIds: string[] }>(`/collections/${id}/play-order`),
+
   removeCollectionMember: (id: number, entityType: CollectionMemberType, entityId: string) =>
     apiMutate<CollectionMember[]>('DELETE', `/collections/${id}/members/${entityType}/${encodeURIComponent(entityId)}`),
 
