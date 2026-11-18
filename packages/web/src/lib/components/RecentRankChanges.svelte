@@ -70,10 +70,17 @@
     return `/top?tab=${TAB_MAP[item.entityType] ?? 'tracks'}&range=${range === 'thisYear' ? 'thisYear' : 'all'}&focus=${item.entityId}`;
   }
 
+  // orden por el puesto del cambio que se ENSEÑA, no por el del server: éste ordena
+  // por la mejor posición de cualquier rango (un YTD #2 que en ALL es #150 encabezaba
+  // la vista sólo-ALL). A igual puesto, ALL antes que YTD y luego la subida mayor
+  const RANGE_ORDER: Record<string, number> = { all: 0, thisYear: 1 };
   let visible = $derived(items
     .filter(item => item.entityType === entityFilter)
     .map(item => ({ item, best: bestChange(filterChanges(item.changes)) }))
-    .filter((v): v is { item: RecentRankChangeItem; best: Change } => v.best !== null));
+    .filter((v): v is { item: RecentRankChangeItem; best: Change } => v.best !== null)
+    .sort((a, b) => a.best.currentRank - b.best.currentRank
+      || (RANGE_ORDER[a.best.range] ?? 0) - (RANGE_ORDER[b.best.range] ?? 0)
+      || (b.best.delta ?? 0) - (a.best.delta ?? 0)));
 
   // tooltip de desplazados: mismo comportamiento que la session card
   type Displaced = Change['displaced'];
