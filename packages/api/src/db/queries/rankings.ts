@@ -282,7 +282,7 @@ function buildRankMap(scores: ScoreRow[], key: 'val_all' | 'val_year' | 'pre_all
  *  recomputado desde listening_history (sin snapshots — "permanente en el tiempo").
  *  Solo subidas (mismo diseño que las proyecciones de sesión), con las entidades
  *  desplazadas de cada cambio. Respeta los rankLimits del usuario (los de la
- *  session card); mejor posición vigente primero. */
+ *  session card); hasta `limit` por rango, mejor posición vigente primero. */
 export function getRecentRankChanges(
   db: Db, entityType: EntityType, days: number, sort: Sort, userId: number, limit: number,
   rankLimits?: Record<string, number>
@@ -316,10 +316,20 @@ export function getRecentRankChanges(
 
   if (changesByEntity.size === 0) return [];
 
-  // mejor posición vigente primero; el cap se aplica antes de resolver metadata
+  // el cap va POR RANGO (las `limit` mejores posiciones de cada uno) y se aplica antes
+  // de resolver metadata: el cliente enseña sólo los rangos que pide el usuario, y con
+  // un cap global por la mejor posición de cualquier rango, las subidas YTD se comían
+  // los huecos de la vista sólo-ALL. El orden final lo pone quien pinta, por el cambio
+  // que enseña
+  const bestRank = (changes: RecentRankChange[]) => Math.min(...changes.map(c => c.currentRank));
+  const keep = new Set(ranges.flatMap(({ range }) => [...changesByEntity.entries()]
+    .flatMap(([eid, changes]) => changes.filter(c => c.range === range).map(c => ({ eid, rank: c.currentRank })))
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, limit)
+    .map(c => c.eid)));
   const ordered = [...changesByEntity.entries()]
-    .sort((a, b) => Math.min(...a[1].map(c => c.currentRank)) - Math.min(...b[1].map(c => c.currentRank)))
-    .slice(0, limit);
+    .filter(([eid]) => keep.has(eid))
+    .sort((a, b) => bestRank(a[1]) - bestRank(b[1]));
 
   // desplazados por cambio: estaban por encima antes del cutoff y ahora al nivel o por
   // debajo (mismo criterio por valor que computeProjectedRankingsBatch), solo para las

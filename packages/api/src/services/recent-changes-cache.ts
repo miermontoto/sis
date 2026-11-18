@@ -19,6 +19,18 @@ const log = createLogger('recent-changes');
 
 const cache = new Map<string, { data: RecentRankChangesResponse; computedAt: number }>();
 const inFlight = new Map<string, Promise<RecentRankChangesResponse>>();
+// generación por usuario: un cálculo en vuelo que la vea cambiada no guarda su resultado
+const generation = new Map<number, number>();
+
+/** Tira lo cacheado de un usuario. Un merge, una colección o un crédito corregido cambian
+ *  a qué entidad cuenta cada play, y la cache (SWR) seguía sirviendo el ranking agrupado
+ *  con las reglas viejas: entidades ya absorbidas o puestos que no cuadraban con /top. */
+export function invalidateRecentRankChanges(userId: number): void {
+  generation.set(userId, (generation.get(userId) ?? 0) + 1);
+  for (const key of [...cache.keys(), ...inFlight.keys()]) {
+    if (key.startsWith(`${userId}:`)) { cache.delete(key); inFlight.delete(key); }
+  }
+}
 
 /** Límites de rank de la session card (sessionRankLimitYear/All de user_settings),
  *  compartidos entre /projected-rankings y /recent-rank-changes. */
@@ -49,12 +61,13 @@ async function compute(userId: number, days: number, sort: RankingMetric, rankLi
 function computeAndStore(key: string, userId: number, days: number, sort: RankingMetric, rankLimits: Record<string, number>): Promise<RecentRankChangesResponse> {
   const existing = inFlight.get(key);
   if (existing) return existing;
+  const gen = generation.get(userId) ?? 0;
   const p = compute(userId, days, sort, rankLimits)
     .then(data => {
-      cache.set(key, { data, computedAt: Date.now() });
+      if ((generation.get(userId) ?? 0) === gen) cache.set(key, { data, computedAt: Date.now() });
       return data;
     })
-    .finally(() => inFlight.delete(key));
+    .finally(() => { if (inFlight.get(key) === p) inFlight.delete(key); });
   inFlight.set(key, p);
   return p;
 }

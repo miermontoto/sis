@@ -14,7 +14,7 @@ import { dbRead } from '../db/read-pool.js';
 import { projectRankings, type ProjectionScoreRow, type ScoreRow } from '../db/queries/rankings.js';
 import type { ProjectionEntityType, ProjectionSession } from '../db/queries/projections.js';
 import { getRangeStart } from '../db/queries/helpers.js';
-import { readRankLimits } from './recent-changes-cache.js';
+import { invalidateRecentRankChanges, readRankLimits } from './recent-changes-cache.js';
 import { PROJECTION_BASE_TTL_MS } from '../constants.js';
 
 interface CachedBase { fingerprint: string; at: number; rows: Promise<ProjectionScoreRow[]> }
@@ -31,8 +31,10 @@ const inFlight = new Map<string, Promise<ProjectedRankingsResponse>>();
 const ENTITY_ORDER: Record<string, number> = { artist: 0, album: 1, track: 2 };
 
 /** Tira la base de un usuario. La llaman las mutaciones que cambian la resolución de
- *  plays a entidades: merges, colecciones y créditos corregidos. */
+ *  plays a entidades: merges, colecciones y créditos corregidos. Por ser ese embudo
+ *  tira también los cambios de posición recientes, agrupados con las mismas reglas. */
 export function invalidateProjectionBase(userId: number) {
+  invalidateRecentRankChanges(userId);
   resolutionGen.set(userId, (resolutionGen.get(userId) ?? 0) + 1);
   for (const key of bases.keys()) {
     if (key.startsWith(`${userId}:`)) bases.delete(key);
