@@ -52,12 +52,16 @@
 
   // track matching step (albums only)
   let step = $state<'select' | 'tracks' | 'remerge'>('select');
-  let trackPreview = $state<AlbumMergePreview | null>(null);
+  // raw: el preview de un álbum grande son cientos de temas que sólo se reemplazan enteros
+  let trackPreview = $state.raw<AlbumMergePreview | null>(null);
   let trackMatches = $state<Map<string, string>>(new Map());
   let loadingPreview = $state(false);
 
   // remerge step (auto-merge tracks from already-merged albums)
-  let remergePairs = $state<(RemergePreviewPair & { checked: boolean })[]>([]);
+  // raw + `remergeOff` aparte: marcar una casilla no reescribe el array (con miles de pares
+  // un clic rehacía el mapa de nombres, los filtros y todo el each)
+  let remergePairs = $state.raw<RemergePreviewPair[]>([]);
+  let remergeOff = $state<Set<number>>(new Set());
   let remergeLoading = $state(false);
   let remergeApplying = $state(false);
 
@@ -79,36 +83,40 @@
 
   // para el step de tracks: número de matches activos
   let activeTrackPairs = $derived(trackMatches.size);
-  let activeRemergePairs = $derived(remergePairs.filter(p => p.checked).length);
+  let activeRemergePairs = $derived(remergePairs.length - remergeOff.size);
 
   // pares a crear en cada step, para el preview de impacto en el ranking
   let selectionPairs = $derived([...selected].map(sourceId => ({ sourceId, targetId: target.id })));
   let trackStepPairs = $derived([...trackMatches.entries()].map(([sourceId, targetId]) => ({ sourceId, targetId })));
-  let remergeSelectedPairs = $derived(remergePairs.filter(p => p.checked)
-    .map(p => ({ sourceId: p.sourceTrack.id, targetId: p.targetTrack.id })));
+  let remergeChecked = $derived(remergePairs.filter((_, i) => !remergeOff.has(i)));
+  let remergeSelectedPairs = $derived(remergeChecked.map(p => ({ sourceId: p.sourceTrack.id, targetId: p.targetTrack.id })));
 
-  // nombres conocidos por el modal, para el resumen de impacto
-  let impactNames = $derived(new Map<string, string>([
-    [target.id, target.name],
-    ...suggestions.map(s => [s.id, s.name] as const),
-    ...(trackPreview?.source.tracks ?? []).map(t => [t.id, t.name] as const),
-    ...(trackPreview?.target.tracks ?? []).map(t => [t.id, t.name] as const),
-    ...remergePairs.flatMap(p => [
-      [p.sourceTrack.id, p.sourceTrack.name] as const,
-      [p.targetTrack.id, p.targetTrack.name] as const,
-    ]),
-  ]));
-  const impactNameOf = (id: string) => impactNames.get(id) ?? null;
+  // nombres conocidos por el modal, para el resumen de impacto. Cada fuente se indexa por
+  // separado y sólo cuando cambia ella: el pool son miles de filas y no debe rehacerse al
+  // marcar una casilla de otro paso
+  const toNames = (rows: readonly { id: string; name: string }[]) => new Map(rows.map(r => [r.id, r.name] as const));
+  let poolNames = $derived(toNames(suggestions));
+  let previewNames = $derived(toNames([...(trackPreview?.source.tracks ?? []), ...(trackPreview?.target.tracks ?? [])]));
+  let remergeNames = $derived(toNames(remergePairs.flatMap(p => [p.sourceTrack, p.targetTrack])));
+  const impactNameOf = (id: string) =>
+    (id === target.id ? target.name : null) ?? poolNames.get(id) ?? previewNames.get(id) ?? remergeNames.get(id) ?? null;
 
-  // helpers para el step de tracks
+  // helpers para el step de tracks: por id en vez de buscar en el array por cada fila
+  // (un álbum de cientos de temas hacía O(n²) en cada casilla marcada)
+  let targetTrackById = $derived(new Map((trackPreview?.target.tracks ?? []).map(t => [t.id, t] as const)));
+  // el primer match de cada fuente es el que inicializa trackMatches y el que restaura el toggle
+  let autoMatchBySource = $derived(trackPreview
+    ? trackPreview.matches.reduce((m, x) => m.has(x.sourceTrackId) ? m : m.set(x.sourceTrackId, x), new Map<string, AlbumMergeMatch>())
+    : new Map<string, AlbumMergeMatch>());
+
   function getTargetTrackForSource(sourceId: string) {
-    return trackPreview?.target.tracks.find(t => t.id === trackMatches.get(sourceId));
+    const targetId = trackMatches.get(sourceId);
+    return targetId ? targetTrackById.get(targetId) : undefined;
   }
 
   function getMatchConfidence(sourceId: string): AlbumMergeMatch['confidence'] | null {
-    const targetId = trackMatches.get(sourceId);
-    if (!targetId) return null;
-    return trackPreview?.matches.find(m => m.sourceTrackId === sourceId && m.targetTrackId === targetId)?.confidence ?? 'name';
+    if (!trackMatches.has(sourceId)) return null;
+    return autoMatchBySource.get(sourceId)?.confidence ?? 'name';
   }
 
   // '#' posición dentro del álbum, '~' nombres parecidos, '=' mismo tema con distintos créditos
@@ -133,6 +141,7 @@
     trackPreview = null;
     trackMatches = new Map();
     remergePairs = [];
+    remergeOff = new Set();
     remergeLoading = false;
     remergeApplying = false;
   }
@@ -164,11 +173,17 @@
     selected = next;
   }
 
+  function toggleRemerge(i: number) {
+    const next = new Set(remergeOff);
+    if (!next.delete(i)) next.add(i);
+    remergeOff = next;
+  }
+
   function toggleTrackMatch(sourceId: string) {
     const next = new Map(trackMatches);
     if (next.has(sourceId)) next.delete(sourceId);
     else {
-      const original = trackPreview?.matches.find(m => m.sourceTrackId === sourceId);
+      const original = autoMatchBySource.get(sourceId);
       if (original) next.set(sourceId, original.targetTrackId);
     }
     trackMatches = next;
@@ -208,7 +223,8 @@
     try {
       // botón explícito de scan: pedimos datos frescos, no el cache
       const preview = await api.albumRemergePreview(target.id, new AbortController().signal);
-      remergePairs = preview.pairs.map(p => ({ ...p, checked: true }));
+      remergePairs = preview.pairs;
+      remergeOff = new Set();
       step = 'remerge';
     } catch (e) {
       error = errorMessage(e, 'Error loading remerge preview');
@@ -218,7 +234,7 @@
   }
 
   async function applyRemerge() {
-    const checkedPairs = remergePairs.filter(p => p.checked);
+    const checkedPairs = remergeChecked;
     if (checkedPairs.length === 0) return;
     remergeApplying = true;
     error = '';
@@ -240,6 +256,7 @@
   function goBackFromRemerge() {
     step = 'select';
     remergePairs = [];
+    remergeOff = new Set();
     error = '';
   }
 
@@ -460,11 +477,11 @@
         <div class="merge-section-title">Track matches ({activeTrackPairs} of {trackPreview.source.tracks.length})</div>
 
         <div class="merge-list">
-          {#each trackPreview.source.tracks as sourceTrack}
+          {#each trackPreview.source.tracks as sourceTrack (sourceTrack.id)}
             {@const targetTrack = getTargetTrackForSource(sourceTrack.id)}
             {@const confidence = getMatchConfidence(sourceTrack.id)}
             {@const isMatched = trackMatches.has(sourceTrack.id)}
-            {@const hasAutoMatch = trackPreview.matches.some(m => m.sourceTrackId === sourceTrack.id)}
+            {@const hasAutoMatch = autoMatchBySource.has(sourceTrack.id)}
             <button
               class="track-pair"
               class:track-pair--matched={isMatched}
@@ -524,13 +541,14 @@
           <div class="merge-section-title">Track matches ({activeRemergePairs} of {remergePairs.length})</div>
           <div class="merge-list">
             {#each remergePairs as pair, i}
+              {@const checked = !remergeOff.has(i)}
               <button
                 class="track-pair"
-                class:track-pair--matched={pair.checked}
-                onclick={() => { remergePairs[i] = { ...pair, checked: !pair.checked }; }}
+                class:track-pair--matched={checked}
+                onclick={() => toggleRemerge(i)}
               >
-                <div class="merge-check" class:merge-check--active={pair.checked}>
-                  {#if pair.checked}&#10003;{/if}
+                <div class="merge-check" class:merge-check--active={checked}>
+                  {#if checked}&#10003;{/if}
                 </div>
                 <div class="track-pair-content">
                   <div class="track-pair-source">
@@ -896,6 +914,10 @@
   }
 
   .track-pair {
+    /* listas largas (álbumes de artistas muy escuchados): lo que está fuera de la vista
+       no se maqueta ni se pinta */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 3.2rem;
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
