@@ -57,6 +57,9 @@ jobs:
     with:
       app: sis
       package_name: info.mier.sis
+      # los mac studio del clúster ia01 en vez del runner de github (ver "runners propios" en el
+      # README de platform). quitar la línea vuelve a github.
+      runner: ia01-macos
       # push: sube sólo con la variable ANDROID_PLAY_UPLOAD=true (ver cabecera); en
       # dispatch manda el input. default production = el canal público (alpha era
       # closed testing); ojo: los nombres de la api no son los de la consola.

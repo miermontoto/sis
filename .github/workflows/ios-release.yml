@@ -57,6 +57,9 @@ jobs:
     with:
       app: sis
       bundle_id: info.mier.sis
+      # los mac studio del clúster ia01 en vez del runner de github (ver "runners propios" en el
+      # README de platform). quitar la línea vuelve a github.
+      runner: ia01-macos
       # vacío (push a main, dispatch sin valor) = la resuelve el reutilizable contra App
       # Store Connect; en tag ios-vX.Y.Z se deriva del tag. antes vivía aquí hardcodeada
       # ('1.0.0') y, en cuanto apple aprobó la 1.0, el guard rechazaba cada push (el tren
