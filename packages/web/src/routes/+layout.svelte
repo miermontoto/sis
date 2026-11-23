@@ -266,13 +266,15 @@
   // alto del panel inferior móvil (mini player + pestañas web): el hueco que el
   // contenido deja al pie sale de aquí y no de una constante (7.5rem dejaba 36px
   // bajo la banda de sesión). Con la barra nativa de ios las pestañas web miden 0
-  // y app.css suma --bottom-chrome, así que la barra no se cuenta dos veces
+  // y app.css suma --bottom-chrome, así que la barra no se cuenta dos veces.
+  // border-box: con el rail del Duo el panel lleva la safe area como padding, y
+  // entrar o salir de él (abrir o plegar) no cambia la caja de contenido
   $effect(() => {
     const el = sidebarEl;
     if (!el) return;
     const root = document.documentElement;
     const ro = new ResizeObserver(() => root.style.setProperty('--mobile-dock-h', `${el.offsetHeight}px`));
-    ro.observe(el);
+    ro.observe(el, { box: 'border-box' });
     return () => { ro.disconnect(); root.style.removeProperty('--mobile-dock-h'); };
   });
 

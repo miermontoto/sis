@@ -2420,12 +2420,22 @@ html.native-tabrail :is(.sidebar-search, .mobile-header) {
     --bottom-chrome: var(--native-tabbar-h, 0px);
   }
 
-  /* el panel inferior (mini player y su hoja) va sobre la barra nativa (con el rail, al pie) y
-     fuera de la columna lateral */
+  /* el panel inferior (mini player y su hoja) va sobre la barra nativa y fuera de la columna
+     lateral. width: auto pisa el 100% del panel móvil: con left, right y width a la vez el
+     navegador descarta right, y el panel se metía bajo la columna y el rail del Duo */
   html.native-tabbar .sidebar {
     bottom: var(--bottom-chrome);
     left: var(--safe-left);
     right: var(--safe-right);
+    width: auto;
+  }
+
+  /* con el rail nada nativo tapa el pie: el panel vuelve al borde y lleva dentro la safe area
+     (el indicador de inicio), como la barra web. sobre --bottom-chrome dejaba debajo una franja
+     de 22pt por la que asomaba el contenido */
+  html.native-tabrail .sidebar {
+    bottom: 0;
+    padding-bottom: var(--safe-bottom);
   }
 
   /* las pestañas web miden 0 (colapsadas) y el panel medido es sólo el mini player: la barra
@@ -2435,9 +2445,10 @@ html.native-tabrail :is(.sidebar-search, .mobile-header) {
   }
 
   /* sin la cabecera (su trabajo lo hace la columna del Duo), la safe area de arriba que llevaba
-     ella pasa al propio contenido */
+     ella pasa al propio contenido. el pie, con el panel midiendo ya su safe area, es el de la web */
   html.native-tabrail .main-content {
     padding-top: calc(1rem + var(--safe-top));
+    padding-bottom: calc(var(--mobile-dock-h, 3.3rem) + 1rem);
   }
 }
 
