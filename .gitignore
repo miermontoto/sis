@@ -21,3 +21,7 @@ docker-compose.override.yml
 
 # ios signing material (dist key/cert/p12, asc api key, profile) — NUNCA commitear
 assets/ios-signing/
+
+# snapshot de datos reales para las capturas de tienda (assets/store/snapshot.ts): el repo es público,
+# son datos personales de escucha y portadas con copyright. se regenera desde un backup
+assets/store/data/
