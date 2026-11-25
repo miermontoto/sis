@@ -1,3 +1,14 @@
+<script module lang="ts">
+  // último lote de plays confirmados que ya ha purgado las listas de '/stats/top-'.
+  // Vive fuera del componente porque lo que se escapaba era lo que aterriza con la
+  // página DESMONTADA: el enlace de un cambio de puesto de la sesión ("#9→#7") abría
+  // /top con la lista cacheada de antes del play y enfocaba la fila en su puesto viejo
+  let topSyncedSeq = 0;
+  // esa purga, compartida: una carga que la relanza (cambio de pestaña o de rango a
+  // mitad) tiene que esperarla igual o leería de IndexedDB la entrada de antes
+  let topPurge: Promise<void> = Promise.resolve();
+</script>
+
 <script lang="ts">
   import { nextFrame, waitForElement } from '$lib/utils/dom';
   import { isAbortError } from '$lib/utils/errors';
@@ -582,6 +593,18 @@
     try {
       const dates = getCustomDates();
       const lb = lookback !== 'disabled' && LOOKBACK_QUALIFYING_RANGES.has(range) ? lookback : undefined;
+      // un play confirmado desde la última purga deja viejas todas las listas
+      // cacheadas, de cualquier rango que llegue hasta hoy: se purgan antes de leer.
+      // untrack: loadData corre dentro del efecto de carga y, sin él, cada play
+      // confirmado relanzaría la carga con spinner
+      const confirmedSeq = untrack(() => playUpdatesStore.confirmed?.seq ?? 0);
+      if (confirmedSeq > topSyncedSeq) {
+        topSyncedSeq = confirmedSeq;
+        topPurge = invalidateCache('/stats/top-');
+      }
+      await topPurge;
+      // otra carga la ha relevado durante la purga: ya pide ella, con sus parámetros
+      if (signal.aborted) return;
       if (activeTab === 'tracks') {
         topTracks = await api.topTracks(range, TOP_PAGE_LIMIT, metric, dates, lb, signal);
       } else if (activeTab === 'artists') {
@@ -816,9 +839,11 @@
   // antes del play, así que sin esto salir de la página y volver dentro del TTL
   // haría RETROCEDER lo que se acaba de ver moverse.
   //
-  // El purgado de '/stats/top-' es ancho, pero se paga sólo mientras esta
-  // página está montada — que es justo cuando importa. Un purgado global por
-  // cada track dejaría la vista sin cache para todo el mundo.
+  // El purgado de '/stats/top-' es ancho, así que lo paga esta página y no el
+  // layout: un purgado global por cada track dejaría sin cache al dashboard, que
+  // lee los mismos tops. Lo hace loadData (ver topSyncedSeq): aquí, con la página
+  // montada, y si no la primera lectura al volver a ella, que es lo que hace que
+  // el enlace de un cambio de puesto llegue con el puesto bueno.
   let lastConfirmedSeq = 0;
 
   $effect(() => {
@@ -828,7 +853,7 @@
     untrack(() => {
       if (loading || !rangeIncludesNow()) return;
       if (!batch.updates.some(u => targetIdsFor(u, activeTab).length > 0)) return;
-      invalidateCache('/stats/top-').then(() => loadData(true)).catch(() => {});
+      loadData(true).catch(() => {});
     });
   });
 
