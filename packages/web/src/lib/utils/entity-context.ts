@@ -41,6 +41,8 @@ export interface EntityContext {
 export interface EntityMenuOptions {
   relations?: boolean;
   playlists?: boolean;
+  // false en lo que ya está sonando (la hoja de now playing): Play lo reiniciaría
+  play?: boolean;
 }
 
 // acciones del menú contextual de una entidad. Exportado para las filas que
@@ -91,12 +93,12 @@ function collectionContextActions(collectionId: number, entity: EntityContext, r
 }
 
 /** Acciones del menú contextual de una entidad (ver EntityMenuOptions). */
-export function entityContextActions(entity: EntityContext, { relations = true, playlists = true }: EntityMenuOptions = {}): ContextMenuAction[] {
+export function entityContextActions(entity: EntityContext, { relations = true, playlists = true, play = true }: EntityMenuOptions = {}): ContextMenuAction[] {
   const collectionId = entity.type === 'album' ? parseCollectionKey(entity.id) : null;
   if (collectionId !== null) return collectionContextActions(collectionId, entity, relations);
   const actions: ContextMenuAction[] = [];
   if (isSpotifyId(entity.id)) {
-    actions.push({
+    if (play) actions.push({
       label: 'Play',
       icon: IconPlay,
       onClick: async () => {

@@ -17,7 +17,6 @@
   import IconHeartFilled from '$lib/icons/IconHeartFilled.svelte';
   import IconHeartOutline from '$lib/icons/IconHeartOutline.svelte';
   import IconVolume from '$lib/icons/IconVolume.svelte';
-  import IconChevronRight from '$lib/icons/IconChevronRight.svelte';
   import PlaylistPopover from './PlaylistPopover.svelte';
 import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte';
   import LiveEq from './LiveEq.svelte';
@@ -28,16 +27,26 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   // pulsa su línea (un elemento con data-open="session" dentro del área)
   type SheetSection = 'player' | 'session';
 
-  // mini: la barra del móvil sobre las pestañas; pulsarla abre la hoja (onopen).
-  // sheet: el reproductor completo de esa hoja, que cierra con onclose.
-  // sessionLine: tercera línea del mini player (el resumen de la sesión)
+  // mini: el mini player del móvil, la misma fila live que pinta cualquier lista
+  // (anillo y fondo verdes) con el progreso como su relleno; pulsarla abre la hoja
+  // (onopen). sessionChip: el chip de la sesión, dentro del área que abre la hoja;
+  // fused: un momento de la sesión va pegado encima y la fila cede su borde de
+  // arriba; notice: un aviso que ocupa la línea de artistas unos segundos; figure:
+  // la cifra que va en lugar de los controles cuando no hay (solo-last.fm).
+  // deck: los controles de la hoja, anclados al pie (progreso, transporte,
+  // dispositivo y volumen); docked: el hero de la hoja ya no se ve y la fila del
+  // tema baja aquí con el corazón.
   // column: la tarjeta en la columna del iPhone Duo, donde el rail nativo lleva la
   // nav y sobra alto: entera, el siguiente tema es una fila fija (no se asoma); en
   // línea (el ajuste del sidebar la pliega si no cabe) es la de siempre. en reposo
   // enseña el último tema, en pausa, para retomarlo
-  let { compact = false, inline = false, rail = false, mini = false, sheet = false, column = false, onopen, onclose, sessionLine }: {
-    compact?: boolean; inline?: boolean; rail?: boolean; mini?: boolean; sheet?: boolean; column?: boolean;
-    onopen?: (section: SheetSection) => void; onclose?: () => void; sessionLine?: Snippet;
+  let {
+    compact = false, inline = false, rail = false, mini = false, deck = false, column = false,
+    docked = false, fused = false, notice = null, onopen, sessionChip, figure,
+  }: {
+    compact?: boolean; inline?: boolean; rail?: boolean; mini?: boolean; deck?: boolean; column?: boolean;
+    docked?: boolean; fused?: boolean; notice?: string | null;
+    onopen?: (section: SheetSection) => void; sessionChip?: Snippet; figure?: Snippet;
   } = $props();
 
   function openFrom(e: MouseEvent) {
@@ -219,10 +228,13 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
 
 {#if data?.playing && data.track}
   {#if mini}
-    <!-- barra del móvil: el área de carátula y texto abre la hoja; los botones
-         van fuera de ella, así que no hay controles anidados en otro control -->
-    <div class="np-mini">
-      {@render progressStrip()}
+    <!-- mini player del móvil: la fila live de las listas. El área de carátula,
+         texto y chip abre la hoja; los botones van fuera de ella, así que no hay
+         controles anidados en otro control -->
+    <div class="np-mini" class:np-mini--fused={fused}>
+      {#if progressPct != null}
+        <span class="np-mini-fill" style:width="{progressPct.toFixed(2)}%" aria-hidden="true"></span>
+      {/if}
       <button type="button" class="np-mini-open" aria-label="Open now playing" onclick={openFrom}>
         <span class="np-mini-art">
           {#if data.track.album?.imageUrl}
@@ -234,9 +246,21 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
         </span>
         <span class="np-mini-info">
           <span class="np-mini-track">{data.track.name}</span>
-          <span class="np-mini-artist">{data.track.artists.map(a => a.name).join(', ')}</span>
-          {@render sessionLine?.()}
+          {#if notice}
+            <span class="np-mini-notice">{notice}</span>
+          {:else if upNextDue && upNext}
+            <!-- el tramo final del tema: el siguiente ocupa la línea de artistas, como
+                 se asoma sobre la carátula en la tarjeta de escritorio -->
+            <span class="np-mini-next">
+              <span class="np-next-label">Next</span>
+              {#if upNext.album?.imageUrl}<img class="np-next-art" src={upNext.album.imageUrl} alt="" />{/if}
+              <span class="np-mini-next-name">{upNext.name}</span>
+            </span>
+          {:else}
+            <span class="np-mini-artist">{data.track.artists.map(a => a.name).join(', ')}</span>
+          {/if}
         </span>
+        {@render sessionChip?.()}
       </button>
       {#if controllable}
         {@render likeBtn('np-mini-btn ctrl-btn--like')}
@@ -244,90 +268,72 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
           {#if data.isPlaying}<IconPause size={18} />{:else}<IconPlay size={18} />{/if}
         </button>
         <button class="np-mini-btn" title="Next" disabled={nowPlayingStore.acting} onclick={next}><IconNext size={14} /></button>
+      {:else}
+        {@render figure?.()}
       {/if}
     </div>
-  {:else if sheet}
-    <!-- reproductor completo de la hoja móvil: lo mismo que la tarjeta de
-         escritorio (scrub, volumen, dispositivos, playlists, siguiente) a tamaño táctil -->
-    <div class="np-sheet">
-      <div class="np-sheet-top">
-        <button type="button" class="ctrl-btn np-sheet-close" title="Close" aria-label="Close now playing" onclick={() => onclose?.()}>
-          <IconChevronRight size={18} />
-        </button>
-        <span class="np-sheet-label">
-          Now playing
-          {#if data.track.album}<a href="/album/{data.track.album.id}" class="np-sheet-album">{data.track.album.name}</a>{/if}
-        </span>
-        {#if controllable}<DevicePicker bind:show={showDevices} />{:else}<span class="np-sheet-spacer"></span>{/if}
-      </div>
-      {#if data.track.album?.imageUrl}
-        <a href="/album/{data.track.album.id}" class="np-sheet-art-link">
-          <img class="np-sheet-art" src={data.track.album.imageUrl} alt={data.track.album.name} />
-        </a>
-      {/if}
-      <div class="np-sheet-title">
-        <div class="np-sheet-title-text">
-          <a href="/track/{data.track.id}" class="np-sheet-track marquee-line" use:marquee={data.track.name}><span>{data.track.name}</span></a>
-          <div class="np-sheet-artists marquee-line" use:marquee={data.track.id}>
-            <span>{#each data.track.artists as artist, i}<a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}{/each}</span>
+  {:else if deck}
+    <!-- controles de la hoja móvil, anclados al pie donde llega el pulgar: los de la
+         tarjeta de escritorio (scrub, transporte, dispositivo, volumen) a tamaño
+         táctil. Con el hero fuera de vista la fila del tema baja aquí -->
+    <div class="np-deck">
+      {#if docked}
+        <div class="np-deck-now">
+          <a href="/album/{data.track.album?.id}" class="np-deck-art-link" aria-label={data.track.album?.name ?? 'Album'}>
+            {#if data.track.album?.imageUrl}
+              <img class="np-deck-art" src={data.track.album.imageUrl} alt="" />
+            {:else}
+              <span class="np-deck-art"></span>
+            {/if}
+            {#if data.isPlaying}<LiveEq />{/if}
+          </a>
+          <div class="np-info">
+            <a href="/track/{data.track.id}" class="np-track marquee-line" use:marquee={data.track.name}><span>{data.track.name}</span></a>
+            <div class="np-artist marquee-line" use:marquee={data.track.id}>
+              <span>{#each data.track.artists as artist, i}<a href="/artist/{artist.id}" class="np-artist-link">{artist.name}</a>{#if i < data.track.artists.length - 1}{', '}{/if}{/each}</span>
+            </div>
           </div>
+          {#if controllable}
+            <PlaylistPopover
+              trackId={data.track.id}
+              inPlaylists={nowPlayingStore.playlists}
+              onAdd={(pl) => { if (data?.track) playlistMembershipStore.add(data.track.id, pl); }}
+              onRemove={(id) => { if (data?.track) playlistMembershipStore.remove(data.track.id, id); }}
+            >
+              {#snippet likeButton()}{@render likeBtn('ctrl-btn ctrl-btn--like', 16)}{/snippet}
+            </PlaylistPopover>
+          {/if}
         </div>
-        {#if controllable}
-          <PlaylistPopover
-            trackId={data.track.id}
-            inPlaylists={nowPlayingStore.playlists}
-            onAdd={(pl) => { if (data?.track) playlistMembershipStore.add(data.track.id, pl); }}
-            onRemove={(id) => { if (data?.track) playlistMembershipStore.remove(data.track.id, id); }}
-          >
-            {#snippet likeButton()}{@render likeBtn('ctrl-btn ctrl-btn--like', 18)}{/snippet}
-          </PlaylistPopover>
-        {/if}
-      </div>
+      {/if}
       {@render progressRow()}
       {#if controllable}
-        <div class="np-sheet-controls">
-          {#if vol !== null}
-            <button
-              class="ctrl-btn ctrl-btn--vol"
-              class:ctrl-btn--muted={vol === 0}
-              class:np-sheet-on={showVolume}
-              title="Volume: {vol}%"
-              aria-expanded={showVolume}
-              onclick={() => showVolume = !showVolume}
-            >
-              <IconVolume size={18} level={volIcon} />
+        <div class="np-deck-controls">
+          <div class="np-deck-side"><DevicePicker bind:show={showDevices} /></div>
+          <div class="np-deck-transport">
+            <button class="ctrl-btn np-deck-skip" title="Previous" disabled={nowPlayingStore.acting} onclick={previous}><IconPrev size={22} /></button>
+            <button class="np-deck-play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={nowPlayingStore.acting} onclick={togglePlay}>
+              {#if data.isPlaying}<IconPause size={24} />{:else}<IconPlay size={24} />{/if}
             </button>
-          {:else}
-            <span class="np-sheet-spacer"></span>
-          {/if}
-          <button class="ctrl-btn np-sheet-skip" title="Previous" disabled={nowPlayingStore.acting} onclick={previous}><IconPrev size={22} /></button>
-          <button class="np-sheet-play" title={data.isPlaying ? 'Pause' : 'Play'} disabled={nowPlayingStore.acting} onclick={togglePlay}>
-            {#if data.isPlaying}<IconPause size={24} />{:else}<IconPlay size={24} />{/if}
-          </button>
-          <button class="ctrl-btn np-sheet-skip" title="Next" disabled={nowPlayingStore.acting} onclick={next}><IconNext size={22} /></button>
-          <span class="np-sheet-spacer"></span>
-        </div>
-        {#if showVolume && vol !== null}
-          <div class="np-sheet-volume">{@render volumeSlider()}<span class="np-time">{vol}%</span></div>
-        {/if}
-      {/if}
-      {#if upNext}
-        <div class="np-sheet-next">
-          {#if upNext.album?.imageUrl}
-            {#if upNext.album.known}
-              <a href="/album/{upNext.album.id}"><img class="np-sheet-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} /></a>
-            {:else}
-              <img class="np-sheet-next-art" src={upNext.album.imageUrl} alt={upNext.album.name} />
-            {/if}
-          {/if}
-          <div class="np-sheet-next-info">
-            <span class="np-next-label">Up next</span>
-            <span class="np-sheet-next-name">{#if upNext.known}<a class="np-next-link" href="/track/{upNext.id}">{upNext.name}</a>{:else}{upNext.name}{/if}</span>
-            {#if upNext.artists.length}
-              <span class="np-next-artists">{#each upNext.artists as artist, i}{#if artist.known}<a class="np-next-link" href="/artist/{artist.id}">{artist.name}</a>{:else}{artist.name}{/if}{#if i < upNext.artists.length - 1}{', '}{/if}{/each}</span>
+            <button class="ctrl-btn np-deck-skip" title="Next" disabled={nowPlayingStore.acting} onclick={next}><IconNext size={22} /></button>
+          </div>
+          <div class="np-deck-side np-deck-side--end">
+            {#if vol !== null}
+              <button
+                class="ctrl-btn ctrl-btn--vol"
+                class:ctrl-btn--muted={vol === 0}
+                class:np-deck-on={showVolume}
+                title="Volume: {vol}%"
+                aria-expanded={showVolume}
+                onclick={() => showVolume = !showVolume}
+              >
+                <IconVolume size={18} level={volIcon} />
+              </button>
             {/if}
           </div>
         </div>
+        {#if showVolume && vol !== null}
+          <div class="np-deck-volume">{@render volumeSlider()}<span class="np-time">{vol}%</span></div>
+        {/if}
       {/if}
     </div>
   {:else if rail}
@@ -892,26 +898,44 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   .np--compact .np-volume {
     order: -1;
   }
-  /* variante mini (móvil): la barra sobre las pestañas. el progreso es la tira de
-     la variante rail, pegada al filo superior; la carátula y el texto son un
-     solo botón que abre la hoja y los controles van fuera de él */
+  /* variante mini (móvil): la fila live de las listas (--live-bg + --live-ring, con el
+     radio de las tarjetas) sobre las pestañas. el progreso es su propio relleno, con
+     la cabeza como un filo de 1px; carátula, texto y chip son un solo botón que abre
+     la hoja y los controles van fuera de él */
   .np-mini {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.1rem;
+    gap: 0.25rem;
     width: 100%;
-    min-height: 44px;
-    padding: 0.4rem 0.6rem;
+    min-height: 52px;
+    padding: 0.375rem;
+    overflow: hidden;
+    border-radius: var(--radius);
     background: var(--live-bg);
-    border-bottom: 1px solid var(--accent-a15);
+    box-shadow: var(--live-ring);
   }
 
-  .np-mini .np-progress-strip {
-    top: 0;
-    bottom: auto;
-    height: 2px;
-    border-radius: 0;
+  /* un momento de la sesión va pegado encima: la fila cede las esquinas y el filo de
+     arriba, que pasa al azul del momento (las filas live contiguas se funden igual) */
+  .np-mini--fused {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: var(--live-ring-x), var(--live-ring-bottom), inset 0 1px color-mix(in srgb, var(--info) 25%, transparent);
+  }
+
+  .np-mini-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--accent-a10);
+    box-shadow: inset -1px 0 var(--accent-a40);
+    pointer-events: none;
+    transition: width 1s linear;
+  }
+
+  /* todo lo demás por encima del relleno, también la cifra que trae el padre */
+  .np-mini > :global(:not(.np-mini-fill)) {
+    position: relative;
   }
 
   .np-mini-open {
@@ -944,39 +968,68 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     background: var(--border);
   }
 
-  /* tres líneas (tema, artistas y la de sesión) en el alto de la barra de siempre */
   .np-mini-info {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
-    line-height: 1.25;
+    line-height: 1.3;
   }
 
   .np-mini-track,
-  .np-mini-artist {
+  .np-mini-artist,
+  .np-mini-notice,
+  .np-mini-next-name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .np-mini-track {
-    font-size: var(--fs-sm);
-    font-weight: 600;
+    font-size: var(--fs-md);
+    font-weight: 500;
     color: var(--text);
   }
 
   .np-mini-artist {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     color: var(--text-muted);
+  }
+
+  /* aviso de la sesión: la voz de las etiquetas (mono, mayúsculas) en su azul */
+  .np-mini-notice {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: var(--track);
+    text-transform: uppercase;
+    color: var(--info);
+  }
+
+  .np-mini-next {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    font-size: var(--fs-sm);
+    color: var(--text);
+  }
+
+  .np-mini-next .np-next-art {
+    width: 14px;
+    height: 14px;
+  }
+
+  .np-mini-next-name {
+    min-width: 0;
   }
 
   .np-mini-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
+    width: 38px;
     height: 40px;
     flex-shrink: 0;
     background: none;
@@ -988,8 +1041,7 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
   }
 
   .np-mini-btn--play {
-    width: 44px;
-    height: 44px;
+    width: 40px;
     background: var(--fg-a05);
     color: var(--text);
   }
@@ -1012,128 +1064,86 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     opacity: 0.4;
   }
 
-  /* variante sheet: el reproductor de la hoja móvil, a tamaño táctil */
-  .np-sheet {
+  /* variante deck: los controles de la hoja móvil, anclados al pie. la tarjeta de
+     escritorio a tamaño táctil: transporte en el centro, dispositivo y volumen a los
+     lados. el fondo y el filo los pone la hoja, que es quien la ancla */
+  .np-deck {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.25rem;
   }
 
-  .np-sheet .ctrl-btn {
-    min-width: 40px;
-    min-height: 40px;
+  .np-deck .ctrl-btn,
+  .np-deck :global(.dp-trigger) {
+    min-width: 44px;
+    min-height: 44px;
   }
 
-  .np-sheet-top {
+  .np-deck-now {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
   }
 
-  /* el chevron de la librería apunta a la derecha: hacia abajo = cerrar */
-  .np-sheet-close :global(svg) {
-    transform: rotate(90deg);
-  }
-
-  .np-sheet-spacer {
-    width: 40px;
+  .np-deck-art-link {
+    position: relative;
+    display: block;
     flex-shrink: 0;
   }
 
-  .np-sheet-label {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    letter-spacing: var(--track-wide);
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .np-sheet-album {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-sans);
-    font-size: var(--fs-xs);
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  /* la carátula no puede empujar los controles fuera de la primera pantalla */
-  .np-sheet-art-link {
+  .np-deck-art {
     display: block;
-    align-self: center;
-    width: min(100%, 22rem, 42vh);
-  }
-
-  .np-sheet-art {
-    display: block;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
-    object-fit: cover;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius);
+    object-fit: cover;
     background: var(--border);
-    box-shadow: 0 18px 40px -18px color-mix(in srgb, var(--shadow-color) 70%, transparent);
   }
 
-  .np-sheet-title {
+  .np-deck .np-track {
+    font-size: var(--fs-md);
+  }
+
+  /* la pista mide 4px; el relleno vertical es el blanco del dedo */
+  .np-deck .np-progress {
+    padding: 8px 0;
+  }
+
+  .np-deck-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .np-deck-side {
+    display: flex;
+  }
+
+  .np-deck-side--end {
+    justify-content: flex-end;
+  }
+
+  .np-deck-transport {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .np-sheet-title-text {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .np-sheet-track {
-    display: block;
-    font-size: var(--fs-xl);
-    font-weight: 700;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .np-sheet-artists {
-    font-size: var(--fs-md);
-    color: var(--text-muted);
-  }
-
-  .np-sheet .np-time {
-    font-size: var(--fs-xs);
-  }
-
-  .np-sheet-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .np-sheet-skip {
+  .np-deck-skip {
     color: var(--text);
   }
 
-  .np-sheet-on {
+  .np-deck-on {
     color: var(--accent);
   }
 
   /* mismo botón de play que el de los heroes (.play-entity-btn), a tamaño táctil */
-  .np-sheet-play {
+  .np-deck-play {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 60px;
-    height: 60px;
+    width: 52px;
+    height: 52px;
     padding: 0;
     border: none;
     border-radius: var(--radius);
@@ -1142,57 +1152,23 @@ import { playlistMembershipStore } from '$lib/stores/playlist-membership.svelte'
     cursor: pointer;
   }
 
-  .np-sheet-play:hover:not(:disabled) {
+  .np-deck-play:hover:not(:disabled) {
     background: var(--accent-hover);
   }
 
-  .np-sheet-play:disabled {
+  .np-deck-play:disabled {
     opacity: 0.5;
     cursor: default;
   }
 
-  .np-sheet-volume {
+  .np-deck-volume {
     display: flex;
     align-items: center;
     gap: 0.75rem;
   }
 
-  .np-sheet-volume .vol-slider {
+  .np-deck-volume .vol-slider {
     flex: 1;
     width: auto;
-  }
-
-  .np-sheet-next {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-card);
-  }
-
-  .np-sheet-next-art {
-    display: block;
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius);
-    object-fit: cover;
-  }
-
-  .np-sheet-next-info {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    font-size: var(--fs-xs);
-  }
-
-  .np-sheet-next-name {
-    font-size: var(--fs-sm);
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 </style>

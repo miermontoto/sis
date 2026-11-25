@@ -1,18 +1,21 @@
 <script lang="ts">
-  // momentos de la sesión en el móvil: cuando un play aterriza y sube un puesto, una
-  // tarjeta asoma sobre el mini player unos segundos (quién, cuánto, a quién adelanta).
-  // No hay banda fija: en reposo no ocupa nada, y la lista entera está en la hoja.
-  // Los lotes los calcula projectionsStore (rankMoments) contra su respuesta anterior
+  // momentos de la sesión en el móvil: cuando un play aterriza y sube un puesto, un
+  // bloque azul se pega encima del mini player unos segundos (quién, cuánto, a quién
+  // adelanta), fundido con él como dos filas live contiguas: el mismo bloque azul +
+  // verde que la sesión y la fila que suena en el escritorio. En reposo no ocupa
+  // nada y la lista entera está en la hoja. Sólo salta con la app delante: lo que
+  // sube sin nadie mirando lo cuenta projectionsStore (`away`) y lo dice el mini
+  // player. Los lotes los calcula projectionsStore (rankMoments) contra su respuesta
+  // anterior. `active` avisa al padre de que hay un bloque encima, para que la fila
+  // ceda su borde de arriba
   import { untrack } from 'svelte';
   import { projectionsStore } from '$lib/stores/projections.svelte';
-  import { type RankMoment } from '$lib/utils/session-ranks';
-  import RankChange from './RankChange.svelte';
+  import { rangeName, type RankMoment } from '$lib/utils/session-ranks';
 
-  let { onopen }: { onopen: () => void } = $props();
+  let { onopen, active = $bindable(false) }: { onopen: () => void; active?: boolean } = $props();
 
-  const MOMENT_MS = 5_000; // lo que se queda cada tarjeta
-  const QUEUE_MAX = 6; // varios plays seguidos no pueden encadenar un minuto de tarjetas
-  const RANGE_LONG: Record<string, string> = { all: 'All-time', thisYear: 'This year' };
+  const MOMENT_MS = 5_000; // lo que se queda cada bloque
+  const QUEUE_MAX = 6; // varios plays seguidos no pueden encadenar un minuto de bloques
 
   let queue = $state<RankMoment[]>([]);
   let current = $derived(queue[0] ?? null);
@@ -32,6 +35,10 @@
     return () => clearTimeout(id);
   });
 
+  $effect(() => {
+    active = current !== null;
+  });
+
   function open() {
     queue = [];
     onopen();
@@ -48,12 +55,11 @@
         <span class="session-moment-text">
           <span class="session-moment-head">
             <span class="session-moment-name">{current.entityName}</span>
-            <RankChange rankChange={current.from - current.to} isNew={false} live />
-            <span class="session-moment-rank">#{current.from}→#{current.to}</span>
+            <span class="session-moment-rank">{rangeName(current.range)} #{current.from}→#{current.to}</span>
           </span>
-          <span class="session-moment-sub">
-            {RANGE_LONG[current.range] ?? current.range}{#if current.passed.length > 0}{' · passed '}<span class="session-moment-who">{current.passed[0].name}</span>{#if current.passed.length > 1}{' '}+{current.passed.length - 1}{/if}{/if}
-          </span>
+          {#if current.passed.length > 0}
+            <span class="session-moment-sub">passed <span class="session-moment-who">{current.passed[0].name}</span>{#if current.passed.length > 1}{' '}+{current.passed.length - 1}{/if}</span>
+          {/if}
         </span>
         {#if queue.length > 1}<span class="session-moment-more">+{queue.length - 1}</span>{/if}
         <span class="session-moment-timer" style:animation-duration="{MOMENT_MS}ms"></span>
@@ -63,28 +69,35 @@
 </div>
 
 <style>
-  /* sin caja propia en el flujo: se ancla al panel inferior fijo (.sidebar en
-     móvil) y asoma por encima de él, sobre el contenido */
+  /* sin caja propia en el flujo: se apoya en el filo de arriba de la fila del mini
+     player (el padre la envuelve en una caja posicionada) y asoma sobre el contenido */
   .session-moment-wrap {
     position: absolute;
-    left: max(0.5rem, var(--safe-left));
-    right: max(0.5rem, var(--safe-right));
-    bottom: calc(100% + 0.5rem);
+    left: 0;
+    right: 0;
+    bottom: 100%;
     pointer-events: none;
   }
 
+  /* opaco (mezclado con la tarjeta, no transparente): va encima de la página. el
+     anillo azul cierra arriba y a los lados; abajo lo pone la fila, que es la que
+     sigue */
   .session-moment {
     position: relative;
     display: flex;
     align-items: center;
     gap: 0.6rem;
     width: 100%;
-    padding: 0.55rem 0.65rem 0.65rem;
+    padding: 0.45rem 0.5rem 0.55rem;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--info) 25%, transparent);
-    border-radius: var(--radius);
+    border: none;
+    border-radius: var(--radius) var(--radius) 0 0;
     background: color-mix(in srgb, var(--info) 10%, var(--bg-card));
-    box-shadow: 0 10px 26px -6px color-mix(in srgb, var(--shadow-color) 55%, transparent);
+    box-shadow:
+      inset 1px 0 color-mix(in srgb, var(--info) 25%, transparent),
+      inset -1px 0 color-mix(in srgb, var(--info) 25%, transparent),
+      inset 0 1px color-mix(in srgb, var(--info) 25%, transparent),
+      0 -10px 24px -12px color-mix(in srgb, var(--shadow-color) 55%, transparent);
     color: var(--text);
     font: inherit;
     text-align: left;
@@ -94,12 +107,12 @@
   }
 
   @keyframes session-moment-in {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(6px); }
   }
 
   .session-moment-img {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     flex-shrink: 0;
     border-radius: var(--radius);
     object-fit: cover;
@@ -115,13 +128,14 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 1px;
+    line-height: 1.3;
   }
 
   .session-moment-head {
     display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    align-items: baseline;
+    gap: 0.5rem;
     min-width: 0;
   }
 
@@ -137,7 +151,7 @@
   .session-moment-rank {
     flex-shrink: 0;
     font-family: var(--font-mono);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
@@ -165,7 +179,7 @@
     color: var(--text-muted);
   }
 
-  /* lo que le queda a la tarjeta, vaciándose */
+  /* lo que le queda al bloque, vaciándose */
   .session-moment-timer {
     position: absolute;
     left: 0;

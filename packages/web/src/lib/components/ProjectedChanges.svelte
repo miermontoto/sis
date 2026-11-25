@@ -71,13 +71,16 @@
   {#if data && data.sessionTrackCount > 0}
     <section class="session-sheet">
       <div class="section-header session-sheet-header">
-        <h2 class="section-title">This session</h2>
+        <h2 class="section-title">Session</h2>
         <span class="session-count">{data.sessionTrackCount} tracks · {formatDuration(data.sessionTotalMs)}</span>
         <a class="session-sheet-history" href="/history">History</a>
       </div>
       {#if visible.length === 0}
         <p class="session-sheet-empty">No rank changes yet</p>
-      {/if}
+      {:else}
+      <!-- el contenedor azul de la sesión (el de la tarjeta de escritorio): lo que
+           ha movido la sesión, agrupado por tipo -->
+      <div class="session-sheet-box">
       {#each SHEET_GROUPS as group (group.type)}
         {@const rows = visible.filter(v => v.result.entityType === group.type)}
         {#if rows.length > 0}
@@ -134,6 +137,8 @@
           </div>
         {/if}
       {/each}
+      </div>
+      {/if}
     </section>
   {/if}
 {:else if data && data.sessionTrackCount > 0}
@@ -381,8 +386,18 @@
     color: var(--text-muted);
   }
 
+  .session-sheet-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--info) 15%, transparent);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--info) 3%, transparent);
+  }
+
   .session-sheet-group {
-    margin: 0.9rem 0 0.35rem;
+    padding: 0.35rem 0.375rem 0;
     font-family: var(--font-mono);
     font-size: var(--fs-2xs);
     font-weight: 600;
@@ -391,8 +406,10 @@
     color: var(--text-muted);
   }
 
+  /* filas densas dentro del bloque: la carátula baja de --row-art y las filas van juntas */
   .session-sheet-list {
-    --track-list-gap: 0.15rem;
+    --track-list-gap: 0;
+    --row-art: 36px;
   }
 
   .session-sheet-entry {
@@ -413,17 +430,19 @@
     font: inherit;
   }
 
+  /* una cifra por ventana, como la columna de cifras de cualquier fila: la etiqueta
+     encima y el cambio debajo, sin caja (el bloque azul ya la enmarca) */
   .session-cell {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
-    min-width: 3.6rem;
-    padding: 0.35rem 0.45rem;
+    gap: 1px;
+    min-width: 3.2rem;
+    padding: 0.2rem 0.3rem;
     border-radius: var(--radius);
-    background: var(--fg-a05);
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+    line-height: 1.3;
   }
 
   .session-cells[aria-expanded='true'] .session-cell {
@@ -438,7 +457,7 @@
   }
 
   .session-cell-value {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-md);
     font-weight: 700;
     white-space: nowrap;
   }
@@ -455,7 +474,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
-    padding: 0 0.75rem 0.8rem calc(0.75rem + 48px + 1rem);
+    /* alineado con el nombre de la fila: su relleno, la carátula y el hueco */
+    padding: 0 0.375rem 0.6rem calc(0.375rem + var(--row-art) + var(--row-gap));
   }
 
   .session-passed-line {
