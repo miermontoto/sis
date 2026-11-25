@@ -2,10 +2,9 @@
   import { page } from '$app/state';
   import { hoverCard } from '$lib/stores/hover-card.svelte';
   import { getRankingMetric, isCollectionKey, type EntityType, type RankingMetric } from '$lib/api';
-  import { formatDuration, formatNumber, formatShortDate, formatTrackLength, timeAgo } from '$lib/utils/format';
-  import { medalColor } from '$lib/utils/medals';
-  import { RANK_PERIODS } from '$lib/utils/rank-periods';
-  import { parseEntityPath, densifySeries, bucketSeries, placeCard, ENTITY_CARD_WIDTH } from '$lib/utils/hover-card';
+  import { formatTrackLength } from '$lib/utils/format';
+  import { parseEntityPath, placeCard, ENTITY_CARD_WIDTH } from '$lib/utils/hover-card';
+  import EntityCardStats from './EntityCardStats.svelte';
 
   // Tarjeta de detalle de una entidad al pasar el ratón por encima. Se monta una
   // sola vez en el layout y el disparo es delegado: cualquier <a> que apunte a
@@ -23,9 +22,6 @@
   // margen para saltar del ancla a la tarjeta sin que se cierre por el camino
   const CLOSE_DELAY_MS = 200;
   const MAX_GENRES = 3;
-  // alto mínimo de una barra con plays, en % del pico: una semana floja tiene que
-  // seguir viéndose distinta de una vacía
-  const MIN_BAR_PCT = 6;
 
   // sólo con ratón: en táctil no hay hover y el gesto chocaría con el scroll
   const HOVER_QUERY = '(hover: hover) and (pointer: fine)';
@@ -192,30 +188,6 @@
   // es un álbum
   let kind = $derived(!card ? '' : isCollectionKey(card.id) ? 'collection' : card.type);
 
-  // el mismo par que MetricMeta: la métrica elegida en grande y en acento, la
-  // otra al lado en muted
-  let figures = $derived.by(() => {
-    if (!card) return null;
-    const plays = `${formatNumber(card.playCount)} plays`;
-    const time = formatDuration(card.totalMs);
-    return metric === 'plays' ? { primary: plays, secondary: time } : { primary: time, secondary: plays };
-  });
-
-  // actividad por semanas sobre la serie diaria densificada; sin plays en la
-  // ventana no hay nada que pintar
-  let activity = $derived.by(() => {
-    if (!card) return null;
-    const weeks = bucketSeries(densifySeries(card.series, card.seriesDays, metric));
-    const peak = Math.max(...weeks);
-    if (!(peak > 0)) return null;
-    return {
-      weeks,
-      peak,
-      peakLabel: metric === 'plays' ? `${formatNumber(peak)} plays/wk` : `${formatDuration(peak)}/wk`,
-    };
-  });
-
-  let ranks = $derived(hoverCard.ranks);
 </script>
 
 {#if hoverCard.state && pos}
@@ -244,61 +216,7 @@
         </div>
       </div>
 
-      <!-- la tira existe antes de que llegue el rank (shimmer): si apareciera
-           después, la tarjeta crecería ya colocada y placeCard, medido con la
-           altura vieja, la dejaría pisando el ancla o fuera del viewport -->
-      {#if !hoverCard.ranksFailed}
-        <div class="hc-ranks">
-          {#each RANK_PERIODS as period (period.key)}
-            {@const rank = ranks?.[period.key]}
-            <div class="hc-rank">
-              <span class="hc-label">{period.label}</span>
-              {#if !ranks}
-                <span class="hc-rank-value"><span class="ghost-text"></span></span>
-              {:else if rank}
-                <span class="hc-rank-value" style:color={medalColor(rank)}>#{rank}</span>
-              {:else}
-                <span class="hc-rank-value hc-rank-value--none">—</span>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-      {#if figures}
-        <div class="hc-figures">
-          <span class="hc-figure">{figures.primary}</span>
-          <span class="hc-figure-alt">{figures.secondary}</span>
-        </div>
-      {/if}
-
-      {#if activity}
-        <div class="hc-bars">
-          {#each activity.weeks as value, i (i)}
-            <div
-              class="hc-bar"
-              class:hc-bar--now={i === activity.weeks.length - 1}
-              class:hc-bar--zero={value === 0}
-              style:height={value > 0 ? `${Math.max(MIN_BAR_PCT, Math.round((value / activity.peak) * 100))}%` : undefined}
-            ></div>
-          {/each}
-        </div>
-        <div class="hc-axis hc-label">
-          <span>last {activity.weeks.length} weeks</span>
-          <span>peak {activity.peakLabel}</span>
-        </div>
-      {/if}
-
-      {#if card.firstPlayed || card.lastPlayed}
-        <div class="hc-when">
-          {#if card.firstPlayed}
-            <div class="hc-when-item"><span class="hc-label">first</span><span class="hc-when-value">{formatShortDate(card.firstPlayed)}</span></div>
-          {/if}
-          {#if card.lastPlayed}
-            <div class="hc-when-item"><span class="hc-label">last</span><span class="hc-when-value">{timeAgo(card.lastPlayed)}</span></div>
-          {/if}
-        </div>
-      {/if}
+      <EntityCardStats {card} ranks={hoverCard.ranks} ranksFailed={hoverCard.ranksFailed} {metric} />
     {:else if hoverCard.failed}
       <div class="hc-placeholder">No data</div>
     {:else}
@@ -320,6 +238,10 @@
     padding: 0.75rem;
     pointer-events: auto;
     animation: hover-card-in 0.12s ease-out;
+    /* el hueco entre la cabecera y las cifras lo pone la tarjeta */
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
   @keyframes hover-card-in {
@@ -327,8 +249,8 @@
     to { opacity: 1; transform: none; }
   }
 
-  /* etiqueta de grupo de la app (mono diminuta en mayúsculas): tipo, periodos
-     del rank, eje de la actividad y first/last */
+  /* etiqueta de grupo de la app (mono diminuta en mayúsculas): el tipo sobre el
+     nombre (las de las cifras viven en EntityCardStats) */
   .hc-label {
     font-family: var(--font-mono);
     font-size: var(--fs-2xs);
@@ -378,117 +300,6 @@
 
   .hc-sub { color: var(--text-secondary); }
   .hc-meta { color: var(--text-muted); }
-
-  /* celdas separadas por el fondo del contenedor asomando por el gap de 1px */
-  .hc-ranks {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1px;
-    margin-top: 0.75rem;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-
-  .hc-rank {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 0.25rem 0 0.2rem;
-    line-height: 1.35;
-    background: var(--bg-sunken);
-  }
-
-  .hc-rank-value {
-    font-family: var(--font-mono);
-    font-size: var(--fs-md);
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .hc-rank-value--none {
-    font-weight: 400;
-    color: var(--text-faint);
-  }
-
-  .hc-rank-value .ghost-text { vertical-align: middle; }
-
-  .hc-figures {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    font-family: var(--font-mono);
-    white-space: nowrap;
-  }
-
-  .hc-figure {
-    font-size: var(--fs-xl);
-    line-height: 1.1;
-    color: var(--accent);
-  }
-
-  .hc-figure-alt {
-    font-size: var(--fs-sm);
-    color: var(--text-muted);
-  }
-
-  .hc-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 3px;
-    height: 40px;
-    margin-top: 0.6rem;
-  }
-
-  .hc-bar {
-    flex: 1;
-    background: var(--accent);
-    opacity: 0.5;
-    border-radius: 1px 1px 0 0;
-  }
-
-  /* la semana en curso, la única que aún puede crecer */
-  .hc-bar--now { opacity: 1; }
-
-  .hc-bar--zero {
-    height: 2px;
-    background: var(--border);
-    opacity: 1;
-  }
-
-  .hc-axis {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 0.25rem;
-    letter-spacing: var(--track);
-  }
-
-  .hc-when {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    margin-top: 0.6rem;
-    padding-top: 0.6rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .hc-when-item {
-    display: flex;
-    align-items: baseline;
-    gap: 0.4rem;
-    min-width: 0;
-  }
-
-  .hc-when-value {
-    font-family: var(--font-mono);
-    font-size: var(--fs-xs);
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
   .hc-placeholder {
     display: flex;
