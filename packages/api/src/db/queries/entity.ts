@@ -35,6 +35,16 @@ export function getEntityStats(db: Db, entityType: EntityType, entityId: string,
   `)[0] as StatsRow;
 }
 
+/** Plays de cada tema contados como en su ficha (el id más los alias que tiene
+ *  mergeados): la cola de now playing los enseña junto a cada tema que viene. Pocos
+ *  ids (la cola va topada) y cada cuenta va por idx_lh_user_track */
+export function getTrackPlayCounts(db: Db, trackIds: string[], userId: number): Record<string, number> {
+  return Object.fromEntries(trackIds.map(id => [
+    id,
+    getEntityStats(db, 'track', id, null, null, resolveEntityIds(db, 'track', id, userId), userId).play_count,
+  ]));
+}
+
 /** Agregación de top artistas: pre-agrega por track (una pasada sobre el historial) y expande
  *  al set dedupeado de (track, artista resuelto). Equivale al DISTINCT (artista, play) sobre el
  *  producto lh × track_artists — que un mismo play cuente una sola vez por artista aunque dos

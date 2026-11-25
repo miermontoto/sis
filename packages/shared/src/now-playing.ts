@@ -59,6 +59,9 @@ export interface PlaybackQueueRef {
 export interface PlaybackQueueItem extends PlaybackQueueRef {
   artists: PlaybackQueueRef[];
   album: (PlaybackQueueRef & { imageUrl: string | null }) | null;
+  // plays del usuario de ese tema, contados como en su ficha (el id y sus alias de
+  // merge). 0 = nunca escuchado; ausente en las respuestas anteriores a la cifra
+  plays?: number;
 }
 
 export interface PlaybackQueueResponse {

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection.js';
+import { dbRead } from '../db/read-pool.js';
 import { pollingState } from '../db/schema.js';
 import { spotifyFetch, spotifyFetchRaw, isRateLimited } from '../services/spotify-client.js';
 import { getStoredTokens } from '../services/token-manager.js';
@@ -560,6 +561,10 @@ nowPlaying.get('/queue', async (c) => {
   const knownAlbums = presentIds('albums', albumIds);
   const merged = mergedAlbums(albumIds, userId);
   const knownArtists = presentIds('artists', rows.flatMap(r => r.artists.map(a => a.id)));
+  // cuántas veces has escuchado cada tema que viene (la hoja del móvil lo pinta como
+  // cualquier fila de lista); sólo los que tienen fila, que el resto son 0 por definición
+  const knownTracks = items.flatMap(i => library.has(i.id) ? [i.id] : []);
+  const plays: Record<string, number> = knownTracks.length > 0 ? await dbRead('getTrackPlayCounts', knownTracks, userId) : {};
 
   const queue = rows.map(({ item, artists }) => {
     // el mismo álbum que enseñará la tarjeta cuando le toque sonar
@@ -568,6 +573,7 @@ nowPlaying.get('/queue', async (c) => {
       id: item.id,
       name: item.name,
       known: library.has(item.id),
+      plays: plays[item.id] ?? 0,
       artists: artists.map(a => ({ ...a, known: knownArtists.has(a.id) })),
       album: canonical ? {
         id: canonical.id,
