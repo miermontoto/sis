@@ -21,7 +21,7 @@
   const AND_SIGNAL = `<svg width="12" height="12" viewBox="0 0 12 12"><path d="M12 0v12H0Z" fill="currentColor"/></svg>`;
   const AND_BATT = `<svg width="8" height="13" viewBox="0 0 8 13"><rect x="2.5" y="0" width="3" height="1.6" fill="currentColor"/><rect x="0" y="1.6" width="8" height="11.4" rx="1" fill="currentColor"/></svg>`;
 
-  // ---------- portadas y fotos procedurales (nunca arte real) ----------
+  // ---------- siluetas procedurales: los amigos del sidebar (nada de otros usuarios reales) ----------
   const hash = (s) => [...s].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 2166136261);
   const PALETTES = [
     ['#e0663a', '#f4c26b', '#2a1320'],
@@ -38,45 +38,32 @@
     ['#264653', '#e9c46a', '#e76f51'],
   ];
   const palette = (seed) => PALETTES[hash(seed) % PALETTES.length];
-  const coverBg = (seed) => {
-    const h = hash(seed);
-    const [a, b, c] = palette(seed);
-    const x = 18 + ((h >>> 5) % 64);
-    const y = 18 + ((h >>> 11) % 64);
-    const ang = (h >>> 3) % 180;
-    switch ((h >>> 17) % 5) {
-      case 0:
-        return `radial-gradient(circle at ${x}% ${y}%, ${b} 0 19%, transparent 19.5%), linear-gradient(${ang}deg, ${a}, ${c})`;
-      case 1:
-        return `radial-gradient(circle at ${x}% 52%, ${b} 0 14%, transparent 14.5%), linear-gradient(180deg, ${a} 0 56%, ${c} 56%)`;
-      case 2:
-        return `radial-gradient(circle at ${x}% ${y}%, ${b} 0 22%, transparent 22.5%), repeating-linear-gradient(${ang}deg, ${a} 0 11%, ${c} 11% 22%)`;
-      case 3:
-        return `radial-gradient(ellipse at ${x}% ${y}%, ${b}, transparent 58%), radial-gradient(circle at ${100 - x}% ${100 - y}%, ${a}, transparent 62%), ${c}`;
-      default:
-        return `linear-gradient(${b}, ${b}) ${x}% ${y}% / 24% 24% no-repeat, linear-gradient(${ang}deg, ${a} 0 50%, ${c} 50%)`;
-    }
-  };
-  // foto de artista: silueta de cabeza y hombros sobre un fondo de su paleta
+  // silueta de cabeza y hombros sobre un fondo de su paleta
   const photoBg = (seed) => {
     const [a, b, c] = palette(seed);
     return `radial-gradient(circle at 50% 40%, rgb(0 0 0 / 0.42) 0 19%, transparent 19.5%), radial-gradient(ellipse 46% 34% at 50% 100%, rgb(0 0 0 / 0.42) 0 99%, transparent 100%), radial-gradient(circle at 30% 20%, ${b}, transparent 70%), linear-gradient(160deg, ${a}, ${c})`;
   };
-  const cover = (seed, size) => `<div class="cv" style="width:${size}px;height:${size}px;background:${coverBg(seed)}"></div>`;
   const photo = (seed, size) => `<div class="cv round" style="width:${size}px;height:${size}px;background:${photoBg(seed)}"></div>`;
 
-  // ---------- datos de ejemplo (artistas ficticios, los mismos de las capturas anteriores) ----------
-  const ART = { nw: 'The North Wing', vl: 'Violet Lake', mf: 'Marina Foss', ep: 'Empty Pools', ha: 'Hours Apart', ab: 'Aria Bloom', cy: 'Cobalt Youth', ld: 'Lumen Drive', sg: 'Static Gardens', vt: 'Velvet Transit', sm: 'Solar Motel', tr: 'Tidal Rooms' };
-  const ALB = { nw: 'Northern Lines', vl: 'Slow Horizons', mf: 'Harbor Lights', ep: 'Low Tide', ha: 'Rooms', ab: 'Signal', cy: 'Summer Static', ld: 'Night Drive', sg: 'Greenhouse', vt: 'Last Train', sm: 'Vacancy', tr: 'Undertow' };
-  const TRACKS = [
-    ['Neon Tide', 'vl'], ['Paper Cities', 'nw'], ['Glass Harbor', 'mf'], ['Saltwater Run', 'ep'], ['Night Drive', 'ld'],
-    ['Low Ceiling', 'ha'], ['Heatwave', 'cy'], ['Cold Signal', 'ab'], ['Half Light', 'nw'], ['Greenhouse', 'sg'],
-    ['Pale Static', 'mf'], ['Last Train Home', 'vt'], ['First Frost', 'vl'], ['No Vacancy', 'sm'], ['Undertow', 'tr'],
-    ['Open Water', 'ep'], ['Blue Hours', 'ha'],
-  ].map(([t, a]) => ({ t, a: ART[a], k: a, alb: ALB[a] }));
-  const ALBUMS = ['vl', 'nw', 'mf', 'ld', 'ep', 'cy', 'ha', 'ab', 'sg'].map((k) => ({ t: ALB[k], a: ART[k], k }));
-  const ARTISTS = ['vl', 'nw', 'mf', 'ld', 'ep', 'ha', 'cy', 'ab', 'sg', 'vt'].map((k) => ({ t: ART[k], k }));
-  const DAYS = () => L(['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Today'], ['mié', 'jue', 'vie', 'sáb', 'dom', 'lun', 'Today']);
+  // portada o foto real (data/img del snapshot) sobre el fondo de la app mientras carga
+  const art = (img, size, round = false) => `<div class="cv${round ? ' round' : ''}" style="width:${size}px;height:${size}px;background:var(--bg-hover) center / cover no-repeat url(${img})"></div>`;
+
+  // ---------- datos reales de la cuenta (assets/store/data: lo genera snapshot.ts, gitignored) ----------
+  // canciones, artistas, cifras y portadas de verdad; los amigos siguen siendo siluetas (nada de otros
+  // usuarios). la forma de cada bloque está en la cabecera de snapshot.ts
+  const D = window.SNAPSHOT;
+  if (!D) throw new Error('[store] falta assets/store/data/snapshot.js: corre snapshot.ts (uso en su cabecera)');
+  const LOCALE = () => (LANG === 'es' ? 'es-ES' : 'en-US');
+  // fechas yyyy-mm-dd (o iso) en el idioma, a mediodía utc para que la zona no cambie el día
+  const fmtDate = (iso, opts) => new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString(LOCALE(), { timeZone: 'UTC', ...opts });
+  const SHORT_DATE = { month: 'short', day: 'numeric' };
+  // decimales con la coma del idioma (toLocaleString de la app)
+  const dec = (n, digits = 1) => n.toLocaleString(LOCALE(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const hrs = (min) => `${dec(min / 60)}h`;
+  const MIN_PER_H = 60;
+  const hm = (m) => (m >= MIN_PER_H ? `${Math.floor(m / MIN_PER_H)}h ${String(m % MIN_PER_H).padStart(2, '0')}m` : `${m}m`);
+  const DAYS = () => D.dashboard.last7.map((d, i, a) => (i === a.length - 1 ? 'Today' : fmtDate(d.date, { weekday: 'short' })));
+  const pct = (now, before) => Math.round(((now - before) / before) * 100);
   const medal = (r) => (r === 1 ? 'gold' : r === 2 ? 'silver' : r === 3 ? 'bronze' : '');
 
   // ---------- chrome de la app ----------
@@ -88,7 +75,7 @@
   ];
   const sysbar = (dev) => {
     if (dev === 'ios-phone') return `<div class="sys ios-phone"><div class="left">9:41</div><div class="right">${IOS_SIGNAL}${IOS_WIFI}${IOS_BATT}</div></div>`;
-    if (dev === 'ios-tablet') return `<div class="sys ios-tablet"><div class="left">9:41 <span style="font-weight:500">${L('Tue Sep 29', 'mar 29 sept')}</span></div><div class="right">${IOS_WIFI}<span style="font-weight:500">100 %</span>${IOS_BATT}</div></div>`;
+    if (dev === 'ios-tablet') return `<div class="sys ios-tablet"><div class="left">9:41 <span style="font-weight:500">${fmtDate(D.asOf, { weekday: 'short', ...SHORT_DATE })}</span></div><div class="right">${IOS_WIFI}<span style="font-weight:500">100 %</span>${IOS_BATT}</div></div>`;
     return `<div class="sys android"><div class="left">9:41</div><div class="right">${AND_WIFI}${AND_SIGNAL}${AND_BATT}</div></div>`;
   };
   const homeInd = (dev, bg = 'var(--bg-card)') => {
@@ -96,13 +83,17 @@
     if (dev === 'ios-tablet') return '<div class="home-ind tablet" style="flex-basis:20px;background:var(--bg)"></div>';
     return `<div class="home-ind android" style="flex-basis:${dev === 'android-phone' ? 16 : 18}px;background:${dev === 'android-phone' ? bg : 'var(--bg)'}"></div>`;
   };
-  const NOW = { t: 'Night Drive', a: ART.ld, k: 'ld' };
-  const mobileHeader = () => `<div class="mh">${wordmark(22)}<span class="search">Search...</span><span class="avatar">J</span></div>`;
+  // la cuenta (sin correo: debajo del nombre, la instancia) y lo que sonaba al cerrar el snapshot
+  const USER_INITIAL = D.user.name[0].toUpperCase();
+  const INSTANCE = 'sis.fm';
+  const NOW = D.dashboard.nowPlaying;
+  const SESSION = D.dashboard.session;
+  const mobileHeader = () => `<div class="mh">${wordmark(22)}<span class="search">Search...</span><span class="avatar">${USER_INITIAL}</span></div>`;
   const sessionStrip = () => {
-    const seg = L('session · 4 tracks · 14 min', 'session · 4 tracks · 14 min');
+    const seg = `session · ${SESSION.tracks} tracks · ${SESSION.minutes} min`;
     return `<div class="session-strip">${Array.from({ length: 4 }, () => `<span>${seg}</span>`).join('')}</div>`;
   };
-  const mini = () => `<div class="mini">${cover(ALB[NOW.k], 34)}<div class="grow"><div class="t ell">${NOW.t}</div><div class="a ell">${NOW.a}</div></div><span class="btn">⏮</span><span class="btn play">❚❚</span><span class="btn">⏭</span><span class="btn heart">♥</span></div>`;
+  const mini = () => `<div class="mini">${art(NOW.img, 34)}<div class="grow"><div class="t ell">${NOW.name}</div><div class="a ell">${NOW.artist}</div></div><span class="btn">⏮</span><span class="btn play">❚❚</span><span class="btn">⏭</span><span class="btn heart">♥</span></div>`;
   const tabbar = (active) => `<div class="tabbar">${TABS.map(([i, n]) => `<span class="${n === active ? 'on' : ''}"><i>${i}</i>${n}</span>`).join('')}</div>`;
   // la tablet android (1280x800) es más baja que el ipad: menos filas y menos pie de sidebar
   const isShort = (dev) => dev === 'android-tablet';
@@ -114,9 +105,9 @@
       ${duo ? '' : `<nav class="sb-nav">${SIDEBAR.map(([h, items]) => `<div class="sb-head">${h}</div>${items.map(([i, n]) => `<div class="sb-item${n === active ? ' on' : ''}"><i>${i}</i>${n}</div>`).join('')}`).join('')}</nav>`}
       <div class="sb-foot" style="padding-bottom:${duo ? 'var(--duo-bottom)' : `${TABLET_CROP}px`}">
         ${short ? '' : `<div class="sb-friends"><span class="lbl">friends</span><div class="faces">${['cy', 'sm', 'tr'].map((k) => photo(`friend-${k}`, 24)).join('')}</div></div>
-        <div class="sb-sess"><span>session</span><span>4 tracks · 14 min</span></div>`}
-        ${short ? '' : `<div class="np"><div class="row" style="gap:8px">${cover(ALB[NOW.k], 32)}<div class="grow"><div class="t ell">${NOW.t}</div><div class="a ell">${NOW.a}</div></div></div><div class="ctl"><span>⏮</span><span class="p">❚❚</span><span>⏭</span><span style="color:var(--like)">♥</span></div><div class="prog"><span>1:48</span><span class="bar" style="--p:52%"><i></i></span><span>3:27</span></div></div>`}
-        <div class="sb-user"><span class="avatar" style="width:30px;height:30px;font-size:12px">J</span><div><div class="n">jonathan</div><div class="i">jonathan@mier.info</div></div><span class="dots">⋯</span></div>
+        <div class="sb-sess"><span>session</span><span>${SESSION.tracks} tracks · ${SESSION.minutes} min</span></div>`}
+        ${short ? '' : `<div class="np"><div class="row" style="gap:8px">${art(NOW.img, 32)}<div class="grow"><div class="t ell">${NOW.name}</div><div class="a ell">${NOW.artist}</div></div></div><div class="ctl"><span>⏮</span><span class="p">❚❚</span><span>⏭</span><span style="color:var(--like)">♥</span></div><div class="prog"><span>1:48</span><span class="bar" style="--p:52%"><i></i></span><span>3:27</span></div></div>`}
+        <div class="sb-user"><span class="avatar" style="width:30px;height:30px;font-size:12px">${USER_INITIAL}</span><div><div class="n">${D.user.name}</div><div class="i">${INSTANCE}</div></div><span class="dots">⋯</span></div>
         <div class="sb-ver">26w40j · made by mier.info</div>
       </div>
     </aside>`;
@@ -155,69 +146,73 @@
   const stat = (v, l, s, style = '', vStyle = '') => `<div class="stat" style="${style}"><div class="v" style="${vStyle}">${v}</div><div class="l">${l}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
   const delta = (pct) => (pct >= 0 ? `<span class="up">▲ ${pct}%</span>` : `<span class="down">▼ ${-pct}%</span>`);
   const weekStrip = (h) => {
-    const vals = [212, 268, 188, 154, 22, 196, 231];
+    const vals = D.dashboard.last7.map((d) => d.minutes);
     const max = Math.max(...vals);
-    return `<div class="week"><div class="max">${vals[6]} min</div><div class="bars" style="height:${h}px">${vals.map((v, i) => `<i class="${i === 6 ? 'today' : ''}" style="height:${Math.max(4, (v / max) * h)}px"></i>`).join('')}</div><div class="days">${DAYS().map((d, i) => `<span class="${i === 6 ? 'today' : ''}">${d}</span>`).join('')}</div></div>`;
+    const last = vals.length - 1;
+    return `<div class="week"><div class="max">${vals[last]} min</div><div class="bars" style="height:${h}px">${vals.map((v, i) => `<i class="${i === last ? 'today' : ''}" style="height:${Math.max(4, (v / max) * h)}px"></i>`).join('')}</div><div class="days">${DAYS().map((d, i) => `<span class="${i === last ? 'today' : ''}">${d}</span>`).join('')}</div></div>`;
   };
-  const trackRow = (r, x, main, sub, art = 36) => `<div class="tr"><span class="rk ${medal(r)}">${r}</span>${cover(x.alb ?? x.t, art)}<div class="info"><span class="t ell">${x.t}</span><span class="a ell">${x.a}</span></div><div class="meta"><b>${main}</b><span>${sub}</span></div></div>`;
+  // x = { name, artist, img } del snapshot
+  const trackRow = (r, x, main, sub, size = 36) => `<div class="tr"><span class="rk ${medal(r)}">${r}</span>${art(x.img, size)}<div class="info"><span class="t ell">${x.name}</span><span class="a ell">${x.artist}</span></div><div class="meta"><b>${main}</b><span>${sub}</span></div></div>`;
   const card = (title, body, right = '', style = '') => `<section class="card" style="${style}"><div class="sec-head"><span class="sec-title">${title}</span>${right}</div>${body}</section>`;
-  const topTracks = (n, art) => {
-    const mins = [152, 118, 96, 81, 74, 63];
-    const plays = [41, 33, 27, 22, 20, 17];
-    return `<div class="tracks">${TRACKS.slice(0, n).map((x, i) => trackRow(i + 1, x, `${mins[i]} min`, `${plays[i]} plays`, art)).join('')}</div>`;
-  };
+  const topTracks = (n, size) => `<div class="tracks">${D.dashboard.topTracksWeek.slice(0, n).map((x, i) => trackRow(i + 1, x, `${x.minutes} min`, `${x.plays} plays`, size)).join('')}</div>`;
+  const COLLAGE_LABELS = 3;
   const collage = (items, round) =>
     `<div class="collage">${items
       .slice(0, 5)
-      .map((x, i) => `<div style="background:${round ? photoBg(x.t) : coverBg(x.t)}"><span class="n ${i === 0 ? 'gold' : ''}">${i + 1}</span>${i < 3 ? `<span class="lbl">${x.t}<small>${[236, 184, 162][i]} min</small></span>` : ''}</div>`)
+      .map((x, i) => `<div style="background:var(--bg-hover) center / cover no-repeat url(${x.img})${round ? ';border-radius:0' : ''}"><span class="n ${i === 0 ? 'gold' : ''}">${i + 1}</span>${i < COLLAGE_LABELS ? `<span class="lbl">${x.name}<small>${x.minutes} min</small></span>` : ''}</div>`)
       .join('')}</div>`;
   const TABS3 = (active) => `<div class="tabs">${[['♫', 'tracks'], ['◉', 'albums'], ['♙', 'artists']].map(([i, n]) => `<span class="${n === active ? 'on' : ''}">${i} ${n}</span>`).join('')}</div>`;
 
   // ---------- pantallas ----------
+  // las cifras del dashboard: [hoy, escuchado hoy, semana, racha, total]
+  const dashStats = () => {
+    const d = D.dashboard;
+    return [
+      stat(N(d.playsToday), 'plays today', `${N(d.playsYesterday)} yesterday`),
+      stat(hrs(d.minutesToday), 'listened today', `${hrs(d.minutesYesterday)} yesterday`),
+      stat(`${dec(d.weekHours)}h`, 'this week', `${delta(d.weekDeltaPct)} vs last week`),
+      stat(`${d.streak}d`, 'streak', `best ${N(d.bestStreak)}d`),
+      stat(N(d.totalPlays), 'total plays', `${N(d.nextMilestone - d.totalPlays)} to ${N(d.nextMilestone)}`),
+    ];
+  };
   const dashboardPhone = (dev) => {
     const short = dev === 'android-phone';
+    const [today, listened, week, streak, total] = dashStats();
     const main = `
       <div class="stats" style="grid-template-columns:1fr 1fr">
-        ${stat('64', 'plays today', `71 yesterday`)}
-        ${stat(L('3.9h', '3,9h'), 'listened today', L('4.6h yesterday', '4,6h yesterday'))}
-        ${short ? '' : stat(L('24.6h', '24,6h'), 'this week', `${delta(12)} vs last week`)}
-        ${short ? '' : stat('42d', 'streak', 'best 180d')}
-        ${stat(N(48213), 'total plays', `${N(1787)} to ${N(50000)}`, 'grid-column:1 / -1')}
+        ${today}${listened}${short ? '' : `${week}${streak}`}
+        ${total.replace('style=""', 'style="grid-column:1 / -1"')}
       </div>
       ${card('last 7 days', weekStrip(short ? 70 : 90))}
       ${card('top tracks this week', topTracks(4, 36))}`;
     return shell(dev, { tab: 'listen', main });
   };
-  // resumen del último informe cerrado, como la sección del dashboard (solo cabe en el ipad)
+  // el último informe cerrado, como la sección del dashboard (solo cabe en el ipad)
   const lastReport = () => {
+    const r = D.report;
     const tile = (media, ey, nm, mv) => `<div class="row" style="gap:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)">${media}<div class="grow" style="display:grid"><span class="muted mono" style="font-size:10px;letter-spacing:.05em;text-transform:uppercase">${ey}</span><span class="ell" style="font-size:14px;font-weight:500">${nm}</span><span class="mono" style="font-size:12px;color:var(--accent)">${mv}</span></div></div>`;
-    return card(L("last week's report", "last week's report"), `<div class="muted" style="font-size:13px;margin-bottom:12px">${L('Week 39 · 612 plays · 38.2h · 142 artists', 'Week 39 · 612 plays · 38,2h · 142 artists')}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${tile(photo(ART.vl, 48), 'top artist', ART.vl, '184 min')}${tile(cover(ALB.nw, 48), 'top album', ALB.nw, '121 min')}${tile(cover(ALB.ld, 48), 'top track', 'Night Drive', '64 min')}</div>`, '<span class="pill">week ▾</span>');
+    const [ar, al, tr] = [r.topArtists[0], r.topAlbums[0], r.topTracks[0]];
+    return card("last week's report", `<div class="muted" style="font-size:13px;margin-bottom:12px">Week ${r.week} · ${N(r.totals.plays)} plays · ${hrs(r.totals.minutes)} · ${N(r.totals.artists)} artists</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${tile(art(ar.img, 48, true), 'top artist', ar.name, `${ar.minutes} min`)}${tile(art(al.img, 48), 'top album', al.name, `${al.minutes} min`)}${tile(art(tr.img, 48), 'top track', tr.name, `${tr.minutes} min`)}</div>`, '<span class="pill">week ▾</span>');
   };
   const dashboardTablet = (dev) => {
     const tall = dev === 'ios-tablet';
     const main = `
-      <div class="stats" style="grid-template-columns:repeat(5,1fr)">
-        ${stat('64', 'plays today', '71 yesterday')}
-        ${stat(L('3.9h', '3,9h'), 'listened today', L('4.6h yesterday', '4,6h yesterday'))}
-        ${stat(L('24.6h', '24,6h'), 'this week', `${delta(12)} vs last week`)}
-        ${stat('42d', 'streak', 'best 180d')}
-        ${stat(N(48213), 'total plays', `${N(1787)} to ${N(50000)}`)}
-      </div>
+      <div class="stats" style="grid-template-columns:repeat(5,1fr)">${dashStats().join('')}</div>
       ${card('last 7 days', weekStrip(tall ? 66 : 40))}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${card('top albums this week', collage(ALBUMS.map((a) => ({ t: a.t })), false))}${card('top artists this week', collage(ARTISTS, true))}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${card('top albums this week', collage(D.report.topAlbums, false))}${card('top artists this week', collage(D.dashboard.topArtistsWeek, true))}</div>
       ${tall ? lastReport() : ''}`;
     return shell(dev, { nav: '', tab: 'listen', main });
   };
 
+  // ranking de temas de los últimos 30 días en barras, del color de la marca y con su portada
   const barRanking = (n, maxW, labelIn) => {
-    const mins = [152, 111, 98, 84, 71, 66, 65, 62, 61, 53, 49, 44, 41, 38, 35];
-    const fmt = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`);
-    return `<div class="barlist">${TRACKS.slice(0, n)
-      .map((x, i) => {
-        const w = Math.round((mins[i] / mins[0]) * maxW);
+    const items = D.rankings.tracks.slice(0, n);
+    const top = items[0].minutes;
+    return `<div class="barlist">${items
+      .map((x) => {
+        const w = Math.round((x.minutes / top) * maxW);
         const inside = w > labelIn;
-        const col = palette(x.alb)[0];
-        return `<div class="bl">${cover(x.alb, 30)}<span class="bar" style="width:${w}px;background:linear-gradient(90deg, ${col}, color-mix(in srgb, ${col} 55%, var(--bg-card)))">${inside ? `<span class="ell">${x.t}</span>` : ''}</span><span class="out">${inside ? '' : `<span class="ell">${x.t}</span>`}<span class="v">${fmt(mins[i])}</span></span></div>`;
+        return `<div class="bl">${art(x.img, 30)}<span class="bar" style="width:${w}px">${inside ? `<span class="ell">${x.name}</span>` : ''}</span><span class="out">${inside ? '' : `<span class="ell">${x.name}</span>`}<span class="v">${hm(x.minutes)}</span></span></div>`;
       })
       .join('')}</div>`;
   };
@@ -233,7 +228,7 @@
     return shell(dev, { tab: 'stats', main });
   };
   const rankingsTablet = (dev) => {
-    const n = isShort(dev) ? 10 : 14;
+    const n = D.rankings.tracks.length;
     const main = `
       ${TABS3('tracks')}
       <div class="row" style="justify-content:space-between"><div class="ranges">${['7d', '30d', '3m', '6m', '1y', 'ytd', 'all', 'custom'].map((r) => `<span class="rb${r === '30d' ? ' on' : ''}">${r}</span>`).join('')}</div><span class="rb txt">+ playlist</span></div>
@@ -245,99 +240,93 @@
     return shell(dev, { nav: 'rankings', main });
   };
 
-  const CHART = () => [
-    [1, 'new', TRACKS[4], 'peak', [1, 1], 144, 41],
-    [2, '▲ 3', TRACKS[0], ['#2', 2], [6, 1], 118, 33],
-    [3, 're', TRACKS[6], 'peak', [3, 1], 96, 27],
-    [4, '▼ 1', TRACKS[1], ['#1', 4], [11, 2], 81, 22],
-    [5, 'new', TRACKS[9], 'peak', [1, 1], 74, 20],
-    [6, '▲ 5', TRACKS[2], ['#3', 1], [4, 1], 63, 17],
-    [7, '=', TRACKS[5], ['#5', 2], [9, 1], 58, 16],
-    [8, 're', TRACKS[11], ['#4', 1], [3, 2], 52, 14],
-    [9, '▼ 4', TRACKS[7], ['#2', 3], [14, 1], 47, 13],
-    [10, 'new', TRACKS[13], 'peak', [1, 1], 44, 12],
-    [11, '▲ 2', TRACKS[3], ['#6', 1], [5, 1], 41, 11],
-    [12, 're', TRACKS[14], ['#9', 2], [2, 2], 38, 10],
-  ];
-  const chartRow = ([r, mv, x, pk, [wk, runs], mins, plays], phone) => {
-    const mvHtml = mv === 'new' ? '<small style="color:var(--new)">NEW</small>' : mv === 're' ? '<small style="color:var(--re)">RE</small>' : mv === '=' ? '<small class="muted">=</small>' : `<small class="${mv.startsWith('▲') ? 'up' : 'down'}">${mv}</small>`;
-    const peak = pk === 'peak' ? '<span class="peak">PEAK</span>' : `<span class="st"><b class="${medal(Number(pk[0].slice(1)))}">${pk[0]}${pk[1] > 1 ? `<small>×${pk[1]}</small>` : ''}</b><span>peak</span></span>`;
-    return `<div class="ch"><span class="rk"><b class="${medal(r)}">${r}</b>${mvHtml}</span>${cover(x.alb, phone ? 40 : 40)}<div class="info"><span class="t ell">${x.t}</span><span class="a ell">${x.a}</span></div>${peak}<span class="st"><b>${wk}<small>(${runs})</small></b><span>wks</span></span><div class="meta"><b>${mins} min</b><span>${plays} plays</span></div></div>`;
+  // la última semana cerrada de las charts: movimiento, pico (PEAK si está en él) y semanas en lista
+  const MOVE = { new: '<small style="color:var(--new)">NEW</small>', re: '<small style="color:var(--re)">RE</small>', same: '<small class="muted">=</small>' };
+  const chartRow = (x) => {
+    const mv = MOVE[x.status] ?? `<small class="${x.status}">${x.status === 'up' ? '▲' : '▼'} ${x.delta}</small>`;
+    const peak = x.peak >= x.pos ? '<span class="peak">PEAK</span>' : `<span class="st"><b class="${medal(x.peak)}">#${x.peak}${x.peakTimes > 1 ? `<small>×${x.peakTimes}</small>` : ''}</b><span>peak</span></span>`;
+    return `<div class="ch"><span class="rk"><b class="${medal(x.pos)}">${x.pos}</b>${mv}</span>${art(x.img, 40)}<div class="info"><span class="t ell">${x.name}</span><span class="a ell">${x.artist}</span></div>${peak}<span class="st"><b>${x.weeks}</b><span>wks</span></span><div class="meta"><b>${x.minutes} min</b><span>${x.plays} plays</span></div></div>`;
   };
+  const range = (a, b) => `${fmtDate(a, SHORT_DATE)} – ${fmtDate(b, SHORT_DATE)}`;
   const chartsBody = (phone, rows) => `
       ${TABS3('tracks')}
-      <div class="ranges">${['week', 'month', 'year'].map((r) => `<span class="rb${r === 'week' ? ' on' : ''}">${r}</span>`).join('')}<span class="rb">‹</span><span class="rb txt">2026-W39 ▾</span><span class="rb">›</span>${phone ? '</div><div class="row" style="justify-content:flex-end;margin-top:-8px"><span class="rb txt">+ playlist</span>' : `<span class="muted" style="font-size:13px;margin-left:6px">${L('Sep 21 – 27, 2026', '21 – 27 sept 2026')}</span><span class="rb txt" style="margin-left:auto">+ playlist</span>`}</div>
-      <div class="chart">${CHART().slice(0, rows).map((c) => chartRow(c, phone)).join('')}</div>`;
+      <div class="ranges">${['week', 'month', 'year'].map((r) => `<span class="rb${r === 'week' ? ' on' : ''}">${r}</span>`).join('')}<span class="rb">‹</span><span class="rb txt">${D.charts.period} ▾</span><span class="rb">›</span>${phone ? '</div><div class="row" style="justify-content:flex-end;margin-top:-8px"><span class="rb txt">+ playlist</span>' : `<span class="muted" style="font-size:13px;margin-left:6px">${range(D.charts.start, D.charts.end)}</span><span class="rb txt" style="margin-left:auto">+ playlist</span>`}</div>
+      <div class="chart">${D.charts.tracks.slice(0, rows).map(chartRow).join('')}</div>`;
   const chartsPhone = (dev) => shell(dev, { tab: 'stats', main: chartsBody(true, 9) });
-  const chartsTablet = (dev) => shell(dev, { nav: 'charts', main: chartsBody(false, isShort(dev) ? 8 : 12) });
+  const chartsTablet = (dev) => shell(dev, { nav: 'charts', main: chartsBody(false, isShort(dev) ? 8 : D.charts.tracks.length) });
 
-  // informe semanal
-  const REPORT_BG = `radial-gradient(ellipse 70% 90% at 70% 0%, ${palette(ART.vl)[0]}, transparent 70%), linear-gradient(180deg, color-mix(in srgb, ${palette(ART.vl)[2]} 70%, #000), transparent)`;
+  // informe semanal: la misma semana cerrada, con su artista top detrás de la cabecera
+  const R = D.report;
+  const heroBg = (img) => `linear-gradient(180deg, rgb(8 10 12 / 0.45), var(--bg) 92%), center 25% / cover no-repeat url(${img})`;
+  const REPORT_BG = heroBg(R.topArtists[0].img);
   const reportHead = (phone) => `
-      <div class="rep-head"><span class="navbtn">‹</span><div class="grow"><div class="ey">weekly report</div><h1>${L('Week 39, 2026', 'Week 39, 2026')}</h1><div class="d">${L('Sep 21 – Sep 27', '21 sept – 27 sept')}</div></div>${phone ? '' : `<div class="ranges"><span class="rb on">week</span><span class="rb">month</span><span class="rb">year</span><span class="rb">chart ›</span></div>`}</div>
+      <div class="rep-head"><span class="navbtn">‹</span><div class="grow"><div class="ey">weekly report</div><h1>Week ${R.week}, ${R.year}</h1><div class="d">${range(R.start, R.end)}</div></div>${phone ? '' : `<div class="ranges"><span class="rb on">week</span><span class="rb">month</span><span class="rb">year</span><span class="rb">chart ›</span></div>`}</div>
       ${phone ? `<div class="ranges"><span class="rb on">week</span><span class="rb">month</span><span class="rb">year</span><span class="rb">chart ›</span></div>` : ''}`;
   // en teléfono caben cuatro: la quinta (tracks) empujaría la ficha del artista top tras el reproductor
-  const reportStats = (cols) => `<div class="stats" style="grid-template-columns:repeat(${cols},1fr)">${[
-    ['612', 'plays', 4], [L('38.2h', '38,2h'), 'listening time', 6], ['142', 'artists', 8], ['211', 'albums', 2], ['356', 'tracks', -3],
-  ].slice(0, cols === 2 ? 4 : 5).map(([v, l, d]) => stat(v, `${l} ${d >= 0 ? '<span class="up">▲ ' + d + '%</span>' : '<span class="down">▼ ' + -d + '%</span>'}`, '')).join('')}</div>`;
-  const topCard = (ey, media, nm, sb, mv, pl, ch) => `<section class="card topcard"><div class="ey">${ey}</div>${media}<div class="nm">${nm}</div>${sb ? `<div class="sb">${sb}</div>` : ''}<div class="mv">${mv}</div><div class="pl">${pl}</div>${ch}</section>`;
-  const reportPhone = (dev) => {
-    const main = `${reportHead(true)}${reportStats(2)}${topCard('top artist', photo(ART.vl, 112), ART.vl, '', '184 min', '52 plays', '<span class="ch2 up">▲ 3</span>')}`;
-    return shell(dev, { tab: 'highlights', main, backdrop: REPORT_BG });
+  const reportStats = (cols) => {
+    const [t, p] = [R.totals, R.prevTotals];
+    const rows = [[N(t.plays), 'plays', pct(t.plays, p.plays)], [hrs(t.minutes), 'listening time', pct(t.minutes, p.minutes)], [N(t.artists), 'artists', pct(t.artists, p.artists)], [N(t.albums), 'albums', pct(t.albums, p.albums)], [N(t.tracks), 'tracks', pct(t.tracks, p.tracks)]];
+    return `<div class="stats" style="grid-template-columns:repeat(${cols},1fr)">${rows.slice(0, cols === 2 ? 4 : 5).map(([v, l, d]) => stat(v, `${l} ${delta(d)}`, '')).join('')}</div>`;
   };
+  const topCard = (ey, media, nm, sb, x) => `<section class="card topcard"><div class="ey">${ey}</div>${media}<div class="nm">${nm}</div>${sb ? `<div class="sb">${sb}</div>` : ''}<div class="mv">${x.minutes} min</div><div class="pl">${x.plays} plays</div></section>`;
+  const topArtistCard = (size) => topCard('top artist', art(R.topArtists[0].img, size, true), R.topArtists[0].name, '', R.topArtists[0]);
+  const reportPhone = (dev) => shell(dev, { tab: 'highlights', main: `${reportHead(true)}${reportStats(2)}${topArtistCard(112)}`, backdrop: REPORT_BG });
   const reportTablet = (dev) => {
-    const lists = [
-      ARTISTS.slice(1, 7).map((x, i) => ({ t: x.t, a: '', art: photo(x.t, 36), mv: ['▲ 2', '▼ 1', 'RE', '▲ 6', '=', '▼ 2'][i], m: [162, 141, 118, 96, 88, 71][i], p: [44, 38, 31, 26, 24, 19][i] })),
-      ALBUMS.slice(1, 7).map((x, i) => ({ t: x.t, a: x.a, art: cover(x.t, 36), mv: ['RE', '▲ 4', 'NEW', '▼ 3', 'RE', '▲ 1'][i], m: [83, 77, 69, 61, 55, 49][i], p: [24, 22, 19, 17, 15, 14][i] })),
-      TRACKS.slice(1, 7).map((x, i) => ({ t: x.t, a: x.a, art: cover(x.alb, 36), mv: ['▲ 5', 'NEW', 'RE', '▲ 12', '▼ 2', 'NEW'][i], m: [58, 49, 44, 41, 37, 33][i], p: [17, 14, 13, 12, 11, 10][i] })),
-    ];
-    const mvc = (mv) => (mv === 'NEW' ? 'color:var(--new)' : mv === 'RE' ? 'color:var(--re)' : mv === '=' ? 'color:var(--text-muted)' : mv.startsWith('▲') ? 'color:var(--accent)' : 'color:var(--danger)');
-    const col = (items) => `<div class="rlist">${items.map((x, i) => `<div class="rl"><span class="rk"><span class="${medal(i + 2)}">${i + 2}</span><small style="${mvc(x.mv)}">${x.mv}</small></span>${x.art}<div class="info"><span class="t ell">${x.t}</span>${x.a ? `<span class="a ell">${x.a}</span>` : ''}</div><div class="meta"><b>${x.m} min</b><span>${x.p} plays</span></div></div>`).join('')}</div>`;
+    const [al, tr] = [R.topAlbums[0], R.topTracks[0]];
+    const share = dec((tr.plays / R.totals.plays) * 100);
+    const lists = [R.topArtists.map((x) => ({ ...x, round: true })), R.topAlbums, R.topTracks].map((xs) => xs.slice(1));
+    const col = (items) => `<div class="rlist">${items.map((x, i) => `<div class="rl"><span class="rk"><span class="${medal(i + 2)}">${i + 2}</span></span>${art(x.img, 36, x.round)}<div class="info"><span class="t ell">${x.name}</span>${x.artist ? `<span class="a ell">${x.artist}</span>` : ''}</div><div class="meta"><b>${x.minutes} min</b><span>${x.plays} plays</span></div></div>`).join('')}</div>`;
     const main = `
       ${reportHead(false)}
       ${reportStats(5)}
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
-        ${topCard('top artist', photo(ART.vl, 104), ART.vl, '', '184 min', '52 plays', '<span class="ch2 up">▲ 3</span>')}
-        ${topCard('top album', cover(ALB.nw, 104), ALB.nw, ART.nw, '121 min', '34 plays', '<span class="ch2" style="color:var(--re)">RE</span>')}
-        ${topCard('top track', cover(ALB.ld, 104), 'Night Drive', `${ART.ld} · ${L('3.1% of plays', '3,1% of plays')}`, '64 min', '19 plays', '<span class="ch2" style="color:var(--new)">NEW</span>')}
+        ${topArtistCard(104)}
+        ${topCard('top album', art(al.img, 104), al.name, al.artist, al)}
+        ${topCard('top track', art(tr.img, 104), tr.name, `${tr.artist} · ${share}% of plays`, tr)}
       </div>
       ${isShort(dev) ? '' : `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${lists.map(col).join('')}</div>`}`;
     return shell(dev, { nav: 'reports', main, backdrop: REPORT_BG });
   };
 
-  // detalle de artista
-  const ARTIST_BG = `radial-gradient(ellipse 80% 100% at 80% 0%, ${palette(ART.nw)[0]}, transparent 70%), linear-gradient(180deg, color-mix(in srgb, ${palette(ART.nw)[2]} 60%, #000), transparent)`;
+  // detalle del artista nº 1 de siempre: su foto detrás y su puesto mes a mes (escala log)
+  const A = D.artist;
+  const ARTIST_BG = heroBg(A.background ?? A.img);
+  const RANK_DECADES = 3;
   const rankHistory = (w, h) => {
-    const pts = [900, 700, 420, 160, 60, 38, 22, 14, 9, 7, 5, 4, 4, 3, 3, 2, 2, 2, 1, 1, 1, 2, 1, 1];
-    const y = (r) => 10 + (Math.log10(r) / 3) * (h - 34);
+    const pts = A.rankHistory.map((m) => m.rank ?? 10 ** RANK_DECADES);
+    const y = (r) => 10 + (Math.log10(r) / RANK_DECADES) * (h - 34);
     const x = (i) => 44 + (i / (pts.length - 1)) * (w - 56);
     const d = pts.map((r, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(r).toFixed(1)}`).join('');
     const grid = [1, 10, 100, 1000].map((r) => `<line x1="44" x2="${w - 12}" y1="${y(r)}" y2="${y(r)}" stroke="var(--border)" stroke-dasharray="3 4"/><text x="38" y="${y(r) + 3}" font-size="10" text-anchor="end" fill="var(--text-muted)" font-family="JetBrains Mono">#${r}</text>`).join('');
-    const years = ['2021', '2022', '2023', '2024', '2025', '2026'].map((t, i, a) => `<text x="${44 + (i / (a.length - 1)) * (w - 56)}" y="${h - 4}" font-size="10" text-anchor="middle" fill="var(--text-muted)" font-family="JetBrains Mono">${t}</text>`).join('');
+    // un rótulo por enero, en su mes
+    const years = A.rankHistory.map((m, i) => (m.month.endsWith('-01') ? `<text x="${x(i)}" y="${h - 4}" font-size="10" text-anchor="middle" fill="var(--text-muted)" font-family="JetBrains Mono">${m.month.slice(0, 4)}</text>` : '')).join('');
     return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${grid}<path d="${d}L${x(pts.length - 1)},${h - 24}L${x(0)},${h - 24}Z" fill="var(--accent)" opacity=".08"/><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2"/>${pts.map((r, i) => `<circle cx="${x(i)}" cy="${y(r)}" r="2" fill="var(--accent)"/>`).join('')}${years}</svg>`;
   };
+  // la rejilla del chart run: sin el historial semana a semana en el snapshot, sale sembrada con la
+  // proporción real de semanas en el nº 1 (peakTimes / weeksOnChart)
   const runGrid = (cols, rows) => {
-    const r = (() => {
-      let s = 7;
-      return () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
-    })();
+    const r = rng(7);
+    const topShare = A.peakTimes / A.weeksOnChart;
     const cells = Array.from({ length: cols * rows }, () => {
       const v = r();
-      if (v < 0.07) return '<i class="e"></i>';
-      if (v < 0.24) return '<i class="g">1</i>';
-      const n = 2 + Math.floor(r() * 24);
-      return `<i class="${n > 15 ? 's' : n === 2 ? 'w' : n === 3 ? 'b' : ''}">${n}</i>`;
+      if (v < 0.05) return '<i class="e"></i>';
+      if (v < 0.05 + topShare) return '<i class="g">1</i>';
+      const n = 2 + Math.floor(r() * 12);
+      return `<i class="${n === 2 ? 'w' : n === 3 ? 'b' : ''}">${n}</i>`;
     });
     return `<div class="run" style="grid-template-columns:repeat(${cols},1fr)">${cells.join('')}</div>`;
   };
+  const RANK_KEYS = [['7d', 'd7'], ['30d', 'd30'], ['ytd', 'ytd'], ['all', 'all']];
+  const TOP10 = 10;
+  const rankClass = (r) => (r === 1 ? 'g1' : r <= TOP10 ? 'acc' : 'w');
   const artistBody = (phone, short = false) => `
-      <div class="ahero">${photo(ART.nw, phone ? 88 : 128)}<h1>${ART.nw}</h1>${phone ? '' : `<span class="playbtn">▶</span><span class="acco">♛<span>×4</span> ♛<span>×2</span></span>`}</div>
+      <div class="ahero">${art(A.img, phone ? 88 : 128, true)}<h1>${A.name}</h1>${phone ? '' : '<span class="playbtn">▶</span>'}</div>
       <div class="stats" style="grid-template-columns:repeat(${phone ? 2 : 4},1fr)">
-        ${stat(N(4812), 'plays', '')}${stat(`${N(16904)} min`, 'listening time', '')}${stat(L('Mar 12 2021', '12 mar 2021'), 'first played', '')}${stat('10:41', 'last played', '')}
+        ${stat(N(A.plays), 'plays', '')}${stat(`${N(A.minutes)} min`, 'listening time', '')}${stat(fmtDate(A.firstPlayed, { ...SHORT_DATE, year: 'numeric' }), 'first played', '')}${stat(new Date(A.lastPlayed).toLocaleTimeString(LOCALE(), { hour: '2-digit', minute: '2-digit', timeZone: D.settings.timeZone }), 'last played', '')}
       </div>
-      <div class="badges">${[['7d', '#1', 'g1'], ['30d', '#1', 'g1'], ['ytd', '#2', 'acc'], ['all', '#4', 'w']].map(([k, v, c]) => `<div class="rbadge ${c}"><small>${k.toUpperCase()}</small><b>${v}</b></div>`).join('')}</div>
+      <div class="badges">${RANK_KEYS.map(([k, key]) => `<div class="rbadge ${rankClass(A.ranks[key])}"><small>${k.toUpperCase()}</small><b>#${A.ranks[key]}</b></div>`).join('')}</div>
       ${phone && short ? '' : `<section class="card chartsvg" style="padding:${phone ? 10 : 14}px">${rankHistory(phone ? 330 : 1040, phone ? 150 : short ? 170 : 190)}</section>`}
-      ${phone || short ? '' : `<div class="runstats"><div class="card"><b>#3</b><span>current</span></div><div class="card"><b class="gold">#1 <small>×38</small></b><span>peak</span></div><div class="card"><b>214 <small>(71)</small></b><span>weeks</span></div></div>
+      ${phone || short ? '' : `<div class="runstats"><div class="card"><b>${A.current ? `#${A.current}` : '—'}</b><span>current</span></div><div class="card"><b class="gold">#${A.peak} <small>×${A.peakTimes}</small></b><span>peak</span></div><div class="card"><b>${A.weeksOnChart}</b><span>weeks</span></div></div>
       ${runGrid(24, 4)}`}`;
   // el teléfono android (360x640) es el más bajo: sin la gráfica de puesto, que quedaría a medias tras el reproductor
   const artistPhone = (dev) => shell(dev, { tab: 'stats', main: artistBody(true, dev === 'android-phone'), backdrop: ARTIST_BG });
@@ -378,57 +367,110 @@
     });
     return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${segs.join('')}</svg>`;
   };
-  const GENRES = [['indie pop', 26, '#1db954'], ['dream pop', 18, '#1ed760'], ['synthpop', 15, '#2fcf7a'], ['shoegaze', 11, '#18a36a'], ['indie rock', 10, '#139a8c'], ['electronic', 9, '#2f8fd8'], ['alt r&b', 6, '#3b6fd0'], ['post-punk', 5, '#8e5bd0']];
+  // géneros de siempre: los ocho primeros, en verdes y azules de la marca
+  const GENRE_COLORS = ['#1db954', '#1ed760', '#2fcf7a', '#18a36a', '#139a8c', '#2f8fd8', '#3b6fd0', '#8e5bd0'];
+  const GENRES = D.insights.genres.map((g, i) => [g.name, g.pct, GENRE_COLORS[i % GENRE_COLORS.length]]);
+  const I = D.insights;
+  // n meses de horas de escucha, con el año rotulado en cada enero
+  const monthsBars = (n) => I.playsMonthly.slice(-n);
+  const januaryLabels = (months) => months.map((m) => (m.month.endsWith('-01') ? m.month.slice(0, 4) : ''));
+  const AXIS_STEPS = 3;
   const insightsBody = (phone, short = false) => {
-    const r = rng(11);
-    const plays = Array.from({ length: 60 }, (_, i) => 1400 + Math.sin(i / 5) * 500 + r() * 700 + (i > 40 ? 400 : 0));
-    const xl = ['2021', '2022', '2023', '2024', '2025', '2026'];
+    const plays = I.playsMonthly.map((m) => m.plays);
+    const top = Math.max(...plays) * 1.1;
+    const ylabels = Array.from({ length: AXIS_STEPS + 1 }, (_, i) => N(Math.round((top * (AXIS_STEPS - i)) / AXIS_STEPS / 100) * 100));
+    const years = [...new Set(I.playsMonthly.map((m) => m.month.slice(0, 4)))];
+    const recent = monthsBars(36);
     const cw = phone ? 330 : 500;
     return `
       <div class="ranges">${['7d', '30d', '3m', '6m', '1y', 'ytd', 'all'].map((x) => `<span class="rb${x === 'all' ? ' on' : ''}">${x}</span>`).join('')}${phone ? '' : '<span class="rb">custom</span>'}</div>
-      <div class="stats" style="grid-template-columns:repeat(${phone ? 2 : 4},1fr)">${stat(L('2,948.6h', '2948,6h'), 'total listening', '')}${stat(N(48213), 'total plays', '')}${phone && short ? '' : `${stat(L('3.4h', '3,4h'), 'daily average', '')}${stat('42', 'current streak', '')}`}</div>
+      <div class="stats" style="grid-template-columns:repeat(${phone ? 2 : 4},1fr)">${stat(`${N(I.totalHours)}h`, 'total listening', '')}${stat(N(I.totalPlays), 'total plays', '')}${phone && short ? '' : `${stat(`${dec(I.dailyAvgHours)}h`, 'daily average', '')}${stat(String(I.currentStreak), 'current streak', '')}`}</div>
       <div style="display:grid;grid-template-columns:${phone ? '1fr' : '1fr 1fr'};gap:${phone ? 16 : 24}px">
-        ${phone ? '' : `<section class="card ccard"><div class="h">Plays<small>R² = 0.31</small></div><div class="chartsvg">${areaChart(cw, 220, plays, ['2,400', '1,600', '800', '0'].map((v) => (LANG === 'es' ? v.replace(',', '.') : v)), xl)}</div></section>`}
+        ${phone ? '' : `<section class="card ccard"><div class="h">Plays</div><div class="chartsvg">${areaChart(cw, 220, plays, ylabels, years)}</div></section>`}
         <section class="card ccard"><div class="h">Genre distribution</div><div class="chartsvg">${donut(cw, phone ? (short ? 190 : 230) : 220, GENRES)}</div></section>
-        ${phone || short ? '' : `<section class="card ccard"><div class="h">Listening time by year<small>R² = 0.42</small></div><div class="chartsvg">${barsChart(cw, 220, [212, 318, 402, 455, 498, 531, 604, 388], ['2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'], (v) => `${Math.round(v)}h`)}</div></section>
-        <section class="card ccard"><div class="h">Listening time<small>R² = 0.18</small></div><div class="chartsvg">${barsChart(cw, 220, Array.from({ length: 36 }, (_, i) => 20 + Math.abs(Math.sin(i / 3)) * 30 + r() * 25), Array.from({ length: 36 }, (_, i) => (i % 6 === 0 ? xl[i / 6] : '')), (v) => `${Math.round(v)}h`)}</div></section>`}
+        ${phone || short ? '' : `<section class="card ccard"><div class="h">Listening time by year</div><div class="chartsvg">${barsChart(cw, 220, I.hoursByYear.map((y) => y.hours), I.hoursByYear.map((y) => String(y.year)), (v) => `${N(Math.round(v))}h`)}</div></section>
+        <section class="card ccard"><div class="h">Listening time</div><div class="chartsvg">${barsChart(cw, 220, recent.map((m) => m.hours), januaryLabels(recent), (v) => `${Math.round(v)}h`)}</div></section>`}
       </div>`;
   };
   const insightsPhone = (dev) => shell(dev, { tab: 'highlights', main: insightsBody(true, dev === 'android-phone') });
   const insightsTablet = (dev) => shell(dev, { nav: 'insights', main: insightsBody(false, isShort(dev)) });
 
-  // conciertos (solo teléfono)
+  // conciertos (solo teléfono): los más recientes, agrupados por año; sin setlist, se dice
+  const C = D.concerts;
   const concertsPhone = (dev) => {
-    const shows = [
-      [ART.vl, L('Teatro Norte · Madrid · Slow Horizons Tour', 'Teatro Norte · Madrid · Slow Horizons Tour'), L('Sep 12', '12 sept'), '21 songs · 19 in library'],
-      [ART.nw, 'Sala Faro · Gijón', L('Aug 2', '2 ago'), '18 songs · 16 in library'],
-      [ART.ld, L('Parque del Puerto · Bilbao', 'Parque del Puerto · Bilbao'), L('Jul 19', '19 jul'), '16 songs · 12 in library'],
-      [ART.mf, 'Arena Sur · Sevilla', L('Jun 7', '7 jun'), '22 songs · 20 in library'],
-    ];
+    const byYear = Object.groupBy(C.shows, (c) => c.date.slice(0, 4));
+    const row = (c) => `<div class="cl">${art(c.img, 44, true)}<div class="info"><span class="t ell">${c.artist}</span><span class="a ell">${[c.venue, c.city, c.tour].filter(Boolean).join(' · ')}</span></div><div class="meta"><b>${fmtDate(c.date, SHORT_DATE)}</b></div></div><div class="muted mono" style="font-size:11.5px;padding:0 10px 6px 68px;margin-top:-10px">${c.songs ? `${c.songs} songs · ${c.inLibrary} in library` : 'no setlist yet'}</div>`;
+    const stats = [[C.stats.shows, 'shows'], [C.stats.artists, 'artists'], [C.stats.venues, 'venues'], [C.stats.countries, 'countries'], [C.stats.songsLive, 'songs live'], [`${C.stats.knewPct}%`, 'already knew']];
     const main = `
-      <div class="ranges"><span class="rb on">all</span><span class="rb">2026</span><span class="rb">2025</span><span class="rb">2024</span></div>
-      <div class="stats" style="grid-template-columns:repeat(3,1fr)">${[['9', 'shows'], ['8', 'artists'], ['7', 'venues'], ['2', 'countries'], ['164', 'songs live'], ['86%', 'already knew']].map(([v, l]) => stat(v, l, '', 'padding:14px 6px')).join('')}</div>
-      <div class="yearh">2026 <span>5 shows</span></div>
-      <div>${shows.map(([a, v, d, s]) => `<div class="cl">${photo(a, 44)}<div class="info"><span class="t ell">${a}</span><span class="a ell">${v}</span></div><div class="meta"><b>${d}</b></div></div><div class="muted mono" style="font-size:11.5px;padding:0 10px 6px 68px;margin-top:-10px">${s}</div>`).join('')}</div>`;
+      <div class="ranges"><span class="rb on">all</span>${Object.keys(byYear).sort().reverse().map((y) => `<span class="rb">${y}</span>`).join('')}</div>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)">${stats.map(([v, l]) => stat(String(v), l, '', 'padding:14px 6px')).join('')}</div>
+      ${Object.entries(byYear).sort(([a], [b]) => b.localeCompare(a)).map(([y, cs]) => `<div class="yearh">${y} <span>${cs.length} shows</span></div><div>${cs.map(row).join('')}</div>`).join('')}`;
     return shell(dev, { tab: 'library', main });
   };
 
   // ---------- slides ----------
-  const COPY = {
-    dashboard: { k: () => 'dashboard', h: () => L('your music, <em>logged in real time</em>', 'tu música, <em>registrada al momento</em>'), s: () => L('every play saved to your own server, with today, this week and your streak at a glance', 'cada escucha guardada en tu servidor, con hoy, la semana y tu racha de un vistazo') },
-    rankings: { k: () => 'rankings', h: () => L('your top, <em>by plays or time</em>', 'tu top, <em>por escuchas o tiempo</em>'), s: () => L('tracks, albums and artists over any range, from last week to all time', 'temas, álbumes y artistas en cualquier rango, de la última semana a siempre') },
-    charts: { k: () => 'charts', h: () => L('weekly charts, <em>like the real ones</em>', 'listas semanales, <em>como las de verdad</em>'), s: () => L('new entries, re-entries, peaks and weeks on chart', 'entradas nuevas, reentradas, picos y semanas en lista') },
-    reports: { k: () => 'reports', h: () => L('every week, <em>wrapped</em>', 'cada semana, <em>resumida</em>'), s: () => L('weekly, monthly and yearly reports with your top artists, albums and tracks', 'informes semanales, mensuales y anuales con tus artistas, álbumes y temas top') },
-    artist: { k: () => L('artists', 'artistas'), h: () => L('every artist, <em>in depth</em>', 'cada artista, <em>a fondo</em>'), s: () => L('plays, rank over time and the full chart run', 'escuchas, su puesto en el tiempo y su historial en listas') },
-    insights: { k: () => 'insights', h: () => L('see <em>how you listen</em>', 'descubre <em>cómo escuchas</em>'), s: () => L('trends, genres and listening time, year after year', 'tendencias, géneros y tiempo de escucha, año tras año') },
-    concerts: { k: () => L('concerts', 'conciertos'), h: () => L('the shows <em>you have seen</em>', 'los conciertos <em>que has visto</em>'), s: () => L('log every show with its setlist and see how many songs you already knew', 'apunta cada concierto con su setlist y mira cuántas canciones ya conocías') },
+  // composición con el kit de platform (window.StoreKit, platform/tooling/store/kit): cada slide elige
+  // layout, tono y arte. el titular es una frase con su remate, sin antetítulo ni subtítulo; las cifras
+  // y nombres que cita son los de las pantallas
+  const { StoreKit } = window;
+  const TOTAL_PLAYS = D.dashboard.totalPlays;
+  const REPORT_WEEK = R.week;
+  const TOP_GENRE = R.topGenre;
+  const TOP_ARTIST = A;
+  const HEAD = {
+    dashboard: () => L('plays. We counted every one.', 'escuchas. Las contamos todas.'),
+    rankings: () => L('Settle ‘favourite band’ with <em>actual data.</em>', 'Zanja lo de «tu grupo favorito» <em>con datos.</em>'),
+    charts: () => L('A Top 40 where you’re the only voter.', 'Una lista de éxitos con un solo votante: tú.'),
+    reports: () => L(`Week ${REPORT_WEEK}, reviewed. <em>Mostly ${TOP_GENRE}.</em>`, `Semana ${REPORT_WEEK}, revisada. <em>Casi todo ${TOP_GENRE}.</em>`),
+    artist: () => L(`${N(TOP_ARTIST.plays)} plays of ${TOP_ARTIST.name}. <em>No judgement.</em>`, `${N(TOP_ARTIST.plays)} escuchas de ${TOP_ARTIST.name}. <em>Sin juzgar.</em>`),
+    insights: () => L('Statistically, you have a type.', 'Estadísticamente, tienes un tipo.'),
+    concerts: () => L('Proof you were there, <em>setlist included.</em>', 'La prueba de que estuviste, <em>con setlist.</em>'),
   };
-  const slide = (slug, scr) => ({ slug, ...COPY[slug], scr });
+
+  // motivo de la serie: el historial de escuchas real (escuchas por mes) como una sola curva que cruza
+  // todas las slides de un marco (cada una enseña su tramo), abajo y tenue, detrás del dispositivo
+  const PANO_BAND = 0.42;
+  const listening = (ctx) =>
+    StoreKit.panorama(ctx, (w, h) => {
+      const plays = I.playsMonthly.map((m) => m.plays);
+      const max = Math.max(...plays);
+      const y = (v) => h - (v / max) * h * PANO_BAND;
+      const d = plays.map((v, i) => `${i ? 'L' : 'M'}${((i / (plays.length - 1)) * w).toFixed(1)},${y(v).toFixed(1)}`).join('');
+      return `<svg class="pano-line" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${d}L${w},${h}L0,${h}Z" class="fill"/><path d="${d}" class="stroke"/></svg>`;
+    });
+  const withPano = (extra) => (ctx) => listening(ctx) + (extra ? extra(ctx) : '');
+  // charts sobre el verde: el «40» enorme en contorno detrás del dispositivo (solo en apaisado: en
+  // vertical el dispositivo ocupa todo el ancho y lo taparía)
+  const forty = (ctx) => (ctx.wide ? '<span class="art-forty">40</span>' : '');
+  // artista: su foto a sangre, oscurecida hacia abajo
+  const artistArt = () => `<div class="art-photo" style="background:var(--bg) center 20% / cover no-repeat url(${A.background ?? A.img})"></div>`;
+
+  // fragmentos ampliados de lens
+  const rankLens = () => `<section class="card lens-card">${barRanking(5, 190, 110)}</section>`;
+  const genreLens = () => `<section class="card ccard lens-card"><div class="h">Genre distribution</div><div class="chartsvg">${donut(330, 220, GENRES)}</div></section>`;
+  // la entrada del concierto, como prueba: el más reciente con setlist (artista, sala, fecha) y cuántas de
+  // sus canciones conocías
+  const TICKET = C.shows.find((c) => c.songs > 0);
+  const ticket = () => `
+    <div class="ticket">
+      <div class="tk-main"><span class="tk-ey">${L('admit one', 'entrada')}</span><b>${TICKET.artist}</b><span>${TICKET.venue} · ${TICKET.city}</span><span>${fmtDate(TICKET.date, { ...SHORT_DATE, year: 'numeric' })}</span></div>
+      <div class="tk-stub"><b>${TICKET.knew}<small>/${TICKET.songs}</small></b><span>${L('songs you knew', 'te sabías')}</span></div>
+    </div>`;
+
+  const SPEC = {
+    dashboard: { layout: 'poster', figure: () => N(TOTAL_PLAYS), art: withPano() },
+    rankings: { layout: 'lens', lens: { w: 330, html: rankLens }, art: withPano() },
+    charts: { layout: 'rise', tone: 'accent', art: forty },
+    reports: { layout: 'fall', art: withPano() },
+    artist: { layout: 'rise', tone: 'photo', art: artistArt },
+    insights: { layout: 'lens', lens: { w: 360, html: genreLens }, art: withPano() },
+    concerts: { layout: 'lens', lens: { w: 330, html: ticket }, art: withPano() },
+  };
+  const slide = (slug, scr) => ({ slug, head: HEAD[slug], scr, ...SPEC[slug] });
   const PHONE = [slide('dashboard', dashboardPhone), slide('rankings', rankingsPhone), slide('charts', chartsPhone), slide('reports', reportPhone), slide('artist', artistPhone), slide('insights', insightsPhone), slide('concerts', concertsPhone)];
   const TABLET = [slide('dashboard', dashboardTablet), slide('rankings', rankingsTablet), slide('charts', chartsTablet), slide('reports', reportTablet), slide('artist', artistTablet), slide('insights', insightsTablet)];
 
-  // marcos: lienzo en px css; export multiplica por scale. rLog = radio de pantalla en px lógicos.
-  // base = dispositivo cuyas pantallas pinta un marco derivado (otro tamaño de iphone, el Duo);
+  // marcos: la geometría de cada dispositivo es del kit (StoreKit.FRAME); aquí sus slides y salidas.
   // los tamaños de tienda que aceptan están en platform/tooling/store/specs.mjs.
   // salidas: <tienda>/<idioma>/<slot>/<nn>-<slug>.png, un slot por casilla de subida de la tienda
   // (nn con dos dígitos: el orden del explorador de archivos es el de subida)
@@ -442,88 +484,59 @@
   const DUO_OPEN_SLIDES = bySlug(TABLET, ['dashboard', 'rankings', 'charts', 'reports', 'insights']);
   const DUO_CLOSED_SLIDES = bySlug(PHONE, ['artist', 'concerts', 'dashboard', 'charts', 'insights']);
 
-  const FRAMES = {
-    // dynamic island mediano (iPhone 17 Pro, 1206x2622): el obligatorio de app store
-    'ios-phone-m': { base: 'ios-phone', w: 402, h: 874, screen: { w: 402, h: 874 }, bezel: 9, rLog: 55, pad: 32, padTop: 47, kicker: 11, head: 25, sub: 14, copyH: 210, bottom: 28, dot: 21, slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-medium', `${nn(n)}-${s}`), 3]] },
-    // dynamic island grande (iPhone 17 Pro Max, 1320x2868): la casilla de 6,5"/6,7"/6,9" de app
-    // store connect, que no acepta el 1284x2778 del face id grande
-    'ios-phone': { w: 440, h: 956, screen: { w: 440, h: 956 }, bezel: 9, rLog: 55, pad: 34, padTop: 50, kicker: 12, head: 27, sub: 15, copyH: 222, bottom: 30, dot: 22, slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-large', `${nn(n)}-${s}`), 3]] },
-    // iPhone Duo, un solo slot de 10 (ver DUO_PER_SCREEN): la interior abierta en apaisado
-    // (2853x2007, con la bisagra marcada en el bisel) y la exterior cerrada (1398x2034)
-    'ios-duo-inner': { ...StoreDuo.FRAMES.inner, slides: DUO_OPEN_SLIDES, out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n)}-inner-${s}`), 3]] },
-    'ios-duo-outer': { ...StoreDuo.FRAMES.outer, slides: DUO_CLOSED_SLIDES, out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n + DUO_PER_SCREEN)}-outer-${s}`), 3]] },
-    'ios-tablet': { w: 1366, h: 1024, screen: { w: 1366, h: 1024 }, bezel: 14, rLog: 20, pad: 80, padTop: 58, kicker: 14, head: 40, sub: 20, copyH: 190, devW: 1206, dot: 28, slides: TABLET, out: (n, s, lang) => [[at('app-store', lang, 'ipad-13', `${nn(n)}-${s}`), 2]] },
-    'android-phone': { w: 360, h: 640, screen: { w: 360, h: 640 }, bezel: 7, rLog: 22, pad: 26, padTop: 32, kicker: 10, head: 20, sub: 12.5, copyH: 162, bottom: 18, dot: 18, slides: PHONE, out: (n, s, lang) => [[at('play-store', lang, 'phone', `${nn(n)}-${s}`), 3]] },
-    'android-tablet': { w: 1280, h: 800, screen: { w: 1280, h: 800 }, bezel: 12, rLog: 16, pad: 72, padTop: 42, kicker: 12, head: 34, sub: 17, copyH: 158, devW: 1136, dot: 26, slides: TABLET, out: (n, s, lang) => [[at('play-store', lang, 'tablet-7in', `${nn(n)}-${s}`), 1.5], [at('play-store', lang, 'tablet-10in', `${nn(n)}-${s}`), 2]] },
-  };
-  const geom = (f) => {
-    if (f.devW) {
-      const s = (f.devW - 2 * f.bezel) / f.screen.w;
-      return { x: (f.w - f.devW) / 2, y: f.copyH, dw: f.devW, dh: f.screen.h * s + 2 * f.bezel, s };
-    }
-    const dh = f.h - f.copyH - f.bottom;
-    const s = (dh - 2 * f.bezel) / f.screen.h;
-    const dw = f.screen.w * s + 2 * f.bezel;
-    return { x: (f.w - dw) / 2, y: f.copyH, dw, dh, s };
-  };
-  const slideHtml = (key, idx) => {
-    const f = FRAMES[key];
-    const dev = f.base ?? key;
-    const sl = f.slides[idx];
-    const g = geom(f);
-    const rIn = f.rLog * g.s;
-    return `<div class="slide" style="width:${f.w}px;height:${f.h}px;--pad:${f.pad}px;--pad-top:${f.padTop}px;--kicker:${f.kicker}px;--head:${f.head}px;--sub:${f.sub}px;--dot:${f.dot}px;--sub-max:none">
-      <div class="copy"><span class="kicker">${sl.k(dev)}</span><h1 class="headline">${sl.h(dev)}</h1><p class="sub">${sl.s(dev)}</p></div>
-      <div class="device" style="box-sizing:border-box;left:${g.x}px;top:${g.y}px;width:${g.dw}px;height:${g.dh}px;border-radius:${rIn + f.bezel}px">
-        ${f.hinge ? '<i class="hinge"></i>' : ''}
-        <div class="screen" style="left:${f.bezel - 1}px;top:${f.bezel - 1}px;width:${f.screen.w * g.s}px;height:${f.screen.h * g.s}px;border-radius:${rIn}px">
-          <div class="vp" style="width:${f.screen.w}px;height:${f.screen.h}px;transform:scale(${g.s})">${sl.scr(dev)}</div>
-        </div>
-      </div>
-    </div>`;
-  };
+  const FRAMES = StoreKit.frames({
+    'ios-phone-m': { slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-medium', `${nn(n)}-${s}`), 3]] },
+    'ios-phone': { slides: PHONE, out: (n, s, lang) => [[at('app-store', lang, 'iphone-large', `${nn(n)}-${s}`), 3]] },
+    'ios-duo-inner': { slides: DUO_OPEN_SLIDES, out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n)}-inner-${s}`), 3]] },
+    'ios-duo-outer': { slides: DUO_CLOSED_SLIDES, out: (n, s, lang) => [[at('app-store', lang, 'iphone-duo', `${nn(n + DUO_PER_SCREEN)}-outer-${s}`), 3]] },
+    'ios-tablet': { slides: TABLET, out: (n, s, lang) => [[at('app-store', lang, 'ipad-13', `${nn(n)}-${s}`), 2]] },
+    'android-phone': { slides: PHONE, out: (n, s, lang) => [[at('play-store', lang, 'phone', `${nn(n)}-${s}`), 3]] },
+    'android-tablet': { slides: TABLET, out: (n, s, lang) => [[at('play-store', lang, 'tablet-7in', `${nn(n)}-${s}`), 1.5], [at('play-store', lang, 'tablet-10in', `${nn(n)}-${s}`), 2]] },
+  });
+  const slideHtml = (key, idx) => StoreKit.slide(FRAMES[key], FRAMES[key].slides[idx], idx, FRAMES[key].slides.length);
 
   // dashboard de escritorio (feature graphic de play y creative de app store)
   const DESK_W = 1180;
   const deskDash = (h) => `<div class="app" style="inset:auto;left:0;top:0;width:${DESK_W}px;height:${h}px"><div class="body">${sidebar('')}<div class="main">
-      <div class="stats" style="grid-template-columns:repeat(4,1fr)">${stat('64', 'plays today', '71 yesterday')}${stat(L('24.6h', '24,6h'), 'this week', `${delta(12)} vs last week`)}${stat('42d', 'streak', 'best 180d')}${stat(N(48213), 'total plays', '')}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${card('top tracks this week', topTracks(5, 36))}${card('top artists this week', collage(ARTISTS, true))}</div></div></div></div>`;
+      <div class="stats" style="grid-template-columns:repeat(4,1fr)">${[0, 2, 3, 4].map((i) => dashStats()[i]).join('')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">${card('top tracks this week', topTracks(5, 36))}${card('top artists this week', collage(D.dashboard.topArtistsWeek, true))}</div></div></div></div>`;
 
-  // feature graphic de play: marca + dashboard recortado
-  const featureHtml = () => {
-    const board = deskDash(760);
-    return `<div class="slide" style="width:1024px;height:500px;--dot:22px">
-      <div style="position:absolute;left:60px;top:0;bottom:0;display:grid;align-content:center;gap:22px;width:360px">
-        ${wordmark(64)}
-        <div class="headline" style="font-size:25px;line-height:1.2">${L('your music, <em>logged in real time</em>', 'tu música, <em>registrada al momento</em>')}</div>
-        <div class="sub" style="font-size:14px">${L('self-hosted listening stats', 'estadísticas de escucha en tu servidor')}</div>
-      </div>
-      <div class="device" style="left:450px;top:60px;width:680px;height:520px;border-radius:14px;box-sizing:border-box"><div class="screen" style="left:8px;top:8px;width:680px;height:520px;border-radius:8px"><div class="vp" style="width:1180px;height:760px;transform:scale(.6)">${board}</div></div></div>
+  // el lema de las piezas sueltas (feature graphic y creative)
+  const TAGLINE = () => L('Listening stats that live <em>on your server.</em>', 'Estadísticas de escucha que viven <em>en tu servidor.</em>');
+  // muro de portadas reales: las de rankings, charts e informe sin repetir, barajadas con un paso coprimo
+  const COVERS = [...new Set([...D.rankings.albums, ...D.report.topAlbums, ...D.charts.tracks, ...D.rankings.tracks, ...D.dashboard.topTracksWeek].map((x) => x.img))];
+  const WALL_STEP = 7;
+  const coverWall = (cols, rows, size) => `<div class="cover-wall" style="--cols:${cols};--size:${size}px">${Array.from({ length: cols * rows }, (_, i) => `<img src="${COVERS[(i * WALL_STEP) % COVERS.length]}" decoding="sync" alt="">`).join('')}</div>`;
+
+  // feature graphic de play: marca y lema a la izquierda, el muro de portadas inclinado a la derecha
+  const featureHtml = () => `<div class="slide fg" style="width:1024px;height:500px">
+      <div class="fg-wall">${coverWall(8, 7, 112)}</div><div class="fg-fade"></div>
+      <div class="fg-copy">${wordmark(64)}<div class="fg-line">${TAGLINE()}</div></div>
     </div>`;
-  };
 
   // ---------- creative de app store (ios 27+): header 21:9 y resultados de búsqueda 3:2 ----------
-  // el dashboard de escritorio a sangre y atenuado de fondo; lo clave dentro de la safe area de las
-  // plantillas de apple (en px css, export a escala 2; fuente: platform/tooling/store/specs.mjs).
-  // render.mjs falla si algo marcado con [data-safe] se sale de ella.
+  // el muro de portadas a sangre y atenuado de fondo; lo clave dentro de la safe area de las plantillas
+  // de apple (en px css, export a escala 2; fuente: platform/tooling/store/specs.mjs). render.mjs falla
+  // si algo marcado con [data-safe] se sale de ella.
   const SAFE = { header: { x: 548.5, y: 246.5, w: 823, h: 330.5 }, search: { x: 418, y: 382.5, w: 1084, h: 515 } };
   // dashboard escalado a w x h (recortado por abajo)
   const deskFit = (w, h) => {
     const s = w / DESK_W;
     return `<div class="vp" style="width:${DESK_W}px;height:${Math.ceil(h / s)}px;transform:scale(${s})">${deskDash(Math.ceil(h / s))}</div>`;
   };
+  const WALL_TILE = 180;
   const safeBox = (r, body) => `<div class="cr-safe" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px">${body}</div>`;
-  const creative = (w, h, body) => `<div class="slide creative" style="width:${w}px;height:${h}px;--dot:30px">
-      <div class="cr-backdrop">${deskFit(w, h)}</div><div class="cr-vignette"></div>${body}
+  const creative = (w, h, body) => `<div class="slide creative" style="width:${w}px;height:${h}px">
+      <div class="cr-backdrop wall">${coverWall(Math.ceil(w / WALL_TILE) + 2, Math.ceil(h / WALL_TILE) + 2, WALL_TILE)}</div><div class="cr-vignette"></div>${body}
     </div>`;
   const headerHtml = () =>
     creative(1920, 823, safeBox(SAFE.header, `
       <div data-safe="marca">${wordmark(112)}</div>
-      <div class="headline cr-line" data-safe="lema" style="font-size:38px">${L('your music, <em>logged in real time</em>', 'tu música, <em>registrada al momento</em>')}</div>`));
+      <div class="cr-line" data-safe="lema" style="font-size:40px">${TAGLINE()}</div>`));
   const searchHtml = () =>
     creative(1920, 1280, safeBox(SAFE.search, `
-      <div class="headline cr-line" data-safe="lema" style="font-size:44px">${L('self-hosted <em>listening stats</em>', 'estadísticas de escucha <em>en tu servidor</em>')}</div>
-      <div class="device cr-window" data-safe="dashboard" style="width:${SAFE.search.w}px;height:420px"><div class="screen">${deskFit(SAFE.search.w - 2, 418)}</div></div>`));
+      <div class="cr-line" data-safe="lema" style="font-size:46px">${TAGLINE()}</div>
+      <div class="device cr-window" data-safe="dashboard" style="width:${SAFE.search.w}px;height:370px"><div class="screen">${deskFit(SAFE.search.w - 2, 368)}</div></div>`));
 
   // gráficos sueltos (no son capturas de un dispositivo): creative de app store + feature graphic de play
   const CREATIVE = {

@@ -1057,7 +1057,9 @@ body.export .slide {
   gap: 8px;
   height: 38px;
 }
+/* sin el color extraído de cada portada (la app lo saca en el cliente), las barras van en el verde */
 .bl .bar {
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--bg-card)));
   height: 28px;
   display: flex;
   align-items: center;
@@ -1607,4 +1609,190 @@ body.export .slide {
 .cr-window .screen {
   inset: 1px;
   border-radius: 11px;
+}
+
+/* ---------- dirección de arte de las slides (kit de platform: platform/tooling/store/kit) ---------- */
+/* titulares en la mono de la marca, apretados; la cifra de poster en verde */
+.kit {
+  --kit-head-font: var(--font-mono);
+  --kit-head-weight: 700;
+  --kit-head-track: -0.035em;
+  --kit-head-lh: 1.04;
+  --kit-figure-font: var(--font-mono);
+  --kit-em: var(--accent);
+}
+/* el verde de la marca a sangre: texto casi negro y el dispositivo con sombra para despegarlo */
+.kit.tone-accent {
+  --kit-bg: var(--accent);
+  --kit-ink: #03130a;
+  --kit-em: #fff;
+  --kit-device-shadow: 0 40px 80px rgb(0 40 15 / 0.45);
+}
+.kit.tone-accent::before {
+  background-image: radial-gradient(circle, rgb(0 0 0 / 0.12) 1px, transparent 1.2px);
+}
+/* la foto del artista detrás: el texto va en blanco sobre ella */
+.kit.tone-photo {
+  --kit-em: var(--accent);
+}
+.art-photo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 20%;
+  filter: saturate(1.1);
+}
+.art-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* la foto es real (puede ser clara): arriba, donde va el titular, casi opaco */
+  background: linear-gradient(180deg, rgb(8 10 12 / 0.82) 0%, rgb(8 10 12 / 0.62) 24%, rgb(8 10 12 / 0.55) 40%, var(--bg) 80%);
+}
+/* el historial de escuchas que cruza la serie */
+.pano-line .fill {
+  fill: var(--accent);
+  opacity: 0.06;
+}
+.pano-line .stroke {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  opacity: 0.32;
+}
+/* «40» de contorno, enorme, detrás del dispositivo de charts */
+.art-forty {
+  position: absolute;
+  right: -0.08em;
+  bottom: -0.2em;
+  font: 800 760px/1 var(--font-mono);
+  letter-spacing: -0.06em;
+  color: transparent;
+  -webkit-text-stroke: 2px rgb(0 0 0 / 0.18);
+}
+/* fragmentos ampliados: la tarjeta de la app con sombra de objeto suelto */
+.lens-card {
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+/* la entrada del concierto: papel, tinta y la matriz troquelada */
+.ticket {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  rotate: -5deg;
+  color: #1a1712;
+  font-family: var(--font-mono);
+  filter: drop-shadow(0 24px 40px rgb(0 0 0 / 0.55));
+}
+.ticket > div {
+  background: #efe8d8;
+  padding: 18px 18px 16px;
+}
+.tk-main {
+  display: grid;
+  gap: 3px;
+  border-radius: 6px 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.tk-main b {
+  font: 800 24px/1.05 var(--font-mono);
+  letter-spacing: -0.03em;
+  margin: 4px 0 6px;
+}
+.tk-ey {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8a7f68;
+}
+.tk-stub {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  border-radius: 0 6px 6px 0;
+  border-left: 2px dashed #b9ad92;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.tk-stub b {
+  font: 800 28px/1 var(--font-mono);
+  color: #0f7a37;
+}
+.tk-stub small {
+  font-size: 14px;
+  color: #8a7f68;
+}
+
+/* ---------- piezas sueltas: el muro de portadas reales (feature graphic y creative) ---------- */
+.cover-wall {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--size));
+  gap: calc(var(--size) * 0.06);
+}
+.cover-wall img {
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--bg-hover);
+}
+.slide.fg::before,
+.slide.creative::before {
+  content: none;
+}
+.fg-wall {
+  position: absolute;
+  left: 400px;
+  top: -150px;
+  rotate: -9deg;
+}
+/* el muro se funde con el fondo hacia la izquierda, donde va el texto */
+.fg-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--bg) 36%, rgb(8 10 12 / 0.55) 62%, rgb(8 10 12 / 0.1));
+}
+.fg-copy {
+  position: absolute;
+  left: 60px;
+  top: 0;
+  bottom: 0;
+  width: 380px;
+  display: grid;
+  align-content: center;
+  gap: 26px;
+}
+.fg-line,
+.cr-line {
+  font: 700 26px / 1.08 var(--font-mono);
+  letter-spacing: -0.035em;
+  max-width: none;
+}
+.cr-line {
+  font-size: inherit;
+  text-align: center;
+}
+.fg-line em,
+.cr-line em {
+  font-style: normal;
+  color: var(--accent);
+}
+/* el muro girado y algo ampliado para que no asomen sus bordes; lo atenúa una capa encima */
+.cr-backdrop.wall {
+  opacity: 1;
+  display: grid;
+  place-items: center;
+}
+.cr-backdrop.wall .cover-wall {
+  rotate: -6deg;
+  scale: 1.15;
+}
+.cr-backdrop.wall::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(8 10 12 / 0.6);
 }

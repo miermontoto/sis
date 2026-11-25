@@ -1,6 +1,7 @@
 // snapshot de datos reales de una cuenta para las capturas de tienda (screens.js): canciones, artistas,
 // cifras y portadas de verdad en vez de las ficticias. sale a assets/store/data/ (gitignored: el repo es
-// público y son datos personales + portadas con copyright): snapshot.json + img/<hash>.jpg, que screens.js
+// público y son datos personales + portadas con copyright): snapshot.json (y snapshot.js, el mismo
+// objeto en window.SNAPSHOT para index.html) + img/<hash>.jpg, que screens.js
 // referencia como data/img/<hash>.jpg (render.mjs sirve assets/store/ en /).
 //
 // no toca prod ni el backup: copia el backup más reciente a un temporal, le quita las credenciales
@@ -333,8 +334,12 @@ const main = async () => {
     const snapshot = { asOf, user: { name: me.displayName }, settings: cal, dashboard, rankings, charts, report: reportOut, artist, insights, concerts };
     globalThis.fetch = realFetch;
     const dl = await download(realFetch);
-    await writeFile(join(OUT, 'snapshot.json'), `${JSON.stringify(snapshot, null, 2)}\n`);
-    console.log(`[snapshot] ${join(OUT, 'snapshot.json')} (hoy = ${asOf}, semana ${period}) · portadas ${dl.total - dl.failed}/${dl.total}`);
+    // el json para leerlo a mano y el js que carga la galería: el export captura tras el load, así que los
+    // datos van en un <script> síncrono y no en un fetch que podría llegar después de la captura
+    const json = JSON.stringify(snapshot, null, 2);
+    await writeFile(join(OUT, 'snapshot.json'), `${json}\n`);
+    await writeFile(join(OUT, 'snapshot.js'), `window.SNAPSHOT = ${json};\n`);
+    console.log(`[snapshot] ${join(OUT, 'snapshot.{json,js}')} (hoy = ${asOf}, semana ${period}) · portadas ${dl.total - dl.failed}/${dl.total}`);
   } finally {
     closeReadWorker();
     await rm(scratch.dir, { recursive: true, force: true });
