@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ProjectedRankingsResponse, ProjectionResult, RankProjection } from '@sis/shared';
-import { bestChange, filterChanges, rangeLabel, rankMoments, rankingHref, sessionUpCount, MOMENTS_PER_UPDATE } from './session-ranks';
+import { bestChange, filterChanges, movedEntities, rangeLabel, rankMoments, rankingHref, sessionUpCount, MOMENTS_PER_UPDATE } from './session-ranks';
 
 const who = (id: string) => ({ id, name: id, imageUrl: null, artistName: null });
 const change = (range: string, currentRank: number, projectedRank: number, displaced: string[] = []): RankProjection =>
@@ -91,5 +91,38 @@ describe('rankMoments', () => {
     const next = response(['a', 'b', 'c', 'd', 'e'].map(id => entity('track', id, [change('all', 10, 9)])));
     const moments = rankMoments(response([]), next, 'all');
     expect(moments.map(m => m.entityId)).toEqual(['a', 'b', 'c'].slice(0, MOMENTS_PER_UPDATE));
+  });
+});
+
+// fichas cuyo historial de ranking cacheado deja de valer con una respuesta nueva
+describe('movedEntities', () => {
+  const ids = (refs: { entityType: string; entityId: string }[]) => refs.map(r => `${r.entityType}:${r.entityId}`).sort();
+
+  it('sin respuesta previa es todo lo que la sesión trae, con lo que adelanta', () => {
+    const next = response([entity('artist', 'a', [change('all', 9, 7, ['x', 'y'])]), entity('track', 't', [change('thisYear', 4, 3)])]);
+    expect(ids(movedEntities(null, next))).toEqual(['artist:a', 'artist:x', 'artist:y', 'track:t']);
+  });
+
+  it('en la misma sesión sólo lo que ha cambiado de puesto, en cualquier sentido', () => {
+    const prev = response([entity('artist', 'a', [change('all', 9, 8, ['x'])]), entity('album', 'b', [change('all', 5, 4)]), entity('album', 'c', [change('all', 3, 4)])]);
+    const next = response([entity('artist', 'a', [change('all', 9, 7, ['x', 'y'])]), entity('album', 'b', [change('all', 5, 4)]), entity('album', 'c', [change('all', 3, 5)])]);
+    expect(ids(movedEntities(prev, next))).toEqual(['album:c', 'artist:a', 'artist:x', 'artist:y']);
+  });
+
+  it('cuenta la que vuelve a su puesto de partida y sale de la lista', () => {
+    const prev = response([entity('artist', 'a', [change('all', 9, 8)]), entity('artist', 'b', [change('all', 3, 2)])]);
+    const next = response([entity('artist', 'b', [change('all', 3, 2)])]);
+    expect(ids(movedEntities(prev, next))).toEqual(['artist:a']);
+  });
+
+  it('una sesión nueva no compara contra la anterior', () => {
+    const prev = response([entity('artist', 'a', [change('all', 9, 8)])], '2026-10-21T10:00:00.000Z');
+    const next = response([entity('artist', 'a', [change('all', 9, 8)])]);
+    expect(ids(movedEntities(prev, next))).toEqual(['artist:a']);
+  });
+
+  it('nada que purgar si no se mueve nada', () => {
+    const prev = response([entity('artist', 'a', [change('all', 9, 8, ['x'])])]);
+    expect(movedEntities(prev, response([entity('artist', 'a', [change('all', 9, 8, ['x'])])]))).toEqual([]);
   });
 });

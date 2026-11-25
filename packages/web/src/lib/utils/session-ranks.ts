@@ -51,6 +51,37 @@ export function sessionUpCount(session: ProjectionResult[], mode: SessionRankDis
   return visibleSession(session, mode).filter(({ changes }) => (bestChange(changes)?.delta ?? 0) > 0).length;
 }
 
+const changeKey = (r: Pick<ProjectionResult, 'entityType' | 'entityId'>, range: string) => `${r.entityType}:${r.entityId}:${range}`;
+
+// los cambios de la respuesta anterior por entidad y ventana, sólo si es la misma
+// sesión: una sesión nueva compara contra su propio punto de partida
+function previousChanges(prev: ProjectedRankingsResponse | null, next: ProjectedRankingsResponse): Map<string, RankProjection> {
+  const sameSession = prev !== null && prev.sessionStartedAt !== null && prev.sessionStartedAt === next.sessionStartedAt;
+  return new Map(sameSession ? prev.session.flatMap(r => r.changes.map(c => [changeKey(r, c.range), c] as const)) : []);
+}
+
+export interface EntityRef {
+  entityType: EntityType;
+  entityId: string;
+}
+
+// entidades cuyo puesto ha cambiado entre dos respuestas seguidas, en cualquier
+// ventana y en los dos sentidos: la que salta y las que adelanta, que también se
+// mueven (la tarjeta enlaza a las dos). Sin respuesta previa de esta sesión es todo
+// lo que trae: la primera lectura no sabe desde cuándo es vieja la cache. La que
+// vuelve a su puesto de partida sale de la lista sin haberse quedado quieta
+export function movedEntities(prev: ProjectedRankingsResponse | null, next: ProjectedRankingsResponse): EntityRef[] {
+  const before = previousChanges(prev, next);
+  const after = new Set(next.session.flatMap(r => r.changes.map(c => changeKey(r, c.range))));
+  const jumped = next.session.flatMap(r => r.changes
+    .filter(c => before.get(changeKey(r, c.range))?.projectedRank !== c.projectedRank)
+    .flatMap(c => [r.entityId, ...c.displaced.map(d => d.id)].map(entityId => ({ entityType: r.entityType, entityId }))));
+  const returned = (before.size > 0 && prev ? prev.session : [])
+    .filter(r => r.changes.some(c => !after.has(changeKey(r, c.range))))
+    .map(r => ({ entityType: r.entityType, entityId: r.entityId }));
+  return [...new Map([...jumped, ...returned].map(e => [`${e.entityType}:${e.entityId}`, e])).values()];
+}
+
 export interface RankMoment {
   key: string;
   entityType: EntityType;
@@ -77,14 +108,11 @@ export function rankMoments(
   limit = MOMENTS_PER_UPDATE,
 ): RankMoment[] {
   if (!prev) return [];
-  const sameSession = prev.sessionStartedAt !== null && prev.sessionStartedAt === next.sessionStartedAt;
-  const before = new Map(sameSession
-    ? prev.session.flatMap(r => r.changes.map(c => [`${r.entityType}:${r.entityId}:${c.range}`, c] as const))
-    : []);
+  const before = previousChanges(prev, next);
 
   return next.session.flatMap(r => {
     const jumps = filterChanges(r.changes, mode).flatMap(c => {
-      const earlier = before.get(`${r.entityType}:${r.entityId}:${c.range}`);
+      const earlier = before.get(changeKey(r, c.range));
       const from = earlier?.projectedRank ?? c.currentRank;
       if (c.projectedRank >= from) return [];
       const known = new Set(earlier?.displaced.map(d => d.id) ?? []);

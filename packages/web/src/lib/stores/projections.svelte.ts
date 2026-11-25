@@ -1,5 +1,5 @@
-import { getRankingMetric, getSessionRankDisplay, apiBase, type ProjectedRankingsResponse } from '$lib/api';
-import { MOMENTS_PER_UPDATE, rankMoments, type RankMoment } from '$lib/utils/session-ranks';
+import { getRankingMetric, getSessionRankDisplay, apiBase, invalidateRankingHistory, type ProjectedRankingsResponse } from '$lib/api';
+import { MOMENTS_PER_UPDATE, movedEntities, rankMoments, type RankMoment } from '$lib/utils/session-ranks';
 import { nowPlayingStore } from './now-playing.svelte';
 
 // tras volver a la app, lo que aterrice en este margen también pasó sin nadie mirando:
@@ -38,6 +38,7 @@ async function fetchProjections(force = false) {
   if (!force && _pendingTrackId === trackId && _loading) return;
   _controller?.abort();
   _controller = new AbortController();
+  const signal = _controller.signal;
   _loading = true;
   _pendingTrackId = trackId;
 
@@ -45,9 +46,14 @@ async function fetchProjections(force = false) {
     // apiBase() (no url relativa): en el apk el webview corre en https://localhost
     // y una ruta relativa iría a ese origen sin api → la sesión no proyecta nada.
     const url = `${apiBase()}/stats/projected-rankings?sort=${getRankingMetric()}`;
-    const res = await fetch(url, { signal: _controller.signal });
+    const res = await fetch(url, { signal });
     if (!res.ok) return;
     const result: ProjectedRankingsResponse = await res.json();
+    // lo que esta respuesta mueve no puede abrirse con su historial de ranking de
+    // antes del play: se purga ANTES de pintarla, que es cuando se puede pinchar
+    await invalidateRankingHistory(movedEntities(_data, result));
+    // relevada durante la purga: la lectura nueva compara contra el mismo _data
+    if (signal.aborted) return;
     // con la pestaña oculta (o recién vuelta) la respuesta avanza la línea base y lo
     // que subió se cuenta: al volver no tiene que llover lo que pasó mientras nadie
     // miraba, pero tampoco perderse

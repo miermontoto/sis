@@ -242,6 +242,15 @@ export function invalidateHistoryBoundCache(): Promise<void> {
   return cache.invalidateByPaths(HISTORY_BOUND_PREFIXES, cacheDeps);
 }
 
+// historial de ranking (los ranking badges del detalle) de unas fichas concretas. No
+// va con cada play como HISTORY_BOUND_PREFIXES porque releerlo es un escaneo del
+// historial entero por ficha visitada: sólo para las que la sesión enseña movidas
+// (projections.svelte.ts), que si no abrían con el puesto de antes. El `?` cierra el
+// id para que `collection:1` no arrastre a `collection:12`
+export function invalidateRankingHistory(entities: { entityType: string; entityId: string }[]): Promise<void> {
+  return cache.invalidateByPaths(entities.map(e => `/stats/ranking-history/${e.entityType}/${encodeURIComponent(e.entityId)}?`), cacheDeps);
+}
+
 // mapeo de mutaciones → prefijos a invalidar. Match por método+prefijo de path.
 // orden importa: el primer match aplica. La lista es deliberadamente concisa;
 // `/` (último fallback para POST/PUT/DELETE desconocidos) limpia todo.
