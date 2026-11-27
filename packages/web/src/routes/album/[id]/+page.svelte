@@ -252,6 +252,8 @@
     try {
       const result = await api.albumDetail(id, 'all', metric === 'plays' ? 'plays' : 'time', signal);
       if (signal.aborted) return;
+      // la colección de un álbum que venía ya es el disco: el servidor lo sirve con su id
+      if (result.album.id !== id) return void goto(`/album/${result.album.id}`, { replaceState: true });
       data = result;
       // posición all-time de cada item listado: fetch aparte no bloqueante (un scan por tipo)
       if (showGlobalRanks) {

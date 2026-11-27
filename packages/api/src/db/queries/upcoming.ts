@@ -115,6 +115,16 @@ export function planUpcomingFolds(db: Db, userId: number): UpcomingFoldPlan[] {
   });
 }
 
+/** Álbum real en el que se convirtió la colección de un álbum que venía, al salir: su
+ *  enlace (`/album/collection:N`) sigue llevando a la misma cosa en vez de a un 404. */
+export function releasedAlbumOfCollection(db: Db, collectionId: number, userId: number): string | null {
+  return (db.get(sql`
+    SELECT u.spotify_album_id AS id FROM upcoming_folds uf JOIN upcoming_albums u ON u.id = uf.upcoming_id
+    WHERE uf.user_id = ${userId} AND uf.collection_id = ${collectionId} AND u.state = 'released'
+      AND u.spotify_album_id IS NOT NULL
+  `) as { id: string } | undefined)?.id ?? null;
+}
+
 /** Artistas a preguntar a iTunes en esta pasada: los de algún single escuchado desde
  *  `since` (fecha de salida). Primero los que traen señal nueva —nunca preguntados, o con
  *  un single posterior a la última pregunta, que es justo lo que precede a un álbum— y,

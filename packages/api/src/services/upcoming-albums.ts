@@ -15,15 +15,19 @@
 //
 // Antes de salir, el álbum es una COLECCIÓN por usuario con sus singles dentro: la capa de
 // colecciones ya los sustituye en todos los rankings y le da página. Al salir, el álbum
-// real entra en la biblioteca, la colección se disuelve y el plegado de siempre mete los
-// singles en él, con todo su historial (los merges se resuelven al consultar).
+// real entra en la biblioteca y la colección se convierte en él: sus miembros se mergean
+// en el disco, con todo su historial (los merges se resuelven al consultar), y su enlace
+// lleva al disco (releasedAlbumOfCollection).
 import { sql } from 'drizzle-orm';
 import { collectionKey, embedTrackIds, itunesPreorders, itunesTracks, normalizeTitle, parseSpotifyAlbumId, parseSpotifyPrereleaseId, type UpcomingLinkResult, type UpcomingTrack } from '@sis/shared';
 import { getDb } from '../db/connection.js';
 import { dbReadBackground } from '../db/read-pool.js';
 import { addCollectionMember, canonicalMemberId, createCollection, deleteCollection, findMemberCollection, getCollectionRow } from '../db/queries/collections.js';
 import type { UpcomingFoldPlan } from '../db/queries/upcoming.js';
+import { singleFolds } from '../db/schema.js';
 import { invalidateDerived } from '../routes/collections.js';
+import { createMergeRule } from '../routes/admin/_shared.js';
+import { invalidateRankingCache } from '../routes/admin/impact.js';
 import { spotifyFetch } from './spotify-client.js';
 import { ensureFullAlbumTracks } from './ingestion/enrichment.js';
 import { pickAlbumCover, upsertTrack } from './ingestion/upsert.js';
@@ -282,37 +286,64 @@ async function ingestAlbum(album: SpotifyFullAlbum, userId: number): Promise<boo
   return true;
 }
 
-/** El álbum salió: cada colección se disuelve y el plegado de siempre mete sus singles en
- *  el álbum real (ya en la biblioteca). La que lleva temas sueltos de un EP se QUEDA, con
- *  el álbum real dentro: un merge de track del tema del EP al del disco no aguanta, porque
- *  el barrido de gemelos isrc+duración funde el del disco en el más escuchado (el del EP) y
- *  la regla se queda apuntándose a sí misma; la pertenencia de la colección va por el id
- *  del tema que sobrevive. Devuelve los usuarios cuyas colecciones se disolvieron. */
+// colecciones de un álbum que viene que siguen existiendo: un fold cuya colección borró el
+// usuario es sólo la memoria de que no se recree
+const liveFolds = sql`
+  SELECT uf.user_id, uf.collection_id FROM upcoming_folds uf
+  JOIN album_collections ac ON ac.id = uf.collection_id AND ac.user_id = uf.user_id`;
+
+/** La colección se convierte en el disco: lo que contaba ella lo cuenta él (decisión de
+ *  Juan, 2026-11-27). Cada álbum miembro se mergea en el real, también los que el disco no
+ *  lleva (un single que el usuario metió a mano), y con createMergeRule y no con
+ *  validateMergeRule a pelo: el miembro es el canónico de su grupo y el grupo entero estaba
+ *  dentro de la colección. Su fila en single_folds hace durar un unmerge. Un tema suelto
+ *  (el compartido de un EP con canciones de fuera) no tiene merge que lo lleve a otro
+ *  álbum sin su EP entero —el eje álbum resuelve por el álbum del track crudo—: llega al
+ *  disco cuando deduplicateTracks funde su fila con la del disco (mismo nombre y
+ *  grabación, gana el álbum), y si el disco lo titula distinto se queda en su EP.
+ *  Devuelve los álbumes mergeados. */
+function absorbCollection(db: Db, userId: number, collectionId: number, albumId: string): number {
+  const target = canonicalMemberId(db, 'album', albumId, userId);
+  const members = db.all(sql`
+    SELECT member_id AS id FROM album_collection_members
+    WHERE collection_id = ${collectionId} AND user_id = ${userId} AND member_type = 'album'
+  `) as { id: string }[];
+  const merged = members
+    .map(m => canonicalMemberId(db, 'album', m.id, userId))
+    .filter(id => id !== target && createMergeRule(db, userId, 'album', id, target).ok);
+  merged.forEach(id => db.insert(singleFolds).values({ userId, singleId: id, albumId: target }).onConflictDoNothing().run());
+  // la valoración del álbum que venía es la del disco, si el usuario aún no le ha puesto otra
+  db.run(sql`UPDATE OR IGNORE album_ratings SET album_id = ${target} WHERE album_id = ${collectionKey(collectionId)} AND user_id = ${userId}`);
+  deleteCollection(db, collectionId, userId);
+  return merged.length;
+}
+
+/** El álbum salió: cada colección viva se convierte en él. Devuelve los usuarios afectados. */
 function dissolve(db: Db, u: UpcomingRow, albumId: string): number[] {
-  const folds = (db.all(sql`
-    SELECT user_id, collection_id FROM upcoming_folds WHERE upcoming_id = ${u.id} AND collection_id IS NOT NULL
-  `) as { user_id: number; collection_id: number }[]).filter(f => getCollectionRow(db, f.collection_id, f.user_id));
-  const keeps = (f: { collection_id: number }) => !!db.get(sql`
-    SELECT 1 AS ok FROM album_collection_members WHERE collection_id = ${f.collection_id} AND member_type = 'track'`);
+  const folds = db.all(sql`${liveFolds} WHERE uf.upcoming_id = ${u.id}`) as { user_id: number; collection_id: number }[];
   db.transaction(() => {
     folds.forEach(f => {
-      if (!keeps(f)) return deleteCollection(db, f.collection_id, f.user_id);
-      const album = canonicalMemberId(db, 'album', albumId, f.user_id);
-      if (!findMemberCollection(db, 'album', album, f.user_id)) addCollectionMember(db, f.collection_id, f.user_id, 'album', album);
+      const merged = absorbCollection(db, f.user_id, f.collection_id, albumId);
+      log.child(f.user_id).info(`"${u.name}" salió: su colección es ya el álbum real (${merged} álbumes mergeados en él)`);
     });
     db.run(sql`UPDATE upcoming_albums SET state = 'released', spotify_album_id = ${albumId}, updated_at = datetime('now') WHERE id = ${u.id}`);
   });
-  return folds.filter(f => !keeps(f)).map(f => f.user_id);
+  return folds.map(f => f.user_id);
 }
 
 async function settleReleased(tokenUser: number): Promise<void> {
   const db = getDb();
-  const due = db.all(sql`SELECT * FROM upcoming_albums WHERE state = 'upcoming' AND release_date <= ${today()}`) as UpcomingRow[];
+  const live = sql`EXISTS (${liveFolds} WHERE uf.upcoming_id = u.id)`;
+  // también los ya salidos que conservan colección: hasta 2026-11-27 la que llevaba temas
+  // sueltos se quedaba, con el disco dentro, y así se convierte en la pasada siguiente
+  const due = db.all(sql`
+    SELECT u.*, ${live} AS live FROM upcoming_albums u
+    WHERE (u.state = 'upcoming' AND u.release_date <= ${today()}) OR (u.state = 'released' AND ${live})
+  `) as (UpcomingRow & { live: number })[];
   for (const u of due) {
     // sin colecciones vivas no hay nada que disolver, ni motivo para meter el disco en la
     // biblioteca de nadie: el plegado de siempre lo hará cuando alguien lo escuche
-    const live = db.get(sql`SELECT 1 AS ok FROM upcoming_folds WHERE upcoming_id = ${u.id} AND collection_id IS NOT NULL`);
-    if (!live) {
+    if (!u.live) {
       db.run(sql`UPDATE upcoming_albums SET state = 'released', updated_at = datetime('now') WHERE id = ${u.id}`);
       continue;
     }
@@ -324,10 +355,8 @@ async function settleReleased(tokenUser: number): Promise<void> {
       continue;
     }
     if (album && albumId && await ingestAlbum(album, tokenUser)) {
-      const affected = (db.all(sql`SELECT DISTINCT user_id FROM upcoming_folds WHERE upcoming_id = ${u.id} AND collection_id IS NOT NULL`) as { user_id: number }[]).map(r => r.user_id);
       const users = dissolve(db, u, albumId);
-      log.info(`"${u.name}" ya salió: ${users.length} colecciones disueltas en el álbum real, ${affected.length - users.length} conservadas con sus temas sueltos`);
-      affected.forEach(invalidateDerived);
+      users.forEach(userId => { invalidateDerived(userId); invalidateRankingCache(userId); });
       for (const userId of users) {
         await foldSinglesIfEnabled(userId).catch(err => log.child(userId).error('plegado tras la salida:', err));
       }

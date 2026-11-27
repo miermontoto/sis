@@ -199,11 +199,18 @@ async function albumDetailForCollection(
 }
 
 detail.get('/album/:id', async (c) => {
-  const id = c.req.param('id');
   const { range, rangeStart, rangeEnd, sort, customDays } = parseParams(c);
   const userId = c.get('userId');
 
-  const album = await dbRead('lookupAlbumById', id);
+  const requested = c.req.param('id');
+  const requestedCollection = parseCollectionKey(requested);
+  const found = await dbRead('lookupAlbumById', requested);
+  // la colección de un álbum que venía se convirtió en él al salir: se sirve el disco, y el
+  // cliente cambia la url al ver otro id
+  const releasedId = !found && requestedCollection !== null
+    ? await dbRead('releasedAlbumOfCollection', requestedCollection, userId) : null;
+  const id = releasedId ?? requested;
+  const album = releasedId ? await dbRead('lookupAlbumById', releasedId) : found;
   if (!album) return c.json({ error: 'Album not found' }, 404);
 
   // un álbum lógico tiene su fila en `albums` como cualquier otro, así que llega hasta
