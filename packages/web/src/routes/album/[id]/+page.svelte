@@ -6,7 +6,7 @@
   import { statFlashStore } from '$lib/stores/stat-flash.svelte';
   import { page } from '$app/stores';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { api, createFetchController, type AlbumDetail, type AlbumCover, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks } from '$lib/api';
+  import { api, createFetchController, type AlbumDetail, type AlbumCover, type RankingMetric, type AlbumTrackDisplay, type TopTrackItem, getRankingMetric, getAlbumTrackDisplay, getAlbumShowDuration, ALBUM_RATING_MAX, getShowAccolades, getShowPlaylistBadges, getShowGlobalRanks } from '$lib/api';
   import { getDetailLayout } from '$lib/api/settings';
   import { defaultLayout, type DetailLayout } from '$lib/detail-layout';
   import { formatDuration, formatNumber, formatDate, formatCalendarDate, localDateKey } from '$lib/utils/format';
@@ -25,7 +25,7 @@
   import Accolades from '$lib/components/Accolades.svelte';
   import EntityActionsMenu from '$lib/components/EntityActionsMenu.svelte';
   import MergeEntityModal from '$lib/components/MergeEntityModal.svelte';
-  import AlbumRating from '$lib/components/AlbumRating.svelte';
+  import AlbumRating, { REVIEW_ANCHOR } from '$lib/components/AlbumRating.svelte';
   import CollectionModal from '$lib/components/CollectionModal.svelte';
   import CollectionCandidatePicker from '$lib/components/CollectionCandidatePicker.svelte';
   import MetricMeta from '$lib/components/MetricMeta.svelte';
@@ -43,6 +43,7 @@
   import IconMerge from '$lib/icons/IconMerge.svelte';
   import IconArtist from '$lib/icons/IconArtist.svelte';
   import IconAlbum from '$lib/icons/IconAlbum.svelte';
+  import IconStar from '$lib/icons/IconStar.svelte';
   import { canShare, publicHref, shareEntity } from '$lib/utils/share';
   import { parseCollectionKey, collectionKey, type CollectionMember } from '$lib/api';
   import { contextMenu } from '$lib/stores/context-menu.svelte';
@@ -474,6 +475,11 @@
           />
         </section>
       {/if}
+    {:else if key === 'review'}
+      <!-- siempre presente: sin valoración, sus estrellas son donde se valora -->
+      <section class="detail-section">
+        <AlbumRating {albumId} rating={d.rating ?? null} onchange={(r) => { if (data) data.rating = r; }} />
+      </section>
     {:else if key === 'recentPlays'}
       {#if d.recentPlays.length > 0}
         <section class="detail-section">
@@ -510,13 +516,23 @@
             <a href="/artist/{artist.id}">{artist.name}</a>{#if i < data.artists.length - 1}{', '}{/if}
           {/each}
         </p>
-        {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0 || data.upcoming}
+        {#if data.album.releaseDate || data.album.totalTracks || albumLengthMs > 0 || data.upcoming || data.rating}
           <p class="detail-meta-line">
             {#if data.upcoming}<span class="meta-stat">Out {formatCalendarDate(data.upcoming.releaseDate)}</span>{/if}
             {#if data.album.releaseDate}<span class="meta-stat">{data.album.releaseDate}</span>{/if}
             {#if data.album.totalTracks}<span class="meta-stat">{data.album.totalTracks} tracks</span>{/if}
             {#if albumLengthMs > 0}<span class="meta-stat">{formatDuration(albumLengthMs)}</span>{/if}
             <ArtistRankStats entityType="album" entityId={albumId} artists={data.artists} {metric} ranked={rankable} />
+            <!-- la valoración vive en su sección (review): aquí sólo la cifra, que lleva a ella
+                 salvo que el usuario la haya ocultado -->
+            {#if data.rating}
+              {@const ratingTitle = `Your rating: ${data.rating.rating}/${ALBUM_RATING_MAX}`}
+              {#if sectionShown('review')}
+                <a class="meta-stat meta-rating" href="#{REVIEW_ANCHOR}" title={ratingTitle}><IconStar size={12} filled />{data.rating.rating}</a>
+              {:else}
+                <span class="meta-stat meta-rating" title={ratingTitle}><IconStar size={12} filled />{data.rating.rating}</span>
+              {/if}
+            {/if}
           </p>
         {/if}
         {#if data.collection}
@@ -527,7 +543,6 @@
           </p>
         {/if}
         {#if data.notes}<p class="detail-meta-line">{data.notes}</p>{/if}
-        <AlbumRating {albumId} initial={data.rating ?? null} />
       </div>
     </div>
     <div class="hero-actions">
@@ -536,34 +551,36 @@
           <IconPlay />
         </button>
       {/if}
-      {#if !mergedInto && !data.collection}
-        <Accolades entityType="album" entityId={albumId} />
-      {/if}
-      <EntityActionsMenu
-        title="Actions"
-        actions={[
-          ...(isSpotifyId(albumId) ? [
-            { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('album', albumId) },
-            { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') },
-          ] : []),
-          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
-          // una entrada por modal, no por pestaña ni por paso: el picker ya trae
-          // portada/color y el modal de merges su botón de auto-merge
-          { label: 'Cover & color', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
-          // un álbum lógico no se mergea (no es un lanzamiento) ni se mete en otra
-          // colección: anidarlas contaría sus plays dos veces
-          ...(collectionId === null ? [
-            { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
-            { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
-            { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'album', entity: { id: albumId, name: data.album.name, imageUrl: data.album.imageUrl } }) },
-          ] : [
-            // sus "Relations" son lo que tiene dentro: una colección no se mergea
-            { label: 'Relations', icon: IconMerge, onClick: () => collectionId !== null && data && collectionMembersModal.open({ id: collectionId, name: data.album.name }) },
-            { label: 'Rename', icon: IconEdit, onClick: renameCollection },
-            { label: data?.upcoming ? 'Stop tracking' : 'Delete collection', icon: IconTrash, danger: true, onClick: deleteCollection },
-          ]),
-        ]}
-      />
+      <div class="hero-actions-end">
+        {#if !mergedInto && !data.collection}
+          <Accolades entityType="album" entityId={albumId} />
+        {/if}
+        <EntityActionsMenu
+          title="Actions"
+          actions={[
+            ...(isSpotifyId(albumId) ? [
+              { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('album', albumId) },
+              { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/album/${albumId}`, '_blank') },
+            ] : []),
+            ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.album?.name ?? 'Album', publicHref()) }] : []),
+            // una entrada por modal, no por pestaña ni por paso: el picker ya trae
+            // portada/color y el modal de merges su botón de auto-merge
+            { label: 'Cover & color', icon: IconImage, onClick: () => { pickerMode = 'image'; showCoverPicker = true; } },
+            // un álbum lógico no se mergea (no es un lanzamiento) ni se mete en otra
+            // colección: anidarlas contaría sus plays dos veces
+            ...(collectionId === null ? [
+              { label: 'Relations', icon: IconMerge, onClick: () => { mergeInitialStep = undefined; showMergeModal = true; } },
+              { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+              { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'album', entity: { id: albumId, name: data.album.name, imageUrl: data.album.imageUrl } }) },
+            ] : [
+              // sus "Relations" son lo que tiene dentro: una colección no se mergea
+              { label: 'Relations', icon: IconMerge, onClick: () => collectionId !== null && data && collectionMembersModal.open({ id: collectionId, name: data.album.name }) },
+              { label: 'Rename', icon: IconEdit, onClick: renameCollection },
+              { label: data?.upcoming ? 'Stop tracking' : 'Delete collection', icon: IconTrash, danger: true, onClick: deleteCollection },
+            ]),
+          ]}
+        />
+      </div>
     </div>
   </div>
 

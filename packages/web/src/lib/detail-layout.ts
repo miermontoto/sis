@@ -53,6 +53,9 @@ export const DETAIL_SECTIONS: Record<LayoutKind, SectionDef[]> = {
     // sólo se pinta en un álbum lógico (ver shared/collections.ts); en un disco de
     // verdad la sección no existe, como 'singles' en un single
     { key: 'members', label: 'Collection members', column: 'main' },
+    // valoración y reseña: estuvieron en el hero hasta que lo cargaron demasiado en móvil;
+    // allí queda la cifra (★N), que enlaza a esta sección
+    { key: 'review', label: 'Review', column: 'rail' },
     { key: 'singles', label: 'Singles', column: 'rail' },
     { key: 'relations', label: 'Relations', column: 'rail' },
     { key: 'recentPlays', label: 'Recent plays', column: 'rail' },

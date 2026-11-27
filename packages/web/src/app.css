@@ -1412,6 +1412,19 @@ a.track-item {
   margin: 0.15rem 0 0;
 }
 
+/* cifra de la valoración del álbum (★4): enlaza a su sección, sin pintarse como enlace */
+.meta-rating {
+  color: inherit;
+}
+.meta-rating svg {
+  color: var(--accent);
+  vertical-align: -1px;
+  margin-right: 0.15em;
+}
+a.meta-rating:hover {
+  color: var(--text);
+}
+
 /* cifras de la línea de meta del hero ("2022-05-26 · 38 tracks · 268 min"): el separador lo
    pone el css delante de cada cifra que sigue a otra, y el markup no arrastra condiciones de
    "¿hay algo antes?" para pintarlo. Cada cifra con su punto es un bloque en línea: al
@@ -1467,6 +1480,12 @@ a.track-item {
   align-items: center;
   gap: 0.35rem;
   align-self: center;
+}
+
+/* las acciones secundarias del hero (accolades, ⋯): en escritorio siguen en la misma fila que
+   play como si no hubiera grupo; en móvil el grupo se va al borde derecho (ver abajo) */
+.hero-actions-end {
+  display: contents;
 }
 
 .play-entity-btn {
@@ -2275,6 +2294,17 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     gap: 1rem;
   }
 
+  /* la carátula arriba y el texto centrado: con el texto más alto (título a dos líneas, meta
+     partida) la carátula ya no flota a media altura y el hero se lee como un bloque; con el
+     texto más bajo (un artista, sólo el nombre) el nombre sigue centrado contra la foto */
+  .detail-hero > :not(.detail-header-info) {
+    align-self: flex-start;
+  }
+
+  .detail-meta-line {
+    font-size: var(--fs-sm);
+  }
+
   .detail-hero .detail-image {
     width: 88px;
     height: 88px;
@@ -2289,12 +2319,20 @@ a.like-popover-item-link:hover { background: var(--bg-hover); }
     line-height: 1.2;
   }
 
-  /* los menús del hero (accolades, ⋯) se anclan a esta fila y no a su botón: con las
-     acciones a la izquierda, un panel alineado a la derecha de su botón salía de la pantalla */
+  /* fila de herramientas: play (y el corazón del tema) a la izquierda, accolades y ⋯ al
+     borde derecho. Sus menús se anclan a esta fila y no a su botón, a la derecha: anclado
+     al trigger, el panel de accolades (más ancho que su botón) salía de la pantalla */
   .hero-actions {
     position: relative;
     align-self: stretch;
     flex-wrap: wrap;
+  }
+
+  .hero-actions-end {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
   }
 }
 

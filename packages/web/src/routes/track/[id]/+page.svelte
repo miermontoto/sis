@@ -497,25 +497,27 @@
           {/snippet}
         </PlaylistPopover>
       {/if}
-      <Accolades
-        entityType="track"
-        entityId={trackId}
-        showRecords={!mergedInto}
-        concerts={data.liveConcerts ?? []}
-      />
-      <EntityActionsMenu
-        title="Actions"
-        actions={[
-          ...(isSpotifyId(trackId) ? [
-            { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('track', trackId) },
-            { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${trackId}`, '_blank') },
-          ] : []),
-          ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
-          { label: 'Relations', icon: IconMerge, onClick: () => { showMergeModal = true; } },
-          { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
-          { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'track', entity: { id: trackId, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null } }) },
-        ]}
-      />
+      <div class="hero-actions-end">
+        <Accolades
+          entityType="track"
+          entityId={trackId}
+          showRecords={!mergedInto}
+          concerts={data.liveConcerts ?? []}
+        />
+        <EntityActionsMenu
+          title="Actions"
+          actions={[
+            ...(isSpotifyId(trackId) ? [
+              { label: 'Add to queue', icon: IconQueue, onClick: () => queueEntity('track', trackId) },
+              { label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/track/${trackId}`, '_blank') },
+            ] : []),
+            ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.track?.name ?? 'Track', publicHref()) }] : []),
+            { label: 'Relations', icon: IconMerge, onClick: () => { showMergeModal = true; } },
+            { label: data?.collection ? 'Collection' : 'Add to a collection', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+            { label: 'Credits', icon: IconArtist, onClick: () => data && creditsModal.open({ type: 'track', entity: { id: trackId, name: data.track.name, imageUrl: data.track.album?.imageUrl ?? null } }) },
+          ]}
+        />
+      </div>
     </div>
   </div>
 

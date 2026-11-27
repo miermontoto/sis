@@ -215,7 +215,9 @@
               <IconPlay />
             </button>
           {/if}
-          <EntityActionsMenu title="Actions" actions={heroActions} />
+          <div class="hero-actions-end">
+            <EntityActionsMenu title="Actions" actions={heroActions} />
+          </div>
         </div>
       </div>
 

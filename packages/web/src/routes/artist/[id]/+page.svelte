@@ -441,28 +441,30 @@
             <IconPlay />
           </button>
         {/if}
-        <Accolades
-          entityType="artist"
-          entityId={artistId}
-          showRecords={!mergedInto}
-          concerts={(d.concerts ?? []).map(c => ({
-            id: c.id, artistId: c.artistId, artistName: c.artistName, date: c.date, venue: c.venue, city: c.city,
-          }))}
-        />
-        <EntityActionsMenu
-          title="Actions"
-          actions={[
-            ...(isSpotifyId(artistId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${artistId}`, '_blank') }] : []),
-            ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.artist?.name ?? 'Artist', publicHref()) }] : []),
-            // una entrada por modal, no por pestaña: el picker ya trae foto/fondo y el
-            // de merges la pestaña de relaciones (ver ModalTabs)
-            { label: 'Picture & background', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
-            { label: 'Relations', icon: IconLink, onClick: () => { showArtistMergeModal = true; } },
-            { label: 'Compare with…', icon: IconSwap, onClick: () => artistCompare.open({ id: d.artist.id, name: d.artist.name }) },
-            { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
-            { label: 'Collections', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
-          ]}
-        />
+        <div class="hero-actions-end">
+          <Accolades
+            entityType="artist"
+            entityId={artistId}
+            showRecords={!mergedInto}
+            concerts={(d.concerts ?? []).map(c => ({
+              id: c.id, artistId: c.artistId, artistName: c.artistName, date: c.date, venue: c.venue, city: c.city,
+            }))}
+          />
+          <EntityActionsMenu
+            title="Actions"
+            actions={[
+              ...(isSpotifyId(artistId) ? [{ label: 'View in Spotify', icon: IconExternalLink, onClick: () => window.open(`https://open.spotify.com/artist/${artistId}`, '_blank') }] : []),
+              ...(canShare() ? [{ label: 'Share', icon: IconShare, onClick: () => shareEntity(data?.artist?.name ?? 'Artist', publicHref()) }] : []),
+              // una entrada por modal, no por pestaña: el picker ya trae foto/fondo y el
+              // de merges la pestaña de relaciones (ver ModalTabs)
+              { label: 'Picture & background', icon: IconImage, onClick: () => { pickerMode = 'image'; showImagePicker = true; } },
+              { label: 'Relations', icon: IconLink, onClick: () => { showArtistMergeModal = true; } },
+              { label: 'Compare with…', icon: IconSwap, onClick: () => artistCompare.open({ id: d.artist.id, name: d.artist.name }) },
+              { label: 'Log concert', icon: IconTicket, onClick: () => openConcertModal(null) },
+              { label: 'Collections', icon: IconAlbum, onClick: () => { showCollectionModal = true; } },
+            ]}
+          />
+        </div>
       </div>
     </div>
   {/snippet}

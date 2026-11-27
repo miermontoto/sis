@@ -118,15 +118,11 @@
     z-index: 50;
   }
 
-  /* en el hero móvil las acciones van a la izquierda (app.css): alineado a la derecha del
-     botón, el menú salía de la pantalla. ahí se ancla a la fila de acciones */
+  /* en el hero móvil el ⋯ va al borde derecho de la fila de acciones (app.css) y el menú
+     se ancla a esa fila, como el panel de accolades: los dos abren en el mismo sitio */
   @media (max-width: 768px) {
     :global(.hero-actions) .actions-root {
       position: static;
-    }
-    :global(.hero-actions) .actions-menu {
-      left: 0;
-      right: auto;
     }
   }
 

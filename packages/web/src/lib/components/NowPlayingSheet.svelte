@@ -161,7 +161,9 @@
         {/snippet}
       </PlaylistPopover>
     {/if}
-    <EntityActionsMenu title="Actions" actions={menuActions} />
+    <div class="hero-actions-end">
+      <EntityActionsMenu title="Actions" actions={menuActions} />
+    </div>
   </div>
 </section>
 
